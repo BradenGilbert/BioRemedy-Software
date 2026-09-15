@@ -68,7 +68,7 @@ Make the application have a single, shared source of truth before building anyth
 
 | Phase | Name | Status |
 |---|---|---|
-| 00 | [Ground Rules & Safety Net](phase-00-ground-rules.md) | Partly done — `CLAUDE.md` + these docs ✅; **git and backups still missing** |
+| 00 | [Ground Rules & Safety Net](phase-00-ground-rules.md) | ✅ Done 2026-09-15 — git, `.gitignore`, backups + tested restore, `CLAUDE.md`. Only the first `git push` is outstanding. |
 | 01 | [One Shared Data Layer](phase-01-shared-data-layer.md) | Not started |
 
 ### Stage B — Make the CRM Correct

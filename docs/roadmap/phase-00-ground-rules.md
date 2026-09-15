@@ -1,6 +1,6 @@
 # Phase 00 — Ground Rules & Safety Net
 
-**Status:** Not started
+**Status:** ✅ Done 2026-09-15 — except the first `git push`, which needs GitHub auth from VS Code
 **Depends on:** Nothing
 **Estimated sessions:** 1 (short)
 **Unblocks:** Everything. Do this first.
@@ -73,11 +73,20 @@ None.
 
 ## Verification / done criteria
 
-- [ ] `git log` shows an initial commit
-- [ ] `git status` is clean, and no `.log` files or `node_modules` are tracked
-- [ ] A backup copy of `data/backend.json` exists somewhere other than `data/`
-- [x] `CLAUDE.md` exists at the project root and points at the roadmap *(done 2026-09-15)*
-- [ ] Restoring `data/backend.json` from a backup has been tested **once**, not just assumed
+- [x] `git log` shows an initial commit — `e8ae1be`, 120 files, on `main`
+- [x] `git status` is clean, and no `.log` files or `node_modules` are tracked
+- [x] A backup copy of `data/backend.json` exists somewhere other than `data/` — `data/backups/`, rolling 10, via `npm run backup`
+- [x] `CLAUDE.md` exists at the project root and points at the roadmap
+- [x] Restoring `data/backend.json` from a backup has been tested **once**, not just assumed — md5 identical before/after, file parses, 34 dispatch jobs and 9 employees intact
+- [ ] First `git push` to `origin` — **still outstanding**, needs GitHub auth (see below)
+
+## Implementation notes (2026-09-15)
+
+- Remote added: `https://github.com/BradenGilbert/BioRemedy-Software.git`. Default branch renamed `master` → `main` to match GitHub.
+- Commit identity is set **per-repo**, not globally: `CyberRuffus <BradenGilbert@users.noreply.github.com>`.
+- **The push will hit an unrelated-histories error.** The GitHub repo already contains a one-time snapshot uploaded outside git, so it has its own root commit. Simplest fix is to force-push over it — that snapshot has no history worth preserving.
+- Three things staging caught that would otherwise have gone public: `.claude/scheduled_tasks.lock` (PID + session ID), `.claude/settings.local.json`, and a stray byte-identical duplicate of `crm-schema/001_accounts.sql` sitting in `.claude/`. All now ignored via `.claude/*` + `!.claude/launch.json`. **The stray SQL duplicate is still on disk and is dead weight — consider deleting it.**
+- `data/uploads/` is excluded. It holds three real documents uploaded through the job-request flow in July (two PDFs, one .docx). If the repo stays public, confirm none of them is a real customer document — they were public in the uploaded snapshot.
 
 ---
 
