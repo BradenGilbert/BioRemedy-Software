@@ -1622,10 +1622,9 @@ function openDatabase() {
     request.onupgradeneeded = () => {
       const db = request.result;
       for (const store of [
-        // "accounts" moved to the shared JSON backend (roadmap Phase 01, 2026-09-15) — it was
-        // browser-local, so every user had a private customer list while dispatch jobs and
-        // opportunities that referenced it were shared. See docs/roadmap/phase-01-shared-data-layer.md
-        "contacts",
+        // "accounts" and "contacts" moved to the shared JSON backend (roadmap Phase 01, 2026-09-15) —
+        // they were browser-local, so every user had a private customer list while dispatch jobs and
+        // opportunities that referenced them were shared. See docs/roadmap/phase-01-shared-data-layer.md
         "projects",
         "jobs",
         "projectAssignments",
@@ -1737,9 +1736,9 @@ async function ensureSeedData() {
   // store. Accounts now live in the shared backend and are seeded there already in core-schema
   // shape, so the local pass has nothing to operate on. Retired in roadmap Phase 01.
 
-  if (seedSchemaVersion < 7) {
-    await migrateContactsToCoreSchema();
-  }
+  // seedSchemaVersion < 7 previously ran migrateContactsToCoreSchema() against the local contacts
+  // store. Contacts now live in the shared backend, seeded there already in core-schema shape.
+  // Retired in roadmap Phase 01.
 
   if (seedSchemaVersion < 8) {
     await migrateActivitiesToCoreSchema();
@@ -1757,7 +1756,7 @@ async function ensureSeedData() {
   // missing seed accounts into the local store. ensureBackendSeedData() covers this server-side now.
   // Retired in roadmap Phase 01.
 
-  await seedStoreIfEmpty("contacts", seedContacts);
+  // contacts are seeded into the shared backend — see ensureBackendSeedData()
   await seedStoreIfEmpty("projects", seedProjects);
   await seedStoreIfEmpty("jobs", seedJobs);
   await seedStoreIfEmpty("projectAssignments", seedProjectAssignments);
@@ -1782,20 +1781,24 @@ async function seedStoreIfEmpty(storeName, records) {
 // Idempotent: the POST route upserts by id, so two clients racing write identical records.
 async function ensureBackendSeedData() {
   try {
-    const accounts = await apiRequest("/api/backend/accounts");
-    if (accounts.length) return;
-    for (const account of seedAccounts) {
-      await saveBackendRecord("accounts", buildCoreAccountRecord(account), { refresh: false });
+    const [accounts, contacts] = await Promise.all([
+      apiRequest("/api/backend/accounts"),
+      apiRequest("/api/backend/contacts"),
+    ]);
+    if (!accounts.length) {
+      for (const account of seedAccounts) {
+        await saveBackendRecord("accounts", buildCoreAccountRecord(account), { refresh: false });
+      }
+    }
+    if (!contacts.length) {
+      for (const contact of seedContacts) {
+        await saveBackendRecord("contacts", buildCoreContactRecord(contact), { refresh: false });
+      }
     }
   } catch (error) {
     // Backend unreachable (offline, or the role can't read the customer directory). refreshBackendState()
     // already surfaces that to the user; seeding simply waits for the next load.
   }
-}
-
-async function migrateContactsToCoreSchema() {
-  const contacts = await getAll("contacts");
-  await Promise.all(contacts.map((contact) => putRecord("contacts", buildCoreContactRecord(contact))));
 }
 
 async function migrateActivitiesToCoreSchema() {
@@ -1867,7 +1870,6 @@ async function migrateProjectRenderSampleData() {
 
 async function refreshState() {
   const [
-    contacts,
     projects,
     jobs,
     projectAssignments,
@@ -1881,7 +1883,6 @@ async function refreshState() {
     syncQueue,
   ] =
     await Promise.all([
-    getAll("contacts"),
     getAll("projects"),
     getAll("jobs"),
     getAll("projectAssignments"),
@@ -1895,8 +1896,8 @@ async function refreshState() {
     getAll("syncQueue"),
   ]);
 
-  // state.accounts is projected from the shared backend in refreshBackendState(), not loaded here.
-  state.contacts = contacts.sort((a, b) => a.name.localeCompare(b.name));
+  // state.accounts and state.contacts are projected from the shared backend in
+  // refreshBackendState(), not loaded here.
   state.projects = projects.sort((a, b) => parseDate(b.completedDate) - parseDate(a.completedDate));
   state.jobs = jobs.sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
   state.projectAssignments = projectAssignments.sort((a, b) => a.assignedRole.localeCompare(b.assignedRole));
@@ -1935,6 +1936,9 @@ async function refreshBackendState() {
     state.locations = (state.backend.locations || []).slice().sort((a, b) => a.name.localeCompare(b.name));
     state.accounts = (state.backend.accounts || [])
       .filter((account) => !account.deletedAt)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    state.contacts = (state.backend.contacts || [])
+      .filter((contact) => !contact.deletedAt)
       .sort((a, b) => a.name.localeCompare(b.name));
     state.authError = state.authError === "Backend API unavailable." ? "" : state.authError;
   } catch (error) {
@@ -12461,7 +12465,7 @@ async function saveContact(form) {
     owner: existing?.owner || state.currentUser?.name || "Unassigned",
   });
 
-  await putRecord("contacts", contact);
+  await saveBackendRecord("contacts", contact, { refresh: false });
   await queueChange("Contact", existing ? "updated" : "created", contact);
   closeDialogs();
   await refreshState();
@@ -12475,7 +12479,7 @@ async function saveContactPatch(contactId, patch, toastMessage) {
   const existing = findContact(contactId);
   if (!existing) return;
   const contact = buildCoreContactRecord({ ...existing, ...patch });
-  await putRecord("contacts", contact);
+  await saveBackendRecord("contacts", contact, { refresh: false });
   await queueChange("Contact", "updated", contact);
   closeDialogs();
   await refreshState();
@@ -13842,10 +13846,12 @@ async function saveActivityTask(form) {
 async function linkContactToOpportunity(contactId, opportunityId) {
   const contact = findContact(contactId);
   if (!contact || contact.opportunityIds?.includes(opportunityId)) return;
-  await putRecord("contacts", {
-    ...contact,
-    opportunityIds: [...(contact.opportunityIds || []), opportunityId],
-  });
+  // Every caller refreshes afterwards, so skip the per-write backend refetch.
+  await saveBackendRecord(
+    "contacts",
+    { ...contact, opportunityIds: [...(contact.opportunityIds || []), opportunityId] },
+    { refresh: false },
+  );
 }
 
 async function saveIdentityConfig(form) {
@@ -15969,7 +15975,7 @@ async function quickSetContactDivision(contactId, divisionId) {
   const contact = findContact(contactId);
   if (!contact) return;
   try {
-    await putRecord("contacts", { ...contact, divisionId });
+    await saveBackendRecord("contacts", { ...contact, divisionId }, { refresh: false });
     await refreshState();
     render();
     showToast(divisionId ? "Contact assigned to division." : "Contact unassigned.");

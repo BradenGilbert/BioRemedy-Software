@@ -1,6 +1,6 @@
 # Phase 01 — One Shared Data Layer
 
-**Status:** 🔄 In progress — `accounts` migrated and verified 2026-09-15. 10 collections remain.
+**Status:** 🔄 In progress — `accounts` and `contacts` migrated and verified 2026-09-15. 9 collections remain.
 **Depends on:** Phase 00 (git + backups must exist before this phase mutates persistence) ✅
 **Estimated sessions:** 2–3
 **Unblocks:** Every phase after this one. Nothing in Stage B is trustworthy while core records are per-browser.
@@ -32,7 +32,7 @@ When the team tests through the Cloudflare tunnel, each person gets **their own 
 | IndexedDB store | Target collection | Notes |
 |---|---|---|
 | ~~`accounts`~~ | `accounts` | ✅ **Done 2026-09-15.** See implementation notes at the bottom. |
-| `contacts` | `contacts` | |
+| ~~`contacts`~~ | `contacts` | ✅ **Done 2026-09-15.** 4 real writes. Contact→account FK verified resolving across the shared layer. |
 | `jobs` | **`projects`** | ⚠️ Renamed. See "The projects/jobs collision" below. |
 | `projectAssignments` | `projectAssignments` | The Project Assignment junction the original design asked for. |
 | `tasks` | `tasks` | |
@@ -161,7 +161,7 @@ The real test is **two browsers**, not one:
 
 ## Open decisions
 
-- **Does anyone have real data in their browser today?** If yes, export before migrating.
+- ~~**Does anyone have real data in their browser today?**~~ **Decided 2026-09-15: no recovery pass.** Records already sitting in a user's local `accounts`/`contacts` stores are no longer read — they are not deleted (the stores still exist in existing browsers, since the DB version did not change), just orphaned. The owner accepted this rather than adding a one-time upload-on-load migration. If it turns out someone lost test data, `getAll("accounts")` still works in their browser and the records can be pushed up manually.
 - **Server-side seeding:** should the JSON backend ship with seed records, or start empty for the pilot? Leaning toward keeping seeds for now and adding a "reset to demo data" action.
 
 ---

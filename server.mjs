@@ -123,6 +123,7 @@ const collectionAccess = {
   connections: "salesDocuments",
   activityParties: "salesDocuments",
   accounts: "customerDirectory",
+  contacts: "customerDirectory",
   accountTypes: "sales",
   industries: "sales",
   accountIndustries: "sales",
@@ -140,9 +141,10 @@ const collectionAccess = {
 };
 
 const defaultBackend = {
-  // Seeded by the client on first load from `seedAccounts` in app.js, so the demo data keeps one
-  // definition and one shape-builder (`buildCoreAccountRecord`) rather than drifting in two places.
+  // Seeded by the client on first load from the `seed*` arrays in app.js, so the demo data keeps one
+  // definition and one shape-builder (`buildCore*Record`) rather than drifting in two places.
   accounts: [],
+  contacts: [],
   scheduleEvents: [
     {
       id: "sched-riverbend-mobilize",
@@ -2001,6 +2003,7 @@ function makeId(prefix) {
 function filterBackendForRole(data, role) {
   return {
     accounts: canAccess(role, "customerDirectory") ? data.accounts : [],
+    contacts: canAccess(role, "customerDirectory") ? data.contacts : [],
     scheduleEvents: canAccess(role, "operations") ? data.scheduleEvents : [],
     mapLocations: canAccess(role, "operations") ? data.mapLocations : [],
     inventoryItems: canAccess(role, "inventory") || canAccess(role, "dispatch") ? data.inventoryItems : [],
