@@ -1,6 +1,6 @@
 # Phase 00 — Ground Rules & Safety Net
 
-**Status:** ✅ Done 2026-09-15 — except the first `git push`, which needs GitHub auth from VS Code
+**Status:** ✅ Complete 2026-09-15
 **Depends on:** Nothing
 **Estimated sessions:** 1 (short)
 **Unblocks:** Everything. Do this first.
@@ -78,7 +78,7 @@ None.
 - [x] A backup copy of `data/backend.json` exists somewhere other than `data/` — `data/backups/`, rolling 10, via `npm run backup`
 - [x] `CLAUDE.md` exists at the project root and points at the roadmap
 - [x] Restoring `data/backend.json` from a backup has been tested **once**, not just assumed — md5 identical before/after, file parses, 34 dispatch jobs and 9 employees intact
-- [ ] First `git push` to `origin` — **still outstanding**, needs GitHub auth (see below)
+- [x] First `git push` to `origin` — done 2026-09-15, force-pushed over the snapshot; local and remote both at `2b572e2`
 
 ## Implementation notes (2026-09-15)
 
