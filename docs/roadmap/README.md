@@ -69,7 +69,7 @@ Make the application have a single, shared source of truth before building anyth
 | Phase | Name | Status |
 |---|---|---|
 | 00 | [Ground Rules & Safety Net](phase-00-ground-rules.md) | ✅ **Complete 2026-09-15** — git + GitHub, backups with tested restore, `CLAUDE.md` |
-| 01 | [One Shared Data Layer](phase-01-shared-data-layer.md) | Not started |
+| 01 | [One Shared Data Layer](phase-01-shared-data-layer.md) | ⏸️ **Paused 2026-09-15** — `accounts` + `contacts` migrated and verified; 9 remain. Resume needs a decision on the `jobs`→`projects` rename (see the phase doc). |
 
 ### Stage B — Make the CRM Correct
 The felt pain. Almost every item on the 2026-09-15 feedback list lives here. These are data-model problems wearing UI clothes, which is why they read as "doesn't make sense" rather than as bugs.

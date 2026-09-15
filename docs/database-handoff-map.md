@@ -1,6 +1,8 @@
 # BioRemedy Platform Database Handoff Map
 
-**Status date:** August 1, 2026 (Front Line row updated August 16, 2026; `locations` collection move updated August 17, 2026)
+**Status date:** August 1, 2026 (Front Line row updated August 16, 2026; `locations`
+collection move updated August 17, 2026; `accounts`/`contacts` move and collection
+counts updated September 15, 2026)
 
 ## Executive Summary
 
@@ -11,8 +13,8 @@ yet have a deployed production relational database.
 |---|---|
 | PostgreSQL design | 28 ordered SQL files defining **141 tables** and **27 views** |
 | Laravel conversion | Only the first **12 tables** have Laravel migrations, models, and basic Filament resources |
-| Running prototype server | Node server using `data/backend.json` with **72 collections** |
-| Browser CRM storage | IndexedDB with **15 object stores**, including settings and an offline sync queue |
+| Running prototype server | Node server using `data/backend.json` with **76 collections** |
+| Browser CRM storage | IndexedDB with **12 object stores**, including settings and an offline sync queue |
 | Uploaded files | Local filesystem under `data/uploads`; metadata is in the JSON backend |
 | Front Line | Database and sync schema defined; no standalone iOS/Android app built. A rough in-browser phone-frame simulator now exists inside the CRM web app (`app.js`, `renderFrontline*` functions, reachable from the CRM home screen) — fake login (field-lead picker, no real auth), a 3x3 tile launcher, and a real Job Book/Work Plan flow that reads and writes the existing `dispatchJobs`/`jobSteps`/`jobActions`/`jobFormSubmissions` collections through the same `/api/backend` endpoints the desktop Dispatch Job Detail page uses. It validates the data model and UX end-to-end but is not the real mobile app. |
 
@@ -220,12 +222,24 @@ The schema also defines these read models:
 
 These are working prototype collections, not production SQL tables.
 
-### Browser IndexedDB - 15 stores
+### Browser IndexedDB - 12 stores
 
-`accounts`, `contacts`, `projects`, `jobs`,
-`projectAssignments`, `materialUsage`, `equipmentLogs`, `projectAlerts`,
-`spatialData`, `scheduledWork`, `tasks`,
-`activities`, `syncQueue`, `settings`
+`projects`, `jobs`, `projectAssignments`, `materialUsage`, `equipmentLogs`,
+`projectAlerts`, `spatialData`, `scheduledWork`, `tasks`, `activities`,
+`syncQueue`, `settings`
+
+`accounts` and `contacts` moved to the JSON backend on **September 15, 2026**
+(roadmap Phase 01) -- they were the last core CRM entities still held
+browser-locally, which meant every user had a private customer list while the
+opportunities and dispatch jobs referencing them were shared. Nine more stores
+are scheduled to follow; see `docs/roadmap/phase-01-shared-data-layer.md`.
+
+The store declarations were removed from `openDatabase()`, but existing
+browsers still physically contain the old `accounts`/`contacts` stores and
+their rows -- the database version did not change, so `onupgradeneeded` never
+re-runs. Those rows are orphaned rather than deleted, and are no longer read.
+No recovery pass was added; that was a deliberate decision, recorded in the
+phase document.
 
 `sampleRecords` was moved out of IndexedDB into the JSON backend on
 August 16, 2026 so field-collected samples are visible to the office rather
@@ -247,11 +261,18 @@ reading `laborResources.certifications` -- it now reads `employees.skills`,
 so the check still fires instead of silently no-op'ing once the collection
 was emptied.
 
-### Node JSON Backend - 72 collections
+### Node JSON Backend - 76 collections
 
-- CRM: `locations` (Account Facilities & Locations -- moved from IndexedDB
-  August 17, 2026; distinct from the `mapLocations` operations collection
-  below), `opportunityAssignments` (planning/sales team assignments on an
+> The count was previously documented as 72. Recounted from `data/backend.json`
+> on September 15, 2026: it was already 74 before this session (the earlier
+> figure appears to have missed a few), plus `accounts` and `contacts` added by
+> the Phase 01 migration.
+
+- CRM: `accounts` and `contacts` (moved from IndexedDB September 15, 2026 --
+  roadmap Phase 01; gated by the new `customerDirectory` role group, which spans
+  every internal role but excludes Client Portal), `locations` (Account
+  Facilities & Locations -- moved from IndexedDB August 17, 2026; distinct from
+  the `mapLocations` operations collection below), `opportunityAssignments` (planning/sales team assignments on an
   opportunity, gained `employeeId`/`contactId`/`vendorAccountId`/
   `vendorContactId` fields August 17, 2026)
 - Operations/inventory: `scheduleEvents`, `mapLocations`, `inventoryItems`,

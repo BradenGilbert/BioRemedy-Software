@@ -1,6 +1,7 @@
 # Phase 01 — One Shared Data Layer
 
-**Status:** 🔄 In progress — `accounts` and `contacts` migrated and verified 2026-09-15. 9 collections remain.
+**Status:** ⏸️ **Paused 2026-09-15** — `accounts` and `contacts` migrated and verified. 9 collections remain.
+**Resume at:** the `jobs` → `projects` step, which needs a decision first — see the ⚠️ PAUSED HERE note below.
 **Depends on:** Phase 00 (git + backups must exist before this phase mutates persistence) ✅
 **Estimated sessions:** 2–3
 **Unblocks:** Every phase after this one. Nothing in Stage B is trustworthy while core records are per-browser.
@@ -83,7 +84,31 @@ This needs a decision applied consistently, because it is the messiest part of t
 
 So the Account page's "Previous Projects" panel renders three hardcoded demo rows and **can never grow** — when a real job finishes, nothing moves it there. The two stores are the same entity split by lifecycle, with the history half being a dead end.
 
-**Resolution:**
+> ### ⚠️ PAUSED HERE — 2026-09-15. Read this before resuming.
+>
+> Measuring the rename before doing it showed the original plan bundles two changes with very
+> different risk profiles:
+>
+> | Change | Size |
+> |---|---|
+> | Store/state rename (`jobs` → `projects`, `state.jobs` → `state.projects`) | 5 writes, 2 reads, 23 `state.jobs` refs — manageable |
+> | Field rename (`jobId` → `projectId` on referencing records) | **166 `jobId` references**, and they are stored data in `backend.json`, not just code |
+>
+> **`jobId` is overloaded**: on `dispatchJobs` and `scheduleEvents` it points at a *project*, but
+> elsewhere it points at a *dispatch job*. A mechanical find-replace would silently corrupt
+> relationships. Renaming the store without the fields leaves `projects` records referenced by a
+> field called `jobId` — the half-rename this document already warns is worse than either state.
+>
+> **Recommendation (awaiting the owner's decision):** split them.
+> 1. Migrate `jobs` to the shared backend **keeping the name** — achieves Phase 01's actual goal
+>    (sharing) at the same low risk as `accounts` and `contacts`.
+> 2. Do the rename as its own focused change, deciding the store-vs-field question explicitly and
+>    writing a data migration if fields are renamed too.
+>
+> The sharing fix is what unblocks everything downstream. The rename is a clarity improvement that
+> deserves its own blast radius.
+
+**Resolution (original plan — see the pause note above before following this):**
 
 1. `jobs` → renamed to `projects`, matching SQL `projects` (`crm-schema/006_projects.sql`) and the glossary.
 2. The old `projects` store is deleted. Its three seed rows are either discarded or converted into completed `projects` records with a real status.
