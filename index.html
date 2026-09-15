@@ -1,0 +1,3813 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f5f9a" />
+    <title>BioRemedy Operations Platform</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./public/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./public/vendor/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="topbar-nav-group">
+          <button class="icon-button nav-back-button" type="button" data-action="nav-back" aria-label="Go back" title="Back">
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+          <button class="brand-lockup brand-home-button" type="button" data-action="go-home" aria-label="Go to home">
+            <div class="brand-mark brand-logo-mark" aria-hidden="true">
+              <img class="logo-primary" src="./public/brand/bioremedy-logo-primary.png" alt="" />
+              <img class="logo-reversed" src="./public/brand/bioremedy-logo-primary-reversed.png" alt="" />
+            </div>
+            <div>
+              <p class="eyebrow">BioRemedy Platform</p>
+              <h1>Operations Platform</h1>
+            </div>
+          </button>
+        </div>
+        <div class="topbar-actions">
+          <span id="connectionStatus" class="status-pill" aria-live="polite"></span>
+          <div id="quickActions" class="quick-actions" aria-label="Quick actions"></div>
+          <button class="icon-button settings-button" type="button" data-action="open-settings" aria-label="Open settings" title="Settings">
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 0 1-4 0V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 0 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8a2 2 0 0 1 0-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 0 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2a2 2 0 0 1 4 0V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 0 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2a2 2 0 0 1 0 4H21a1.7 1.7 0 0 0-1.6 1Z" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar" aria-label="CRM sections">
+        <nav id="sideNav" class="side-nav"></nav>
+        <div class="sidebar-summary">
+          <p class="eyebrow">Role</p>
+          <strong id="roleSummary">Loading user...</strong>
+        </div>
+        <div class="sidebar-summary">
+          <p class="eyebrow">Today</p>
+          <strong id="todaySummary">Loading CRM...</strong>
+        </div>
+      </aside>
+
+      <main id="app" class="main-content" tabindex="-1"></main>
+    </div>
+
+    <dialog id="settingsDialog" class="modal">
+      <form method="dialog" class="modal-panel settings-panel" data-form="settings">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Platform settings</p>
+            <h2>Settings</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+
+        <div class="settings-grid">
+          <fieldset class="settings-section">
+            <legend>GPS and Tracking</legend>
+            <label>
+              Live tracking mode
+              <select name="gpsMode">
+                <option value="manual">Manual check-ins</option>
+                <option value="supervisor-review">Supervisor review</option>
+                <option value="live">Live asset tracking</option>
+              </select>
+            </label>
+            <div class="form-grid">
+              <label>
+                Refresh rate
+                <select name="gpsRefresh">
+                  <option value="30">30 seconds</option>
+                  <option value="60">1 minute</option>
+                  <option value="300">5 minutes</option>
+                </select>
+              </label>
+              <label>
+                Accuracy
+                <select name="gpsAccuracy">
+                  <option value="standard">Standard</option>
+                  <option value="high">High accuracy</option>
+                </select>
+              </label>
+            </div>
+            <label class="check-row">
+              <input type="checkbox" name="geofenceAlerts" />
+              <span>Alert scheduler when tracked equipment leaves a job boundary</span>
+            </label>
+          </fieldset>
+
+          <fieldset class="settings-section">
+            <legend>Roles and Permissions</legend>
+            <label>
+              Active role
+              <select name="roleProfile">
+                <option value="office">Office Manager</option>
+                <option value="sales">Sales Manager</option>
+                <option value="operations">Operations Manager</option>
+                <option value="inventory">Inventory Manager</option>
+                <option value="finance">Finance Manager</option>
+                <option value="client">Client Portal</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <div class="settings-status-list">
+              <div>
+                <strong>Permission enforcement</strong>
+                <span>Server and app guardrails active</span>
+              </div>
+              <div>
+                <strong>Hidden apps</strong>
+                <span>Apps outside the active role stay blocked</span>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="settings-section">
+            <legend>Appearance</legend>
+            <label>
+              Color mode
+              <select name="theme">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">Use device setting</option>
+              </select>
+            </label>
+            <label>
+              Layout density
+              <select name="density">
+                <option value="comfortable">Comfortable</option>
+                <option value="compact">Compact</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset class="settings-section">
+            <legend>System Defaults</legend>
+            <label>
+              Scheduler block mode
+              <select name="schedulerBlockMode">
+                <option value="hard-block">Hard-block broken equipment</option>
+              </select>
+            </label>
+            <label>
+              QuickBooks mode
+              <select name="qboMode">
+                <option value="export-queue">Export queue review</option>
+                <option value="online-integration">QuickBooks Online integration</option>
+              </select>
+            </label>
+            <label>
+              Inventory alert routing
+              <select name="inventoryAlertMode">
+                <option value="operations-buyers">Operations buyers</option>
+                <option value="office-manager">Office manager and buyers</option>
+              </select>
+            </label>
+          </fieldset>
+        </div>
+
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save settings</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Opportunity</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Account
+          <select name="accountId" required></select>
+        </label>
+        <label>
+          Opportunity name
+          <input name="name" required maxlength="80" placeholder="UST removal and soil remediation" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Value
+            <input name="value" required type="number" min="0" step="1000" value="85000" />
+          </label>
+          <label>
+            Close date
+            <input name="closeDate" required type="date" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Cleanup type
+            <select name="serviceType">
+              <option>Soil remediation</option>
+              <option>Groundwater treatment</option>
+              <option>UST removal</option>
+              <option>Asbestos abatement</option>
+              <option>Emergency response</option>
+            </select>
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option value="Open">Open</option>
+              <option value="Lost">Lost</option>
+            </select>
+          </label>
+        </div>
+        <label class="opportunity-starting-stage">
+          Starting stage
+          <select name="startingStage">
+            <option value="Lead">Lead</option>
+            <option value="Qualify">Qualify</option>
+            <option value="Develop">Develop</option>
+            <option value="Proposal">Proposal</option>
+            <option value="Negotiation">Negotiation</option>
+          </select>
+          <small>Only change this if the deal has already reached this point in real life — you'll need to backfill that stage's required information afterward.</small>
+        </label>
+        <label>
+          Next step
+          <input name="nextStep" required maxlength="100" placeholder="Send revised scope after sampling report" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save opportunity</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityLeadDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-lead">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Lead details</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Contact
+          <select name="contactId"></select>
+        </label>
+        <label>
+          Facility
+          <select name="locationId"></select>
+        </label>
+        <label>
+          Industry
+          <input name="industry" maxlength="60" placeholder="Manufacturing" />
+        </label>
+        <label>
+          Contamination
+          <textarea name="contaminationNotes" rows="2" placeholder="Diesel and used oil staining near the loading dock"></textarea>
+        </label>
+        <div class="form-grid">
+          <label>
+            Originating lead
+            <input name="originatingLeadId" maxlength="80" placeholder="Referral from Alicia Moreno" />
+          </label>
+          <label>
+            Source campaign
+            <input name="sourceCampaign" maxlength="80" placeholder="Spring compliance mailer" />
+          </label>
+        </div>
+        <label>
+          Description
+          <textarea name="description" rows="3" placeholder="What is this opportunity, in a sentence or two?"></textarea>
+        </label>
+        <label>
+          Current situation
+          <textarea name="currentSituation" rows="3" placeholder="What's driving the customer to act now?"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save lead details</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityQualifyDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-qualify">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Qualification</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Purchase time frame
+            <select name="purchaseTimeframe">
+              <option value="">Not set</option>
+              <option>Immediate</option>
+              <option>This quarter</option>
+              <option>Next quarter</option>
+              <option>This year</option>
+              <option>Unknown</option>
+            </select>
+          </label>
+          <label>
+            Estimated budget
+            <input name="budgetAmount" type="number" min="0" step="1000" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Purchase process
+            <select name="purchaseProcess">
+              <option value="">Not set</option>
+              <option>Individual</option>
+              <option>Committee</option>
+              <option>Unknown</option>
+            </select>
+          </label>
+          <label>
+            Decision maker found
+            <select name="decisionMakerFound">
+              <option>Not complete</option>
+              <option>Complete</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Capture summary
+          <textarea name="captureSummary" rows="3" placeholder="Summarize what you learned during qualification"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save qualification</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityDevelopDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-develop">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Develop</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Customer need
+          <textarea name="customerNeed" rows="3" placeholder="What does the customer need solved?"></textarea>
+        </label>
+        <label>
+          Proposed solution
+          <textarea name="proposedSolution" rows="3" placeholder="How are we proposing to solve it?"></textarea>
+        </label>
+        <label>
+          Site walk
+          <select name="siteWalkStatus">
+            <option>Incomplete</option>
+            <option>Complete</option>
+            <option>Not needed</option>
+          </select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save develop details</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityStakeholderDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-stakeholder">
+        <input name="id" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Stakeholder</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Contact
+          <select name="contactId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Relationship role
+            <input name="relationshipRole" maxlength="60" placeholder="Economic buyer" />
+          </label>
+          <label>
+            Influence level
+            <select name="influenceLevel">
+              <option value="">Not set</option>
+              <option>Decision maker</option>
+              <option>Evaluator</option>
+              <option>Influencer</option>
+              <option>Gatekeeper</option>
+              <option>User</option>
+            </select>
+          </label>
+        </div>
+        <label class="checkbox-label">
+          <input name="isPrimary" type="checkbox" />
+          Primary stakeholder
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save stakeholder</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityCompetitorDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-competitor">
+        <input name="id" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Competitor</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Existing competitor
+          <select name="competitorId"></select>
+        </label>
+        <label>
+          Or add a new competitor
+          <input name="newCompetitorName" maxlength="80" placeholder="New competitor name" />
+        </label>
+        <label>
+          Note
+          <input name="name" maxlength="120" placeholder="What's the comparison about?" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save competitor</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityAssignmentDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-assignment">
+        <input name="id" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2 data-role="assignment-title">Team member</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Purpose
+            <select name="purpose">
+              <option>Sales</option>
+              <option>Planning</option>
+            </select>
+          </label>
+          <label>
+            Type
+            <select name="type">
+              <option>Internal</option>
+              <option>External</option>
+              <option>Vendor</option>
+            </select>
+          </label>
+        </div>
+        <label id="opportunityAssignmentInternalField">
+          Name
+          <select name="employeeId"></select>
+        </label>
+        <label id="opportunityAssignmentExternalField" hidden>
+          Name
+          <select name="contactId"></select>
+        </label>
+        <div class="form-grid" id="opportunityAssignmentVendorFields" hidden>
+          <label>
+            Vendor
+            <select name="vendorAccountId"></select>
+          </label>
+          <label>
+            Contact
+            <select name="vendorContactId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Role
+            <input name="assignedRole" maxlength="60" placeholder="Estimator" />
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option>Invited</option>
+              <option>Confirmed</option>
+              <option>Declined</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Notes
+          <textarea name="notes" rows="2"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save team member</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityNeedsListDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-needs-list">
+        <input name="id" type="hidden" />
+        <input name="kind" type="hidden" />
+        <div class="modal-header">
+          <h2 data-role="needs-list-title">Needs</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          One per line, as <code>Name | Note</code> (note is optional)
+          <textarea name="items" rows="5" placeholder="Vacuum trailer | Needed for tank pull&#10;Roll-off container | 20 yard, staged onsite"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save list</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityProposalDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-proposal">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Proposal status</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Develop proposal
+          <select name="proposalDevelopedStatus">
+            <option>Incomplete</option>
+            <option>Complete</option>
+          </select>
+        </label>
+        <label>
+          Complete internal review
+          <select name="internalReviewStatus">
+            <option>Incomplete</option>
+            <option>Complete</option>
+          </select>
+        </label>
+        <label>
+          Present proposal
+          <select name="proposalPresentedStatus">
+            <option>Incomplete</option>
+            <option>Complete</option>
+          </select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save proposal status</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityNegotiationDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-negotiation">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Negotiation sign-off</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          New account paperwork
+          <select name="accountPaperworkStatus">
+            <option>Not started</option>
+            <option>Sent</option>
+            <option>Signed</option>
+          </select>
+        </label>
+        <label>
+          Quote
+          <select name="quoteSignedStatus">
+            <option>Not started</option>
+            <option>Sent</option>
+            <option>Signed</option>
+          </select>
+        </label>
+        <label>
+          Work authorization
+          <select name="workAuthorizationStatus">
+            <option>Not started</option>
+            <option>Sent</option>
+            <option>Signed</option>
+          </select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save sign-off status</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityQuoteDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-quote">
+        <input name="id" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Quote</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Quote name
+          <input name="name" required maxlength="100" placeholder="Revised disposal alternate" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Total amount
+            <input name="totalAmount" required type="number" min="0" step="1" />
+          </label>
+          <label>
+            Status
+            <select name="statusCode">
+              <option>Draft</option>
+              <option>In revision</option>
+              <option>Presented</option>
+              <option>Won</option>
+              <option>Lost</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Effective from
+            <input name="effectiveFrom" type="date" />
+          </label>
+          <label>
+            Effective to
+            <input name="effectiveTo" type="date" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save quote</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="projectCreateDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="project-from-opportunity">
+        <input name="opportunityId" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Won Opportunity</p>
+            <h2>Create project</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Project name
+          <input name="name" required maxlength="90" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Project type
+            <select name="jobClass">
+              <option>Emergency Response</option>
+              <option>Scheduled Work</option>
+              <option>Multi-Stage Remediation</option>
+            </select>
+          </label>
+          <label>
+            Project manager
+            <select name="projectManagerEmployeeId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Start date
+            <input name="startDate" type="date" />
+          </label>
+          <label>
+            Target date
+            <input name="targetDate" type="date" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Budget
+            <input name="budget" type="number" min="0" step="1000" />
+          </label>
+          <label>
+            Project stage
+            <select name="projectStage">
+              <option>Intake</option>
+              <option>Plan</option>
+              <option>Mobilize</option>
+              <option>Field Work</option>
+              <option>Closeout</option>
+            </select>
+          </label>
+        </div>
+        <p class="help-text">Once created, open the project to push job requests to dispatch. A project can have multiple dispatch jobs.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Create project</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="projectIntakeDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="project-intake">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Intake</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Generator
+            <input name="generatorName" maxlength="90" />
+          </label>
+          <label>
+            Site
+            <input name="generatorSiteName" maxlength="90" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Generator contact
+            <input name="generatorContactName" maxlength="80" />
+          </label>
+          <label>
+            Contact phone
+            <input name="generatorContactPhone" maxlength="30" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            EPA ID
+            <input name="epaId" maxlength="40" />
+          </label>
+          <label>
+            TCEQ ID
+            <input name="tceqId" maxlength="40" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Insurance contact
+            <input name="insuranceContact" maxlength="80" />
+          </label>
+          <label>
+            Insurance carrier
+            <input name="insuranceCarrier" maxlength="80" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Claim number
+            <input name="claimNumber" maxlength="40" />
+          </label>
+          <label>
+            Services
+            <input name="serviceProfile" maxlength="120" placeholder="Soil remediation - UST removal" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Project type
+            <select name="jobClass">
+              <option>Emergency Response</option>
+              <option>Scheduled Work</option>
+              <option>Multi-Stage Remediation</option>
+            </select>
+          </label>
+          <label>
+            Site walk
+            <select name="siteWalkStatus">
+              <option>Incomplete</option>
+              <option>Complete</option>
+              <option>Not needed</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Site photos, one per line as <code>Caption | note</code> (note is optional)
+          <textarea name="sitePhotos" rows="3" placeholder="Loading dock staining | before mobilization"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save intake details</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="accountDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Account</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Account name
+          <input name="name" required maxlength="80" placeholder="North River Logistics" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Website
+            <input name="website" type="url" maxlength="120" placeholder="https://northriver.com" />
+          </label>
+          <label>
+            Account type
+            <select name="accountType">
+              <option>Customer</option>
+              <option>Prospect</option>
+              <option>Vendor</option>
+              <option>Partner</option>
+              <option>Government</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Phone
+            <input name="phone" maxlength="40" placeholder="(816) 555-0147" />
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" maxlength="100" placeholder="info@northriver.com" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Fax
+            <input name="fax" maxlength="40" placeholder="(816) 555-0148" />
+          </label>
+          <label>
+            Parent account
+            <select name="parentAccountId"></select>
+          </label>
+        </div>
+        <label>
+          Site name
+          <input name="siteName" required maxlength="90" placeholder="Fleet maintenance depot" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Site city
+            <input name="city" required maxlength="60" placeholder="Kansas City, MO" />
+          </label>
+          <label>
+            Account phase
+            <select name="phase">
+              <option>Lead</option>
+              <option>Assessment</option>
+              <option>Sampling</option>
+              <option>Proposal</option>
+              <option>Active</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Risk level
+            <select name="risk">
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </label>
+          <label>
+            Owner
+            <input name="owner" maxlength="80" placeholder="Maya Chen" />
+          </label>
+        </div>
+        <label>
+          Business description
+          <textarea name="businessDescription" rows="2" maxlength="400" placeholder="What this account does, e.g. regional trucking company with a maintenance yard"></textarea>
+        </label>
+        <label>
+          Concerns
+          <input name="concern" maxlength="120" placeholder="Anything worth flagging at a glance, e.g. transports waste oil" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save account</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="accountOwnerDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-owner">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Owner &amp; primary contact</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Owner
+          <select name="ownerEmployeeId"></select>
+        </label>
+        <label>
+          Primary contact
+          <select name="contactId"></select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="accountBillingDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-billing">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Billing</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Currency
+            <select name="currency">
+              <option>USD</option>
+              <option>CAD</option>
+              <option>EUR</option>
+              <option>GBP</option>
+            </select>
+          </label>
+          <label>
+            Billing type
+            <select name="billingType">
+              <option value="">Not set</option>
+              <option>Invoice</option>
+              <option>Credit Card</option>
+              <option>ACH</option>
+              <option>Prepay</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Billing interval
+            <select name="billingInterval">
+              <option value="">Not set</option>
+              <option>Per Project</option>
+              <option>Monthly</option>
+              <option>Net 15</option>
+              <option>Net 30</option>
+              <option>Net 60</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="creditHold" />
+            <span>Credit hold</span>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save billing</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="accountApDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-ap">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>AP / accounting</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            AP portal URL
+            <input name="apPortalUrl" type="url" maxlength="160" placeholder="https://vendors.customer.com" />
+          </label>
+          <label>
+            AP email
+            <input name="apEmail" type="email" maxlength="100" placeholder="ap@customer.com" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            AP contact
+            <select name="contactId"></select>
+          </label>
+          <label>
+            PO format
+            <input name="poFormat" maxlength="60" placeholder="PO-#####" />
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="poRequired" />
+          <span>PO required before work begins</span>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save AP details</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Contact</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Account
+          <select name="accountId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Name
+            <input name="name" required maxlength="80" placeholder="Alicia Moreno" />
+          </label>
+          <label>
+            Title
+            <input name="title" required maxlength="80" placeholder="Director of Facilities" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Email
+            <input name="email" type="email" maxlength="100" placeholder="name@company.com" />
+          </label>
+          <label>
+            Phone
+            <input name="phone" maxlength="40" placeholder="(314) 555-0182" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Relationship
+            <select name="influence">
+              <option>Decision maker</option>
+              <option>Champion</option>
+              <option>Technical evaluator</option>
+              <option>Evaluator</option>
+              <option>Unknown</option>
+            </select>
+          </label>
+          <label>
+            Preferred contact
+            <select name="preferredContact">
+              <option>Email</option>
+              <option>Phone</option>
+              <option>Teams</option>
+              <option>Text</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Division
+          <select name="divisionId"></select>
+        </label>
+        <label>
+          Associated opportunity
+          <select name="opportunityId"></select>
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="4" maxlength="400" placeholder="Decision role, buyer concerns, communication preferences, or relationship context."></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save contact</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactInfoDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact-info">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Contact info</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            First name
+            <input name="firstName" required maxlength="60" placeholder="Alicia" />
+          </label>
+          <label>
+            Last name
+            <input name="lastName" required maxlength="60" placeholder="Moreno" />
+          </label>
+        </div>
+        <label>
+          Job title
+          <input name="jobTitle" maxlength="100" placeholder="Director of Facilities" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Email
+            <input name="email" type="email" maxlength="100" placeholder="name@company.com" />
+          </label>
+          <label>
+            Email (alternate)
+            <input name="emailAddressTwo" type="email" maxlength="100" />
+          </label>
+        </div>
+        <label>
+          Email (third)
+          <input name="emailAddressThree" type="email" maxlength="100" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Business phone
+            <input name="businessPhone" maxlength="40" placeholder="(314) 555-0182" />
+          </label>
+          <label>
+            Mobile phone
+            <input name="mobilePhone" maxlength="40" />
+          </label>
+        </div>
+        <label>
+          Fax
+          <input name="fax" maxlength="40" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save contact info</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactCommPrefsDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact-comm-prefs">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Communication preferences</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Preferred contact method
+          <select name="preferredContactMethod">
+            <option>Email</option>
+            <option>Phone</option>
+            <option>Teams</option>
+            <option>Text</option>
+            <option>Mail</option>
+          </select>
+        </label>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="doNotAllowEmails" />
+            <span>Do not allow emails</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="doNotAllowPhoneCalls" />
+            <span>Do not allow phone calls</span>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="doNotAllowMail" />
+            <span>Do not allow mail</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="doNotAllowFaxes" />
+            <span>Do not allow faxes</span>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save preferences</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactPersonalDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact-personal">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Personal</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Birthday
+          <input name="birthday" type="date" />
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="5" maxlength="600" placeholder="Relationship context, personal notes, interests, buyer concerns."></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save personal info</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactRoleDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact-role">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Role and account</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Account role
+            <select name="accountRole">
+              <option>Employee</option>
+              <option>Owner</option>
+              <option>Executive</option>
+              <option>Manager</option>
+              <option>Consultant</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label>
+            Relationship role
+            <select name="relationshipRole">
+              <option>Decision maker</option>
+              <option>Champion</option>
+              <option>Technical evaluator</option>
+              <option>Evaluator</option>
+              <option>Unknown</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Lifecycle stage
+            <select name="lifecycleStage">
+              <option>Lead</option>
+              <option>Marketing Qualified</option>
+              <option>Sales Qualified</option>
+              <option>Opportunity</option>
+              <option>Customer</option>
+            </select>
+            <small class="field-help">Only relevant if you're actively selling to this person.</small>
+          </label>
+          <label>
+            Lead status
+            <select name="leadStatus">
+              <option>Open</option>
+              <option>In Progress</option>
+              <option>Qualified</option>
+              <option>Unqualified</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Owner
+            <select name="ownerEmployeeId"></select>
+          </label>
+          <label>
+            Division
+            <select name="divisionId"></select>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save role</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactAddressOneDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact-address-one">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Address one</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Type
+          <select name="addressOneType">
+            <option>Primary</option>
+            <option>Billing</option>
+            <option>Shipping</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <label>
+          Street one
+          <input name="addressOneStreetOne" maxlength="120" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Street two
+            <input name="addressOneStreetTwo" maxlength="120" />
+          </label>
+          <label>
+            Street three
+            <input name="addressOneStreetThree" maxlength="120" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            City
+            <input name="addressOneCity" maxlength="80" />
+          </label>
+          <label>
+            State
+            <input name="addressOneState" maxlength="60" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Country
+            <input name="addressOneCountry" maxlength="60" />
+          </label>
+          <label>
+            Zip code
+            <input name="addressOneZipCode" maxlength="20" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Phone
+            <input name="addressOneTelephoneOne" maxlength="40" />
+          </label>
+          <label>
+            Telephone two
+            <input name="addressOneTelephoneTwo" maxlength="40" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Telephone three
+            <input name="addressOneTelephoneThree" maxlength="40" />
+          </label>
+          <label>
+            UPS zone
+            <input name="addressOneUpsZone" maxlength="20" />
+          </label>
+        </div>
+        <label>
+          UTC offset
+          <input name="addressOneUtcOffset" maxlength="20" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save address</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactAddressTwoDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact-address-two">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Address two</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Type
+          <select name="addressTwoType">
+            <option value="">Not set</option>
+            <option>Primary</option>
+            <option>Billing</option>
+            <option>Shipping</option>
+            <option>Other</option>
+          </select>
+        </label>
+        <label>
+          Street one
+          <input name="addressTwoStreetOne" maxlength="120" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Street two
+            <input name="addressTwoStreetTwo" maxlength="120" />
+          </label>
+          <label>
+            Street three
+            <input name="addressTwoStreetThree" maxlength="120" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            City
+            <input name="addressTwoCity" maxlength="80" />
+          </label>
+          <label>
+            State
+            <input name="addressTwoState" maxlength="60" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Country
+            <input name="addressTwoCountry" maxlength="60" />
+          </label>
+          <label>
+            Zip code
+            <input name="addressTwoZipCode" maxlength="20" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Telephone one
+            <input name="addressTwoTelephoneOne" maxlength="40" />
+          </label>
+          <label>
+            Telephone two
+            <input name="addressTwoTelephoneTwo" maxlength="40" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Telephone three
+            <input name="addressTwoTelephoneThree" maxlength="40" />
+          </label>
+          <label>
+            Fax
+            <input name="addressTwoFax" maxlength="40" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save address</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="alertDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="alert">
+        <div class="modal-header">
+          <h2>Field alert</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Project / job
+          <select name="jobId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Alert type
+            <select name="alertType">
+              <option>Scope Exception</option>
+              <option>Safety Hazard</option>
+              <option>Equipment Down</option>
+              <option>Access Issue</option>
+              <option>Weather Delay</option>
+              <option>Material Shortage</option>
+              <option>Customer Approval Needed</option>
+              <option>Regulatory Concern</option>
+            </select>
+          </label>
+          <label>
+            Severity
+            <select name="severity">
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Description
+          <textarea name="description" rows="5" required maxlength="500" placeholder="Describe the out-of-scope condition, safety issue, access problem, or approval needed."></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="danger-button" type="submit">Create alert</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="materialDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="material">
+        <div class="modal-header">
+          <h2>Log material usage</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Project / job
+          <select name="jobId" required></select>
+        </label>
+        <label>
+          Material or consumable
+          <input name="materialType" required maxlength="80" placeholder="Absorbents, biological media, PPE kits" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Quantity
+            <input name="quantity" required type="number" min="0" step="0.1" value="1" />
+          </label>
+          <label>
+            Unit
+            <input name="unit" required maxlength="30" placeholder="bags, gallons, drums" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save material log</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="equipmentDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="equipment">
+        <div class="modal-header">
+          <h2>Log equipment</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Project / job
+          <select name="jobId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Asset tag
+            <input name="assetTag" required maxlength="40" placeholder="VAC-204" />
+          </label>
+          <label>
+            Truck ID
+            <input name="truckId" maxlength="40" placeholder="TRK-18" />
+          </label>
+        </div>
+        <label>
+          Equipment
+          <input name="equipment" required maxlength="80" placeholder="Vacuum trailer, pump, generator" />
+        </label>
+        <label>
+          Condition
+          <input name="condition" required maxlength="120" placeholder="In service, returned clean, needs repair" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save equipment log</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="scheduleDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="schedule">
+        <div class="modal-header">
+          <h2>Schedule work</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Project / job
+          <select name="jobId" required></select>
+        </label>
+        <label>
+          Schedule title
+          <input name="title" required maxlength="90" placeholder="Mobilization and utility markout" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Date
+            <input name="date" required type="date" />
+          </label>
+          <label>
+            Crew
+            <input name="crew" required maxlength="60" placeholder="Crew A" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Equipment
+            <select name="equipmentAssetTag"></select>
+          </label>
+          <label>
+            Labor
+            <select name="laborResourceId"></select>
+          </label>
+        </div>
+        <label>
+          Required certification
+          <input name="requiredCertification" maxlength="80" placeholder="HAZWOPER" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save schedule</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="remediationDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="remediation">
+        <div class="modal-header">
+          <h2>New remediation</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Account
+          <select name="accountId" required></select>
+        </label>
+        <label>
+          Project name
+          <input name="name" required maxlength="90" placeholder="Soil excavation and disposal closeout" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Start date
+            <input name="startDate" required type="date" />
+          </label>
+          <label>
+            Target date
+            <input name="targetDate" required type="date" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Budget
+            <input name="budget" required type="number" min="0" step="1000" value="125000" />
+          </label>
+          <label>
+            Project manager
+            <input name="projectManager" required maxlength="80" placeholder="Priya Patel" />
+          </label>
+        </div>
+        <label>
+          Active phase
+          <input name="activePhase" required maxlength="100" placeholder="Investigation and disposal planning" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save remediation</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="inventoryItemDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="inventory-item">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Consumable</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Material
+          <input name="materialType" required maxlength="80" placeholder="PPE kits" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Unit
+            <input name="unit" required maxlength="30" placeholder="kits" />
+          </label>
+          <label>
+            Buyer
+            <input name="buyer" required maxlength="80" placeholder="Operations buyer" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            On hand
+            <input name="onHand" required type="number" min="0" step="1" value="0" />
+          </label>
+          <label>
+            Reorder at
+            <input name="reorderAt" required type="number" min="0" step="1" value="10" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Target stock
+            <input name="targetStock" required type="number" min="0" step="1" value="50" />
+          </label>
+          <label>
+            Barcode
+            <input name="barcode" maxlength="60" placeholder="Scan or type UPC/SKU" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save consumable</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="purchaseOrderDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="purchase-order">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Purchase order</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Consumable
+          <select name="itemId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Quantity
+            <input name="quantity" required type="number" min="1" step="1" value="24" />
+          </label>
+          <label>
+            Vendor
+            <input name="vendor" required maxlength="80" placeholder="Midwest Safety Supply" />
+          </label>
+        </div>
+        <label>
+          Status
+          <select name="status">
+            <option value="Draft">Draft</option>
+            <option value="Ordered">Ordered</option>
+          </select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save PO</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="equipmentAssetDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="equipment-asset">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Equipment asset</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Asset tag
+            <input name="assetTag" required maxlength="40" placeholder="TRK-18" />
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option>Ready</option>
+              <option>In service</option>
+              <option>Maintenance hold</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Equipment
+            <input name="equipment" required maxlength="80" placeholder="Response truck" />
+          </label>
+          <label>
+            Category
+            <select name="category">
+              <option>Vehicle</option>
+              <option>Vacuum / Vactron</option>
+              <option>Pump</option>
+              <option>Air Filtration</option>
+              <option>General equipment</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Last used
+            <input name="lastUsed" type="date" />
+          </label>
+          <label>
+            Maintenance due
+            <input name="maintenanceDue" required type="date" />
+          </label>
+        </div>
+        <label>
+          Issue
+          <textarea name="issue" rows="3" maxlength="300" placeholder="Describe issue if this asset should block scheduling."></textarea>
+        </label>
+        <p class="help-text">Fields below change based on the equipment category selected above.</p>
+        <div class="form-grid" id="equipmentSpecFieldGrid"></div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save asset</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="equipmentMaintenanceDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="equipment-maintenance">
+        <input name="assetTag" type="hidden" />
+        <div class="modal-header">
+          <h2>Log maintenance</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Type
+            <select name="type">
+              <option>Scheduled service</option>
+              <option>Repair</option>
+              <option>Inspection</option>
+              <option>Decontamination</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label>
+            Date
+            <input name="date" type="date" required />
+          </label>
+        </div>
+        <label>
+          Description
+          <textarea name="description" rows="3" maxlength="300" placeholder="What was done"></textarea>
+        </label>
+        <div class="form-grid">
+          <label>
+            Performed by
+            <input name="performedBy" maxlength="80" placeholder="Technician or vendor" />
+          </label>
+          <label>
+            Cost
+            <input name="cost" type="number" min="0" step="1" value="0" />
+          </label>
+        </div>
+        <label>
+          Next due date
+          <input name="nextDueDate" type="date" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save maintenance record</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="equipmentRestockDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="equipment-restock">
+        <input name="id" type="hidden" />
+        <input name="assetTag" type="hidden" />
+        <div class="modal-header">
+          <h2>Restock item</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Item
+          <input name="itemName" required maxlength="80" placeholder="HEPA filter" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Quantity needed
+            <input name="quantityNeeded" type="number" min="1" step="1" value="1" />
+          </label>
+          <label>
+            Unit
+            <input name="unit" maxlength="30" placeholder="filters" />
+          </label>
+        </div>
+        <label>
+          Status
+          <select name="status">
+            <option>Needed</option>
+            <option>Ordered</option>
+            <option>Stocked</option>
+          </select>
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="2" maxlength="200" placeholder="Optional notes"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save restock item</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="equipmentStatusDialog" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2 data-status-title>Equipment status</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p><span class="risk-badge" data-status-badge></span></p>
+        <p class="help-text" data-status-copy></p>
+        <div class="row-meta" data-status-meta></div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Close</button>
+          <button class="secondary-button" type="button" data-action="clear-equipment-alert" data-clear-alert hidden>Clear alert</button>
+          <button class="primary-button" type="button" data-action="view-equipment-asset" data-go-to-equipment>Go to equipment</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <dialog id="mapLocationDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="map-location">
+        <input name="id" type="hidden" />
+        <input name="source" type="hidden" />
+        <div class="modal-header">
+          <h2>GPS point</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Label
+          <input name="label" required maxlength="90" placeholder="Riverbend south yard" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Job or response
+            <select name="jobId"></select>
+          </label>
+          <label>
+            Scheduled work
+            <select name="scheduleEventId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Latitude
+            <input name="latitude" required type="number" step="0.000001" placeholder="38.627000" />
+          </label>
+          <label>
+            Longitude
+            <input name="longitude" required type="number" step="0.000001" placeholder="-90.199400" />
+          </label>
+        </div>
+        <label>
+          Equipment asset tags
+          <input name="assetTags" maxlength="160" placeholder="TRK-18, VAC-204" />
+        </label>
+        <label>
+          Status
+          <select name="status">
+            <option>Scheduled work</option>
+            <option>Active dispatch</option>
+            <option>Live GPS</option>
+            <option>Pre-mobilization</option>
+            <option>On site</option>
+            <option>Demobilized</option>
+          </select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save GPS point</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="invoiceDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="invoice">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Invoice</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Project / job
+          <select name="jobId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Quoted amount
+            <input name="quotedAmount" required type="number" min="0" step="100" value="0" />
+          </label>
+          <label>
+            Invoice amount
+            <input name="invoiceAmount" required type="number" min="0" step="100" value="0" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Due date
+            <input name="dueDate" required type="date" />
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option>Draft</option>
+              <option>Ready</option>
+              <option>Sent</option>
+              <option>Past due</option>
+              <option>Paid</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Notes
+          <textarea name="notes" rows="4" maxlength="400" placeholder="Billing notes, customer approval, or invoice hold reason."></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save invoice</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="noteDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="activity">
+        <div class="modal-header">
+          <h2>Add activity</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Type
+            <select name="activityType">
+              <option>Meeting</option>
+              <option>Call</option>
+              <option>Email</option>
+              <option>Task</option>
+            </select>
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option>Completed</option>
+              <option>Open</option>
+              <option>Scheduled</option>
+              <option>Waiting on customer</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Subject
+          <input name="subject" required maxlength="120" placeholder="Follow up on proposal questions" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Account
+            <select name="accountId" required></select>
+          </label>
+          <label>
+            Contact
+            <select name="contactId"></select>
+          </label>
+        </div>
+        <label>
+          Opportunity
+          <select name="opportunityId"></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Activity date
+            <input name="activityDate" required type="date" />
+          </label>
+          <label>
+            Due date
+            <input name="dueDate" type="date" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Direction
+            <select name="direction">
+              <option>Outbound</option>
+              <option>Inbound</option>
+              <option>Internal</option>
+            </select>
+          </label>
+          <label>
+            Contact method
+            <input name="channel" maxlength="80" placeholder="Phone, Teams, email, onsite" />
+          </label>
+        </div>
+        <label>
+          Notes
+          <textarea name="body" rows="5" required maxlength="700" placeholder="Capture meeting notes, call summary, email detail, task context, or buyer concerns."></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save activity</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="quickNoteDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="quick-note">
+        <input name="accountId" type="hidden" />
+        <input name="contactId" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Quick note</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Subject
+          <input name="subject" required maxlength="120" placeholder="Left voicemail about renewal" />
+        </label>
+        <label>
+          Note
+          <textarea name="body" rows="5" required maxlength="700" placeholder="Quick note text..."></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save note</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="activityMeetingDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="activity-meeting">
+        <input name="accountId" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Schedule a meeting</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Subject
+          <input name="subject" required maxlength="120" placeholder="Quarterly site review" />
+        </label>
+        <label>
+          Contact
+          <select name="contactId"></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Date
+            <input name="activityDate" required type="date" />
+          </label>
+          <label>
+            Time
+            <input name="meetingTime" type="time" />
+          </label>
+        </div>
+        <label>
+          Format
+          <select name="meetingFormat">
+            <option>Online</option>
+            <option>Offline</option>
+          </select>
+        </label>
+        <div class="form-grid" id="meetingOnlineFields">
+          <label>
+            Platform
+            <select name="meetingPlatform">
+              <option>Microsoft Teams</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label>
+            Meeting link
+            <input name="meetingLink" type="url" maxlength="200" placeholder="https://teams.microsoft.com/..." />
+          </label>
+        </div>
+        <div class="form-grid" id="meetingOfflineFields" hidden>
+          <label>
+            Location
+            <input name="meetingLocation" maxlength="160" placeholder="Client office, 400 River Rd" />
+          </label>
+        </div>
+        <label>
+          Status
+          <select name="status">
+            <option>Scheduled</option>
+            <option>Completed</option>
+            <option>Waiting on customer</option>
+          </select>
+        </label>
+        <label>
+          Notes
+          <textarea name="body" rows="4" maxlength="700" placeholder="Agenda or meeting notes"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save meeting</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="activityCallDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="activity-call">
+        <input name="accountId" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Log a call</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Subject
+          <input name="subject" required maxlength="120" placeholder="Called about invoice question" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Who
+            <select name="contactId"></select>
+          </label>
+          <label>
+            Phone number
+            <input name="phoneNumber" maxlength="40" placeholder="(816) 555-0147" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Direction
+            <select name="direction">
+              <option>Outbound</option>
+              <option>Inbound</option>
+            </select>
+          </label>
+          <label>
+            Date
+            <input name="activityDate" required type="date" />
+          </label>
+        </div>
+        <label>
+          Status
+          <select name="status">
+            <option>Completed</option>
+            <option>Scheduled</option>
+            <option>Waiting on customer</option>
+          </select>
+        </label>
+        <label>
+          Notes
+          <textarea name="body" rows="4" maxlength="700" placeholder="Call summary"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save call</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="activityEmailDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="activity-email">
+        <input name="accountId" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Log an email</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Subject
+          <input name="subject" required maxlength="120" placeholder="Re: proposal questions" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Contact
+            <select name="contactId"></select>
+          </label>
+          <label>
+            Email address
+            <input name="emailAddress" type="email" maxlength="100" placeholder="jlee@northriver.com" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Direction
+            <select name="direction">
+              <option>Outbound</option>
+              <option>Inbound</option>
+            </select>
+          </label>
+          <label>
+            Date
+            <input name="activityDate" required type="date" />
+          </label>
+        </div>
+        <label>
+          Notes
+          <textarea name="body" rows="4" maxlength="700" placeholder="Email summary or key points"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save email</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="activityTaskDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="activity-task">
+        <input name="accountId" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Create a task</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Subject
+          <input name="subject" required maxlength="120" placeholder="Send updated SOW" />
+        </label>
+        <label>
+          Contact
+          <select name="contactId"></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Due date
+            <input name="dueDate" required type="date" />
+          </label>
+          <label>
+            Priority
+            <select name="priority">
+              <option>Low</option>
+              <option selected>Medium</option>
+              <option>High</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Status
+          <select name="status">
+            <option>Open</option>
+            <option>Completed</option>
+            <option>Waiting on customer</option>
+          </select>
+        </label>
+        <label>
+          Notes
+          <textarea name="body" rows="4" maxlength="700" placeholder="Task detail"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save task</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="employeeDialog" class="modal">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="employee">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Workforce</p>
+            <h2>Employee</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Employee number
+            <input name="employeeNumber" required maxlength="30" placeholder="BR-028" />
+          </label>
+          <label>
+            Employment status
+            <select name="employmentStatus">
+              <option>Active</option>
+              <option>Candidate</option>
+              <option>Leave</option>
+              <option>Inactive</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            First name
+            <input name="firstName" required maxlength="80" />
+          </label>
+          <label>
+            Last name
+            <input name="lastName" required maxlength="80" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Job title
+            <input name="jobTitle" required maxlength="100" placeholder="Environmental Technician" />
+          </label>
+          <label>
+            Employment type
+            <select name="employmentType">
+              <option>Full time</option>
+              <option>Part time</option>
+              <option>Temporary</option>
+              <option>Contractor</option>
+              <option>Seasonal</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Business unit
+            <select name="businessUnit">
+              <option>Central Texas Operations</option>
+              <option>Office and Dispatch</option>
+            </select>
+          </label>
+          <label>
+            Home base
+            <input name="homeBase" maxlength="80" value="Temple" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Team
+            <select name="teamId"></select>
+          </label>
+          <label>
+            Crew
+            <select name="crewId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Manager
+            <select name="managerEmployeeId"></select>
+          </label>
+          <label>
+            Hire date
+            <input name="hireDate" type="date" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Email
+            <input name="primaryEmail" type="email" maxlength="160" />
+          </label>
+          <label>
+            Mobile phone
+            <input name="mobilePhone" type="tel" maxlength="40" />
+          </label>
+        </div>
+        <label>
+          Skills
+          <input name="skills" maxlength="300" placeholder="Emergency response, equipment operation, sampling" />
+        </label>
+        <div class="check-grid">
+          <label class="check-row">
+            <input type="checkbox" name="dispatchEligible" checked />
+            <span>Eligible for field dispatch</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="frontlineEnabled" checked />
+            <span>Enable Front Line access</span>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Add employee</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="credentialDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="credential">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Workforce</p>
+            <h2>Add credential</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Employee
+          <select name="employeeId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Record type
+            <select name="recordType">
+              <option>Certification</option>
+              <option>Credential</option>
+              <option>Qualification</option>
+              <option>Clearance</option>
+              <option>Training</option>
+            </select>
+          </label>
+          <label>
+            Code
+            <input name="code" required maxlength="50" placeholder="HAZWOPER-40" />
+          </label>
+        </div>
+        <label>
+          Name
+          <input name="name" required maxlength="140" placeholder="40-hour HAZWOPER" />
+        </label>
+        <label>
+          Certificate or license number
+          <input name="number" maxlength="100" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Issued on
+            <input name="issuedOn" type="date" required />
+          </label>
+          <label>
+            Expires on
+            <input name="expiresOn" type="date" required />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Status
+            <select name="status">
+              <option>Valid</option>
+              <option>Expiring</option>
+              <option>Pending verification</option>
+              <option>Expired</option>
+              <option>Suspended</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="verified" checked />
+            <span>Evidence verified</span>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save credential</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="jobRequestDialog" class="modal">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="job-request">
+        <input name="projectId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Sales to Dispatch</p>
+            <h2>New job request</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Customer account
+            <select name="accountId" required>
+              <option value="">Select an account</option>
+            </select>
+            <small class="field-help">The request and resulting job remain linked to this CRM account.</small>
+          </label>
+          <label>
+            Service category
+            <select name="serviceCategory">
+              <option>ER</option>
+              <option>Sampling</option>
+              <option>Scheduled</option>
+              <option>Remediation</option>
+              <option>Abatement</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Priority
+            <select name="priority">
+              <option>Emergency</option>
+              <option>High</option>
+              <option selected>Normal</option>
+              <option>Low</option>
+            </select>
+          </label>
+          <label>
+            Requested service
+            <input name="requestedServiceAt" type="datetime-local" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            BioRemedy PO
+            <input name="bioremedyPoNumber" maxlength="80" />
+          </label>
+          <label>
+            Customer PO
+            <input name="customerPoNumber" maxlength="80" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Called in by
+            <input name="calledInByName" maxlength="140" />
+          </label>
+          <label>
+            Generator / RP
+            <input name="generatorResponsibleParty" maxlength="160" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Onsite POC
+            <input name="onsiteContactName" maxlength="140" />
+          </label>
+          <label>
+            Onsite phone
+            <input name="onsiteContactPhone" type="tel" maxlength="40" />
+          </label>
+        </div>
+        <label>
+          Address and pin
+          <input name="addressText" required maxlength="240" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Estimated duration in hours
+            <input name="estimatedDurationHours" type="number" min="0.5" step="0.5" value="4" />
+          </label>
+          <label>
+            Requested field lead
+            <select name="requestedEmployeeId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Equipment needed
+            <textarea name="equipmentNotes" rows="3" maxlength="400"></textarea>
+          </label>
+          <label>
+            Labor needed
+            <textarea name="laborNotes" rows="3" maxlength="400"></textarea>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Vendors
+            <input name="vendorNotes" maxlength="240" />
+          </label>
+          <label>
+            Pricing
+            <input name="pricingNotes" maxlength="240" />
+          </label>
+        </div>
+        <label>
+          Job description
+          <textarea name="description" rows="5" required maxlength="1200"></textarea>
+        </label>
+        <div class="request-upload-grid">
+          <label class="file-upload-field">
+            <span>Customer packet</span>
+            <input
+              name="customerPacketFiles"
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg"
+            />
+            <small class="field-help">PDF, Word, spreadsheet, CSV, or image files. Up to 25 MB each.</small>
+            <select name="customerPacketStatus" aria-label="Customer packet status">
+              <option selected>Missing</option>
+              <option>On file</option>
+              <option>Not required</option>
+            </select>
+          </label>
+          <label class="file-upload-field">
+            <span>Quote or estimate</span>
+            <input
+              name="quoteFiles"
+              type="file"
+              multiple
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg"
+            />
+            <small class="field-help">Attach the quote, estimate workbook, or approved pricing document.</small>
+            <select name="quoteStatus" aria-label="Quote status">
+              <option selected>Missing</option>
+              <option>Draft</option>
+              <option>Approved</option>
+            </select>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Send to dispatch</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="jobTemplateSelectDialog" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Sales to Dispatch</p>
+            <h2>Choose a work plan</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">Pick the job template to use for this job's stages and sub-tasks. Templates matching this request's service category are suggested first.</p>
+        <div class="record-list" data-template-options></div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="text-button" type="button" data-action="go-to-templates">Manage templates</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <dialog id="dispatchScheduleDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="dispatch-schedule">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Dispatch</p>
+            <h2>Schedule job</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Job
+          <select name="jobId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Date
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            Crew
+            <select name="crewId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Start time
+            <input name="startTime" type="time" required value="08:00" />
+          </label>
+          <label>
+            End time
+            <input name="endTime" type="time" required value="17:00" />
+          </label>
+        </div>
+        <label>
+          Field lead
+          <select name="fieldLeadEmployeeId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Resource type
+            <select name="resourceType">
+              <option>Equipment</option>
+              <option>Vehicle</option>
+              <option>Material</option>
+              <option>Vendor</option>
+            </select>
+          </label>
+          <label>
+            Resource
+            <input name="resourceName" maxlength="140" placeholder="Vactron, truck, sample kit" />
+          </label>
+        </div>
+        <label>
+          Dispatch note
+          <textarea name="notes" rows="4" maxlength="500" placeholder="Crew, access, timing, or readiness note."></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save schedule</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="dispatchAssignEmployeeDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="dispatch-assign-employee">
+        <input name="jobId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Assignment</p>
+            <h2>Assign employee</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Employee
+          <select name="employeeId" required></select>
+        </label>
+        <label>
+          Role on this job
+          <input name="role" maxlength="60" placeholder="Technician" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Assign employee</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="dispatchAssignEquipmentDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="dispatch-assign-equipment">
+        <input name="jobId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Assignment</p>
+            <h2>Assign equipment</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Equipment asset
+          <select name="assetTag" required></select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Assign equipment</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="dispatchAssignMaterialDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="dispatch-assign-material">
+        <input name="jobId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Assignment</p>
+            <h2>Assign material</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Material
+          <select name="inventoryItemId" required></select>
+        </label>
+        <label>
+          Quantity
+          <input name="quantity" type="number" min="1" step="1" value="1" required />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Assign material</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="addressDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="address">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Address</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Address name
+            <input name="addressName" required maxlength="80" placeholder="Main office" />
+          </label>
+          <label>
+            Address type
+            <select name="addressType" required>
+              <option>Bill To</option>
+              <option>Ship To</option>
+              <option>Primary</option>
+              <option>Tax</option>
+              <option>Remit-To</option>
+              <option>Vendor Dispatch</option>
+              <option>Vendor Billing</option>
+              <option>Other</option>
+            </select>
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="isPrimary" />
+          <span>Primary address for this account</span>
+        </label>
+        <div class="form-grid">
+          <label>
+            Suite #
+            <input name="suiteNumber" maxlength="20" />
+          </label>
+          <label>
+            Street 1
+            <input name="street1" required maxlength="120" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Street 2
+            <input name="street2" maxlength="120" />
+          </label>
+          <label>
+            Street 3
+            <input name="street3" maxlength="120" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            City
+            <input name="city" required maxlength="80" />
+          </label>
+          <label>
+            County
+            <input name="county" maxlength="80" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            State / Province
+            <input name="stateOrProvince" required maxlength="60" />
+          </label>
+          <label>
+            Postal code
+            <input name="postalCode" required maxlength="20" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Country / Region
+            <input name="countryOrRegion" required maxlength="60" placeholder="USA" />
+          </label>
+          <label>
+            Phone
+            <input name="phone" maxlength="40" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Latitude
+            <input name="latitude" type="number" step="0.0000001" />
+          </label>
+          <label>
+            Longitude
+            <input name="longitude" type="number" step="0.0000001" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Freight terms
+            <input name="freightTerms" maxlength="60" />
+          </label>
+          <label>
+            Shipping method
+            <input name="shippingMethod" maxlength="60" />
+          </label>
+        </div>
+        <label>
+          Address contact
+          <select name="contactId"></select>
+        </label>
+        <label>
+          Delivery instructions
+          <textarea name="deliveryInstructions" rows="3" maxlength="400"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save address</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="industriesDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-industries">
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Industries</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid" id="industriesCheckboxList"></div>
+        <label>
+          Primary industry
+          <select name="primaryIndustryId"></select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save industries</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="vendorProfileDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="vendor-profile">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Vendor / subcontractor profile</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Vendor number
+            <input name="vendorNumber" maxlength="60" />
+          </label>
+          <label>
+            Subcontractor type
+            <select name="subcontractorTypeId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Onboarding status
+            <select name="onboardingStatus">
+              <option>Candidate</option>
+              <option>Pending</option>
+              <option>Approved</option>
+              <option>Suspended</option>
+              <option>Inactive</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="isSuspended" />
+            <span>Vendor is suspended</span>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Approval date
+            <input name="approvalDate" type="date" />
+          </label>
+          <label>
+            Approved by
+            <select name="approvedById"></select>
+          </label>
+        </div>
+        <label>
+          Default rate card
+          <select name="defaultPriceLevelId"></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            W-9 status
+            <select name="w9Status">
+              <option>Missing</option>
+              <option>Received</option>
+              <option>Expired</option>
+            </select>
+          </label>
+          <label>
+            Insurance status
+            <select name="insuranceStatus">
+              <option>Valid</option>
+              <option>Expiring</option>
+              <option>Expired</option>
+              <option>Waived</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Insurance expiration
+            <input name="insuranceExpiration" type="date" />
+          </label>
+          <label>
+            Safety status
+            <select name="safetyStatus">
+              <option>Pending</option>
+              <option>Approved</option>
+              <option>Rejected</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Payment terms
+            <input name="paymentTerms" maxlength="60" placeholder="Net 30" />
+          </label>
+          <label>
+            Service territory
+            <input name="serviceTerritory" maxlength="80" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Performance rating
+            <input name="performanceRating" type="number" min="0" max="5" step="0.1" />
+          </label>
+          <label>
+            Accounting vendor ID
+            <input name="accountingVendorId" maxlength="60" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Remit-to address
+            <select name="remitToAddressId"></select>
+          </label>
+          <label>
+            Dispatch address
+            <select name="dispatchAddressId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Billing address
+            <select name="billingAddressId"></select>
+          </label>
+          <label>
+            Operations contact
+            <select name="contactId"></select>
+          </label>
+        </div>
+        <label>
+          Notes
+          <textarea name="notes" rows="3" maxlength="400"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save vendor profile</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="salesTaskDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="sales-task">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Sales task</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Subject
+          <input name="subject" required maxlength="140" placeholder="Send renewal quote" />
+        </label>
+        <label>
+          Regarding contact
+          <select name="contactId"></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Due date
+            <input name="dueDate" type="date" />
+          </label>
+          <label>
+            Priority
+            <select name="priority">
+              <option>Low</option>
+              <option selected>Normal</option>
+              <option>High</option>
+              <option>Urgent</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Status
+            <select name="activityStatus">
+              <option>Open</option>
+              <option>Completed</option>
+              <option>Canceled</option>
+            </select>
+          </label>
+          <label>
+            Status reason
+            <input name="statusReason" maxlength="80" placeholder="In Progress" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Actual start
+            <input name="actualStart" type="datetime-local" />
+          </label>
+          <label>
+            Actual end
+            <input name="actualEnd" type="datetime-local" />
+          </label>
+        </div>
+        <label>
+          Description
+          <textarea name="description" rows="3" maxlength="400"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save task</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="companyProfileDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="company-profile">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Company profile</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            SIC code
+            <input name="sicCode" maxlength="20" placeholder="1731" />
+          </label>
+          <label>
+            Ownership
+            <select name="ownershipType">
+              <option value="">Not set</option>
+              <option>Public</option>
+              <option>Private</option>
+              <option>Nonprofit</option>
+              <option>Government</option>
+              <option>Cooperative</option>
+            </select>
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="isSubcontractor" />
+          <span>Subcontractor</span>
+        </label>
+        <div class="form-grid">
+          <label>
+            Subcontractor permitted
+            <select name="subcontractorPermitted">
+              <option>Unknown</option>
+              <option>Approved</option>
+              <option>Denied</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="subcontractorPreapprovalRequired" />
+            <span>Preapproval required</span>
+          </label>
+        </div>
+        <p class="help-text">Eligible for Subcontracting is computed from the vendor profile's compliance fields.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save company profile</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="relationshipSnapshotDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="relationship-snapshot">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Relationship snapshot</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Account type
+          <select name="accountTypeId"></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Relationship status
+            <select name="relationshipStatus">
+              <option>Target</option>
+              <option>Active</option>
+              <option>Inactive</option>
+              <option>Suspended</option>
+            </select>
+          </label>
+          <label>
+            Primary relationship
+            <select name="primaryRelationship">
+              <option>Customer</option>
+              <option>Subcontractor</option>
+              <option>Supplier</option>
+              <option>Partner</option>
+              <option>Other</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Customer status
+          <select name="customerStatus">
+            <option>Never purchased</option>
+            <option>Active customer</option>
+            <option>Inactive customer</option>
+            <option>Former customer</option>
+            <option>On hold</option>
+          </select>
+        </label>
+        <label>
+          Tax address
+          <select name="taxAddressId"></select>
+        </label>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="isProspect" />
+            <span>Prospect</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="isVendor" />
+            <span>Vendor</span>
+          </label>
+        </div>
+        <p class="help-text">Is Client follows Customer Status automatically.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save relationship</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="documentStatusDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="document-status">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Service agreement documents</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Master Service Agreement
+            <select name="msaStatus">
+              <option>Not Sent</option>
+              <option>Sent</option>
+              <option>On File</option>
+            </select>
+          </label>
+          <label>
+            Certificate of Insurance
+            <select name="coiStatus">
+              <option>Not Sent</option>
+              <option>Sent</option>
+              <option>On File</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          W-9
+          <select name="w9DocumentStatus">
+            <option>Not Sent</option>
+            <option>Sent</option>
+            <option>On File</option>
+          </select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save document status</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="relationshipNotesDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="relationship-notes">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Relationship notes</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Business description
+          <textarea name="businessDescription" maxlength="600" placeholder="What this account does and how they use our services."></textarea>
+        </label>
+        <label>
+          How we work with them
+          <textarea name="workingRelationshipNotes" maxlength="600" placeholder="Working rhythm, escalation path, or relationship notes for the team."></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save notes</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="serviceAgreementDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="service-agreement">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Service agreement</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Agreement name
+            <input name="agreementName" required maxlength="120" placeholder="2026 Master Service Agreement" />
+          </label>
+          <label>
+            Agreement number
+            <input name="agreementNumber" maxlength="60" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Agreement type
+            <select name="agreementType">
+              <option value="">Not set</option>
+              <option>MSA</option>
+              <option>Standing Work Order</option>
+              <option>Rate Agreement</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label>
+            Agreement status
+            <select name="agreementStatus">
+              <option>Draft</option>
+              <option>Active</option>
+              <option>Expired</option>
+              <option>Terminated</option>
+              <option>Renewed</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Effective start
+            <input name="effectiveStart" type="date" />
+          </label>
+          <label>
+            Effective end
+            <input name="effectiveEnd" type="date" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="autoRenew" />
+            <span>Auto-renews</span>
+          </label>
+          <label>
+            Renewal term (months)
+            <input name="renewalTermMonths" type="number" min="0" step="1" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Payment terms
+            <input name="paymentTerms" maxlength="60" placeholder="Net 30" />
+          </label>
+          <label>
+            Billing frequency
+            <input name="billingFrequency" maxlength="60" placeholder="Monthly" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Rate card
+            <select name="priceLevelId"></select>
+          </label>
+          <label>
+            Currency
+            <select name="transactionCurrencyId"></select>
+          </label>
+        </div>
+        <label>
+          Total contract value
+          <input name="totalContractValue" type="number" min="0" step="0.01" />
+        </label>
+        <label>
+          Scope of work
+          <textarea name="scopeOfWork" rows="3" maxlength="500"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save agreement</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="subcontractorAssignmentDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="subcontractor-assignment">
+        <input name="id" type="hidden" />
+        <input name="vendorProfileId" type="hidden" />
+        <div class="modal-header">
+          <h2>Subcontractor assignment</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Assignment name
+          <input name="assignmentName" required maxlength="120" placeholder="Georgetown spill response support" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Assignment status
+            <select name="assignmentStatus">
+              <option>Requested</option>
+              <option>Confirmed</option>
+              <option>In Progress</option>
+              <option>Complete</option>
+              <option>Canceled</option>
+            </select>
+          </label>
+          <label>
+            Rate type
+            <select name="rateType">
+              <option value="">Not set</option>
+              <option>Hourly</option>
+              <option>Flat</option>
+              <option>Unit-based</option>
+              <option>Time and Materials</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Rate amount
+            <input name="rateAmount" type="number" min="0" step="0.01" />
+          </label>
+          <label>
+            Rate card
+            <select name="priceLevelId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Start date
+            <input name="startDate" type="date" />
+          </label>
+          <label>
+            End date
+            <input name="endDate" type="date" />
+          </label>
+        </div>
+        <label>
+          Related job reference
+          <input name="relatedJobReference" maxlength="80" placeholder="No dispatch linkage yet" />
+        </label>
+        <label>
+          Scope of work
+          <textarea name="scopeOfWork" rows="3" maxlength="500"></textarea>
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="3" maxlength="400"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save assignment</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactPreferencesDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact-preferences">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Contact preferences</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Preferred contact method
+          <select name="preferredContactMethod">
+            <option>Any</option>
+            <option>Phone</option>
+            <option>Email</option>
+            <option>Mail</option>
+            <option>Fax</option>
+            <option>None</option>
+          </select>
+        </label>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="allowEmails" checked />
+            <span>Allow email</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="allowBulkEmail" checked />
+            <span>Allow bulk email</span>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="allowPhoneCalls" checked />
+            <span>Allow phone calls</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="allowFaxes" checked />
+            <span>Allow faxes</span>
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="allowMail" checked />
+          <span>Allow mail (postal)</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" name="allowMarketing" checked />
+          <span>Allow marketing</span>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save preferences</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="accountCommentDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-comment">
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Concern comment</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Comment
+          <textarea name="body" required maxlength="600" placeholder="What's the concern, and what needs to happen next?"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save comment</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="accountDivisionDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-division">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Division</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Division name
+          <input name="divisionName" required maxlength="80" placeholder="Facilities" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save division</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="contactEmploymentDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="contact-employment">
+        <input name="id" type="hidden" />
+        <input name="contactId" type="hidden" />
+        <div class="modal-header">
+          <h2>Employment history</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Employer
+          <input name="employer" required maxlength="120" placeholder="North River Logistics" />
+        </label>
+        <label>
+          Title
+          <input name="jobTitle" maxlength="120" placeholder="Operations Manager" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Start date
+            <input name="startDate" type="date" />
+          </label>
+          <label>
+            End date
+            <input name="endDate" type="date" />
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="isCurrent" />
+          <span>Current position</span>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save entry</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="accountLocationDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-location">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Facility or location</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Name
+          <input name="name" required maxlength="120" placeholder="South yard tank farm" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Street 1
+            <input name="street1" maxlength="120" placeholder="2200 Foundry Road" />
+          </label>
+          <label>
+            Street 2
+            <input name="street2" maxlength="120" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            City
+            <input name="city" maxlength="80" placeholder="St. Louis" />
+          </label>
+          <label>
+            State / Province
+            <input name="stateOrProvince" maxlength="60" placeholder="MO" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Postal code
+            <input name="postalCode" maxlength="20" />
+          </label>
+          <label>
+            Country / Region
+            <input name="countryOrRegion" maxlength="60" placeholder="USA" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Phone
+            <input name="phone" maxlength="40" />
+          </label>
+          <label>
+            Status
+            <input name="status" maxlength="80" placeholder="Sampling" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Latitude
+            <input name="latitude" type="number" step="0.0000001" />
+          </label>
+          <label>
+            Longitude
+            <input name="longitude" type="number" step="0.0000001" />
+          </label>
+        </div>
+        <label>
+          Category
+          <select name="category" required>
+            <option value="" disabled selected>Select a category</option>
+            <option value="Corporate Office">Corporate Office</option>
+            <option value="Job Site / Field Location">Job Site / Field Location</option>
+            <option value="Warehouse / Storage">Warehouse / Storage</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+        <label id="accountLocationOtherField" hidden>
+          Specify type
+          <input name="categoryOther" maxlength="80" placeholder="Former UST basin" />
+        </label>
+        <label class="check-row" id="accountLocationConcernToggle" hidden>
+          <input type="checkbox" name="hasConcern" />
+          <span>This location has had an incident or concern to note</span>
+        </label>
+        <label id="accountLocationConcernField">
+          Concern
+          <textarea name="concern" maxlength="300" placeholder="Petroleum impacted soil"></textarea>
+        </label>
+        <label>
+          Access notes
+          <textarea name="access" maxlength="300" placeholder="Badge access and escort required"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save facility</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="accountPauseDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-pause">
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Account pause</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="isPaused" />
+          <span>Account is paused</span>
+        </label>
+        <div class="form-grid">
+          <label>
+            Paused by
+            <input name="pausedByName" maxlength="80" placeholder="Maya Chen" />
+          </label>
+          <label>
+            Reason
+            <input name="pausedReason" maxlength="160" placeholder="Past due balance, awaiting credit review" />
+          </label>
+        </div>
+        <p class="help-text">Pause scope — what stops while the account is paused</p>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="pauseOpportunities" />
+            <span>New opportunities</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="pauseProjects" />
+            <span>New projects</span>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="pauseScheduling" />
+            <span>Scheduling / dispatch</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="pauseFieldWork" />
+            <span>Active field work</span>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="pauseInvoicing" />
+            <span>Invoicing</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="pauseServiceAgreements" />
+            <span>Service agreements</span>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="pauseSubcontractorWork" />
+            <span>Subcontractor assignments</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="pauseSampleProcessing" />
+            <span>Sample processing</span>
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="pauseMarketing" />
+          <span>Marketing outreach</span>
+        </label>
+        <p class="help-text">Notify on pause</p>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="notifyOwner" />
+            <span>Account owner</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="notifySalesManager" />
+            <span>Sales manager</span>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="notifyOperationsManager" />
+            <span>Operations manager</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="notifyDispatch" />
+            <span>Dispatch / scheduler</span>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="check-row">
+            <input type="checkbox" name="notifyFinance" />
+            <span>Finance</span>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="notifyFieldLeads" />
+            <span>Field leads</span>
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="notifyPrimaryContact" />
+          <span>Primary contact (customer-facing)</span>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save pause settings</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="./public/vendor/leaflet/leaflet.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./public/vendor/three/three.module.js",
+          "three/addons/": "./public/vendor/three/addons/"
+        }
+      }
+    </script>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>

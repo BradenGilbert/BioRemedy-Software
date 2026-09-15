@@ -1,0 +1,359 @@
+You've crossed the line from "idea" to "platform." Now you need to think like a product manager, not just a developer.
+
+One thing I would change in your mindset: don't think of this as "adding features." Think of it as building modules that all work together. That keeps the system maintainable.
+
+Here's how I'd organize the roadmap.
+
+Phase 1 — Foundation (Almost Complete)
+
+You already have much of this started.
+
+Authentication
+✅ Microsoft Entra ID login
+Local admin login (optional emergency access)
+Password reset (if local auth exists)
+Multi-factor authentication support
+Session management
+Users
+User profiles
+Employee records
+Departments
+Office locations
+Active/inactive users
+Roles & Permissions
+Role templates
+Custom permissions
+Job-specific assignments
+Temporary delegation
+Permission audit
+Audit
+Activity log
+Login history
+Record history
+Restore deleted records
+Soft deletes
+Phase 2 — CRM
+Accounts
+Multiple billing accounts
+Parent/child companies
+Credit terms
+Tax information
+Customer status
+Preferred pricing
+Contacts
+Multiple phone numbers
+Emergency contacts
+Preferred contact method
+Communication history
+Contact tags
+Facilities
+Facility hierarchy
+Buildings
+Floors
+Rooms
+Mechanical systems
+Utility systems
+GPS boundaries
+Job Sites
+GPS coordinates
+Highway locations
+Mile markers
+Temporary sites
+Mobile assets
+Site hazards
+Site access notes
+Phase 3 — Sales
+Opportunities
+Lead source
+Sales stages
+Expected revenue
+Win probability
+Competitors
+Follow-up reminders
+Site Walks
+Digital checklist
+Photos
+Measurements
+Moisture readings
+Sample collection
+Voice notes
+Proposals
+Proposal builder
+Line items
+Pricing templates
+PDF generation
+Version history
+Electronic signatures
+Customer Communication
+Email history
+Phone logs
+Meeting notes
+Outlook integration
+Teams meetings
+Phase 4 — Projects
+Project Dashboard
+Budget
+Timeline
+Profitability
+Status
+Risks
+Team
+Work Orders
+Templates
+Dependencies
+Scheduling
+Completion tracking
+Tasks
+Checklists
+Attachments
+Time tracking
+Recurring tasks
+Required photos
+Issues
+Scope changes
+Safety concerns
+Equipment failures
+Customer requests
+Approval workflow
+Change Orders
+Requested by
+Cost impact
+Approval
+Signature
+Billing
+Phase 5 — Field Operations
+Daily Logs
+Weather
+Crew attendance
+Notes
+Photos
+Delays
+Time Tracking
+Clock in/out
+GPS verification
+Overtime
+Breaks
+Travel time
+Crew Management
+Crew assignments
+Crew availability
+Certifications
+Skills
+Crew calendar
+Equipment Usage
+Check in/out
+Fuel
+Hours
+Maintenance
+Damage reports
+Material Usage
+Inventory consumed
+Waste disposal
+Restocking
+Cost tracking
+Phase 6 — Fleet
+Trucks
+Trailers
+Maintenance
+Fuel
+GPS
+Insurance
+Registration
+Driver assignments
+Inspection reports
+Phase 7 — Equipment
+Air movers
+Dehumidifiers
+HEPA units
+Moisture meters
+Thermal cameras
+Pumps
+Vacuums
+Respirators
+
+Track:
+
+Location
+Service history
+Calibration
+Warranty
+Assigned project
+Phase 8 — Inventory
+Warehouse inventory
+Truck inventory
+Consumables
+PPE
+Chemicals
+Reorder levels
+Vendors
+Purchase orders
+Phase 9 — Environmental Compliance
+Air samples
+Surface samples
+Water samples
+Soil samples
+Chain of custody
+Lab reports
+Regulatory deadlines
+Disposal manifests
+Phase 10 — Documents
+SharePoint integration
+Contracts
+Proposals
+Photos
+Videos
+LiDAR scans
+CAD drawings
+SOPs
+Safety documents
+Phase 11 — LiDAR & Mapping
+Upload scans
+3D viewer
+Floor plans
+Annotation
+Measurements
+Before/after comparison
+Drone imagery
+GIS overlays
+Phase 12 — Scheduling
+Calendar
+Dispatch board
+Drag-and-drop scheduling
+Emergency dispatch
+Technician availability
+Equipment reservations
+Conflict detection
+Phase 13 — Notifications
+Teams notifications
+Email
+SMS
+Push notifications
+Escalations
+Daily summaries
+Phase 14 — Reporting
+
+Management dashboards for:
+
+Sales pipeline
+Active projects
+Crew utilization
+Equipment utilization
+Material costs
+Gross margin
+Revenue by customer
+Revenue by service line
+Aging opportunities
+Safety incidents
+Phase 15 — Mobile App
+
+Field technicians:
+
+Offline mode
+Photos
+Checklists
+GPS
+Voice notes
+Barcode scanning
+QR scanning
+Signatures
+
+Sales:
+
+Customer lookup
+Site walk
+Proposal review
+Notes
+
+Project managers:
+
+Schedule
+Approvals
+Issue resolution
+Notifications
+Phase 16 — Microsoft 365 Integration
+Entra ID
+Teams channels
+Outlook calendar
+Outlook email
+SharePoint document libraries
+Microsoft Graph
+OneDrive (if needed)
+Planner integration (optional)
+Phase 17 — AI
+
+This is where you can create real differentiation instead of just matching other CRMs.
+
+Examples:
+
+Meeting summaries
+Proposal drafting
+Scope review
+Missing item detection
+Field note summarization
+Suggested change orders
+Risk identification
+Similar project search
+Natural language search ("Show me every mold remediation project at hospitals in Austin over $50k.")
+Phase 18 — Customer Portal
+
+Customers can:
+
+View project status
+Download reports
+Upload documents
+Approve change orders
+View invoices
+Message the project team
+Phase 19 — Administration
+Lookup tables (facility types, issue types, project types)
+Workflow configuration
+Notification rules
+Role management
+Numbering schemes (Project #, Work Order #)
+API keys
+Integration settings
+One module I'd add that isn't in most ERPs
+
+I'd create a Resource Assignment module.
+
+Instead of storing sales_rep_id and project_manager_id directly on a project, use a table like:
+
+Project Assignment
+------------------
+Project
+Employee
+Role
+Start Date
+End Date
+Primary?
+
+Roles could include:
+
+Sales Representative
+Project Manager
+Assistant PM
+Estimator
+Field Lead
+Technician
+Sample Collector
+Safety Officer
+Customer Contact
+
+That solves the problem you described earlier: if a project manager is out sick or leaves the company, you can reassign all of their project assignments without changing your data model. It also lets one person hold multiple roles on the same project (for example, a salesperson who is also acting as the project manager).
+
+Before adding all of these
+
+I would not build all 19 phases in order. I would identify the workflows your team performs every day and make those excellent first.
+
+Based on what you've shared, I'd prioritize:
+
+CRM (Accounts, Contacts, Facilities, Job Sites)
+Projects (including Project Assignments)
+Scheduling & Dispatch
+Field Operations (daily logs, issues, photos, materials)
+Documents & SharePoint
+Reporting
+Mobile apps
+AI
+
+That sequence gets a usable platform into your team's hands much sooner while giving you room to refine later modules based on real usage.

@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Logs — the server and cloudflared write these into the project root
+*.log
+*.err.log
+*.out.log
+server*.log
+cloudflared-*.log
+npm-debug.log*
+
+# Uploaded files
+# Binaries don't belong in git, and these are real documents uploaded through
+# the job-request flow — they may contain customer information.
+# Backed up separately by scripts/backup-data.mjs.
+data/uploads/
+
+# Data backups (the rolling snapshots, not the live file)
+data/backups/
+
+# Environment and secrets
+.env*
+*.pem
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Claude Code — machine-local state (lock files, per-machine permissions).
+# launch.json is shared project config, so it stays tracked.
+.claude/*
+!.claude/launch.json
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# NOTE: data/backend.json IS tracked deliberately.
+# It is currently the only copy of all 72 shared collections, so version
+# history is worth more than a clean diff. Revisit at roadmap Phase 08,
+# when the data moves into PostgreSQL.

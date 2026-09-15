@@ -1,0 +1,21 @@
+{
+  "name": "BioRemedy Operations Platform",
+  "short_name": "BioRemedy",
+  "description": "Offline-capable operations platform for BioRemedy sales, field, inventory, and finance teams.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f8f2",
+  "theme_color": "#0f5f9a",
+  "icons": [
+    {
+      "src": "./public/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "./public/brand/bioremedy-logo-primary.png",
+      "sizes": "1001x301",
+      "type": "image/png"
+    }
+  ]
+}
