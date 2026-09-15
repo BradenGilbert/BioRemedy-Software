@@ -1,7 +1,7 @@
 # Phase 01 — One Shared Data Layer
 
-**Status:** Not started
-**Depends on:** Phase 00 (git + backups must exist before this phase mutates persistence)
+**Status:** 🔄 In progress — `accounts` migrated and verified 2026-09-15. 10 collections remain.
+**Depends on:** Phase 00 (git + backups must exist before this phase mutates persistence) ✅
 **Estimated sessions:** 2–3
 **Unblocks:** Every phase after this one. Nothing in Stage B is trustworthy while core records are per-browser.
 
@@ -31,7 +31,7 @@ When the team tests through the Cloudflare tunnel, each person gets **their own 
 
 | IndexedDB store | Target collection | Notes |
 |---|---|---|
-| `accounts` | `accounts` | The big one. ~40 call sites use `putRecord("accounts", …)`. |
+| ~~`accounts`~~ | `accounts` | ✅ **Done 2026-09-15.** See implementation notes at the bottom. |
 | `contacts` | `contacts` | |
 | `jobs` | **`projects`** | ⚠️ Renamed. See "The projects/jobs collision" below. |
 | `projectAssignments` | `projectAssignments` | The Project Assignment junction the original design asked for. |
@@ -166,6 +166,36 @@ The real test is **two browsers**, not one:
 
 ---
 
+## Implementation notes — `accounts` slice (2026-09-15)
+
+**The pattern, for the remaining 10 collections.** Follow this exactly; it is now proven end-to-end.
+
+*server.mjs — four edits:*
+1. New `roleAccess.customerDirectory` group spanning all nine internal roles, **excluding Client Portal**. Accounts and contacts are referenced by nearly every workspace, and before this they had no gating at all, so a narrow group would have been a regression. Real authorization is Phase 06.
+2. `collectionAccess.accounts = "customerDirectory"`
+3. `defaultBackend.accounts = []` — **required**, the route 404s with "Unknown collection" unless the key exists as an array
+4. One line in `filterBackendForRole`
+
+*app.js — the read/write swap:*
+- `putRecord("accounts", x)` → `saveBackendRecord("accounts", x, { refresh: false })`. Use `{ refresh: false }` wherever `refreshState()` follows (it calls `refreshBackendState()` itself) — otherwise every save re-downloads the whole ~400 KB backend twice.
+- Removed `accounts` from `refreshState()`'s `getAll` batch; `state.accounts` is now projected in `refreshBackendState()` with a `deletedAt` filter, matching how `opportunities` already worked.
+- Removed `"accounts"` from the `openDatabase()` store list.
+
+*Seeding:* new `ensureBackendSeedData()` called from `init()`. Seeds from the existing `seedAccounts` array through `buildCoreAccountRecord`, so the demo data keeps **one** definition rather than being copied into `server.mjs` where the two would drift. Idempotent — the POST route upserts by id, so concurrent clients write identical records.
+
+*Two retired migrations:* `migrateAccountsToCoreSchema()` and `migrateJobRequestAccountFoundation()` both operated on the local store and now have nothing to act on.
+
+**Useful discovery:** `normalizeRecord()` preserves a supplied `id` (`payload.id || makeId(...)`) and has a pass-through fallback for collections with no specific branch. So migrating a collection needs **no server-side schema** — records keep their shape and their existing IDs, which is what keeps FKs like `acct-riverbend` intact.
+
+**Verified live (not reasoned about):**
+- Accounts render on the Accounts view, with pipeline totals and deal counts still resolving — FKs intact
+- **Read direction:** an account POSTed via the API as another user appeared in the browser after reload
+- **Write direction:** an account created through the UI landed in `data/backend.json`
+- **Edit path:** the Owner & primary contact dialog persisted to the shared file
+- `Client Portal` role is refused: `{"error":"customerDirectory role required."}`
+- No console errors
+
 ## Corrections found during implementation
 
-*(Record here anything that turned out to be different from the plan.)*
+- **The plan said "~40 call sites use `putRecord("accounts", …)`."** Wrong — there were **9**, of which 3 were seed/migration paths, leaving 6 real writes. The ~40 figure came from counting every `grep` hit for `"accounts"`, most of which were view names, SQL table references, and render code. Expect the remaining collections to be smaller than the plan implies too; count before estimating.
+- **`saveAccountOwner()` never writes an `ownerEmployeeId` FK** — only the resolved display name. Unrelated to this migration (pre-existing), but it means Owner is still free text in storage despite being a picker in the UI. Logged into Phase 03.

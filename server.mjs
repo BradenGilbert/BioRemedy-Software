@@ -28,6 +28,22 @@ const mimeTypes = new Map([
 
 const roleAccess = {
   sales: ["Admin", "Office Manager", "Sales Manager", "Account Manager"],
+  // Accounts and contacts are referenced by almost every workspace — a dispatch job needs the
+  // customer name, a project belongs to an account, an invoice bills one. Before roadmap Phase 01
+  // these lived in browser IndexedDB with no gating at all, so this group deliberately spans every
+  // internal role to avoid a regression. The Client Portal role is excluded: it must never receive
+  // the whole customer directory. Real authorization lands in Phase 06.
+  customerDirectory: [
+    "Admin",
+    "Office Manager",
+    "Sales Manager",
+    "Account Manager",
+    "Operations Manager",
+    "Scheduler",
+    "Field Lead",
+    "Inventory Manager",
+    "Finance Manager",
+  ],
   salesDocuments: ["Admin", "Office Manager", "Sales Manager", "Account Manager", "Finance Manager"],
   operations: ["Admin", "Office Manager", "Operations Manager", "Scheduler", "Field Lead"],
   workforce: ["Admin", "Office Manager", "Operations Manager", "Scheduler"],
@@ -106,6 +122,7 @@ const collectionAccess = {
   connectionRoles: "salesDocuments",
   connections: "salesDocuments",
   activityParties: "salesDocuments",
+  accounts: "customerDirectory",
   accountTypes: "sales",
   industries: "sales",
   accountIndustries: "sales",
@@ -123,6 +140,9 @@ const collectionAccess = {
 };
 
 const defaultBackend = {
+  // Seeded by the client on first load from `seedAccounts` in app.js, so the demo data keeps one
+  // definition and one shape-builder (`buildCoreAccountRecord`) rather than drifting in two places.
+  accounts: [],
   scheduleEvents: [
     {
       id: "sched-riverbend-mobilize",
@@ -1980,6 +2000,7 @@ function makeId(prefix) {
 
 function filterBackendForRole(data, role) {
   return {
+    accounts: canAccess(role, "customerDirectory") ? data.accounts : [],
     scheduleEvents: canAccess(role, "operations") ? data.scheduleEvents : [],
     mapLocations: canAccess(role, "operations") ? data.mapLocations : [],
     inventoryItems: canAccess(role, "inventory") || canAccess(role, "dispatch") ? data.inventoryItems : [],

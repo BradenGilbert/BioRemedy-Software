@@ -25,7 +25,7 @@ Today's form (`index.html:799`) requires:
 | `siteName` **required** | > *"The account creation tab forces the creation of a facility"* — an account is a company; it may not have a known site yet |
 | `city` **required** | Same — forced facility data |
 | `phase` (Lead / Assessment / Sampling / Proposal / Active) | > *"account phase uses some weird set of phases that don't make sense to the creation of an account"* — these are sales-pipeline values. Pipeline belongs on the Opportunity, not the company record. |
-| `owner` free-text input | > *"Owner is a type in box and not locked to sales persons"* |
+| `owner` free-text input | > *"Owner is a type in box and not locked to sales persons"* — **and it's worse than it looks.** Verified 2026-09-15: `saveAccountOwner()` resolves the picked employee to a display string and writes only `owner: "Priya Patel"`. It never writes an `ownerEmployeeId` FK. So even where the UI is already a picker, storage is still free text, and reassigning an employee leaves stale names on every account they owned. |
 | `risk` (Low / Medium / High) | > *"there is a risk level for some reason?"* — company-level risk at creation time is meaningless; environmental risk belongs to a **facility or site**, not a corporation |
 
 **New form:**

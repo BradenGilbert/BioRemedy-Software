@@ -1622,7 +1622,9 @@ function openDatabase() {
     request.onupgradeneeded = () => {
       const db = request.result;
       for (const store of [
-        "accounts",
+        // "accounts" moved to the shared JSON backend (roadmap Phase 01, 2026-09-15) — it was
+        // browser-local, so every user had a private customer list while dispatch jobs and
+        // opportunities that referenced it were shared. See docs/roadmap/phase-01-shared-data-layer.md
         "contacts",
         "projects",
         "jobs",
@@ -1707,7 +1709,7 @@ async function ensureSeedData() {
   const seedSchemaVersion = await getSetting("seedSchemaVersion", 0);
   if (!seeded) {
     await Promise.all([
-      ...seedAccounts.map((record) => putRecord("accounts", record)),
+      // Accounts are seeded into the shared backend instead — see ensureBackendSeedData().
       ...seedTasks.map((record) => putRecord("tasks", record)),
       ...seedActivities.map((record) => putRecord("activities", record)),
     ]);
@@ -1731,9 +1733,9 @@ async function ensureSeedData() {
     });
   }
 
-  if (seedSchemaVersion < 6) {
-    await migrateAccountsToCoreSchema();
-  }
+  // seedSchemaVersion < 6 previously ran migrateAccountsToCoreSchema() against the local accounts
+  // store. Accounts now live in the shared backend and are seeded there already in core-schema
+  // shape, so the local pass has nothing to operate on. Retired in roadmap Phase 01.
 
   if (seedSchemaVersion < 7) {
     await migrateContactsToCoreSchema();
@@ -1751,9 +1753,9 @@ async function ensureSeedData() {
     await migrateProjectRenderSampleData();
   }
 
-  if (seedSchemaVersion < 13) {
-    await migrateJobRequestAccountFoundation();
-  }
+  // seedSchemaVersion < 13 previously ran migrateJobRequestAccountFoundation(), which back-filled
+  // missing seed accounts into the local store. ensureBackendSeedData() covers this server-side now.
+  // Retired in roadmap Phase 01.
 
   await seedStoreIfEmpty("contacts", seedContacts);
   await seedStoreIfEmpty("projects", seedProjects);
@@ -1774,9 +1776,21 @@ async function seedStoreIfEmpty(storeName, records) {
   await Promise.all(records.map((record) => putRecord(storeName, record)));
 }
 
-async function migrateAccountsToCoreSchema() {
-  const accounts = await getAll("accounts");
-  await Promise.all(accounts.map((account) => putRecord("accounts", buildCoreAccountRecord(account))));
+// Seeds demo accounts into the shared backend the first time it comes up empty. Kept on the client
+// so `seedAccounts` and `buildCoreAccountRecord` stay the single definition of the demo data and its
+// shape, rather than being duplicated into server.mjs where the two copies would drift.
+// Idempotent: the POST route upserts by id, so two clients racing write identical records.
+async function ensureBackendSeedData() {
+  try {
+    const accounts = await apiRequest("/api/backend/accounts");
+    if (accounts.length) return;
+    for (const account of seedAccounts) {
+      await saveBackendRecord("accounts", buildCoreAccountRecord(account), { refresh: false });
+    }
+  } catch (error) {
+    // Backend unreachable (offline, or the role can't read the customer directory). refreshBackendState()
+    // already surfaces that to the user; seeding simply waits for the next load.
+  }
 }
 
 async function migrateContactsToCoreSchema() {
@@ -1851,19 +1865,8 @@ async function migrateProjectRenderSampleData() {
   await Promise.all(seedSpatialData.filter((item) => !spatialIds.has(item.id)).map((item) => putRecord("spatialData", item)));
 }
 
-async function migrateJobRequestAccountFoundation() {
-  const accounts = await getAll("accounts");
-  const accountIds = new Set(accounts.map((account) => account.id));
-  await Promise.all(
-    seedAccounts
-      .filter((account) => !accountIds.has(account.id))
-      .map((account) => putRecord("accounts", buildCoreAccountRecord(account))),
-  );
-}
-
 async function refreshState() {
   const [
-    accounts,
     contacts,
     projects,
     jobs,
@@ -1878,7 +1881,6 @@ async function refreshState() {
     syncQueue,
   ] =
     await Promise.all([
-    getAll("accounts"),
     getAll("contacts"),
     getAll("projects"),
     getAll("jobs"),
@@ -1893,7 +1895,7 @@ async function refreshState() {
     getAll("syncQueue"),
   ]);
 
-  state.accounts = accounts.sort((a, b) => a.name.localeCompare(b.name));
+  // state.accounts is projected from the shared backend in refreshBackendState(), not loaded here.
   state.contacts = contacts.sort((a, b) => a.name.localeCompare(b.name));
   state.projects = projects.sort((a, b) => parseDate(b.completedDate) - parseDate(a.completedDate));
   state.jobs = jobs.sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
@@ -1931,6 +1933,9 @@ async function refreshBackendState() {
       .slice()
       .sort((a, b) => new Date(b.collectionTime) - new Date(a.collectionTime));
     state.locations = (state.backend.locations || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+    state.accounts = (state.backend.accounts || [])
+      .filter((account) => !account.deletedAt)
+      .sort((a, b) => a.name.localeCompare(b.name));
     state.authError = state.authError === "Backend API unavailable." ? "" : state.authError;
   } catch (error) {
     state.authError = "Backend API unavailable.";
@@ -1980,6 +1985,7 @@ async function saveBackendRecord(collection, record, { refresh = true } = {}) {
 
 async function init() {
   await ensureSeedData();
+  await ensureBackendSeedData();
   await handleAuthRedirect();
   await refreshState();
   applyRouteFromHash();
@@ -12401,7 +12407,7 @@ async function saveAccount(form) {
     createdOn: existing?.createdOn || now,
   });
 
-  await putRecord("accounts", account);
+  await saveBackendRecord("accounts", account, { refresh: false });
   if (!existing) {
     await saveBackendRecord("locations", {
       id: makeId("loc"),
@@ -13666,7 +13672,9 @@ async function persistActivity(fields, toastMessage) {
   }
   if (activity.accountId && activity.status === "Completed" && activity.activityType !== "Task") {
     const account = findAccount(activity.accountId);
-    if (account) await putRecord("accounts", { ...account, lastContact: activity.activityDate });
+    if (account) {
+      await saveBackendRecord("accounts", { ...account, lastContact: activity.activityDate }, { refresh: false });
+    }
   }
   if (activity.activityType === "Task") {
     await putRecord("tasks", {
@@ -14878,7 +14886,7 @@ async function saveContactPreferences(form) {
   const account = findAccount(accountId);
   if (!account) return;
   try {
-    await putRecord("accounts", {
+    await saveBackendRecord("accounts", {
       ...account,
       preferredContactMethod: data.get("preferredContactMethod").toString(),
       doNotAllowEmails: !form.elements.allowEmails.checked,
@@ -14973,7 +14981,7 @@ async function saveAccountOwner(form) {
     contact: contact?.name || "",
     primaryContactId: contactId || "",
   });
-  await putRecord("accounts", account);
+  await saveBackendRecord("accounts", account, { refresh: false });
   await queueChange("Account", "updated", account);
   closeDialogs();
   await refreshState();
@@ -14993,7 +15001,7 @@ async function saveAccountBilling(form) {
     billingInterval: data.get("billingInterval").toString(),
     creditHold: form.elements.creditHold.checked,
   });
-  await putRecord("accounts", account);
+  await saveBackendRecord("accounts", account, { refresh: false });
   await queueChange("Account", "updated", account);
   closeDialogs();
   await refreshState();
@@ -15038,7 +15046,7 @@ async function saveAccountAp(form) {
     poFormat: data.get("poFormat").toString().trim(),
     poRequired: form.elements.poRequired.checked,
   });
-  await putRecord("accounts", account);
+  await saveBackendRecord("accounts", account, { refresh: false });
   await queueChange("Account", "updated", account);
   closeDialogs();
   await refreshState();
