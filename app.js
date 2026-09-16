@@ -12579,7 +12579,7 @@ async function saveAccount(form) {
 
   await saveBackendRecord("accounts", account, { refresh: false });
   if (!existing) {
-    await saveBackendRecord("locations", {
+    await saveBackendRecord("facilities", {
       id: makeId("loc"),
       accountId: account.id,
       name: account.siteName,
@@ -12588,7 +12588,7 @@ async function saveAccount(form) {
       category: "Corporate Office",
       categoryOther: "",
       concern: account.concern,
-      status: account.phase,
+      badge: account.phase,
       access: "Access details not captured yet",
     });
   }
