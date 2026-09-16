@@ -114,7 +114,7 @@ The account's "Facilities and Locations" tab (id unchanged: `facilities-location
 - Purge automation for expired locations (capture `retain_until`; act on it later)
 - Map/GIS work beyond what already exists
 - Contact addresses — `customer_addresses` stays as-is; `addresses` is account-scoped only
-- Dropping the legacy `accounts.*_address_*` columns. Mark deprecated, migrate reads, drop in Phase 08.
+- Dropping the legacy `accounts.*_address_*` columns. Mark deprecated, migrate reads, drop in Phase 12.
 
 ---
 
@@ -166,3 +166,13 @@ Update `docs/database-handoff-map.md` and `docs/dataverse-relationship-architect
 - **Item 2's "one address (picked from or created in `addresses`)" for the Facility dialog was not built.** A facility's address is still its own inline street/city/state/postal fields on the facility record (unchanged from before this phase) rather than a link to a row in the `addresses` collection. The phase doc's framing implied facilities and the `addresses` collection would be connected; they remain separate, parallel structures — a facility has its own address fields, and `addresses` is a distinct account-scoped collection for Bill To/Ship To/Tax/etc. Revisit if a real facility-to-address FK is wanted later; not blocking for this phase's actual pain points (address visibility and the Edit-is-Add bug), which are both fixed.
 - **The plan's field-rename list for the facility FK undercounted by one.** The phase doc didn't call out that `sampleRecords.locationId` also pointed at the facility collection (it was previously flagged in the Phase 01 postmortem as "populated in seed data but permanently dead on every real write" — `saveSampleFromTask()` hardcoded `locationId: ""`). Fixed both issues in the same pass: renamed the field to `facilityId` *and* fixed the dead write to resolve the real value via `findProject(job.projectId)?.facilityId`.
 - **`PROJECT_STAGE_REQUIRED_FIELDS`'s `locationId` field was labeled "Site"** while the structurally identical `STAGE_REQUIRED_FIELDS` (opportunity) labeled the same kind of field "Facility" — flagged in the Phase 01 postmortem as worth reconciling. Decided here: both now read "Facility" and both keys are `facilityId`, since both resolve through the same `facilities` collection.
+
+## Known follow-up (found after shipping, from the 2026-09-16 notes pass)
+
+Two facility-contact gaps were raised right after this phase shipped, before the notes author had necessarily seen this doc's "Add contact" feature. Slotted into Phase 03 rather than reopening this phase:
+
+- **No way to edit or remove an existing facility-contact link** — Phase 02 built "Add contact" (a new `facilityContacts` row) but no edit/remove path for one already on the card.
+- **The `isPrimary` checkbox on the facility-contact dialog has no explanation of what it means or does anywhere in the UI.**
+- **Facilities aren't clickable** — no dedicated facility detail page exists (location, contacts, photos, prior work history, notes, a satellite map view). Today a facility is only ever a card inside the account's "Locations & Addresses" tab.
+
+See Phase 03's account-structure scope for all three.

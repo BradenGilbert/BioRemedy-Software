@@ -1,9 +1,9 @@
-# Phase 06 — Identity, Authorization & Audit
+# Phase 10 — Identity, Authorization & Audit
 
 **Status:** Not started
 **Depends on:** Phase 01 (shared data must exist before it can be protected)
 **Estimated sessions:** 3–4
-**Gate:** This phase plus Phase 07 is the boundary before real customer data enters the system.
+**Gate:** This phase plus Phase 11 is the boundary before real customer data enters the system.
 
 ---
 
@@ -71,7 +71,7 @@ From `docs/erp-operational-architecture.md`:
 
 > *"The attachment inline-view route is **not** role-gated: it is loaded by `<img src>`, and browsers cannot attach the `X-CRM-Role` header to an image request. Access rests on attachment ids being opaque."*
 
-Security-by-opaque-ID is not access control. Once real sessions exist, cookie or signed-URL based auth closes this. Coordinate with Phase 07.
+Security-by-opaque-ID is not access control. Once real sessions exist, cookie or signed-URL based auth closes this. Coordinate with Phase 11.
 
 ---
 
@@ -88,7 +88,7 @@ Security-by-opaque-ID is not access control. Once real sessions exist, cookie or
 
 New: role definitions, user-role assignments, permissions, role-permission mappings, audit log, API/service clients.
 
-None of these exist in `crm-schema/` yet — this is net-new schema design, and it should be written as new numbered migrations (`029+`) so it lands in the Phase 08 migration set cleanly.
+None of these exist in `crm-schema/` yet — this is net-new schema design, and it should be written as new numbered migrations (`029+`) so it lands in the Phase 12 migration set cleanly.
 
 ---
 
@@ -108,7 +108,7 @@ None of these exist in `crm-schema/` yet — this is net-new schema design, and 
 
 - **Entra tenant + app registration** — does this exist yet, or does it need to be created? External dependency; start early, it can block the phase.
 - **Break-glass local admin?** `docs/crm-foundation.md` lists it as optional. Recommended for a solo-developer prototype, with a loud audit entry on every use.
-- **Audit storage** — same JSON backend for now, or straight to a real database? Leaning toward an append-only file until Phase 08.
+- **Audit storage** — same JSON backend for now, or straight to a real database? Leaning toward an append-only file until Phase 12.
 
 ---
 

@@ -1,7 +1,7 @@
-# Phase 07 — Document Storage
+# Phase 11 — Document Storage
 
 **Status:** Not started
-**Depends on:** Phase 06 (documents must be access-controlled from day one, not retrofitted)
+**Depends on:** Phase 10 (documents must be access-controlled from day one, not retrofitted)
 **Estimated sessions:** 2
 **Gate:** Last phase before the Pilot Milestone.
 
@@ -46,7 +46,7 @@ Account, Contact, Opportunity, Project, Facility. One component, used everywhere
 
 ### 3. Access control from the start
 
-Phase 06 closes the un-gated attachment route. This phase must not reopen it:
+Phase 10 closes the un-gated attachment route. This phase must not reopen it:
 - Every file request is authorized against the parent record
 - No security-by-opaque-ID
 - Customer-visible vs internal-only is enforced server-side
@@ -55,13 +55,20 @@ Phase 06 closes the un-gated attachment route. This phase must not reopen it:
 
 Small, and it makes the CRM feel real. Was raised in the 2026-09-02 scoping questions.
 
+### 5. Tagged document/forms archive, scoped by opportunity stage
+
+> *"Negotiation sign-off panel on proposal & Documents. We need to have a way to send new account paperwork or send forms to associated contacts via email using established forms. I don't think we need to integrate the email or outlook function just yet, but we need to have a form or documents archive that has documents tagged with certain tags that allow us to pull only documents or forms relevant to that stage."*
+
+Built on top of item 1's generic attachment store: a library of reusable forms/templates (not per-record uploads), each tagged so a stage (Negotiation, Proposal, etc.) can pull only the documents relevant to it. Explicitly **not** email/Outlook integration yet — the note is clear that sending happens some other way for now (manual download/attach is fine at pilot scale). Sales materials and literature (mentioned in the same note) belong in the same tagged library, not a separate system — see the open decision below on SharePoint/Teams.
+
 ---
 
 ## Out of scope
 
-- **Cloud object storage** (S3/Azure Blob). Local disk is fine for pilot scale. `docs/crm-foundation.md` is right that large files eventually belong in object storage — but that is a Phase 08+ concern, and the schema above is written so the storage backend can change without a data migration.
+- **Cloud object storage** (S3/Azure Blob). Local disk is fine for pilot scale. `docs/crm-foundation.md` is right that large files eventually belong in object storage — but that is a Phase 12+ concern, and the schema above is written so the storage backend can change without a data migration.
 - **LiDAR / point clouds / 3D viewers.** `spatialData` holds metadata; the viewer already exists for what it supports. Stage E.
-- **SharePoint / Teams integration.** Stage E.
+- **SharePoint / Teams integration.** Stage E. The 2026-09-16 notes raise this again directly (*"I believe we may still use sharepoint and teams for this, but I need to figure out to what extent we want to continue our integration with that vs our own file sharing system"*) — this is an open product decision, not just a deferred build; see below.
+- **E-signature / Docusign integration.** Raised explicitly: *"For sending sign-offs and getting them back we might want to look at integrating with Docusign or something similar... We send it via email, they sign via a portal... then it returns to us and notifies the team members and/or sales team then automatically updates the CRM that it has been signed/approved."* This is a substantial integration (or a custom-built signing portal, per the note's own "maybe a local custom built one, who knows") layered on top of item 5's document archive — track as a Stage E follow-on once item 5 exists, not part of reaching the Pilot Milestone.
 - Full-text search inside documents.
 - Retention *automation* — capture `retention_until`; act on it later.
 
@@ -85,6 +92,7 @@ Decide early: extend `files` or supersede it. **Recommendation: extend.** A seco
 - [ ] Upload a new version of an existing file; both versions are retrievable
 - [ ] Signed-out file request is refused
 - [ ] Account logo displays on the account header
+- [ ] A form tagged for the Negotiation stage can be pulled up from the Negotiation stage and no other
 
 ---
 
@@ -93,6 +101,7 @@ Decide early: extend `files` or supersede it. **Recommendation: extend.** A seco
 - **Extend `files` or supersede it?** Recommendation: extend.
 - **Size limits and allowed types?** Field photos and lab PDFs are the common cases; LiDAR is explicitly excluded here.
 - **Does the Client Portal ship in pilot?** If yes, the visibility rules above are load-bearing. If no, build the field but defer enforcement testing.
+- **SharePoint/Teams vs. this system's own file sharing** — the owner has explicitly not decided whether to keep using SharePoint/Teams for sales materials or fold everything into this CRM's own storage. Needs a real decision before item 5's sales-materials scope is finalized; don't build a migration off SharePoint speculatively.
 
 ---
 

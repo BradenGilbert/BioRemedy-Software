@@ -26,7 +26,7 @@ git init
 ```
 
 - Add a `.gitignore` covering: `node_modules/`, `*.log`, `*.err.log`, `*.out.log`, `cloudflared-*.log`, and OS cruft.
-- **Do track `data/backend.json`.** It is noisy, but it is currently the only copy of all shared data and history is worth more than a clean log right now. Revisit when Phase 08 moves data into Postgres.
+- **Do track `data/backend.json`.** It is noisy, but it is currently the only copy of all shared data and history is worth more than a clean log right now. Revisit when Phase 12 moves data into Postgres.
 - **Do track `data/uploads/`?** No — add to `.gitignore`. Binary attachments do not belong in git. They need the backup job in item 2 instead.
 - First commit: the entire current working state, message `Initial commit — prototype state as of 2026-09-15`.
 
@@ -36,7 +36,7 @@ git init
 
 - A timestamped copy of `data/backend.json` written on a schedule (or at minimum, before any session that will mutate collections in bulk).
 - Keep at least the last 10.
-- Simplest viable version: a small script the server calls on startup, or a scheduled task. Do not over-engineer this — it gets replaced in Phase 08 by real database backups.
+- Simplest viable version: a small script the server calls on startup, or a scheduled task. Do not over-engineer this — it gets replaced in Phase 12 by real database backups.
 
 ### 3. `CLAUDE.md` at the project root
 

@@ -1,4 +1,4 @@
-# Phase 08 — PostgreSQL Migration
+# Phase 12 — PostgreSQL Migration
 
 **Status:** Not started
 **Depends on:** Phases 01–07. Do not start early.
@@ -14,7 +14,7 @@
 
 141 tables and 27 views are designed across 28 SQL files. **None of it is deployed.** The running system is a 394 KB JSON file.
 
-**Why this phase is not earlier:** the JSON backend can carry a small pilot, provided it is shared (Phase 01), backed up (Phase 00), and behind a real login (Phase 06). Postgres is the blocker for *production and scale*, not for *pilot*. Doing it first would freeze every user-visible improvement for weeks and would migrate a data model that Phases 02–05 are about to change substantially.
+**Why this phase is not earlier:** the JSON backend can carry a small pilot, provided it is shared (Phase 01), backed up (Phase 00), and behind a real login (Phase 10). Postgres is the blocker for *production and scale*, not for *pilot*. Doing it first would freeze every user-visible improvement for weeks and would migrate a data model that Phases 02–05 are about to change substantially.
 
 **Why it must not be skipped:** a JSON file has no transactions, no concurrent-write safety, no referential integrity, no real backup story, and no query layer. It is a prototype store and it will fail under real concurrent use.
 
@@ -69,7 +69,7 @@ Only after parity is proven. Keep it readable in parallel until then.
 ## Out of scope
 
 - Cloud hosting, containers, CI/CD — infrastructure, decided separately
-- Front Line production API — Phase 09
+- Front Line production API — Phase 13
 - The 27 SQL views. `docs/erp-operational-architecture.md`: *"Views and application panels should be implemented only after these tables and service contracts are accepted."*
 
 ---

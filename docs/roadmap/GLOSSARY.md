@@ -59,10 +59,10 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 
 | Concept | SQL | JSON backend | IndexedDB | Notes |
 |---|---|---|---|---|
-| Account | `accounts` | — | `accounts` ⚠️ | Browser-local today. Moves to server in Phase 01. |
-| Contact | `contacts` | — | `contacts` ⚠️ | Browser-local today. Moves in Phase 01. |
-| Opportunity | `opportunities` | `opportunities` | *(dead store)* | Already on the server. The IndexedDB store declaration is a leftover; removed in Phase 01. |
-| Quote | `quotes` | `quotes` | — | |
+| Account | `accounts` | `accounts` | *(dead)* | ✅ Moved to server, Phase 01 (2026-09-16). IndexedDB store no longer declared. |
+| Contact | `contacts` | `contacts` | *(dead)* | ✅ Moved to server, Phase 01 (2026-09-16). IndexedDB store no longer declared. |
+| Opportunity | `opportunities` | `opportunities` | *(dead)* | Already on the server as of 2026-08-10; the IndexedDB store declaration was removed in Phase 01. |
+| Quote / Estimate | `quotes` | `quotes` + `quoteLines` | — | **Naming question, not yet resolved:** the 2026-09-16 notes use "Quote" and "Estimate" interchangeably throughout. A bare quote header (name, one lump-sum total) already has minimal UI; a real line-item builder does not exist yet — see Phase 08. Decide whether Quote and Estimate are one document type or two before building further. |
 | Lead | `leads` | `leads` | — | |
 
 ---
@@ -78,6 +78,19 @@ Three different things share overlapping names. Do not guess which one you want.
 | `tasks` (`008`) | Operational work-order checklist items | Different concept entirely. Not a sales task. |
 
 **Current decision (Phase 05):** keep building on `activities` and add tagging. Do **not** start the split into dedicated per-type Activity tables yet — revisit once the pilot shows whether the generic table is actually a problem in practice. This is a deliberate deferral, recorded so it isn't re-litigated every session.
+
+---
+
+## Job Title vs. Account Role — locked 2026-09-16, not yet built
+
+Another two-things-currently-collapsed-into-one problem, this time on `contacts`. In the owner's own words:
+
+> *"I think Account role should be something our internal system understands while job title is something that is written on their business card."*
+
+- **Job Title** — external, whatever the person calls themselves (`jobTitle`/`title` on `contacts`). Free text, unconstrained.
+- **Account Role** — internal-only vocabulary this CRM understands (Decision Maker, Technical Evaluator, etc.). Not necessarily the same value as job title, and not free text.
+
+**Not yet built as two separate fields** — confirm current field usage before assuming either already exists in the intended shape. Slotted into Phase 05 item 8. Watch for the same vocabulary question resurfacing at the **opportunity** level (Phase 06 item 19's "Decision Maker" tag for Associated Contacts) — decide whether account-level role and opportunity-level role share one vocabulary or are genuinely separate scopes before building either.
 
 ---
 

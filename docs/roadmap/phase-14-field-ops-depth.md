@@ -1,7 +1,7 @@
-# Phase 10 — Field Ops Depth & Reporting
+# Phase 14 — Field Ops Depth & Reporting
 
 **Status:** OUTLINE ONLY — deliberately not detailed yet
-**Depends on:** Phase 08
+**Depends on:** Phase 12
 **Detail this phase when:** the pilot has shown which gaps actually hurt
 
 ---
@@ -33,10 +33,11 @@ This is the backlog of everything the architecture documents call out as missing
 
 ## Priority 2 gaps
 
-5. **Laboratory data normalization** — laboratories, analytical methods, analytes, test requests, custody transfers, result rows, qualifiers, detection limits. Samples exist; results are mostly JSON blobs.
-6. **Safety & compliance** — JHAs, safety meetings, incidents, observations, permits, SDS records, corrective actions, regulatory deadlines.
-7. **Approvals & notifications** — approval requests, ordered steps, notifications, delivery attempts, subscriptions, escalations, read state. **Note:** the scope-exception alert flow in `docs/crm-foundation.md` depends on this — today alerts are recorded but notify nobody.
+5. **Laboratory data normalization** — laboratories, analytical methods, analytes, test requests, custody transfers, result rows, qualifiers, detection limits. Samples exist; results are mostly JSON blobs. **2026-09-16 notes confirm this is felt, not theoretical:** *"for samples collected we need a way to assign a lab and report results."* `sampleRecords.labName`/`labStatus`/`labResults` fields already exist in the seed data — the gap is UI, not schema (verify this before assuming new fields are needed).
+6. **Safety & compliance** — JHAs, safety meetings, incidents, observations, permits, SDS records, corrective actions, regulatory deadlines. **2026-09-16 notes add a concrete, company-specific case:** *"we need to track waste post site work completion if waste requires to be tracked per TCEQ and EPA guidelines, we will be using BioRemedy's 10 day storage permit and oily waste handler permit as well as many other permits the company holds. These permits should also be tracked and managed by the crm. We need to make sure we get disposal requests, receipts, and any other expenses needed to track total cost on jobs."* This is real regulatory exposure, not a nice-to-have — scope it as: (a) a permit registry (what permits the company holds, their terms/renewal dates), (b) per-job waste tracking tied to those permits, (c) disposal requests/receipts/expenses feeding job cost (connects to Phase 09's P&L report — coordinate rather than building cost-tracking twice). Front Line's field-capture side of this is tracked in Phase 13; this item owns the permit data model and compliance tracking itself.
+7. **Approvals & notifications** — approval requests, ordered steps, notifications, delivery attempts, subscriptions, escalations, read state. **Note:** the scope-exception alert flow in `docs/crm-foundation.md` depends on this — today alerts are recorded but notify nobody. Phase 04's W-9/COI review workflow (items 8–9) also needs a notification step and may be a good forcing function to build a minimal version of this sooner rather than later.
 8. **Project commercial controls** — budgets, committed costs, forecasts, change orders, not-to-exceed revisions tied to approvals.
+9. **Job dispatch template redesign** — *"we might want to adjust how we build out job dispatch templates, what all information they request from the frontline worker and then how that information is presented in the project report and sample report logs."* Cross-references Phase 07 item 8 and Phase 13's "+activity" flexible-capture item — this is a design question spanning three phases; don't scope it in only one.
 
 ## Also raised but never scoped
 

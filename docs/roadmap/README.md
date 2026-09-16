@@ -72,7 +72,7 @@ Make the application have a single, shared source of truth before building anyth
 | 01 | [One Shared Data Layer](phase-01-shared-data-layer.md) | ✅ **Complete 2026-09-16** — every collection migrated, gated by role, and verified live. IndexedDB now holds only device-scoped state (`syncQueue`, `settings`). |
 
 ### Stage B — Make the CRM Correct
-The felt pain. Almost every item on the 2026-09-15 feedback list lives here. These are data-model problems wearing UI clothes, which is why they read as "doesn't make sense" rather than as bugs.
+The felt pain. Almost every item on the 2026-09-15 and 2026-09-16 feedback lists lives here. These are data-model problems wearing UI clothes, which is why they read as "doesn't make sense" rather than as bugs. Phases 06–09 were added 2026-09-16 from a second feedback pass (`bioremedy crm notes 9.16.2026.docx`) that went deep on Opportunities, Dispatch/Operations, and two brand-new modules the owner called out explicitly as needed builds (Quotes/Estimates, Billing/Invoicing).
 
 | Phase | Name | Status |
 |---|---|---|
@@ -80,31 +80,35 @@ The felt pain. Almost every item on the 2026-09-15 feedback list lives here. The
 | 03 | [Account Domain Correctness](phase-03-account-domain.md) | 🟡 **Partially started 2026-09-16** — header title + Sales "+ Create" dropdown shipped ad hoc; Owner field no longer free text (still not sales-role-filtered, still no `ownerEmployeeId` FK) |
 | 04 | [Vendor & Subcontractor](phase-04-vendor-subcontractor.md) | Not started |
 | 05 | [Contacts & Activity Timeline](phase-05-contacts-and-timeline.md) | Not started |
+| 06 | [Opportunity Domain Correctness](phase-06-opportunity-domain.md) | Not started |
+| 07 | [Dispatch & Operations Correctness](phase-07-dispatch-operations.md) | Not started |
+| 08 | [Quotes & Estimates](phase-08-quotes-estimates.md) | Not started — new module |
+| 09 | [Billing & Invoicing](phase-09-billing-invoicing.md) | Not started — new module |
 
 ### Stage C — Pilot-Ready
 The gate before real customer data enters the system.
 
 | Phase | Name | Status |
 |---|---|---|
-| 06 | [Identity, Authorization & Audit](phase-06-identity-and-audit.md) | Not started |
-| 07 | [Document Storage](phase-07-documents.md) | Not started |
+| 10 | [Identity, Authorization & Audit](phase-10-identity-and-audit.md) | Not started |
+| 11 | [Document Storage](phase-11-documents.md) | Not started |
 
 > ### ◆ PILOT MILESTONE
-> After Phase 07, real users can be put on real data safely.
+> After Phase 11, real users can be put on real data safely.
 
 ### Stage D — Production Database
 
 | Phase | Name | Status |
 |---|---|---|
-| 08 | [PostgreSQL Migration](phase-08-postgres-migration.md) | Not started |
+| 12 | [PostgreSQL Migration](phase-12-postgres-migration.md) | Not started |
 
 ### Stage E — Operational Depth
-Post-pilot. These are outlines, deliberately not detailed yet — they will be shaped by what the pilot teaches us.
+Post-pilot. These are outlines, deliberately not detailed yet — they will be shaped by what the pilot teaches us. The 2026-09-16 feedback pass added enough concrete detail on Front Line and Field Ops that both docs below are now much more than outlines — see each doc's own status line.
 
 | Phase | Name | Status |
 |---|---|---|
-| 09 | [Front Line — Real Tiles](phase-09-frontline.md) | Outline only |
-| 10 | [Field Ops Depth & Reporting](phase-10-field-ops-depth.md) | Outline only |
+| 13 | [Front Line — Real Tiles](phase-13-frontline.md) | 🟡 Outline, fleshed out 2026-09-16 with concrete field-app gaps — not yet a session-ready plan |
+| 14 | [Field Ops Depth & Reporting](phase-14-field-ops-depth.md) | 🟡 Outline, fleshed out 2026-09-16 with concrete field-app gaps — not yet a session-ready plan |
 
 ---
 
@@ -114,12 +118,16 @@ Most of what's needed already exists in `crm-schema/` — the prototype simply d
 
 | Table / field | Phase | Why |
 |---|---|---|
-| `facility_contacts` | 02 | A contact can work at a facility, and one contact can manage several. No junction exists anywhere today. |
-| `job_sites.retain_until` + retention policy | 02 | Temporary locations (a one-off sample point, a spill origin) must age out after their reporting life. `is_temporary` exists; a retention rule does not. |
+| `facility_contacts` | 02 | ✅ Shipped 2026-09-16 as `facilityContacts`. A contact can work at a facility, and one contact can manage several. |
+| GPS `locations.retain_until` + retention policy | 02 | ✅ Shipped 2026-09-16 as `retainUntil`/`retentionReason`/`isTemporary`. Temporary locations (a one-off sample point, a spill origin) must age out after their reporting life. |
 | `account_approved_subcontractors` | 04 | Which subs are permitted to work for customer Account X. Customer-specific approval exists nowhere today. |
 | `activity_tags` (or `activities.tags[]`) | 05 | Filterable timelines — Personal, Business, Compliance, Safety, Billing. |
-| Identity/RBAC/audit tables | 06 | Listed as Priority 0 in `docs/database-handoff-map.md`; still absent. |
-| Generic entity-attachment store | 07 | Every Files tab is an empty stub. |
+| `activities.contactIds` (array, replacing scalar `contactId`) | 05 / 06 | An activity can currently only ever be logged against one contact — confirmed scalar field, needs to become an array. |
+| Opportunity-scoped contact relationship tags (Decision Maker, etc.) | 06 | Associated Contacts panel needs real relationship metadata beyond the generic contact record. |
+| Quote/Estimate line items (`quoteLines` gets its first real UI) | 08 | The `quotes`/`quoteLines`/`products`/`priceLevels` collections already exist but only a bare lump-sum quote header has any UI. |
+| Permit registry + per-job waste tracking | 14 | TCEQ/EPA-driven — BioRemedy's 10-day storage permit, oily waste handler permit, and others need to be tracked and tied to job cost. |
+| Identity/RBAC/audit tables | 10 | Listed as Priority 0 in `docs/database-handoff-map.md`; still absent. |
+| Generic entity-attachment store | 11 | Every Files tab is an empty stub. |
 
 ---
 
@@ -142,14 +150,14 @@ These are real, already-diagnosed, and slotted into phases below rather than bei
 
 | Item | Slotted into |
 |---|---|
-| `projects.projectStage` (formerly `jobs.projectStage`) is written at creation but **never read** — the stage ladder and gate both key off free-text `status`/`activePhase` heuristics | Phase 10 |
+| `projects.projectStage` (formerly `jobs.projectStage`) is written at creation but **never read** — the stage ladder and gate both key off free-text `status`/`activePhase` heuristics | Phase 14 — likely the same root cause as the 2026-09-16 note "project status never moves to mobilize or field work" (Phase 07 item 11) and "job status progression does not move along with work plan completion" (Phase 13); consolidate into one fix, don't debug three times |
 | `equipmentAssets.assignedJobId` (a different, still-server-side collection from the migrated `equipmentLogs`) still holds an unrenamed project reference under the old `jobId`-era naming; currently dead/unread | Unslotted — flag when next touching `equipmentAssets` |
 | `laborResources` was retired in code but 5 stale rows remain in `data/backend.json` | Phase 01 |
 | ~~Dead `opportunities` IndexedDB store declaration still in `openDatabase()`~~ | ✅ Removed 2026-09-16, alongside the dead local `projects` store, as part of the `jobs`→`projects` migration |
 | `activities` vs `sales_tasks` architectural divergence | Phase 05 (tags now, split deferred — see phase doc) |
 | `job_resource_allocations.vendor_account_id` points straight at `accounts` instead of a subcontractor assignment | Phase 04 |
-| Attachment inline-view route is not role-gated (relies on opaque IDs) | Phase 06 |
-| QuickBooks integration is a mock export queue | Phase 10 |
+| Attachment inline-view route is not role-gated (relies on opaque IDs) | Phase 10 |
+| QuickBooks integration is a mock export queue | Phase 14 |
 
 ---
 
@@ -159,4 +167,5 @@ These are real, already-diagnosed, and slotted into phases below rather than bei
 - `docs/erp-operational-architecture.md` — workforce, dispatch, execution, Front Line contracts; migrations 018–025
 - `docs/dataverse-relationship-architecture.md` — Dynamics/Dataverse alignment rules; migrations 015, 026–028
 - `docs/crm-foundation.md` — original product direction and open business questions
+- `bioremedy crm notes 9.16.2026.docx` (project root) — second feedback pass, 2026-09-16. ~70 items, mostly Opportunity/Contact/Dispatch bugs plus two explicitly-flagged new modules (Quotes/Estimates, Billing/Invoicing). Fed Phases 03–09, 11, 13, 14 in this revision. Items were verified against running code before being written into phase docs where feasible — see each phase's own citations; Phase 07 and most of Phase 13/14's additions are **not yet verified**, only transcribed, and say so explicitly in their own docs.
 - `New folder/do this next.txt` — the aspirational 19-phase full-ERP vision. **Not this roadmap.** Useful as a long-range wish list only.

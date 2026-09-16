@@ -2,7 +2,8 @@
 
 **Status:** Not started
 **Depends on:** Phase 02 (vendor dispatch/billing address types), Phase 03 (account type classification)
-**Estimated sessions:** 2
+**Soft dependency:** items 7, 13, and 14 (rate-card questions) need Phase 08's rate/pricing foundation to exist first — sequence those three after Phase 08, or expect to redo them. Items 1–6 and 8–12 do not depend on Phase 08 and can proceed independently.
+**Estimated sessions:** 2–3
 
 ---
 
@@ -36,7 +37,7 @@ Customers frequently maintain their own approved-vendor lists. A sub who is full
 | `status` | Approved / Pending / Rejected / Expired |
 | `approved_scope` | What work they're approved for |
 | `approved_from` / `approved_until` | Customer approvals expire |
-| `evidence_file_id` | The customer's approval letter (real storage lands in Phase 07) |
+| `evidence_file_id` | The customer's approval letter (real storage lands in Phase 11) |
 | `notes` | |
 
 ### Layer 3 — Which sub is on *this job*?
@@ -87,13 +88,68 @@ This mixes job-specific terms (scope, rate, dates) into the vendor's general sta
 
 **Then add the Layer 2 check at dispatch time:** when a vendor is allocated to a job, validate that they are approved for *that job's customer account*. That validation is the entire payoff of Layer 2 — without it, the approval list is decoration.
 
+### 6. Vendor Compliance uses placeholder names instead of real employees
+
+> *"Vendor approval uses Maya chen, Luis Romero, and Priya Patel instead of actual employees. This is still a divide between users/employees and their roles, job descriptions."*
+
+Same class of bug as the Account/Contact owner-field problems in Phases 03/05/06 — a hardcoded or demo-identity value standing in for a real employee reference. Trace wherever Vendor Compliance approval is attributed and wire it to the real `employees` roster, the same pattern used everywhere else roles have been fixed.
+
+### 7. Rate card structure and origin
+
+> *"On Vendor compliance it asks for rate card and lists 2026 standard environmental services, we need to figure out where/how we want this created. I think it should be tied to items able to be listed on estimates and quote forms."*
+
+**Do not solve this independently of Phase 08 (Quotes & Estimates).** The owner's own instinct is correct — this rate card should be the same underlying rate/price data quote line items pull from (`priceLevels`/`products`), not a separately typed value. Phase 08's item 2 covers this from the quoting side; this item is the vendor-compliance-side half of the same fix.
+
+### 8. W-9 upload + review workflow
+
+> *"On Vendor compliance W-9 should ask for a copy to be uploaded, then it messages the office admin for review and approval before marking it as 'approved'. The other options should be 'Missing', 'Under Review', 'Approved', 'Expired', and 'Needs Attention'."*
+
+Needs: file upload (depends on Phase 11), a notification to office admin on submission (no notification infrastructure exists yet per `docs/roadmap/phase-14-field-ops-depth.md`'s "Approvals & notifications" gap — decide whether to build a minimal one-off notification here or wait), and the five-state status vocabulary replacing whatever exists today.
+
+### 9. Insurance/COI upload + review workflow
+
+> *"On Vendor compliance Insurance should ask for a copy of their COI be uploaded and then request review and approval on it before it marks the status as valid. The other drop down options should be 'Valid' 'Under Review' 'Expired', 'Expiring', 'Waived'"*
+
+Same shape as item 8 — upload, review/approval step, and a five-state vocabulary (`Valid`/`Under Review`/`Expired`/`Expiring`/`Waived`) distinct from W-9's vocabulary. Build the upload+review pattern once and reuse it for both items 8 and 9 rather than two parallel implementations.
+
+### 10. Performance rating should be a real A–F dropdown
+
+> *"On Vendor compliance We need to fix performance rating so that is says (+A – F) as a drop down."*
+
+Small, concrete — whatever performance rating field exists today, replace with a proper letter-grade dropdown (confirm exact grade set wanted: straight A–F, or with +/– modifiers as the note's "(+A – F)" notation suggests).
+
+### 11. Auto-generated Vendor ID
+
+> *"On Vendor compliance we need to autogenerate an account Vendor ID or have someway it is created… maybe an auto assigned vendor ID? Not sure what best practices are for this."*
+
+The owner is explicitly unsure of the right convention here — this needs a short decision (sequential number, prefix + sequence like other ID schemes already in this codebase, e.g. `INV-###`/`PO-###` patterns visible in existing seed data) before implementation, not a guess baked into code.
+
+### 12. Service agreement templates by type, with upload+review for anything custom
+
+> *"On account service agreement we need agreements selected under agreement type to utilize a preexisting form for MSA, standing work order, and or rate agreement. It should also allow for the option to upload a different one that would need to be sent to office admin or someone internally for review and approval."*
+
+For each `agreement type` value (MSA, Standing Work Order, Rate Agreement), offer a pre-built template; also allow uploading a custom document that routes through the same review/approval pattern as items 8/9.
+
+### 13. Service agreement's own rate-card question, and disambiguating who is customer vs. provider
+
+> *"On account service agreement mentions 'Rate Card' again and lists the '2026 standard environmental services' this may be different if a 'Rate agreement' is selected in agreement type or something else... Under service Agreement there is also Master service agreement – not sent, COI, and W-9. We are listing sent, not sent, and on file. If we are expecting to receive W-9s then that makes sense... If it is for us to receive their stuff, this has some overlap with the vendor tab above. We need to sort out when they are our customer and when we are their service provider. Then the off case where we are both each others customer and service provider. This is just a bit confusing currently so we need to flush it out with good detail."*
+
+This is a genuine conceptual ambiguity, not a bug — **resolve the model before touching the UI.** The account relationship fields already support an account being client and vendor simultaneously (migration 026, referenced in this doc's own "Why this phase exists" section), but the *documents* panel doesn't yet distinguish "documents we send them" (their MSA, our W-9 if we're their subcontractor) from "documents we collect from them" (their W-9/COI, because they're our vendor) from "documents both directions apply" (mutual MSA/service agreement). Write out the three-way matrix (we're their customer / we're their vendor / both) explicitly before building the service-agreement panel, so it doesn't inherit the same confusion the note is describing.
+
+### 14. Subcontractor assignment's rate fields don't make sense together
+
+> *"The subcontractor assignment section doesn't make since since it asks for a rate card, rate amount and rate type (hourly, unit based, etc.) these seem contradictory."*
+
+A rate card (a whole schedule of rates) and a single rate amount + rate type (one specific number) are different levels of specificity being asked for in the same form — likely one should derive from the other (pick a rate card, then it populates or constrains the rate amount/type) rather than being three independent, contradictory inputs. Fix once the rate-card foundation from item 7/Phase 08 exists.
+
 ---
 
 ## Out of scope
 
-- Real document storage for certificates and approval letters. Phase 07 — capture metadata and file references now, wire real uploads later.
+- Real document storage for certificates and approval letters. Phase 11 — capture metadata and file references now, wire real uploads later.
 - Automated insurance-certificate expiry *notifications*. Surface expiry in the UI here; notification infrastructure is Stage E.
-- Vendor bills, payments, and AP. Accounting is Phase 10.
+- Vendor bills, payments, and AP. Accounting is Phase 14.
+- Building the underlying quote/rate-card line-item system — Phase 08. Items 7 and 13 here only consume it.
 
 ---
 
@@ -117,6 +173,12 @@ Update `docs/database-handoff-map.md` (Priority 1 item 4 partially closes) and `
 - [ ] Set a customer approval to expire yesterday → it surfaces as expired
 - [ ] Allocate a subcontractor to a job and see the approval check fire for that job's customer
 - [ ] An account that is both a client and a vendor shows both sections correctly
+- [ ] Vendor Compliance approvals attribute to a real employee, not a placeholder name
+- [ ] Uploading a W-9 or COI triggers a review step before the status can reach Approved/Valid
+- [ ] Performance rating renders as a real letter-grade dropdown
+- [ ] A new vendor account gets an auto-generated Vendor ID with no manual entry
+- [ ] Selecting an agreement type (MSA / Standing Work Order / Rate Agreement) offers its matching template
+- [ ] The three-way client/vendor/both document matrix (item 13) is written down and the service-agreement panel matches it
 
 ---
 
@@ -124,7 +186,10 @@ Update `docs/database-handoff-map.md` (Priority 1 item 4 partially closes) and `
 
 - **Does an expired customer approval block dispatch, or just warn?** Recommendation: warn loudly, allow override with a reason and an audit event — matching the existing dispatcher-override pattern in `docs/erp-operational-architecture.md`.
 - **Is customer approval per-scope or blanket?** The `approved_scope` column assumes per-scope; confirm whether that granularity is real or whether a blanket approval is enough.
-- **Who maintains the approved list** — sales, ops, or compliance? Affects which role can write to it in Phase 06.
+- **Who maintains the approved list** — sales, ops, or compliance? Affects which role can write to it in Phase 10.
+- **Vendor ID convention** — sequential, prefixed (matching the existing `INV-###`/`PO-###`-style patterns), or something else? (item 11)
+- **Performance rating scale** — straight A–F, or with +/– modifiers? (item 10)
+- **Notification on W-9/COI submission** — build a minimal one-off notification now, or wait for Phase 14's "Approvals & notifications" gap to close? (items 8, 9)
 
 ---
 

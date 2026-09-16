@@ -97,6 +97,36 @@ Built once in `renderQuickActions()` (`app.js:2761`), which already branches on 
 
 **🟡 Partially done 2026-09-16.** The Sales-workspace row is shipped: the old "+" icon-button and "New opportunity" quick action were replaced with a single `<details class="create-menu">` "+ Create" dropdown (Account / Contact / Opportunity / Activity), reusing the existing `open-account`/`open-contact`/`open-opportunity`/`open-note` dialog actions — see `renderQuickActions()` in `app.js`. **Not done:** the Account-detail and Contact-detail context-aware menu rows in the table above — those pages still have their own separate, page-specific "New opportunity"/"Add contact" buttons, untouched.
 
+### 6. List-view search/filter cleanup (Accounts)
+
+> *"Make the sales account view list have buttons that can filter, or search accounts. This is inplace of the 'Search Accounts or sites' 'all industries filters' and 'different views'"*
+
+Replace the current ad hoc controls with consistent filter/search buttons. Build this once and share it with Phase 05 (Contacts) and Phase 06 (Opportunities) — the notes explicitly ask for the same treatment on all three ("Do these same cleanup steps on contacts and opportunities").
+
+### 7. "Remove the Account Table" — unresolved, needs clarification
+
+> *"remove the 'Account Table' one core account record shared by sales, operations…"*
+
+**Investigated 2026-09-16, not found as a literal UI element.** No heading, panel, or dialog anywhere in the app is labeled "Account Table." The only matches for the phrase are a subtitle string under the Accounts page heading ("Role-specific account views built from the shared Account table," `app.js:4489`) and an invisible aria-label on a view-switcher dropdown (`app.js:4514-4517`). Both read like descriptive copy about the architecture (one shared account record across workspaces), not a UI element meant to be deleted. **Do not implement a removal for this until it's clarified what it refers to** — possible readings: (a) it's praise/reference to the architecture, not an action item, (b) it refers to the account list/table *view itself* in a way not yet understood, (c) it's about the view-switcher dropdown item 6 is already replacing. Confirm with the owner before writing any code against this line.
+
+### 8. Facility detail page
+
+> *"Facilities should be clickable and go to a facility specific page that lists location, contacts, photos from site, any previous work done at site, notes for site, and satellite map view of site."*
+
+New page, reachable by clicking a facility card (today facility cards in the Locations & Addresses tab render but don't navigate anywhere). Sections: location detail, contacts (see item 9), site photos (depends on Phase 11 — Document Storage — for real uploads), prior work history (query projects/dispatch jobs against this facility once Phase 02's `facilityId` FK makes that traceable), site notes, and a satellite map view (the app already has Leaflet wired in for other map views — reuse that, don't add a second mapping library).
+
+### 9. Facility-contact editing gaps
+
+> *"On an account for facilities there is no way to edit contacts listed for each facility. There is also no clear explanation for what primary contact checkbox does."*
+
+Phase 02 shipped adding a contact to a facility (`facilityContacts` junction + "Add contact" button) but not editing or removing an existing link. Add both, and add explanatory text (a tooltip or inline caption) for what `isPrimary` actually controls — right now it's a bare, unlabeled checkbox.
+
+### 10. Account "Contacts" page / real company-structure hierarchy
+
+> *"Account pages need a 'contacts' page that lists all contacts in the org, this might be the company structure section that is supposed to be a hierarchy tree, but for right now is just a boxed style display."*
+
+Confirm during implementation whether an existing "company structure" panel is meant to become this (per the note, it currently renders as a plain box, not a hierarchy tree) or whether this is a new tab entirely. Either way: a full list of every contact at the account's organization, and if a real reporting-structure hierarchy is wanted, that's a materially bigger build than a flat list — scope which one is actually needed before starting.
+
 ---
 
 ## Out of scope
@@ -104,12 +134,13 @@ Built once in `renderQuickActions()` (`app.js:2761`), which already branches on 
 - Contact-side fixes — Phase 05
 - Vendor/subcontractor panels — Phase 04
 - Opportunity pipeline logic. The stage-gate system works (verified 2026-08-17); only its *edit buttons* are in this phase's audit.
+- Opportunity-specific items from the 2026-09-16 notes pass — Phase 06
 
 ---
 
 ## Data model changes
 
-- `accounts.phase` and `accounts.risk` retired from the creation path (keep columns until Phase 08; stop writing them)
+- `accounts.phase` and `accounts.risk` retired from the creation path (keep columns until Phase 12; stop writing them)
 - `accounts.industry` free text deprecated in favor of `accountIndustries`
 - `accounts.owner` free text → `ownerEmployeeId` (follows the pattern already used for `jobs.projectManagerEmployeeId` in Round 2 — write the resolved display string too, for backward-compatible reads)
 - Possible: extend `industries` with NAICS codes
@@ -160,3 +191,4 @@ Built once in `renderQuickActions()` (`app.js:2761`), which already branches on 
   - Owner storage is still display-name-only — no `ownerEmployeeId` FK, so the original Phase 01 correction ("Owner is still free text in storage despite being a picker in the UI") still applies even though free-typing itself is gone.
   - The "+ Create" dropdown only exists in the Sales workspace quick-actions bar. The Account-detail and Contact-detail context-aware menus (Contact/Opportunity/Facility/Address/Location/Activity, and Opportunity/Activity respectively) were never built — those pages still use their own separate buttons.
   - The Create Account form itself was **not** rebuilt — `siteName`, `city`, `phase`, and `risk` are all still present and still required exactly as this doc describes. Only the Owner field within that form changed.
+- **2026-09-16 notes pass re-confirms two already-tracked gaps, no new scope:** *"Account creation still lists site names as an option"* re-confirms the `siteName` item above. *"Company profile – industry 'not set' is not editable via the edit button for company profile"* re-confirms item 3 (Real industry selection) exactly as already scoped.
