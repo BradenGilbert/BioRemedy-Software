@@ -222,24 +222,36 @@ The schema also defines these read models:
 
 These are working prototype collections, not production SQL tables.
 
-### Browser IndexedDB - 12 stores
+### Browser IndexedDB - 2 stores
 
-`projects`, `jobs`, `projectAssignments`, `materialUsage`, `equipmentLogs`,
-`projectAlerts`, `spatialData`, `scheduledWork`, `tasks`, `activities`,
 `syncQueue`, `settings`
 
-`accounts` and `contacts` moved to the JSON backend on **September 15, 2026**
-(roadmap Phase 01) -- they were the last core CRM entities still held
-browser-locally, which meant every user had a private customer list while the
-opportunities and dispatch jobs referencing them were shared. Nine more stores
-are scheduled to follow; see `docs/roadmap/phase-01-shared-data-layer.md`.
+Roadmap Phase 01 ("One Shared Data Layer") is **complete as of September 16,
+2026**. Every core CRM collection that used to live only in the browser --
+`accounts`, `contacts`, `projects` (formerly `jobs`, the store that actually
+held projects, not dispatch jobs -- see the glossary), `tasks`, `activities`,
+`projectAssignments`, `projectAlerts`, `materialUsage`, `equipmentLogs`,
+`scheduledWork`, `spatialData` -- now lives in the shared JSON backend,
+gated by role. Only `syncQueue` (a device-scoped offline outbox) and
+`settings` (device/user preference) remain local, which is correct by
+definition for both. See `docs/roadmap/phase-01-shared-data-layer.md` for
+the full migration history and the role-gating decisions made per collection.
 
 The store declarations were removed from `openDatabase()`, but existing
-browsers still physically contain the old `accounts`/`contacts` stores and
-their rows -- the database version did not change, so `onupgradeneeded` never
-re-runs. Those rows are orphaned rather than deleted, and are no longer read.
-No recovery pass was added; that was a deliberate decision, recorded in the
-phase document.
+browsers still physically contain the old stores and their rows -- the
+database version did not change, so `onupgradeneeded` never re-runs. Those
+rows are orphaned rather than deleted, and are no longer read. No recovery
+pass was added; that was a deliberate decision, recorded in the phase
+document, applied consistently across every collection Phase 01 touched. The
+dead local `projects` store (a hardcoded 3-row seed list with zero writes
+ever) was also removed -- its rows were converted into real `projects`
+records with `status: "Complete"` rather than discarded, so the Account
+page's "Previous Projects" panel keeps showing them.
+
+`laborResources` and `crewMemberships` (both JSON backend, not IndexedDB --
+see below) were fully deleted September 16, 2026 as part of the same Phase 01
+session's "clean up retired data" item, closing out a gap that had sat open
+since August 17, 2026.
 
 `sampleRecords` was moved out of IndexedDB into the JSON backend on
 August 16, 2026 so field-collected samples are visible to the office rather
@@ -251,7 +263,7 @@ the Opportunity page redesign) but its now-unused IndexedDB store
 declaration was left in `openDatabase`'s schema -- harmless (the store is
 created but never written to), just not yet cleaned up in code.
 
-`laborResources` (JSON backend, Inventory -> Labor view) was retired outright
+`laborResources` (JSON backend, Inventory -> Labor view) was retired in code
 on August 17, 2026, not migrated -- it duplicated real people from `employees`
 under separate, unlinked IDs with independently-drifting hours/capacity
 numbers. The Inventory Labor view and the Schedule dialog's Labor picker now
@@ -259,27 +271,53 @@ both read from `employees` directly. This also fixed a real server-side gap:
 `validateScheduleEvent`'s certification-gating check (`server.mjs`) was
 reading `laborResources.certifications` -- it now reads `employees.skills`,
 so the check still fires instead of silently no-op'ing once the collection
-was emptied.
+was emptied. The 5 orphaned rows this left sitting in `data/backend.json`
+(already unreachable via the API -- no `collectionAccess`/`defaultBackend`
+entry existed for them) were finally deleted September 16, 2026, closing the
+gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
+`app.js` readers -- crew membership derives live from `employees.crewId`)
+was retired the same way, same day: removed from `server.mjs` entirely and
+deleted from `data/backend.json`.
 
-### Node JSON Backend - 76 collections
+### Node JSON Backend - 82 collections
 
-> The count was previously documented as 72. Recounted from `data/backend.json`
-> on September 15, 2026: it was already 74 before this session (the earlier
-> figure appears to have missed a few), plus `accounts` and `contacts` added by
-> the Phase 01 migration.
+> The count was previously documented as 72, then 76. Recounted directly from
+> both `data/backend.json`'s top-level keys and `server.mjs`'s `defaultBackend`
+> object on September 16, 2026 (after finishing Phase 01 in the same session,
+> which added `projects`/`tasks`/`activities`/`projectAssignments`/
+> `projectAlerts`/`materialUsage`/`equipmentLogs`/`scheduledWork`/`spatialData`
+> and removed `timeEntries`/`crewMemberships`/`laborResources`): **82**, not 83
+> as the running arithmetic from the prior count would suggest. Counting by
+> addition/subtraction from an old total compounds any earlier miscount (the
+> 72->74 correction already showed the earlier figures weren't exact) --
+> recount from source when it matters, don't trust the running tally.
 
-- CRM: `accounts` and `contacts` (moved from IndexedDB September 15, 2026 --
-  roadmap Phase 01; gated by the new `customerDirectory` role group, which spans
-  every internal role but excludes Client Portal), `locations` (Account
-  Facilities & Locations -- moved from IndexedDB August 17, 2026; distinct from
-  the `mapLocations` operations collection below), `opportunityAssignments` (planning/sales team assignments on an
+- CRM: `accounts`, `contacts`, `projects` (formerly the IndexedDB `jobs`
+  store, renamed in the same move), `tasks`, `activities`, and
+  `projectAssignments` -- all moved from IndexedDB (`accounts`/`contacts`
+  September 15, 2026; the rest September 16, 2026; all roadmap Phase 01,
+  now complete), all six gated by the `customerDirectory` role group, which
+  spans every internal role but excludes Client Portal. Also `locations`
+  (Account Facilities & Locations -- moved from IndexedDB August 17, 2026;
+  distinct from the `mapLocations` operations collection below),
+  `opportunityAssignments` (planning/sales team assignments on an
   opportunity, gained `employeeId`/`contactId`/`vendorAccountId`/
   `vendorContactId` fields August 17, 2026)
 - Operations/inventory: `scheduleEvents`, `mapLocations`, `inventoryItems`,
-  `purchaseOrders`, `equipmentAssets`, `laborAssignments`,
-  `timeEntries`
+  `purchaseOrders`, `equipmentAssets`, `laborAssignments`, `projectAlerts`,
+  `materialUsage`, `equipmentLogs`, `scheduledWork`, `spatialData`
+  (the last five moved from IndexedDB September 16, 2026, roadmap Phase 01;
+  `projectAlerts` gated `operations` OR `sales` and `materialUsage` gated
+  `operations` OR `finance`, both per an explicit owner decision to give
+  Sales/Finance visibility into field alerts and job-cost data respectively;
+  `equipmentLogs`/`scheduledWork`/`spatialData` gated `operations` only).
+  (`timeEntries` retired September 16, 2026 -- zero `app.js` readers/writers
+  beyond the blanket role-filter pass-through; its one seed row held a
+  `jobId` referencing a project, the exact naming collision the Phase 01
+  `jobs`->`projects` rename exists to clean up, so it wasn't worth renaming a
+  field nobody read)
 - Workforce: `employees`, `employeeCertifications`, `workforceTeams`,
-  `workforceTeamMemberships`, `crewProfiles`, `crewMemberships`,
+  `workforceTeamMemberships`, `crewProfiles`,
   `availabilityBlocks`, `frontlineDevices`
 - Jobs/dispatch: `jobRequests`, `jobRequestDocuments`, `dispatchJobs`,
   `jobAssignments`, `jobScheduleSegments`, `jobResources`, `jobConflicts`,

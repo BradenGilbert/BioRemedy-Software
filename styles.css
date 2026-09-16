@@ -1230,13 +1230,14 @@ h3 {
 .mini-button {
   min-height: 32px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface-alt);
-  color: var(--ink);
+  border: 1px solid rgba(15, 95, 154, 0.3);
+  background: #eaf3fa;
+  color: var(--brand-blue);
   padding: 0 10px;
   font-size: 0.82rem;
   font-weight: 800;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(18, 45, 28, 0.06);
   transition:
     transform 140ms ease,
     box-shadow 140ms ease,
@@ -1245,8 +1246,8 @@ h3 {
 }
 
 .mini-button:hover {
-  border-color: rgba(21, 153, 71, 0.45);
-  background: #eaf7ec;
+  border-color: rgba(15, 95, 154, 0.55);
+  background: #d9ecf9;
   transform: translateY(-1px);
   box-shadow: 0 5px 12px rgba(18, 45, 28, 0.12);
 }
@@ -2129,32 +2130,40 @@ button.source-badge:active {
   gap: 10px;
 }
 
-.activity-picker {
+.activity-picker,
+.create-menu {
   position: relative;
   display: inline-block;
 }
 
-.activity-picker summary {
+.activity-picker summary,
+.create-menu summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   list-style: none;
   cursor: pointer;
 }
 
-.activity-picker summary::-webkit-details-marker {
+.activity-picker summary::-webkit-details-marker,
+.create-menu summary::-webkit-details-marker {
   display: none;
 }
 
-.activity-picker summary::after {
+.activity-picker summary::after,
+.create-menu summary::after {
   content: " \25BE";
 }
 
-.activity-picker-menu {
+.activity-picker-menu,
+.create-menu-list {
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  min-width: 140px;
+  min-width: 160px;
   margin-top: 4px;
   padding: 4px;
   background: var(--surface);
@@ -2163,7 +2172,13 @@ button.source-badge:active {
   box-shadow: var(--shadow);
 }
 
-.activity-picker-menu button {
+.activity-picker-menu {
+  right: auto;
+  left: 0;
+}
+
+.activity-picker-menu button,
+.create-menu-list button {
   border: 0;
   background: none;
   padding: 8px 10px;
@@ -2174,8 +2189,113 @@ button.source-badge:active {
   color: var(--ink);
 }
 
-.activity-picker-menu button:hover {
+.activity-picker-menu button:hover,
+.create-menu-list button:hover {
   background: var(--surface-alt);
+}
+
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.search-compact {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.search-compact svg {
+  position: absolute;
+  left: 10px;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.search-compact input[type="search"] {
+  width: 36px;
+  min-height: 36px;
+  padding-left: 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: width 200ms ease;
+  flex-shrink: 0;
+}
+
+.search-compact input[type="search"]::placeholder {
+  color: transparent;
+}
+
+.search-compact input[type="search"]:focus,
+.search-compact input[type="search"]:not(:placeholder-shown) {
+  width: 220px;
+  cursor: text;
+}
+
+.search-compact input[type="search"]:focus::placeholder {
+  color: var(--muted);
+}
+
+.select-compact {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.select-compact svg {
+  position: absolute;
+  left: 10px;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.select-compact select {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 36px;
+  min-height: 36px;
+  padding: 0 10px 0 30px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: transparent;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: width 200ms ease;
+  flex-shrink: 0;
+}
+
+.select-compact select:focus,
+.select-compact select:hover,
+.select-compact.has-filter select {
+  width: 200px;
+  color: var(--ink);
+}
+
+.select-compact.has-filter::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 21px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--brand-blue);
+  border: 2px solid var(--surface);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .account-hero-stats {

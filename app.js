@@ -365,30 +365,6 @@ const viewWorkspace = {
   "frontline-settings": "frontline",
 };
 
-const coreTableDefinitions = {
-  accounts: {
-    label: "Account",
-    dataverseTable: "account",
-    sqlTable: "accounts",
-    primaryKey: "id",
-    description: "One core account record shared by sales, operations, office management, and finance views.",
-  },
-  contacts: {
-    label: "Contact",
-    dataverseTable: "contact",
-    sqlTable: "contacts",
-    primaryKey: "id",
-    description: "People connected to accounts, opportunities, and project communication.",
-  },
-  opportunities: {
-    label: "Opportunity",
-    dataverseTable: "opportunity",
-    sqlTable: "opportunities",
-    primaryKey: "id",
-    description: "Sales pipeline records that can become field projects or finance work.",
-  },
-};
-
 const accountCoreFieldSections = [
   {
     id: "identity",
@@ -1023,36 +999,6 @@ const seedContacts = [
   },
 ];
 
-const seedProjects = [
-  {
-    id: "proj-riverbend-phase1",
-    accountId: "acct-riverbend",
-    name: "Phase I environmental site assessment",
-    serviceType: "Due diligence",
-    completedDate: "2025-11-14",
-    value: 18000,
-    outcome: "Identified historical UST area and recommended soil borings.",
-  },
-  {
-    id: "proj-north-river-spill",
-    accountId: "acct-north-river",
-    name: "Emergency hydraulic fluid response",
-    serviceType: "Emergency response",
-    completedDate: "2026-02-22",
-    value: 28000,
-    outcome: "Contained release and closed incident report within 10 days.",
-  },
-  {
-    id: "proj-clearwater-survey",
-    accountId: "acct-clearwater",
-    name: "Hazardous materials survey",
-    serviceType: "Asbestos abatement",
-    completedDate: "2026-04-18",
-    value: 36000,
-    outcome: "Mapped abatement quantities for boiler upgrade planning.",
-  },
-];
-
 const seedScheduledWork = [
   {
     id: "work-riverbend-borings",
@@ -1083,7 +1029,7 @@ const seedScheduledWork = [
   },
 ];
 
-const seedJobs = [
+const seedProjects = [
   {
     id: "job-riverbend-ust",
     accountId: "acct-riverbend",
@@ -1188,12 +1134,48 @@ const seedJobs = [
     claimNumber: "TRU-ER-130-2026",
     serviceProfile: "Emergency stabilization, absorbent deployment, recovered material tracking, and T&M cost control.",
   },
+  {
+    id: "proj-riverbend-phase1",
+    accountId: "acct-riverbend",
+    name: "Phase I environmental site assessment",
+    jobClass: "Scheduled Work",
+    status: "Complete",
+    serviceType: "Due diligence",
+    completedDate: "2025-11-14",
+    value: 18000,
+    budget: 18000,
+    outcome: "Identified historical UST area and recommended soil borings.",
+  },
+  {
+    id: "proj-north-river-spill",
+    accountId: "acct-north-river",
+    name: "Emergency hydraulic fluid response",
+    jobClass: "Emergency Response",
+    status: "Complete",
+    serviceType: "Emergency response",
+    completedDate: "2026-02-22",
+    value: 28000,
+    budget: 28000,
+    outcome: "Contained release and closed incident report within 10 days.",
+  },
+  {
+    id: "proj-clearwater-survey",
+    accountId: "acct-clearwater",
+    name: "Hazardous materials survey",
+    jobClass: "Scheduled Work",
+    status: "Complete",
+    serviceType: "Asbestos abatement",
+    completedDate: "2026-04-18",
+    value: 36000,
+    budget: 36000,
+    outcome: "Mapped abatement quantities for boiler upgrade planning.",
+  },
 ];
 
 const seedProjectAssignments = [
   {
     id: "assign-riverbend-sales",
-    jobId: "job-riverbend-ust",
+    projectId: "job-riverbend-ust",
     userName: "Maya Chen",
     userEmail: "maya.chen@example.com",
     globalRole: "Sales Manager",
@@ -1202,7 +1184,7 @@ const seedProjectAssignments = [
   },
   {
     id: "assign-riverbend-pm",
-    jobId: "job-riverbend-ust",
+    projectId: "job-riverbend-ust",
     userName: "Priya Patel",
     userEmail: "priya.patel@example.com",
     globalRole: "Field Lead",
@@ -1211,7 +1193,7 @@ const seedProjectAssignments = [
   },
   {
     id: "assign-riverbend-sampler",
-    jobId: "job-riverbend-ust",
+    projectId: "job-riverbend-ust",
     userName: "Noah Brooks",
     userEmail: "noah.brooks@example.com",
     globalRole: "Staff/Employee",
@@ -1220,7 +1202,7 @@ const seedProjectAssignments = [
   },
   {
     id: "assign-i130-dispatch",
-    jobId: "job-north-river-i130",
+    projectId: "job-north-river-i130",
     userName: "Renee Carter",
     userEmail: "renee.carter@example.com",
     globalRole: "Staff/Employee",
@@ -1229,7 +1211,7 @@ const seedProjectAssignments = [
   },
   {
     id: "assign-i130-field",
-    jobId: "job-north-river-i130",
+    projectId: "job-north-river-i130",
     userName: "Priya Patel",
     userEmail: "priya.patel@example.com",
     globalRole: "Field Lead",
@@ -1241,7 +1223,7 @@ const seedProjectAssignments = [
 const seedMaterialUsage = [
   {
     id: "mat-i130-absorbents",
-    jobId: "job-north-river-i130",
+    projectId: "job-north-river-i130",
     accountId: "acct-north-river",
     materialType: "Absorbents",
     quantity: 18,
@@ -1251,7 +1233,7 @@ const seedMaterialUsage = [
   },
   {
     id: "mat-riverbend-sample-jars",
-    jobId: "job-riverbend-ust",
+    projectId: "job-riverbend-ust",
     accountId: "acct-riverbend",
     materialType: "Sampling containers",
     quantity: 24,
@@ -1264,7 +1246,7 @@ const seedMaterialUsage = [
 const seedEquipmentLogs = [
   {
     id: "equip-i130-vac",
-    jobId: "job-north-river-i130",
+    projectId: "job-north-river-i130",
     accountId: "acct-north-river",
     assetTag: "VAC-204",
     equipment: "Vacuum trailer",
@@ -1276,7 +1258,7 @@ const seedEquipmentLogs = [
   },
   {
     id: "equip-riverbend-pump",
-    jobId: "job-riverbend-ust",
+    projectId: "job-riverbend-ust",
     accountId: "acct-riverbend",
     assetTag: "PMP-077",
     equipment: "Transfer pump",
@@ -1291,7 +1273,7 @@ const seedEquipmentLogs = [
 const seedProjectAlerts = [
   {
     id: "alert-riverbend-scope",
-    jobId: "job-riverbend-ust",
+    projectId: "job-riverbend-ust",
     accountId: "acct-riverbend",
     locationId: "loc-riverbend-yard",
     alertType: "Scope Exception",
@@ -1304,7 +1286,7 @@ const seedProjectAlerts = [
   },
   {
     id: "alert-i130-nte",
-    jobId: "job-north-river-i130",
+    projectId: "job-north-river-i130",
     accountId: "acct-north-river",
     locationId: "loc-north-river-depot",
     alertType: "Customer Approval Needed",
@@ -1322,7 +1304,7 @@ const seedSpatialData = [
     id: "spatial-riverbend-yard",
     accountId: "acct-riverbend",
     locationId: "loc-riverbend-yard",
-    jobId: "job-riverbend-ust",
+    projectId: "job-riverbend-ust",
     fileType: "Point cloud placeholder",
     storagePath: "object-storage://sites/riverbend/south-yard/pre-scan.laz",
     scanDate: "2026-07-02",
@@ -1336,7 +1318,7 @@ const seedSpatialData = [
     id: "spatial-i130-response",
     accountId: "acct-north-river",
     locationId: "loc-north-river-depot",
-    jobId: "job-north-river-i130",
+    projectId: "job-north-river-i130",
     fileType: "7/3/2025 3D site render",
     storagePath: "./public/models/7_3_2025.glb",
     modelPath: "./public/models/7_3_2025.glb",
@@ -1363,7 +1345,7 @@ const equipmentAssets = [
     status: "In service",
     maintenanceDue: "2026-07-18",
     lastUsed: "2026-07-03",
-    assignedJobId: "job-north-river-i130",
+    assignedProjectId: "job-north-river-i130",
     issue: "",
   },
   {
@@ -1372,7 +1354,7 @@ const equipmentAssets = [
     status: "Ready",
     maintenanceDue: "2026-08-04",
     lastUsed: "2026-07-02",
-    assignedJobId: "job-riverbend-ust",
+    assignedProjectId: "job-riverbend-ust",
     issue: "",
   },
   {
@@ -1381,7 +1363,7 @@ const equipmentAssets = [
     status: "Maintenance hold",
     maintenanceDue: "2026-07-06",
     lastUsed: "2026-07-03",
-    assignedJobId: "job-north-river-i130",
+    assignedProjectId: "job-north-river-i130",
     issue: "Hydraulic lift inspection failed. Scheduler should avoid assignment.",
   },
   {
@@ -1390,7 +1372,7 @@ const equipmentAssets = [
     status: "Ready",
     maintenanceDue: "2026-07-30",
     lastUsed: "2026-06-27",
-    assignedJobId: "job-clearwater-abatement",
+    assignedProjectId: "job-clearwater-abatement",
     issue: "",
   },
 ];
@@ -1492,13 +1474,14 @@ const state = {
   accountTimelineSearch: "",
   contactSearch: "",
   contactTableView: "sales",
+  opportunitySearch: "",
   opportunityTableView: "board",
   operationsFilter: "All",
   taskFilter: "Open",
   selectedAccountId: "",
   selectedContactId: "",
   selectedOpportunityId: "",
-  selectedJobId: "",
+  selectedProjectId: "",
   selectedSampleId: "",
   selectedEmployeeId: "",
   selectedDispatchJobId: "",
@@ -1515,7 +1498,6 @@ const state = {
   contacts: [],
   locations: [],
   projects: [],
-  jobs: [],
   projectAssignments: [],
   materialUsage: [],
   equipmentLogs: [],
@@ -1538,14 +1520,12 @@ const state = {
     equipmentMaintenanceRecords: [],
     equipmentRestockItems: [],
     laborAssignments: [],
-    timeEntries: [],
     sampleRecords: [],
     employees: [],
     employeeCertifications: [],
     workforceTeams: [],
     workforceTeamMemberships: [],
     crewProfiles: [],
-    crewMemberships: [],
     availabilityBlocks: [],
     frontlineDevices: [],
     jobRequests: [],
@@ -1622,20 +1602,11 @@ function openDatabase() {
     request.onupgradeneeded = () => {
       const db = request.result;
       for (const store of [
-        // "accounts" and "contacts" moved to the shared JSON backend (roadmap Phase 01, 2026-09-15) —
-        // they were browser-local, so every user had a private customer list while dispatch jobs and
-        // opportunities that referenced them were shared. See docs/roadmap/phase-01-shared-data-layer.md
-        "projects",
-        "jobs",
-        "projectAssignments",
-        "materialUsage",
-        "equipmentLogs",
-        "projectAlerts",
-        "spatialData",
-        "scheduledWork",
-        "opportunities",
-        "tasks",
-        "activities",
+        // Phase 01 (roadmap: docs/roadmap/phase-01-shared-data-layer.md) has moved every core CRM
+        // collection to the shared JSON backend: accounts/contacts (2026-09-15), projects (formerly
+        // "jobs", 2026-09-16), and tasks/activities/projectAssignments/projectAlerts/materialUsage/
+        // equipmentLogs/scheduledWork/spatialData (2026-09-16). Only the device-scoped stores below
+        // remain local by design.
         "syncQueue",
       ]) {
         if (!db.objectStoreNames.contains(store)) {
@@ -1707,12 +1678,7 @@ async function ensureSeedData() {
   const seeded = await getSetting("seeded", false);
   const seedSchemaVersion = await getSetting("seedSchemaVersion", 0);
   if (!seeded) {
-    await Promise.all([
-      // Accounts are seeded into the shared backend instead — see ensureBackendSeedData().
-      ...seedTasks.map((record) => putRecord("tasks", record)),
-      ...seedActivities.map((record) => putRecord("activities", record)),
-    ]);
-
+    // Accounts, tasks, and activities are seeded into the shared backend instead — see ensureBackendSeedData().
     await putSetting("identityConfig", defaultIdentityConfig);
     await putSetting("platformSettings", defaultPlatformSettings);
     await putSetting("currentUser", demoUser);
@@ -1740,39 +1706,27 @@ async function ensureSeedData() {
   // store. Contacts now live in the shared backend, seeded there already in core-schema shape.
   // Retired in roadmap Phase 01.
 
-  if (seedSchemaVersion < 8) {
-    await migrateActivitiesToCoreSchema();
-  }
+  // seedSchemaVersion < 8 previously ran migrateActivitiesToCoreSchema() against the local activities
+  // store. Activities now live in the shared backend, seeded there already in core-schema shape.
+  // Retired in roadmap Phase 01, 2026-09-16.
 
-  if (seedSchemaVersion < 10) {
-    await migrateOperationsProjectArchitecture();
-  }
+  // seedSchemaVersion < 10 previously ran migrateSpatialDataSeed() against the local spatialData
+  // store (itself already trimmed down from migrateOperationsProjectArchitecture(), which handled
+  // the old local jobs store too — see above). spatialData now lives in the shared backend. Retired
+  // in roadmap Phase 01, 2026-09-16.
 
-  if (seedSchemaVersion < 11) {
-    await migrateProjectRenderSampleData();
-  }
+  // seedSchemaVersion < 11 previously ran migrateProjectRenderSampleData(), another local spatialData
+  // merge pass. Same retirement as above, 2026-09-16.
 
   // seedSchemaVersion < 13 previously ran migrateJobRequestAccountFoundation(), which back-filled
   // missing seed accounts into the local store. ensureBackendSeedData() covers this server-side now.
   // Retired in roadmap Phase 01.
 
-  // contacts are seeded into the shared backend — see ensureBackendSeedData()
-  await seedStoreIfEmpty("projects", seedProjects);
-  await seedStoreIfEmpty("jobs", seedJobs);
-  await seedStoreIfEmpty("projectAssignments", seedProjectAssignments);
-  await seedStoreIfEmpty("materialUsage", seedMaterialUsage);
-  await seedStoreIfEmpty("equipmentLogs", seedEquipmentLogs);
-  await seedStoreIfEmpty("projectAlerts", seedProjectAlerts);
-  await seedStoreIfEmpty("spatialData", seedSpatialData);
-  await seedStoreIfEmpty("scheduledWork", seedScheduledWork);
+  // accounts, contacts, projects, tasks, activities, projectAssignments, projectAlerts, materialUsage,
+  // equipmentLogs, scheduledWork, and spatialData are all seeded into the shared backend — see
+  // ensureBackendSeedData(). Nothing left to seed locally.
 
   await putSetting("seedSchemaVersion", 14);
-}
-
-async function seedStoreIfEmpty(storeName, records) {
-  const existing = await getAll(storeName);
-  if (existing.length) return;
-  await Promise.all(records.map((record) => putRecord(storeName, record)));
 }
 
 // Seeds demo accounts into the shared backend the first time it comes up empty. Kept on the client
@@ -1781,9 +1735,18 @@ async function seedStoreIfEmpty(storeName, records) {
 // Idempotent: the POST route upserts by id, so two clients racing write identical records.
 async function ensureBackendSeedData() {
   try {
-    const [accounts, contacts] = await Promise.all([
+    const [accounts, contacts, projects, tasks, activities, projectAssignments, projectAlerts, materialUsage, equipmentLogs, scheduledWork, spatialData] = await Promise.all([
       apiRequest("/api/backend/accounts"),
       apiRequest("/api/backend/contacts"),
+      apiRequest("/api/backend/projects"),
+      apiRequest("/api/backend/tasks"),
+      apiRequest("/api/backend/activities"),
+      apiRequest("/api/backend/projectAssignments"),
+      apiRequest("/api/backend/projectAlerts"),
+      apiRequest("/api/backend/materialUsage"),
+      apiRequest("/api/backend/equipmentLogs"),
+      apiRequest("/api/backend/scheduledWork"),
+      apiRequest("/api/backend/spatialData"),
     ]);
     if (!accounts.length) {
       for (const account of seedAccounts) {
@@ -1795,119 +1758,64 @@ async function ensureBackendSeedData() {
         await saveBackendRecord("contacts", buildCoreContactRecord(contact), { refresh: false });
       }
     }
+    if (!projects.length) {
+      for (const project of seedProjects) {
+        await saveBackendRecord("projects", buildCoreProjectRecord(project), { refresh: false });
+      }
+    }
+    if (!tasks.length) {
+      for (const task of seedTasks) {
+        await saveBackendRecord("tasks", buildCoreTaskRecord(task), { refresh: false });
+      }
+    }
+    if (!activities.length) {
+      for (const activity of seedActivities) {
+        await saveBackendRecord("activities", buildCoreActivityRecord(activity), { refresh: false });
+      }
+    }
+    if (!projectAssignments.length) {
+      for (const assignment of seedProjectAssignments) {
+        await saveBackendRecord("projectAssignments", assignment, { refresh: false });
+      }
+    }
+    if (!projectAlerts.length) {
+      for (const alert of seedProjectAlerts) {
+        await saveBackendRecord("projectAlerts", alert, { refresh: false });
+      }
+    }
+    if (!materialUsage.length) {
+      for (const material of seedMaterialUsage) {
+        await saveBackendRecord("materialUsage", material, { refresh: false });
+      }
+    }
+    if (!equipmentLogs.length) {
+      for (const equipment of seedEquipmentLogs) {
+        await saveBackendRecord("equipmentLogs", equipment, { refresh: false });
+      }
+    }
+    if (!scheduledWork.length) {
+      for (const work of seedScheduledWork) {
+        await saveBackendRecord("scheduledWork", work, { refresh: false });
+      }
+    }
+    if (!spatialData.length) {
+      for (const item of seedSpatialData) {
+        await saveBackendRecord("spatialData", item, { refresh: false });
+      }
+    }
   } catch (error) {
     // Backend unreachable (offline, or the role can't read the customer directory). refreshBackendState()
     // already surfaces that to the user; seeding simply waits for the next load.
   }
 }
 
-async function migrateActivitiesToCoreSchema() {
-  const activities = await getAll("activities");
-  await Promise.all(activities.map((activity) => putRecord("activities", buildCoreActivityRecord(activity))));
-}
-
-async function migrateOperationsProjectArchitecture() {
-  const [jobs, spatial] = await Promise.all([getAll("jobs"), getAll("spatialData")]);
-  const jobSeedLookup = new Map(seedJobs.map((job) => [job.id, job]));
-  const spatialSeedLookup = new Map(seedSpatialData.map((item) => [item.id, item]));
-  const projectProfileFields = [
-    "generatorName",
-    "generatorSiteName",
-    "epaId",
-    "tceqId",
-    "insuranceContact",
-    "insuranceCarrier",
-    "claimNumber",
-    "serviceProfile",
-  ];
-
-  await Promise.all(
-    jobs.map((job) => {
-      const seed = jobSeedLookup.get(job.id);
-      if (!seed) return putRecord("jobs", job);
-      const merged = { ...job };
-      projectProfileFields.forEach((field) => {
-        if (!merged[field] && seed[field]) merged[field] = seed[field];
-      });
-      return putRecord("jobs", merged);
-    }),
-  );
-
-  await Promise.all(
-    spatial.map((item) => {
-      const seed = spatialSeedLookup.get(item.id);
-      return seed ? putRecord("spatialData", mergeMissingSeedFields(item, seed)) : putRecord("spatialData", item);
-    }),
-  );
-
-  const spatialIds = new Set(spatial.map((item) => item.id));
-  await Promise.all(seedSpatialData.filter((item) => !spatialIds.has(item.id)).map((item) => putRecord("spatialData", item)));
-}
-
-function mergeMissingSeedFields(record, seed) {
-  const merged = { ...record };
-  Object.entries(seed).forEach(([field, value]) => {
-    const current = merged[field];
-    const isMissing = current === undefined || current === null || current === "" || (Array.isArray(current) && current.length === 0);
-    if (isMissing && value !== undefined) merged[field] = value;
-  });
-  return merged;
-}
-
-async function migrateProjectRenderSampleData() {
-  const spatial = await getAll("spatialData");
-
-  await Promise.all(
-    spatial.map((item) => {
-      const seed = item.id === "spatial-i130-response" ? seedSpatialData.find((record) => record.id === item.id) : null;
-      return seed ? putRecord("spatialData", { ...item, ...seed }) : putRecord("spatialData", item);
-    }),
-  );
-
-  const spatialIds = new Set(spatial.map((item) => item.id));
-  await Promise.all(seedSpatialData.filter((item) => !spatialIds.has(item.id)).map((item) => putRecord("spatialData", item)));
-}
-
 async function refreshState() {
-  const [
-    projects,
-    jobs,
-    projectAssignments,
-    materialUsage,
-    equipmentLogs,
-    projectAlerts,
-    spatialData,
-    scheduledWork,
-    tasks,
-    activities,
-    syncQueue,
-  ] =
-    await Promise.all([
-    getAll("projects"),
-    getAll("jobs"),
-    getAll("projectAssignments"),
-    getAll("materialUsage"),
-    getAll("equipmentLogs"),
-    getAll("projectAlerts"),
-    getAll("spatialData"),
-    getAll("scheduledWork"),
-    getAll("tasks"),
-    getAll("activities"),
-    getAll("syncQueue"),
-  ]);
+  const syncQueue = await getAll("syncQueue");
 
-  // state.accounts and state.contacts are projected from the shared backend in
+  // state.accounts, state.contacts, state.projects, state.tasks, state.activities,
+  // state.projectAssignments, state.projectAlerts, state.materialUsage, state.equipmentLogs,
+  // state.scheduledWork, and state.spatialData are all projected from the shared backend in
   // refreshBackendState(), not loaded here.
-  state.projects = projects.sort((a, b) => parseDate(b.completedDate) - parseDate(a.completedDate));
-  state.jobs = jobs.sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
-  state.projectAssignments = projectAssignments.sort((a, b) => a.assignedRole.localeCompare(b.assignedRole));
-  state.materialUsage = materialUsage.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  state.equipmentLogs = equipmentLogs.sort((a, b) => new Date(b.checkedOut) - new Date(a.checkedOut));
-  state.projectAlerts = projectAlerts.sort((a, b) => new Date(b.reportedAt) - new Date(a.reportedAt));
-  state.spatialData = spatialData.sort((a, b) => parseDate(b.scanDate) - parseDate(a.scanDate));
-  state.scheduledWork = scheduledWork.sort((a, b) => parseDate(a.date) - parseDate(b.date));
-  state.tasks = tasks.sort((a, b) => parseDate(a.dueDate) - parseDate(b.dueDate));
-  state.activities = activities.map(buildCoreActivityRecord).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   state.syncQueue = syncQueue.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   state.identityConfig = await getSetting("identityConfig", defaultIdentityConfig);
   state.platformSettings = {
@@ -1940,6 +1848,35 @@ async function refreshBackendState() {
     state.contacts = (state.backend.contacts || [])
       .filter((contact) => !contact.deletedAt)
       .sort((a, b) => a.name.localeCompare(b.name));
+    state.projects = (state.backend.projects || [])
+      .filter((project) => !project.deletedAt)
+      .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
+    state.tasks = (state.backend.tasks || [])
+      .filter((task) => !task.deletedAt)
+      .map(buildCoreTaskRecord)
+      .sort((a, b) => parseDate(a.dueDate) - parseDate(b.dueDate));
+    state.activities = (state.backend.activities || [])
+      .filter((activity) => !activity.deletedAt)
+      .map(buildCoreActivityRecord)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    state.projectAssignments = (state.backend.projectAssignments || [])
+      .filter((assignment) => !assignment.deletedAt)
+      .sort((a, b) => a.assignedRole.localeCompare(b.assignedRole));
+    state.projectAlerts = (state.backend.projectAlerts || [])
+      .filter((alert) => !alert.deletedAt)
+      .sort((a, b) => new Date(b.reportedAt) - new Date(a.reportedAt));
+    state.materialUsage = (state.backend.materialUsage || [])
+      .filter((item) => !item.deletedAt)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    state.equipmentLogs = (state.backend.equipmentLogs || [])
+      .filter((item) => !item.deletedAt)
+      .sort((a, b) => new Date(b.checkedOut) - new Date(a.checkedOut));
+    state.scheduledWork = (state.backend.scheduledWork || [])
+      .filter((work) => !work.deletedAt)
+      .sort((a, b) => parseDate(a.date) - parseDate(b.date));
+    state.spatialData = (state.backend.spatialData || [])
+      .filter((item) => !item.deletedAt)
+      .sort((a, b) => parseDate(b.scanDate) - parseDate(a.scanDate));
     state.authError = state.authError === "Backend API unavailable." ? "" : state.authError;
   } catch (error) {
     state.authError = "Backend API unavailable.";
@@ -2023,7 +1960,7 @@ async function updateOnlineStatus(isOnline) {
 }
 
 async function handleClick(event) {
-  document.querySelectorAll("details.activity-picker[open]").forEach((details) => {
+  document.querySelectorAll("details.activity-picker[open], details.create-menu[open]").forEach((details) => {
     if (!details.contains(event.target)) details.open = false;
   });
 
@@ -2039,7 +1976,7 @@ async function handleClick(event) {
     state.selectedAccountId = "";
     state.selectedContactId = "";
     state.selectedOpportunityId = "";
-    state.selectedJobId = "";
+    state.selectedProjectId = "";
     state.selectedSampleId = "";
     state.selectedEmployeeId = "";
     state.selectedDispatchJobId = "";
@@ -2067,7 +2004,7 @@ async function handleClick(event) {
     if (state.view !== "account-detail") state.selectedAccountId = "";
     if (state.view !== "contact-detail") state.selectedContactId = "";
     if (state.view !== "opportunity-detail") state.selectedOpportunityId = "";
-    if (!["project-detail", "sample-detail", "client-spill-detail"].includes(state.view)) state.selectedJobId = "";
+    if (!["project-detail", "sample-detail", "client-spill-detail"].includes(state.view)) state.selectedProjectId = "";
     if (state.view !== "sample-detail") state.selectedSampleId = "";
     if (state.view !== "employee-detail") state.selectedEmployeeId = "";
     if (state.view !== "dispatch-job-detail") state.selectedDispatchJobId = "";
@@ -2093,7 +2030,7 @@ async function handleClick(event) {
     state.selectedAccountId = "";
     state.selectedContactId = "";
     state.selectedOpportunityId = "";
-    state.selectedJobId = "";
+    state.selectedProjectId = "";
     state.selectedSampleId = "";
     state.selectedEmployeeId = "";
     state.selectedDispatchJobId = "";
@@ -2262,19 +2199,19 @@ async function handleClick(event) {
   }
   if (action === "back-to-project") {
     const sample = findSample(state.selectedSampleId);
-    state.selectedJobId = sample?.jobId || state.selectedJobId;
+    state.selectedProjectId = sample?.projectId || state.selectedProjectId;
     state.selectedSampleId = "";
-    state.view = state.selectedJobId ? "project-detail" : "ops-projects";
+    state.view = state.selectedProjectId ? "project-detail" : "ops-projects";
     render();
   }
   if (action === "back-to-client-spills") {
     state.view = "client-spills";
-    state.selectedJobId = "";
+    state.selectedProjectId = "";
     render();
   }
   if (action === "back-to-projects") {
     state.view = "ops-projects";
-    state.selectedJobId = "";
+    state.selectedProjectId = "";
     state.selectedSampleId = "";
     render();
   }
@@ -2479,11 +2416,6 @@ function handleInput(event) {
     renderAccounts();
   }
 
-  if (event.target.id === "contactSearch") {
-    state.contactSearch = event.target.value;
-    renderContacts();
-  }
-
   if (event.target.id === "contactTableView") {
     state.contactTableView = event.target.value;
     renderContacts();
@@ -2491,6 +2423,16 @@ function handleInput(event) {
 
   if (event.target.id === "opportunityTableView") {
     state.opportunityTableView = event.target.value;
+    renderPipeline();
+  }
+
+  if (event.target.id === "contactSearch") {
+    state.contactSearch = event.target.value;
+    renderContacts();
+  }
+
+  if (event.target.id === "opportunitySearch") {
+    state.opportunitySearch = event.target.value;
     renderPipeline();
   }
 
@@ -2615,6 +2557,7 @@ function render() {
   renderConnection();
   renderNav();
   renderQuickActions();
+  renderHeaderTitle();
   renderTodaySummary();
 
   if (state.view === "home") renderHome();
@@ -2689,7 +2632,7 @@ const ROUTE_ID_FIELDS = [
   "selectedAccountId",
   "selectedContactId",
   "selectedOpportunityId",
-  "selectedJobId",
+  "selectedProjectId",
   "selectedSampleId",
   "selectedEmployeeId",
   "selectedDispatchJobId",
@@ -2780,8 +2723,17 @@ function renderQuickActions() {
   } else if (activeWorkspace === "workforce") {
     actions.push(`<button class="primary-button" type="button" data-action="open-employee">Add employee</button>`);
   } else if (activeWorkspace === "sales" && canAccessView("pipeline")) {
-    actions.push(`<button class="icon-button" type="button" data-action="open-note" title="Add activity" aria-label="Add activity"><span aria-hidden="true">+</span></button>`);
-    actions.push(`<button class="primary-button" type="button" data-action="open-opportunity">New opportunity</button>`);
+    actions.push(`
+      <details class="create-menu">
+        <summary class="primary-button">+ Create</summary>
+        <div class="create-menu-list">
+          <button type="button" data-action="open-account">Account</button>
+          <button type="button" data-action="open-contact">Contact</button>
+          <button type="button" data-action="open-opportunity">Opportunity</button>
+          <button type="button" data-action="open-note">Activity</button>
+        </div>
+      </details>
+    `);
   }
   if (activeWorkspace === "operations" && canAccessWorkspace("operations")) {
     actions.push(`<button class="danger-button" type="button" data-action="open-alert">Field alert</button>`);
@@ -2790,6 +2742,17 @@ function renderQuickActions() {
     actions.push(`<button class="secondary-button" type="button" data-action="open-material">Log material</button>`);
   }
   quickActions.innerHTML = actions.join("");
+}
+
+function renderHeaderTitle() {
+  const titleEl = document.querySelector("#appHeaderTitle");
+  if (!titleEl) return;
+  if (state.view === "home") {
+    titleEl.textContent = "Operations Platform";
+    return;
+  }
+  const workspaceLabel = findWorkspace(getCurrentWorkspaceId())?.label || "Operations Platform";
+  titleEl.textContent = workspaceLabel.replace(/ View$/, "");
 }
 
 function renderTodaySummary() {
@@ -2833,7 +2796,7 @@ function ensureAllowedView() {
   if (canAccessView(state.view)) return;
   state.selectedAccountId = "";
   state.selectedContactId = "";
-  state.selectedJobId = "";
+  state.selectedProjectId = "";
   state.selectedSampleId = "";
   state.selectedEmployeeId = "";
   state.selectedDispatchJobId = "";
@@ -2938,7 +2901,7 @@ function getWorkspaceInitials(label) {
 
 function getHomeLauncherMetrics(workspaceId) {
   if (workspaceId === "sales") return `${state.opportunities.length} opportunities`;
-  if (workspaceId === "operations") return `${state.jobs.length} active jobs`;
+  if (workspaceId === "operations") return `${state.projects.filter((job) => job.status !== "Complete").length} active jobs`;
   if (workspaceId === "dispatch") return `${getDispatchJobs().filter((job) => !isTerminalDispatchStatus(job.status)).length} open jobs`;
   if (workspaceId === "workforce") return `${getEmployees().filter((employee) => employee.employmentStatus === "Active").length} active employees`;
   if (workspaceId === "inventory") return `${getConsumableStatus().filter((item) => item.status !== "Healthy").length} stock alerts`;
@@ -3089,9 +3052,19 @@ function renderPipelineAttentionItem(item) {
 }
 
 function getScopedOpportunities() {
-  return state.pipelineAccountFilter
+  const scoped = state.pipelineAccountFilter
     ? state.opportunities.filter((opportunity) => opportunity.accountId === state.pipelineAccountFilter)
     : state.opportunities;
+  const search = state.opportunitySearch.trim().toLowerCase();
+  if (!search) return scoped;
+  return scoped.filter((opportunity) => {
+    const account = findAccount(opportunity.accountId);
+    return [opportunity.name, opportunity.serviceType, opportunity.nextStep, account?.name]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(search);
+  });
 }
 
 function renderPipeline() {
@@ -3103,18 +3076,6 @@ function renderPipeline() {
         "sales",
         "Opportunities",
         "Opportunity views built from one shared Opportunity table. The board stays focused on active pipeline movement.",
-        `
-          <select id="opportunityTableView" aria-label="Opportunity view">
-            ${Object.entries(opportunityTableViews)
-              .map(
-                ([viewId, view]) =>
-                  `<option value="${escapeAttribute(viewId)}" ${viewId === state.opportunityTableView ? "selected" : ""}>${escapeHtml(view.label)}</option>`,
-              )
-              .join("")}
-          </select>
-          <button class="secondary-button" type="button" data-action="open-note">Add activity</button>
-          <button class="primary-button" type="button" data-action="open-opportunity">New opportunity</button>
-        `,
       )}
       ${
         filterAccount
@@ -3132,8 +3093,29 @@ function renderPipeline() {
           : ""
       }
       ${renderMetrics()}
-      ${renderCoreTableNotice("opportunities", activeView, opportunityCoreFields.length)}
       ${renderPipelineInsights()}
+      <div class="panel-header">
+        <div>
+          <h3>${escapeHtml(activeView.label)}</h3>
+          <span>${escapeHtml(activeView.description)}</span>
+        </div>
+        <div class="list-toolbar">
+          ${renderCompactSearch("opportunitySearch", "Search opportunities or accounts", state.opportunitySearch)}
+          <button class="secondary-button" type="button" data-action="open-note">Add activity</button>
+          <button class="primary-button" type="button" data-action="open-opportunity">New opportunity</button>
+          ${renderCompactSelect(
+            "opportunityTableView",
+            VIEW_ICON_SVG,
+            "Opportunity view",
+            Object.entries(opportunityTableViews)
+              .map(
+                ([viewId, view]) =>
+                  `<option value="${escapeAttribute(viewId)}" ${viewId === state.opportunityTableView ? "selected" : ""}>${escapeHtml(view.label)}</option>`,
+              )
+              .join(""),
+          )}
+        </div>
+      </div>
       ${state.opportunityTableView !== "board" ? renderOpportunityTable(activeView) : ""}
       <section class="pipeline-board" aria-label="Pipeline stages">
         ${STAGES.map(renderStageColumn).join("")}
@@ -3145,10 +3127,6 @@ function renderPipeline() {
 function renderOpportunityTable(view) {
   return `
     <section class="panel">
-      <div class="panel-header">
-        <h3>${escapeHtml(view.label)}</h3>
-        <span>${escapeHtml(view.description)}</span>
-      </div>
       <div class="panel-body">
         <table class="data-table">
           <thead>
@@ -3209,7 +3187,7 @@ function renderOpportunityColumnValue(opportunity, columnKey) {
   }
 
   if (columnKey === "dealStage" || columnKey === "forecastCategory" || columnKey === "initialCommunication") {
-    return `<span class="stage-badge">${escapeHtml(formatOpportunityFieldValue(opportunity, columnKey))}</span>`;
+    return escapeHtml(formatOpportunityFieldValue(opportunity, columnKey));
   }
 
   return escapeHtml(formatOpportunityFieldValue(opportunity, columnKey));
@@ -3274,7 +3252,7 @@ function renderOpportunityCard(opportunity) {
         <span style="width: ${probability}%"></span>
       </div>
       <div class="card-meta">
-        <span class="stage-badge">${escapeHtml(opportunity.serviceType)}</span>
+        <span>${escapeHtml(opportunity.serviceType)}</span>
         <span class="risk-badge ${closeStatus.tone}">${escapeHtml(closeStatus.label)}</span>
         <span>${probability}% probability</span>
       </div>
@@ -3424,7 +3402,7 @@ function renderOpportunityStageBlockBanner(opportunity) {
 
 function renderOpportunityWonProjectPrompt(opportunity) {
   if (opportunity.stage !== "Won") return "";
-  const hasProject = state.jobs.some((job) => job.opportunityId === opportunity.id);
+  const hasProject = state.projects.some((job) => job.opportunityId === opportunity.id);
   if (hasProject) return "";
   return `
     <div class="empty-state warning">
@@ -3904,7 +3882,7 @@ function renderSalesRaceTrack() {
 }
 
 function renderRaceTrackBoard(context = "operations") {
-  const activeJobs = state.jobs.filter((job) => job.status !== "Complete");
+  const activeJobs = state.projects.filter((job) => job.status !== "Complete");
   const highAlertCount = state.projectAlerts.filter((alert) => alert.status !== "Resolved" && alert.severity === "High").length;
   const atRiskCount = activeJobs.filter((job) => getJobProgress(job).tone !== "low").length;
   const scheduledCount = getScheduleEvents().filter((work) => work.status !== "Complete").length;
@@ -3972,13 +3950,48 @@ function renderRaceTrackCard(job) {
   `;
 }
 
+function buildCoreProjectRecord(project) {
+  return {
+    ...project,
+    id: project.id || makeId("proj"),
+    accountId: project.accountId || "",
+    opportunityId: project.opportunityId || "",
+    locationId: project.locationId || "",
+    contactIds: project.contactIds || [],
+    name: project.name || "",
+    jobClass: project.jobClass || "",
+    status: project.status || "Active",
+    activePhase: project.activePhase || "",
+    projectManager: project.projectManager || "",
+    salesLead: project.salesLead || "",
+    startDate: project.startDate || "",
+    targetDate: project.targetDate || "",
+    completedDate: project.completedDate || "",
+    budget: project.budget ?? 0,
+    value: project.value ?? project.budget ?? 0,
+    notToExceed: project.notToExceed ?? "",
+    marginWatch: project.marginWatch || "",
+    outcome: project.outcome || "",
+    serviceType: project.serviceType || "",
+    generatorName: project.generatorName || "",
+    generatorSiteName: project.generatorSiteName || "",
+    epaId: project.epaId || "",
+    tceqId: project.tceqId || "",
+    insuranceContact: project.insuranceContact || "",
+    insuranceCarrier: project.insuranceCarrier || "",
+    claimNumber: project.claimNumber || "",
+    serviceProfile: project.serviceProfile || "",
+  };
+}
+
 function buildCoreAccountRecord(account) {
   const accountName = account.accountName || account.name || "";
   const accountId = account.accountId || account.id || makeId("acct");
   const accountNumber = account.accountNumber || accountId.replace(/^acct-/, "ACCT-").toUpperCase();
   const mainPhoneNumber = account.mainPhoneNumber || account.phone || "";
   const email = account.email || "";
-  const city = account.addressOneCity || account.city || "";
+  const cityState = splitCityState(account.addressOneCity || account.city || "");
+  const city = cityState.city;
   const primaryContact = account.addressOnePrimaryContact || account.contact || "";
   const now = new Date().toISOString();
 
@@ -4014,7 +4027,7 @@ function buildCoreAccountRecord(account) {
     addressOneStreetTwo: account.addressOneStreetTwo || "",
     addressOneStreetThree: account.addressOneStreetThree || "",
     addressOneCity: city,
-    addressOneState: account.addressOneState || "",
+    addressOneState: account.addressOneState || cityState.state || "",
     addressOneCounty: account.addressOneCounty || "",
     addressOneCountry: account.addressOneCountry || "United States",
     addressOneZipCode: account.addressOneZipCode || account.zipCode || "",
@@ -4105,6 +4118,24 @@ function sentenceCase(value) {
     .trim();
 }
 
+function buildCoreTaskRecord(task) {
+  return {
+    ...task,
+    id: task.id || makeId("task"),
+    accountId: task.accountId || "",
+    contactId: task.contactId || "",
+    opportunityId: task.opportunityId || "",
+    activityId: task.activityId || "",
+    title: task.title || "",
+    dueDate: task.dueDate || "",
+    owner: task.owner || "Unassigned",
+    type: task.type || "Follow-up",
+    priority: task.priority || "Medium",
+    status: task.status || "Open",
+    completedAt: task.completedAt || (task.status === "Complete" ? new Date().toISOString() : ""),
+  };
+}
+
 function buildCoreActivityRecord(activity) {
   const activityType = normalizeActivityType(activity.activityType || activity.kind || "Task");
   const createdAt = activity.createdAt || new Date().toISOString();
@@ -4132,9 +4163,9 @@ function buildCoreActivityRecord(activity) {
     activityDate,
     dueDate: activity.dueDate || (activityType === "Task" ? activityDate : ""),
     status,
-    owner: activity.owner || activity.author || state.currentUser?.name || "Local user",
-    author: activity.author || activity.owner || state.currentUser?.name || "Local user",
-    createdBy: activity.createdBy || activity.author || activity.owner || state.currentUser?.name || "Local user",
+    owner: activity.owner || activity.author || "Unassigned",
+    author: activity.author || activity.owner || "Unassigned",
+    createdBy: activity.createdBy || activity.author || activity.owner || "Unassigned",
     createdAt,
     completedAt: activity.completedAt || (status === "Completed" ? createdAt : ""),
     priority: activity.priority || (activityType === "Task" ? "Medium" : ""),
@@ -4157,6 +4188,12 @@ function getDefaultActivityChannel(activityType) {
   if (activityType === "Email") return "Email";
   if (activityType === "Note") return "Note";
   return "Task";
+}
+
+function splitCityState(value = "") {
+  const match = /^(.*),\s*([A-Za-z]{2})$/.exec(String(value).trim());
+  if (match) return { city: match[1].trim(), state: match[2].toUpperCase() };
+  return { city: String(value).trim(), state: "" };
 }
 
 function splitContactName(name = "") {
@@ -4193,7 +4230,7 @@ function buildCoreContactRecord(contact) {
     relationshipRole: contact.relationshipRole || contact.influence || "Unknown",
     lifecycleStage: contact.lifecycleStage || "Lead",
     leadStatus: contact.leadStatus || "Open",
-    owner: contact.owner || account?.owner || state.currentUser?.name || "Unassigned",
+    owner: contact.owner || account?.owner || "Unassigned",
     hubspotOwnerId: contact.hubspotOwnerId || "",
     originatingLeadId: contact.originatingLeadId || "",
     email: contact.email || "",
@@ -4213,8 +4250,8 @@ function buildCoreContactRecord(contact) {
     addressOneStreetOne: contact.addressOneStreetOne || "",
     addressOneStreetTwo: contact.addressOneStreetTwo || "",
     addressOneStreetThree: contact.addressOneStreetThree || "",
-    addressOneCity: contact.addressOneCity || account?.addressOneCity || account?.city || "",
-    addressOneState: contact.addressOneState || account?.addressOneState || "",
+    addressOneCity: contact.addressOneCity || splitCityState(account?.addressOneCity || account?.city || "").city,
+    addressOneState: contact.addressOneState || account?.addressOneState || splitCityState(account?.addressOneCity || account?.city || "").state,
     addressOneCountry: contact.addressOneCountry || account?.addressOneCountry || "United States",
     addressOneZipCode: contact.addressOneZipCode || account?.addressOneZipCode || "",
     addressOneTelephoneOne: contact.addressOneTelephoneOne || contact.phone || "",
@@ -4281,7 +4318,7 @@ function buildCoreOpportunityRecord(opportunity) {
     opportunityUniqueIdentifier: opportunity.opportunityUniqueIdentifier || opportunity.id || "",
     accountName: opportunity.accountName || account?.name || "",
     primaryContact: opportunity.primaryContact || contacts[0]?.name || account?.contact || "",
-    owner: opportunity.owner || account?.owner || state.currentUser?.name || "Unassigned",
+    owner: opportunity.owner || account?.owner || "Unassigned",
     hubspotOwnerId: opportunity.hubspotOwnerId || "",
     dealType: opportunity.dealType || "New Business",
     serviceType: opportunity.serviceType || "",
@@ -4365,6 +4402,44 @@ function daysBetween(fromDate, toDate) {
   return Math.max(0, Math.round((end - start) / 86400000));
 }
 
+function renderCompactSearch(id, placeholder, value) {
+  return `
+    <span class="search-compact">
+      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+        <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2" />
+        <path d="M21 21l-4.3-4.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      </svg>
+      <input id="${escapeAttribute(id)}" type="search" placeholder="${escapeAttribute(placeholder)}" value="${escapeAttribute(value)}" />
+    </span>
+  `;
+}
+
+const FILTER_ICON_SVG = `
+  <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+    <path d="M4 5h16l-6 7.5V19l-4 2v-8.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+  </svg>
+`;
+
+const VIEW_ICON_SVG = `
+  <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+    <rect x="3" y="3" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2" />
+    <rect x="14" y="3" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2" />
+    <rect x="3" y="14" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2" />
+    <rect x="14" y="14" width="7" height="7" fill="none" stroke="currentColor" stroke-width="2" />
+  </svg>
+`;
+
+function renderCompactSelect(id, icon, ariaLabel, optionsHtml, isActive = false) {
+  return `
+    <span class="select-compact${isActive ? " has-filter" : ""}">
+      ${icon}
+      <select id="${escapeAttribute(id)}" aria-label="${escapeAttribute(ariaLabel)}">
+        ${optionsHtml}
+      </select>
+    </span>
+  `;
+}
+
 function renderAccounts() {
   const activeView = accountTableViews[state.accountTableView] || accountTableViews.sales;
   const search = state.accountSearch.trim().toLowerCase();
@@ -4397,40 +4472,43 @@ function renderAccounts() {
 
   app.innerHTML = `
     <section class="view">
-      ${renderWorkspaceHeader(
-        "sales",
-        "Accounts",
-        "Role-specific account views built from the shared Account table.",
-        `
-          <input id="accountSearch" type="search" placeholder="Search accounts or sites" value="${escapeAttribute(state.accountSearch)}" />
-          <select id="accountIndustryFilter" aria-label="Filter by industry">
-            <option value="">All industries</option>
-            ${sortedIndustries
-              .map(
-                (industry) =>
-                  `<option value="${escapeAttribute(industry.id)}" ${industry.id === state.accountIndustryFilter ? "selected" : ""}>${escapeHtml(industry.industryName)}</option>`,
-              )
-              .join("")}
-          </select>
-          <select id="accountTableView" aria-label="Account table view">
-            ${Object.entries(accountTableViews)
-              .map(
-                ([viewId, view]) =>
-                  `<option value="${escapeAttribute(viewId)}" ${viewId === state.accountTableView ? "selected" : ""}>${escapeHtml(view.label)}</option>`,
-              )
-              .join("")}
-          </select>
-          <button class="primary-button" type="button" data-action="open-account">New account</button>
-        `,
-      )}
-      ${renderCoreTableNotice("accounts", activeView, accountCoreFields.length)}
+      ${renderWorkspaceHeader("sales", "Accounts", "Role-specific account views built from the shared Account table.")}
       <section class="crm-focus-grid" aria-label="CRM account focus">
         ${priorityAccounts.map(renderAccountFocusCard).join("") || `<div class="empty-state">No account records yet.</div>`}
       </section>
       <section class="panel">
         <div class="panel-header">
-          <h3>${escapeHtml(activeView.label)}</h3>
-          <span>${escapeHtml(activeView.description)}</span>
+          <div>
+            <h3>${escapeHtml(activeView.label)}</h3>
+            <span>${escapeHtml(activeView.description)}</span>
+          </div>
+          <div class="list-toolbar">
+            ${renderCompactSearch("accountSearch", "Search accounts or sites", state.accountSearch)}
+            ${renderCompactSelect(
+              "accountIndustryFilter",
+              FILTER_ICON_SVG,
+              "Filter by industry",
+              `<option value="">All industries</option>${sortedIndustries
+                .map(
+                  (industry) =>
+                    `<option value="${escapeAttribute(industry.id)}" ${industry.id === state.accountIndustryFilter ? "selected" : ""}>${escapeHtml(industry.industryName)}</option>`,
+                )
+                .join("")}`,
+              Boolean(state.accountIndustryFilter),
+            )}
+            <button class="primary-button" type="button" data-action="open-account">New account</button>
+            ${renderCompactSelect(
+              "accountTableView",
+              VIEW_ICON_SVG,
+              "Account table view",
+              Object.entries(accountTableViews)
+                .map(
+                  ([viewId, view]) =>
+                    `<option value="${escapeAttribute(viewId)}" ${viewId === state.accountTableView ? "selected" : ""}>${escapeHtml(view.label)}</option>`,
+                )
+                .join(""),
+            )}
+          </div>
         </div>
         <div class="panel-body">
           <table class="data-table">
@@ -4453,24 +4531,6 @@ function renderAccounts() {
   `;
 }
 
-function renderCoreTableNotice(tableId, activeView, fieldCount) {
-  const table = coreTableDefinitions[tableId];
-  return `
-    <section class="core-table-notice" aria-label="${escapeAttribute(table.label)} data source">
-      <div>
-        <strong>${escapeHtml(table.label)} table</strong>
-        <span>${escapeHtml(table.description)}</span>
-      </div>
-      <div class="inline-actions">
-        <span class="source-badge">Dataverse ${escapeHtml(table.dataverseTable)}</span>
-        <span class="source-badge">SQL ${escapeHtml(table.sqlTable)}</span>
-        <span class="tag">${fieldCount} mapped fields</span>
-        <span class="tag">${activeView.columns.length ? `${activeView.columns.length} visible columns` : "Board view"}</span>
-      </div>
-    </section>
-  `;
-}
-
 function renderAccountTableRow(account, view) {
   const summary = getAccountCrmSummary(account);
   const context = { summary };
@@ -4478,8 +4538,10 @@ function renderAccountTableRow(account, view) {
     <tr>
       ${view.columns.map((columnKey) => renderAccountTableCell(account, columnKey, context)).join("")}
       <td data-label="Actions">
-        <button class="mini-button" type="button" data-action="view-account" data-id="${account.id}">Open</button>
-        <button class="mini-button" type="button" data-action="open-note" data-account-id="${account.id}">Activity</button>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="view-account" data-id="${account.id}">Open</button>
+          <button class="mini-button" type="button" data-action="open-note" data-account-id="${account.id}">Activity</button>
+        </div>
       </td>
     </tr>
   `;
@@ -5219,10 +5281,10 @@ function renderAccountProjectsTab(account) {
   const activeOpportunities = opportunities.filter((opportunity) => opportunity.stage !== "Won");
   const wonOpportunities = opportunities.filter((opportunity) => opportunity.stage === "Won");
 
-  const opsProjects = jobsForAccount(account.id);
+  const opsProjects = projectsForAccount(account.id);
   const activeOpsProjects = opsProjects.filter((job) => !isOpsProjectClosed(job));
   const closedOpsProjects = opsProjects.filter((job) => isOpsProjectClosed(job));
-  const historicalProjects = projectsForAccount(account.id);
+  const historicalProjects = opsProjects.filter((job) => job.status === "Complete");
 
   const dispatchJobs = dispatchJobsForAccount(account.id);
   const activeDispatchJobs = dispatchJobs.filter((job) => !isTerminalDispatchStatus(job.status));
@@ -5267,7 +5329,7 @@ function getSampleResultTone(sample) {
 function renderSamplingSessionCard(session) {
   const sampleCount = session.samples.length;
   const latest = session.samples[session.samples.length - 1];
-  const job = latest?.jobId ? findJob(latest.jobId) : null;
+  const job = latest?.projectId ? findProject(latest.projectId) : null;
   return `
     <article class="detail-card">
       <button class="link-button" type="button" data-action="view-sample" data-id="${escapeAttribute(latest?.id || "")}">${escapeHtml(session.label)}</button>
@@ -5630,7 +5692,7 @@ function renderScheduledWorkCard(work) {
 }
 
 function renderScheduleEventCard(work) {
-  const job = findJob(work.jobId);
+  const job = findProject(work.projectId);
   const account = job ? findAccount(job.accountId) : null;
   const blocked = Boolean(work.blockedReason);
   return `
@@ -5865,24 +5927,7 @@ function renderContacts() {
 
   app.innerHTML = `
     <section class="view">
-      ${renderWorkspaceHeader(
-        "sales",
-        "Contacts",
-        "Role-specific contact views built from one shared Contact table.",
-        `
-          <input id="contactSearch" type="search" placeholder="Search contacts or opportunities" value="${escapeAttribute(state.contactSearch)}" />
-          <select id="contactTableView" aria-label="Contact table view">
-            ${Object.entries(contactTableViews)
-              .map(
-                ([viewId, view]) =>
-                  `<option value="${escapeAttribute(viewId)}" ${viewId === state.contactTableView ? "selected" : ""}>${escapeHtml(view.label)}</option>`,
-              )
-              .join("")}
-          </select>
-          <button class="primary-button" type="button" data-action="open-contact">New contact</button>
-        `,
-      )}
-      ${renderCoreTableNotice("contacts", activeView, contactCoreFields.length)}
+      ${renderWorkspaceHeader("sales", "Contacts", "Role-specific contact views built from one shared Contact table.")}
       <section class="metric-strip" aria-label="Contact coverage metrics">
         <div class="metric">
           <p class="eyebrow">Decision makers</p>
@@ -5907,8 +5952,25 @@ function renderContacts() {
       </section>
       <section class="panel">
         <div class="panel-header">
-          <h3>${escapeHtml(activeView.label)}</h3>
-          <span>${escapeHtml(activeView.description)}</span>
+          <div>
+            <h3>${escapeHtml(activeView.label)}</h3>
+            <span>${escapeHtml(activeView.description)}</span>
+          </div>
+          <div class="list-toolbar">
+            ${renderCompactSearch("contactSearch", "Search contacts or opportunities", state.contactSearch)}
+            <button class="primary-button" type="button" data-action="open-contact">New contact</button>
+            ${renderCompactSelect(
+              "contactTableView",
+              VIEW_ICON_SVG,
+              "Contact table view",
+              Object.entries(contactTableViews)
+                .map(
+                  ([viewId, view]) =>
+                    `<option value="${escapeAttribute(viewId)}" ${viewId === state.contactTableView ? "selected" : ""}>${escapeHtml(view.label)}</option>`,
+                )
+                .join(""),
+            )}
+          </div>
         </div>
         <div class="panel-body">
           <table class="data-table">
@@ -5977,7 +6039,7 @@ function renderContactColumnValue(contact, columnKey) {
   }
 
   if (columnKey === "relationshipRole" || columnKey === "accountRole") {
-    return `<span class="stage-badge">${escapeHtml(getContactFieldValue(contact, columnKey))}</span>`;
+    return escapeHtml(getContactFieldValue(contact, columnKey));
   }
 
   if (columnKey === "linkedOpportunities") {
@@ -6392,7 +6454,7 @@ function renderContactOpportunitiesTab(contact) {
 }
 
 function renderContactProjectsTab(contact) {
-  const jobs = jobsForContact(contact);
+  const jobs = projectsForContact(contact);
   const activeJobs = jobs.filter((job) => !isOpsProjectClosed(job));
   const closedJobs = jobs.filter((job) => isOpsProjectClosed(job));
   const opportunityIds = new Set((contact.opportunityIds || []));
@@ -6509,7 +6571,8 @@ function renderOperations() {
 
 function renderOperationsAllProjects() {
   const filterAccount = state.projectsAccountFilter ? findAccount(state.projectsAccountFilter) : null;
-  const jobs = filterAccount ? state.jobs.filter((job) => job.accountId === filterAccount.id) : state.jobs;
+  const activeProjects = state.projects.filter((job) => job.status !== "Complete");
+  const jobs = filterAccount ? activeProjects.filter((job) => job.accountId === filterAccount.id) : activeProjects;
   const grouped = ["Emergency Response", "Multi-Stage Remediation", "Scheduled Work"].map((jobClass) => ({
     jobClass,
     jobs: jobs.filter((job) => job.jobClass === jobClass),
@@ -6596,7 +6659,7 @@ function renderOperationsAllProjects() {
 }
 
 function renderOperationsDispatchJobRow(dispatchJob) {
-  const project = dispatchJob.projectId ? findJob(dispatchJob.projectId) : null;
+  const project = dispatchJob.projectId ? findProject(dispatchJob.projectId) : null;
   return `
     <article class="inventory-card">
       <div class="race-card-main">
@@ -6691,7 +6754,7 @@ function renderProjectIntakeBanner(job) {
 
 function renderProjectDetail() {
   cleanupProjectDetailVisuals();
-  const job = findJob(state.selectedJobId);
+  const job = findProject(state.selectedProjectId);
   if (!job) {
     app.innerHTML = `
       <section class="empty-state">
@@ -6910,7 +6973,7 @@ function renderProjectDispatchJobCard(dispatchJob) {
 function renderSampleDetail() {
   cleanupProjectDetailVisuals();
   const sample = findSample(state.selectedSampleId);
-  const job = sample ? findJob(sample.jobId) : null;
+  const job = sample ? findProject(sample.projectId) : null;
   if (!sample || !job) {
     app.innerHTML = `
       <section class="empty-state">
@@ -6923,7 +6986,7 @@ function renderSampleDetail() {
 
   const account = findAccount(sample.accountId || job.accountId);
   const location = findLocation(sample.locationId || job.locationId);
-  const session = groupSamplesIntoSessions(samplesForJob(job.id)).find((item) => item.id === (sample.samplingSessionId || sample.chainOfCustody || sample.jobId));
+  const session = groupSamplesIntoSessions(samplesForJob(job.id)).find((item) => item.id === (sample.samplingSessionId || sample.chainOfCustody || sample.projectId));
   const photos = sample.photos?.length ? sample.photos : [];
   const results = sample.results || sample.labResults || "No result summary has been entered.";
   const analyses = Array.isArray(sample.requestedAnalyses)
@@ -7099,7 +7162,7 @@ function renderSampleDetail() {
 }
 
 function renderOperationsScheduled() {
-  const scheduledJobs = state.jobs.filter((job) => job.jobClass === "Scheduled Work");
+  const scheduledJobs = state.projects.filter((job) => job.jobClass === "Scheduled Work" && job.status !== "Complete");
   const scheduledOpen = getScheduleEvents().filter((work) => work.status !== "Complete");
 
   app.innerHTML = `
@@ -7135,8 +7198,8 @@ function renderOperationsScheduled() {
 }
 
 function renderOperationsEmergency() {
-  const emergencyJobs = state.jobs.filter((job) => job.jobClass === "Emergency Response");
-  const emergencyAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved" && emergencyJobs.some((job) => job.id === alert.jobId));
+  const emergencyJobs = state.projects.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete");
+  const emergencyAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved" && emergencyJobs.some((job) => job.id === alert.projectId));
 
   app.innerHTML = `
     <section class="view">
@@ -7166,7 +7229,7 @@ function renderOperationsEmergency() {
 }
 
 function renderOperationsRemediation() {
-  const remediationJobs = state.jobs.filter((job) => job.jobClass === "Multi-Stage Remediation");
+  const remediationJobs = state.projects.filter((job) => job.jobClass === "Multi-Stage Remediation" && job.status !== "Complete");
 
   app.innerHTML = `
     <section class="view">
@@ -7228,15 +7291,16 @@ function renderOperationsRaceTrack() {
 
 function renderOperationsMetrics() {
   const activeAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved");
-  const activeEmergency = state.jobs.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete").length;
+  const activeEmergency = state.projects.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete").length;
   const maintenanceHolds = equipmentAssets.filter((asset) => asset.status === "Maintenance hold").length;
   const lowConsumables = getConsumableStatus().filter((item) => item.status !== "Healthy").length;
+  const activeProjectCount = state.projects.filter((job) => job.status !== "Complete").length;
 
   return `
     <section class="metric-strip" aria-label="Operations metrics">
       <div class="metric">
         <p class="eyebrow">Active jobs</p>
-        <strong>${state.jobs.length}</strong>
+        <strong>${activeProjectCount}</strong>
         <span>Operational records in this foundation</span>
       </div>
       <div class="metric">
@@ -7261,8 +7325,8 @@ function renderOperationsMetrics() {
 function renderRemediationCard(job) {
   const account = findAccount(job.accountId);
   const progress = getJobProgress(job);
-  const samples = sampleRecordsForAccount(job.accountId).filter((sample) => sample.jobId === job.id);
-  const spatial = spatialDataForAccount(job.accountId).filter((item) => item.jobId === job.id);
+  const samples = sampleRecordsForAccount(job.accountId).filter((sample) => sample.projectId === job.id);
+  const spatial = spatialDataForAccount(job.accountId).filter((item) => item.projectId === job.id);
   const alerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved");
   const dispatchJobs = dispatchJobsForProject(job.id);
   const activeDispatchCount = dispatchJobs.filter((dispatchJob) => !isTerminalDispatchStatus(dispatchJob.status)).length;
@@ -7606,7 +7670,7 @@ function renderClientSpillMapPopup(marker) {
       <span>${escapeHtml(marker.locationName)}</span>
       <span>${Number(marker.latitude).toFixed(5)}, ${Number(marker.longitude).toFixed(5)}</span>
       <span>${escapeHtml(marker.sourceLabel)}</span>
-      <button class="mini-button" type="button" data-action="view-client-spill" data-id="${escapeAttribute(marker.jobId)}">Open spill</button>
+      <button class="mini-button" type="button" data-action="view-client-spill" data-id="${escapeAttribute(marker.projectId)}">Open spill</button>
     </div>
   `;
 }
@@ -7888,12 +7952,13 @@ function renderMapPopup(marker) {
 
 function renderOperationsLegacy() {
   const jobClasses = ["Scheduled Work", "Emergency Response", "Multi-Stage Remediation"];
+  const activeProjects = state.projects.filter((job) => job.status !== "Complete");
   const jobs =
     state.operationsFilter === "All"
-      ? state.jobs
-      : state.jobs.filter((job) => job.jobClass === state.operationsFilter);
+      ? activeProjects
+      : activeProjects.filter((job) => job.jobClass === state.operationsFilter);
   const activeAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved");
-  const activeEmergency = state.jobs.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete").length;
+  const activeEmergency = state.projects.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete").length;
   const loggedMaterialCount = state.materialUsage.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
   app.innerHTML = `
@@ -7918,7 +7983,7 @@ function renderOperationsLegacy() {
       <section class="metric-strip" aria-label="Operations metrics">
         <div class="metric">
           <p class="eyebrow">Active jobs</p>
-          <strong>${state.jobs.length}</strong>
+          <strong>${activeProjects.length}</strong>
           <span>Operational records in this foundation</span>
         </div>
         <div class="metric">
@@ -8030,7 +8095,7 @@ function renderJobCard(job) {
 }
 
 function renderAssignmentCard(assignment) {
-  const job = findJob(assignment.jobId);
+  const job = findProject(assignment.projectId);
   return `
     <article class="detail-card">
       <strong>${escapeHtml(assignment.userName)}</strong>
@@ -8045,7 +8110,7 @@ function renderAssignmentCard(assignment) {
 }
 
 function renderAlertCard(alert) {
-  const job = findJob(alert.jobId);
+  const job = findProject(alert.projectId);
   const account = findAccount(alert.accountId);
   return `
     <article class="alert-card ${alert.severity.toLowerCase()}">
@@ -8066,7 +8131,7 @@ function renderAlertCard(alert) {
 }
 
 function renderMaterialCard(item) {
-  const job = findJob(item.jobId);
+  const job = findProject(item.projectId);
   return `
     <article class="detail-card">
       <strong>${escapeHtml(item.materialType)}</strong>
@@ -8081,7 +8146,7 @@ function renderMaterialCard(item) {
 }
 
 function renderEquipmentCard(item) {
-  const job = findJob(item.jobId);
+  const job = findProject(item.projectId);
   return `
     <article class="detail-card">
       <strong>${escapeHtml(item.assetTag)} - ${escapeHtml(item.equipment)}</strong>
@@ -10049,7 +10114,7 @@ function renderEquipmentAssetDetail() {
 
   const config = getEquipmentCategoryConfig(asset.category);
   const specs = asset.specs || {};
-  const job = findJob(asset.assignedJobId);
+  const job = findProject(asset.assignedProjectId);
   const maintenanceRecords = getEquipmentMaintenanceRecords(asset.assetTag);
   const restockItems = getEquipmentRestockItems(asset.assetTag);
   const checkLogs = getEquipmentLogsForAsset(asset.assetTag);
@@ -10182,7 +10247,7 @@ function renderEquipmentMaintenanceRow(record) {
 }
 
 function renderEquipmentCheckLogRow(log) {
-  const job = findJob(log.jobId);
+  const job = findProject(log.projectId);
   return `
     <article class="inventory-card">
       <div class="race-card-main">
@@ -10297,7 +10362,7 @@ function renderPurchaseOrderCard(order) {
 }
 
 function renderEquipmentAssetCard(asset) {
-  const job = findJob(asset.assignedJobId);
+  const job = findProject(asset.assignedProjectId);
   return `
     <article class="inventory-card">
       <div class="race-card-main">
@@ -10402,7 +10467,7 @@ function renderOfficeManager() {
           <div class="panel-header"><h3>Workspace status</h3></div>
           <div class="panel-body status-grid">
             ${renderWorkspaceStatusCard("Sales", `${state.opportunities.length} opportunities`, "Pipeline and accounts active")}
-            ${renderWorkspaceStatusCard("Operations", `${state.jobs.length} jobs`, "Schedule, map, and race track active")}
+            ${renderWorkspaceStatusCard("Operations", `${state.projects.filter((job) => job.status !== "Complete").length} jobs`, "Schedule, map, and race track active")}
             ${renderWorkspaceStatusCard("Inventory", `${consumables.length} consumables`, "Stock, equipment, labor active")}
             ${renderWorkspaceStatusCard("Finance", money(financeSummary.quoted), "Quotes and invoice prep active")}
           </div>
@@ -10822,7 +10887,7 @@ function renderClientContacts() {
 function renderClientSpillDetail() {
   cleanupClientSpillMap();
   cleanupProjectDetailVisuals();
-  const job = findJob(state.selectedJobId);
+  const job = findProject(state.selectedProjectId);
   if (!job || !clientCanSeeJob(job)) {
     app.innerHTML = `
       <section class="empty-state">
@@ -10842,7 +10907,7 @@ function renderClientSpillDetail() {
   const sampleSessions = groupSamplesIntoSessions(samples);
   const spatial = spatialDataForJob(job.id);
   const chronology = getClientChronology(job);
-  const schedule = getScheduleEvents().filter((work) => work.jobId === job.id).sort((a, b) => new Date(a.date) - new Date(b.date));
+  const schedule = getScheduleEvents().filter((work) => work.projectId === job.id).sort((a, b) => new Date(a.date) - new Date(b.date));
 
   app.innerHTML = `
     <section class="view client-view">
@@ -11020,7 +11085,7 @@ function renderClientSpillMapListItem(marker) {
         <span>${escapeHtml(marker.status)}</span>
         <span>${escapeHtml(marker.locationName)} - ${Number(marker.latitude).toFixed(5)}, ${Number(marker.longitude).toFixed(5)}</span>
         <span>${escapeHtml(marker.sourceLabel)}</span>
-        <button class="mini-button" type="button" data-action="view-client-spill" data-id="${escapeAttribute(marker.jobId)}">Open spill</button>
+        <button class="mini-button" type="button" data-action="view-client-spill" data-id="${escapeAttribute(marker.projectId)}">Open spill</button>
       </div>
     </article>
   `;
@@ -11064,7 +11129,7 @@ function renderClientSpillCard(job) {
 }
 
 function renderClientScheduleCard(work) {
-  const job = findJob(work.jobId);
+  const job = findProject(work.projectId);
   return `
     <article class="detail-card">
       <strong>${escapeHtml(work.title || job?.name || "Scheduled work")}</strong>
@@ -11079,7 +11144,7 @@ function renderClientScheduleCard(work) {
 }
 
 function renderClientSampleSummary(sample) {
-  const job = findJob(sample.jobId);
+  const job = findProject(sample.projectId);
   return `
     <article class="detail-card">
       <strong>${escapeHtml(sample.sampleId || sample.id)}</strong>
@@ -11094,7 +11159,7 @@ function renderClientSampleSummary(sample) {
 }
 
 function renderClientDocumentCard(spatial) {
-  const job = findJob(spatial.jobId);
+  const job = findProject(spatial.projectId);
   return `
     <article class="detail-card">
       <strong>${escapeHtml(spatial.fileType || "Site document")}</strong>
@@ -12208,7 +12273,7 @@ async function saveSampleFromTask(action, job, data, summary, submittedBy) {
       sampleId: (data.get("sampleId") || "").toString().trim(),
       samplingSessionId: "",
       samplingSessionName: job.jobName || "",
-      jobId: job.projectId || "",
+      projectId: job.projectId || "",
       dispatchJobId: job.id,
       actionId: action.id,
       accountId: job.accountId || "",
@@ -12383,6 +12448,8 @@ async function saveAccount(form) {
   const existing = existingId ? findAccount(existingId) : null;
   const now = new Date().toISOString();
   const businessDescription = data.get("businessDescription").toString().trim();
+  const ownerEmployeeId = data.get("ownerEmployeeId").toString();
+  const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
   const account = buildCoreAccountRecord({
     ...(existing || {}),
     id: existingId || makeId("acct"),
@@ -12398,13 +12465,14 @@ async function saveAccount(form) {
     parentAccountId: data.get("parentAccountId").toString(),
     city: data.get("city").toString().trim(),
     addressOneCity: data.get("city").toString().trim(),
+    addressOneState: data.get("state").toString().trim() || existing?.addressOneState || "",
     siteName: data.get("siteName").toString().trim(),
     concern: data.get("concern").toString().trim(),
     risk: data.get("risk").toString(),
     accountRating: data.get("risk").toString(),
     phase: data.get("phase").toString(),
     classification: data.get("phase").toString(),
-    owner: data.get("owner").toString().trim() || existing?.owner || state.currentUser?.name || "Unassigned",
+    owner: ownerName || existing?.owner || "Unassigned",
     lastContact: existing?.lastContact || todayIso(),
     nextAction: existing?.nextAction || "Qualify cleanup scope and decision process",
     createdBy: existing?.createdBy || state.currentUser?.name || "Local user",
@@ -12613,12 +12681,12 @@ async function saveContactAddressTwo(form) {
 
 async function saveProjectAlert(form) {
   const data = new FormData(form);
-  const job = findJob(data.get("jobId").toString());
+  const job = findProject(data.get("projectId").toString());
   if (!job) return;
 
   const alert = {
     id: makeId("alert"),
-    jobId: job.id,
+    projectId: job.id,
     accountId: job.accountId,
     locationId: job.locationId,
     alertType: data.get("alertType").toString(),
@@ -12630,22 +12698,22 @@ async function saveProjectAlert(form) {
     notified: ["Project Manager", "Sales Lead"],
   };
 
-  await putRecord("projectAlerts", alert);
+  await saveBackendRecord("projectAlerts", alert, { refresh: false });
   await queueChange("Project Alert", "created", alert);
   closeDialogs();
   await refreshState();
   render();
-  showToast("Field alert created and queued.");
+  showToast("Field alert created.");
 }
 
 async function saveMaterialUsage(form) {
   const data = new FormData(form);
-  const job = findJob(data.get("jobId").toString());
+  const job = findProject(data.get("projectId").toString());
   if (!job) return;
 
   const material = {
     id: makeId("mat"),
-    jobId: job.id,
+    projectId: job.id,
     accountId: job.accountId,
     materialType: data.get("materialType").toString().trim(),
     quantity: Number(data.get("quantity")),
@@ -12654,22 +12722,22 @@ async function saveMaterialUsage(form) {
     timestamp: new Date().toISOString(),
   };
 
-  await putRecord("materialUsage", material);
+  await saveBackendRecord("materialUsage", material, { refresh: false });
   await queueChange("Material Usage", "created", material);
   closeDialogs();
   await refreshState();
   render();
-  showToast("Material usage saved locally.");
+  showToast("Material usage saved.");
 }
 
 async function saveEquipmentLog(form) {
   const data = new FormData(form);
-  const job = findJob(data.get("jobId").toString());
+  const job = findProject(data.get("projectId").toString());
   if (!job) return;
 
   const equipment = {
     id: makeId("equip"),
-    jobId: job.id,
+    projectId: job.id,
     accountId: job.accountId,
     assetTag: data.get("assetTag").toString().trim(),
     equipment: data.get("equipment").toString().trim(),
@@ -12680,12 +12748,12 @@ async function saveEquipmentLog(form) {
     user: state.currentUser?.name || "Local user",
   };
 
-  await putRecord("equipmentLogs", equipment);
+  await saveBackendRecord("equipmentLogs", equipment, { refresh: false });
   await queueChange("Equipment Log", "created", equipment);
   closeDialogs();
   await refreshState();
   render();
-  showToast("Equipment log saved locally.");
+  showToast("Equipment log saved.");
 }
 
 async function saveScheduleEvent(form) {
@@ -12694,7 +12762,7 @@ async function saveScheduleEvent(form) {
   const laborResourceId = data.get("laborResourceId").toString();
   const requiredCertification = data.get("requiredCertification").toString().trim();
   const record = {
-    jobId: data.get("jobId").toString(),
+    projectId: data.get("projectId").toString(),
     title: data.get("title").toString().trim(),
     date: data.get("date").toString(),
     crew: data.get("crew").toString().trim(),
@@ -12719,8 +12787,8 @@ async function saveRemediation(form) {
   const account = findAccount(data.get("accountId").toString());
   if (!account) return;
 
-  const job = {
-    id: makeId("job"),
+  const job = buildCoreProjectRecord({
+    id: makeId("proj"),
     accountId: account.id,
     locationId: locationsForAccount(account.id)[0]?.id || "",
     opportunityId: "",
@@ -12736,15 +12804,15 @@ async function saveRemediation(form) {
     budget: Number(data.get("budget")),
     notToExceed: "",
     marginWatch: "Backend-created remediation awaiting detailed scope.",
-  };
+  });
 
-  await putRecord("jobs", job);
-  await queueChange("Job", "created", job);
+  await saveBackendRecord("projects", job, { refresh: false });
+  await queueChange("Project", "created", job);
   closeDialogs();
   await refreshState();
   state.view = "ops-remediation";
   render();
-  showToast("Remediation project created locally and queued.");
+  showToast("Remediation project created.");
 }
 
 async function saveInventoryItem(form) {
@@ -12835,7 +12903,7 @@ async function saveEquipmentAsset(form) {
       lastUsed: data.get("lastUsed").toString(),
       maintenanceDue: data.get("maintenanceDue").toString(),
       issue: data.get("issue").toString().trim(),
-      assignedJobId: existing?.assignedJobId || "",
+      assignedProjectId: existing?.assignedProjectId || "",
       specs,
     });
     closeDialogs();
@@ -12903,7 +12971,7 @@ async function saveMapLocation(form) {
 
   const scheduleEventId = data.get("scheduleEventId").toString();
   const scheduleEvent = getScheduleEvents().find((event) => event.id === scheduleEventId);
-  const jobId = data.get("jobId").toString() || scheduleEvent?.jobId || "";
+  const jobId = data.get("projectId").toString() || scheduleEvent?.projectId || "";
   const assetTags = data
     .get("assetTags")
     .toString()
@@ -13198,7 +13266,7 @@ async function convertJobRequest(requestId, templateId = "") {
   const start = new Date(request.requestedServiceAt);
   const end = new Date(start.getTime() + Number(request.estimatedDurationMinutes || 240) * 60000);
   const requestedEmployee = findEmployee(request.requestedEmployeeId) || getEmployees().find((employee) => employee.displayName === request.requestedAssignee);
-  const project = request.projectId ? findJob(request.projectId) : null;
+  const project = request.projectId ? findProject(request.projectId) : null;
   const job = {
     id: makeId("dispatch-job"),
     jobNumber: `JOB-${start.getFullYear()}-${localIsoDate(start).replaceAll("-", "").slice(4)}-${String(sequence).padStart(2, "0")}`,
@@ -13626,12 +13694,12 @@ async function advanceDispatchJob(jobId, { silent = false } = {}) {
 
 async function saveInvoice(form) {
   const data = new FormData(form);
-  const job = findJob(data.get("jobId").toString());
+  const job = findProject(data.get("projectId").toString());
   const account = job ? findAccount(job.accountId) : null;
   try {
     await saveBackendRecord("invoices", {
       id: data.get("id").toString(),
-      jobId: data.get("jobId").toString(),
+      projectId: data.get("projectId").toString(),
       customer: account?.name || "",
       quotedAmount: Number(data.get("quotedAmount")),
       invoiceAmount: Number(data.get("invoiceAmount")),
@@ -13670,7 +13738,7 @@ async function persistActivity(fields, toastMessage) {
     ...fields,
   });
 
-  await putRecord("activities", activity);
+  await saveBackendRecord("activities", activity, { refresh: false });
   if (activity.contactId && activity.opportunityId) {
     await linkContactToOpportunity(activity.contactId, activity.opportunityId);
   }
@@ -13681,25 +13749,29 @@ async function persistActivity(fields, toastMessage) {
     }
   }
   if (activity.activityType === "Task") {
-    await putRecord("tasks", {
-      id: makeId("task"),
-      accountId: activity.accountId,
-      contactId: activity.contactId,
-      opportunityId: activity.opportunityId,
-      activityId: activity.id,
-      title: activity.subject,
-      dueDate: activity.dueDate || activity.activityDate,
-      owner: activity.owner,
-      type: "Activity task",
-      priority: activity.priority || "Medium",
-      status: activity.status === "Completed" ? "Complete" : "Open",
-    });
+    await saveBackendRecord(
+      "tasks",
+      buildCoreTaskRecord({
+        id: makeId("task"),
+        accountId: activity.accountId,
+        contactId: activity.contactId,
+        opportunityId: activity.opportunityId,
+        activityId: activity.id,
+        title: activity.subject,
+        dueDate: activity.dueDate || activity.activityDate,
+        owner: activity.owner,
+        type: "Activity task",
+        priority: activity.priority || "Medium",
+        status: activity.status === "Completed" ? "Complete" : "Open",
+      }),
+      { refresh: false },
+    );
   }
   await queueChange("Activity", "created", activity);
   closeDialogs();
   await refreshState();
   render();
-  showToast(toastMessage || `${activity.activityType} activity saved locally.`);
+  showToast(toastMessage || `${activity.activityType} activity saved.`);
   return activity;
 }
 
@@ -13929,18 +14001,18 @@ async function moveOpportunityToStage(id, nextStage) {
 
 function mapServiceTypeToServiceCategory(serviceType) {
   const map = {
-    "Emergency response": "ER",
-    "UST removal": "Scheduled",
-    "Asbestos abatement": "Abatement",
-    "Soil remediation": "Remediation",
-    "Groundwater treatment": "Remediation",
+    "Emergency Spill Response": "ER",
+    "Environmental Sampling": "Sampling",
+    "Scheduled Environmental Service": "Scheduled",
+    "Remediation Field Work": "Remediation",
+    "Asbestos Abatement": "Abatement",
   };
   return map[serviceType] || "Scheduled";
 }
 
 function mapServiceTypeToJobClass(serviceType) {
-  if (serviceType === "Emergency response") return "Emergency Response";
-  if (serviceType === "Soil remediation" || serviceType === "UST removal" || serviceType === "Groundwater treatment") return "Multi-Stage Remediation";
+  if (serviceType === "Emergency Spill Response") return "Emergency Response";
+  if (serviceType === "Remediation Field Work") return "Multi-Stage Remediation";
   return "Scheduled Work";
 }
 
@@ -13994,8 +14066,8 @@ async function saveProjectFromOpportunity(form) {
   const projectManagerEmployeeId = data.get("projectManagerEmployeeId").toString();
   const projectManager = getEmployees().find((employee) => employee.id === projectManagerEmployeeId)?.displayName || "";
   const projectStage = data.get("projectStage").toString() || "Intake";
-  const job = {
-    id: makeId("job"),
+  const job = buildCoreProjectRecord({
+    id: makeId("proj"),
     accountId: account.id,
     locationId: locationsForAccount(account.id)[0]?.id || "",
     opportunityId: data.get("opportunityId").toString(),
@@ -14015,14 +14087,14 @@ async function saveProjectFromOpportunity(form) {
     projectStage,
     siteWalkStatus: "Incomplete",
     sitePhotoRefs: [],
-  };
+  });
 
-  await putRecord("jobs", job);
-  await queueChange("Job", "created", job);
+  await saveBackendRecord("projects", job, { refresh: false });
+  await queueChange("Project", "created", job);
   closeDialogs();
   await refreshState();
   if (canAccessView("project-detail")) {
-    state.selectedJobId = job.id;
+    state.selectedProjectId = job.id;
     state.view = "project-detail";
     showToast(`Project "${job.name}" created. Push a job request to dispatch when ready.`);
   } else {
@@ -14032,7 +14104,7 @@ async function saveProjectFromOpportunity(form) {
 }
 
 function openProjectIntakeDialog(jobId) {
-  const job = findJob(jobId);
+  const job = findProject(jobId);
   if (!job) return;
   const dialog = document.querySelector("#projectIntakeDialog");
   const form = dialog.querySelector("form");
@@ -14058,7 +14130,7 @@ function openProjectIntakeDialog(jobId) {
 
 async function saveProjectIntake(form) {
   const data = new FormData(form);
-  const job = findJob(data.get("id").toString());
+  const job = findProject(data.get("id").toString());
   if (!job) return;
   const sitePhotoRefs = data
     .get("sitePhotos")
@@ -14090,8 +14162,8 @@ async function saveProjectIntake(form) {
   };
 
   try {
-    await putRecord("jobs", updated);
-    await queueChange("Job", "intake updated", updated);
+    await saveBackendRecord("projects", updated, { refresh: false });
+    await queueChange("Project", "intake updated", updated);
     closeDialogs();
     await refreshState();
     render();
@@ -14111,11 +14183,11 @@ async function completeTask(id) {
     completedAt: new Date().toISOString(),
   };
 
-  await putRecord("tasks", updated);
+  await saveBackendRecord("tasks", updated, { refresh: false });
   await queueChange("Task", "completed", updated);
   await refreshState();
   render();
-  showToast("Task completed locally.");
+  showToast("Task completed.");
 }
 
 async function queueChange(entity, action, payload) {
@@ -14256,7 +14328,7 @@ function openOpportunityDialog(accountId = "", opportunityId = "") {
     form.elements.name.value = core.opportunityName;
     form.elements.value.value = core.amount;
     form.elements.closeDate.value = core.estimatedCloseDate || addDays(30);
-    form.elements.serviceType.value = core.serviceType || "Soil remediation";
+    form.elements.serviceType.value = core.serviceType || "Scheduled Environmental Service";
     form.elements.status.value = core.status === "Lost" ? "Lost" : "Open";
     form.elements.nextStep.value = core.nextStep;
     if (startingStageField) startingStageField.hidden = true;
@@ -14916,6 +14988,7 @@ function openAccountDialog(accountId = "") {
   const form = dialog.querySelector("form");
   form.reset();
   populateParentAccountSelect(dialog, accountId);
+  populateEmployeeSelect(dialog, "ownerEmployeeId", "Unassigned", [{ value: "system", label: "System" }]);
   const account = accountId ? findAccount(accountId) : null;
   if (account) {
     const core = getCoreAccount(account);
@@ -14929,9 +15002,11 @@ function openAccountDialog(accountId = "") {
     form.elements.parentAccountId.value = account.parentAccountId || "";
     form.elements.siteName.value = account.siteName || "";
     form.elements.city.value = core.city || "";
+    form.elements.state.value = core.addressOneState || "";
     form.elements.phase.value = account.phase || "Lead";
     form.elements.risk.value = account.risk || core.accountRating || "Low";
-    form.elements.owner.value = core.owner === "Unassigned" ? "" : core.owner || "";
+    const matchingOwnerEmployee = getEmployees().find((employee) => employee.displayName === core.owner);
+    form.elements.ownerEmployeeId.value = core.owner === "System" ? "system" : matchingOwnerEmployee?.id || "";
     form.elements.concern.value = account.concern || "";
     form.elements.businessDescription.value = relationshipExtensionForAccount(account.id)?.businessDescription || "";
   } else {
@@ -16211,28 +16286,28 @@ async function removeSubcontractorAssignment(id) {
 
 function openAlertDialog(jobId = "") {
   const dialog = document.querySelector("#alertDialog");
-  populateJobSelect(dialog);
+  populateProjectSelect(dialog);
   if (jobId) dialog.querySelector("select[name='jobId']").value = jobId;
   dialog.showModal();
 }
 
 function openMaterialDialog(jobId = "") {
   const dialog = document.querySelector("#materialDialog");
-  populateJobSelect(dialog);
+  populateProjectSelect(dialog);
   if (jobId) dialog.querySelector("select[name='jobId']").value = jobId;
   dialog.showModal();
 }
 
 function openEquipmentDialog(jobId = "") {
   const dialog = document.querySelector("#equipmentDialog");
-  populateJobSelect(dialog);
+  populateProjectSelect(dialog);
   if (jobId) dialog.querySelector("select[name='jobId']").value = jobId;
   dialog.showModal();
 }
 
 function openScheduleDialog(jobId = "") {
   const dialog = document.querySelector("#scheduleDialog");
-  populateJobSelect(dialog);
+  populateProjectSelect(dialog);
   populateEquipmentAssetSelect(dialog);
   populateLaborResourceSelect(dialog);
   dialog.querySelector("input[name='date']").value = todayIso();
@@ -16385,7 +16460,7 @@ async function clearEquipmentAlert(assetTag) {
       lastUsed: asset.lastUsed,
       maintenanceDue: asset.maintenanceDue,
       issue: "",
-      assignedJobId: asset.assignedJobId || "",
+      assignedProjectId: asset.assignedProjectId || "",
       specs: asset.specs || {},
     });
     closeDialogs();
@@ -16431,7 +16506,7 @@ function openMapLocationDialog(locationId = "") {
   const dialog = document.querySelector("#mapLocationDialog");
   const form = dialog.querySelector("form");
   form.reset();
-  populateJobSelect(dialog, true);
+  populateProjectSelect(dialog, true);
   populateScheduleEventSelect(dialog);
 
   const location = (state.backend.mapLocations || []).find((item) => item.id === locationId);
@@ -16439,7 +16514,7 @@ function openMapLocationDialog(locationId = "") {
     form.elements.id.value = location.id || "";
     form.elements.source.value = location.source || "Manual";
     form.elements.label.value = location.label || "";
-    form.elements.jobId.value = location.jobId || "";
+    form.elements.projectId.value = location.projectId || "";
     form.elements.scheduleEventId.value = location.scheduleEventId || "";
     form.elements.latitude.value = location.latitude ?? "";
     form.elements.longitude.value = location.longitude ?? "";
@@ -16516,7 +16591,7 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
   form.elements.requestedServiceAt.value = toLocalDateTimeInput(new Date());
   form.elements.projectId.value = projectId || "";
 
-  const project = projectId ? findJob(projectId) : null;
+  const project = projectId ? findProject(projectId) : null;
   const opportunity = opportunityId ? findOpportunity(opportunityId) : project?.opportunityId ? findOpportunity(project.opportunityId) : null;
 
   if (project) {
@@ -16539,7 +16614,7 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
     const location = findLocation(opportunity.locationId);
     form.elements.accountId.value = core.accountId;
     form.elements.serviceCategory.value = mapServiceTypeToServiceCategory(core.serviceType);
-    form.elements.priority.value = core.serviceType === "Emergency response" ? "Emergency" : "Normal";
+    form.elements.priority.value = core.serviceType === "Emergency Spill Response" ? "Emergency" : "Normal";
     form.elements.generatorResponsibleParty.value = core.accountName || "";
     form.elements.calledInByName.value = state.currentUser?.name || "";
     form.elements.addressText.value = formatLocationAddressLine(location) || [account?.siteName, account?.city].filter(Boolean).join(", ");
@@ -16576,10 +16651,10 @@ function openDispatchScheduleDialog(jobId = "") {
 function openInvoiceDialog(jobId = "") {
   const dialog = document.querySelector("#invoiceDialog");
   const form = dialog.querySelector("form");
-  populateJobSelect(dialog);
+  populateProjectSelect(dialog);
   form.reset();
   const row = jobId ? getFinanceRows().find((item) => item.job.id === jobId) : null;
-  if (jobId) form.elements.jobId.value = jobId;
+  if (jobId) form.elements.projectId.value = jobId;
   if (row) {
     form.elements.id.value = row.invoice?.id || "";
     form.elements.quotedAmount.value = row.quoted;
@@ -16833,13 +16908,13 @@ function syncActivityContactOptions() {
   populateContactSelect(dialog, accountId);
 }
 
-function populateJobSelect(root, includeBlank = false) {
-  root.querySelectorAll("select[name='jobId']").forEach((select) => {
+function populateProjectSelect(root, includeBlank = false) {
+  root.querySelectorAll("select[name='projectId']").forEach((select) => {
     select.innerHTML = [
-      includeBlank ? `<option value="">No linked job</option>` : "",
-      ...state.jobs.map((job) => {
-        const account = findAccount(job.accountId);
-        return `<option value="${escapeAttribute(job.id)}">${escapeHtml(job.name)} - ${escapeHtml(job.jobClass)} - ${escapeHtml(account?.name ?? "Unknown account")}</option>`;
+      includeBlank ? `<option value="">No linked project</option>` : "",
+      ...state.projects.map((project) => {
+        const account = findAccount(project.accountId);
+        return `<option value="${escapeAttribute(project.id)}">${escapeHtml(project.name)} - ${escapeHtml(project.jobClass)} - ${escapeHtml(account?.name ?? "Unknown account")}</option>`;
       }),
     ]
       .filter(Boolean)
@@ -16852,7 +16927,7 @@ function populateScheduleEventSelect(root) {
     select.innerHTML = [
       `<option value="">No scheduled-work link</option>`,
       ...getScheduleEvents().map((event) => {
-        const job = findJob(event.jobId);
+        const job = findProject(event.projectId);
         return `<option value="${escapeAttribute(event.id)}">${escapeHtml(event.title)} - ${escapeHtml(job?.name || "Unlinked job")} - ${formatDate(event.date)}</option>`;
       }),
     ].join("");
@@ -17105,7 +17180,7 @@ function viewProject(jobId) {
     showToast("Your current role cannot open Operations project records.");
     return;
   }
-  state.selectedJobId = jobId;
+  state.selectedProjectId = jobId;
   state.selectedSampleId = "";
   state.view = "project-detail";
   render();
@@ -17118,13 +17193,13 @@ function viewSample(sampleId) {
     return;
   }
   const sample = findSample(sampleId);
-  const job = sample ? findJob(sample.jobId) : null;
+  const job = sample ? findProject(sample.projectId) : null;
   if (!sample || !job) {
     showToast("That sample record is not available.");
     return;
   }
   state.selectedSampleId = sample.id;
-  state.selectedJobId = job.id;
+  state.selectedProjectId = job.id;
   state.view = "sample-detail";
   render();
   app.focus({ preventScroll: true });
@@ -17206,12 +17281,12 @@ function viewClientSpill(jobId) {
     showToast("Your current role cannot open client spill records.");
     return;
   }
-  const job = findJob(jobId);
+  const job = findProject(jobId);
   if (!job || !clientCanSeeJob(job)) {
     showToast("That spill is not available for this client login.");
     return;
   }
-  state.selectedJobId = jobId;
+  state.selectedProjectId = jobId;
   state.selectedSampleId = "";
   state.view = "client-spill-detail";
   render();
@@ -17232,7 +17307,7 @@ function clientCanSeeJob(job) {
 
 function getClientVisibleJobs() {
   const accountId = getClientAccountId();
-  return state.jobs.filter((job) => job.accountId === accountId);
+  return state.projects.filter((job) => job.accountId === accountId);
 }
 
 function getClientVisibleAlerts() {
@@ -17254,7 +17329,7 @@ function getClientVisibleSpatialData() {
 function getClientVisibleSchedule() {
   const jobIds = new Set(getClientVisibleJobs().map((job) => job.id));
   return getScheduleEvents()
-    .filter((work) => jobIds.has(work.jobId))
+    .filter((work) => jobIds.has(work.projectId))
     .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
 }
 
@@ -17292,7 +17367,7 @@ function getClientSpillMarkers(jobs = getClientVisibleJobs()) {
 
     return [
       {
-        jobId: job.id,
+        projectId: job.id,
         type: getJobMapMarkerType(job),
         label: job.name,
         shortLabel: getInitials(job.name, "SP"),
@@ -17309,7 +17384,7 @@ function getClientSpillMarkers(jobs = getClientVisibleJobs()) {
 
 function getJobMapCoordinates(job) {
   const mappedLocation = (state.backend.mapLocations || []).find((location) => {
-    if (location.jobId !== job.id) return false;
+    if (location.projectId !== job.id) return false;
     return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude));
   });
   if (mappedLocation) {
@@ -17383,8 +17458,8 @@ function findOpportunity(opportunityId) {
   return state.opportunities.find((opportunity) => opportunity.id === opportunityId);
 }
 
-function findJob(jobId) {
-  return state.jobs.find((job) => job.id === jobId);
+function findProject(jobId) {
+  return state.projects.find((job) => job.id === jobId);
 }
 
 function findSample(sampleId) {
@@ -17409,10 +17484,6 @@ function projectsForAccount(accountId) {
 
 function scheduledWorkForAccount(accountId) {
   return state.scheduledWork.filter((work) => work.accountId === accountId);
-}
-
-function jobsForAccount(accountId) {
-  return state.jobs.filter((job) => job.accountId === accountId);
 }
 
 function dispatchJobsForAccount(accountId) {
@@ -17442,27 +17513,27 @@ function spatialDataForAccount(accountId) {
 }
 
 function materialUsageForJob(jobId) {
-  return state.materialUsage.filter((item) => item.jobId === jobId);
+  return state.materialUsage.filter((item) => item.projectId === jobId);
 }
 
 function equipmentLogsForJob(jobId) {
-  return state.equipmentLogs.filter((item) => item.jobId === jobId);
+  return state.equipmentLogs.filter((item) => item.projectId === jobId);
 }
 
 function samplesForJob(jobId) {
-  return state.sampleRecords.filter((sample) => sample.jobId === jobId);
+  return state.sampleRecords.filter((sample) => sample.projectId === jobId);
 }
 
 function spatialDataForJob(jobId) {
-  return state.spatialData.filter((spatial) => spatial.jobId === jobId);
+  return state.spatialData.filter((spatial) => spatial.projectId === jobId);
 }
 
 function assignmentsForJob(jobId) {
-  return state.projectAssignments.filter((assignment) => assignment.jobId === jobId);
+  return state.projectAssignments.filter((assignment) => assignment.projectId === jobId);
 }
 
 function alertsForJob(jobId) {
-  return state.projectAlerts.filter((alert) => alert.jobId === jobId);
+  return state.projectAlerts.filter((alert) => alert.projectId === jobId);
 }
 
 function opportunitiesForAccount(accountId) {
@@ -17549,12 +17620,12 @@ function coworkersForContact(contact) {
 
 function connectedContactsForContact(contact) {
   const opportunityIds = new Set(contact.opportunityIds || []);
-  const jobIds = new Set(jobsForContact(contact).map((job) => job.id));
+  const jobIds = new Set(projectsForContact(contact).map((job) => job.id));
   const seen = new Map();
   state.contacts.forEach((other) => {
     if (other.id === contact.id) return;
     const sharedOpportunities = (other.opportunityIds || []).filter((id) => opportunityIds.has(id));
-    const sharedJobs = jobsForContact(other).filter((job) => jobIds.has(job.id));
+    const sharedJobs = projectsForContact(other).filter((job) => jobIds.has(job.id));
     if (sharedOpportunities.length || sharedJobs.length) {
       seen.set(other.id, { contact: other, sharedOpportunities, sharedJobs });
     }
@@ -17641,7 +17712,7 @@ function getProjectGenerator(job) {
 function groupSamplesIntoSessions(samples) {
   const sessionMap = new Map();
   samples.forEach((sample) => {
-    const key = sample.samplingSessionId || sample.chainOfCustody || sample.jobId || "session";
+    const key = sample.samplingSessionId || sample.chainOfCustody || sample.projectId || "session";
     if (!sessionMap.has(key)) {
       sessionMap.set(key, {
         id: key,
@@ -17661,7 +17732,7 @@ function groupSamplesIntoSessions(samples) {
 function getProjectChronology(job) {
   const events = [];
   getScheduleEvents()
-    .filter((work) => work.jobId === job.id)
+    .filter((work) => work.projectId === job.id)
     .forEach((work) => {
       events.push({
         kind: "Scheduled work",
@@ -17777,11 +17848,7 @@ function getOpportunityProgress(opportunity) {
 }
 
 function getCloseStatus(value) {
-  const days = daysUntil(value);
-  if (days < 0) return { label: `${Math.abs(days)} days overdue`, tone: "high" };
-  if (days === 0) return { label: "Closes today", tone: "high" };
-  if (days <= 7) return { label: `${days} days to close`, tone: "medium" };
-  return { label: `Close ${formatDate(value)}`, tone: "low" };
+  return { label: value ? `Close ${formatDate(value)}` : "No close date set", tone: "low" };
 }
 
 function daysUntil(value) {
@@ -17796,9 +17863,9 @@ function daysSince(value) {
   return Math.max(0, -daysUntil(value));
 }
 
-function jobsForContact(contact) {
+function projectsForContact(contact) {
   const opportunityIds = contact.opportunityIds || [];
-  return state.jobs.filter(
+  return state.projects.filter(
     (job) =>
       job.contactIds?.includes(contact.id) ||
       (job.opportunityId && opportunityIds.includes(job.opportunityId)) ||
@@ -17855,15 +17922,15 @@ function buildCalendarDays() {
     const day = dates.find((item) => item.date === work.date);
     if (day) {
       day.items.push({
-        id: work.jobId,
+        id: work.projectId,
         kind: "Scheduled",
         title: work.title,
-        accountId: findJob(work.jobId)?.accountId || work.accountId,
+        accountId: findProject(work.projectId)?.accountId || work.accountId,
       });
     }
   });
 
-  state.jobs.forEach((job) => {
+  state.projects.forEach((job) => {
     const day = dates.find((item) => item.date === job.startDate);
     if (day) {
       day.items.push({
@@ -17886,7 +17953,7 @@ function getMapMarkers() {
       const longitude = Number(location.longitude);
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
 
-      const job = findJob(location.jobId);
+      const job = findProject(location.projectId);
       const ownTracksPing = location.source === "OwnTracks";
       const type =
         ownTracksPing || !job
@@ -18025,7 +18092,7 @@ function getScheduleEvents() {
   const backendEvents = state.backend.scheduleEvents || [];
   const legacyEvents = state.scheduledWork.map((work) => ({
     id: work.id,
-    jobId: work.jobId || state.jobs.find((job) => job.opportunityId === work.opportunityId)?.id || "",
+    projectId: work.projectId || state.projects.find((project) => project.opportunityId === work.opportunityId)?.id || "",
     title: work.title,
     date: work.date,
     crew: work.crew,
@@ -18697,12 +18764,12 @@ function getOfficeAlerts() {
 
 function getFinanceRows() {
   const invoices = state.backend.invoices || [];
-  return state.jobs.map((job) => {
+  return state.projects.map((job) => {
     const account = findAccount(job.accountId);
     const opportunity = findOpportunity(job.opportunityId);
-    const invoice = invoices.find((item) => item.jobId === job.id);
-    const materials = state.materialUsage.filter((item) => item.jobId === job.id);
-    const equipment = state.equipmentLogs.filter((item) => item.jobId === job.id);
+    const invoice = invoices.find((item) => item.projectId === job.id);
+    const materials = state.materialUsage.filter((item) => item.projectId === job.id);
+    const equipment = state.equipmentLogs.filter((item) => item.projectId === job.id);
     const materialCost = materials.reduce((sum, item) => sum + Number(item.quantity || 0) * 42, 0);
     const equipmentCost = equipment.length * 650;
     const laborCost = assignmentsForJob(job.id).length * 1200;

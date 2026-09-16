@@ -26,7 +26,7 @@
             </div>
             <div>
               <p class="eyebrow">BioRemedy Platform</p>
-              <h1>Operations Platform</h1>
+              <h1 id="appHeaderTitle">Operations Platform</h1>
             </div>
           </button>
         </div>
@@ -199,19 +199,19 @@
             <input name="value" required type="number" min="0" step="1000" value="85000" />
           </label>
           <label>
-            Close date
-            <input name="closeDate" required type="date" />
+            Close date (optional)
+            <input name="closeDate" type="date" />
           </label>
         </div>
         <div class="form-grid">
           <label>
             Cleanup type
             <select name="serviceType">
-              <option>Soil remediation</option>
-              <option>Groundwater treatment</option>
-              <option>UST removal</option>
-              <option>Asbestos abatement</option>
-              <option>Emergency response</option>
+              <option>Emergency Spill Response</option>
+              <option>Environmental Sampling</option>
+              <option>Scheduled Environmental Service</option>
+              <option>Remediation Field Work</option>
+              <option>Asbestos Abatement</option>
             </select>
           </label>
           <label>
@@ -850,8 +850,14 @@
         <div class="form-grid">
           <label>
             Site city
-            <input name="city" required maxlength="60" placeholder="Kansas City, MO" />
+            <input name="city" required maxlength="60" placeholder="Kansas City" />
           </label>
+          <label>
+            Site state
+            <input name="state" maxlength="60" placeholder="MO" />
+          </label>
+        </div>
+        <div class="form-grid">
           <label>
             Account phase
             <select name="phase">
@@ -874,7 +880,7 @@
           </label>
           <label>
             Owner
-            <input name="owner" maxlength="80" placeholder="Maya Chen" />
+            <select name="ownerEmployeeId"></select>
           </label>
         </div>
         <label>
@@ -1432,8 +1438,8 @@
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
-          Project / job
-          <select name="jobId" required></select>
+          Project
+          <select name="projectId" required></select>
         </label>
         <div class="form-grid">
           <label>
@@ -1476,8 +1482,8 @@
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
-          Project / job
-          <select name="jobId" required></select>
+          Project
+          <select name="projectId" required></select>
         </label>
         <label>
           Material or consumable
@@ -1507,8 +1513,8 @@
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
-          Project / job
-          <select name="jobId" required></select>
+          Project
+          <select name="projectId" required></select>
         </label>
         <div class="form-grid">
           <label>
@@ -1542,8 +1548,8 @@
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
-          Project / job
-          <select name="jobId" required></select>
+          Project
+          <select name="projectId" required></select>
         </label>
         <label>
           Schedule title
@@ -1888,8 +1894,8 @@
         </label>
         <div class="form-grid">
           <label>
-            Job or response
-            <select name="jobId"></select>
+            Project or response
+            <select name="projectId"></select>
           </label>
           <label>
             Scheduled work
@@ -1936,8 +1942,8 @@
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
-          Project / job
-          <select name="jobId" required></select>
+          Project
+          <select name="projectId" required></select>
         </label>
         <div class="form-grid">
           <label>

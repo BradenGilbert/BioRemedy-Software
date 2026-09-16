@@ -41,8 +41,8 @@ This means `laravel-ready/` is **deprecated**. It converted only the first 12 of
 
 | Layer | State |
 |---|---|
-| Browser IndexedDB | 14 stores holding **accounts, contacts, projects, jobs, tasks, activities**, alerts, material usage, equipment logs, spatial data, scheduled work, project assignments — all **per-browser, not shared** |
-| Node JSON backend | 72 collections, shared across users — opportunities, facilities, dispatch jobs, work plans, employees, inventory, quotes, invoices |
+| Browser IndexedDB | As of 2026-09-16: **every core CRM collection has moved to the shared backend** (Phase 01, now complete) — accounts, contacts, projects (formerly `jobs`), tasks, activities, project assignments, project alerts, material usage, equipment logs, scheduled work, spatial data. Only `syncQueue` and `settings` remain per-browser, correctly (device-scoped by definition). |
+| Node JSON backend | 82 collections (recounted from source, not running arithmetic — see `docs/database-handoff-map.md`), shared across users — opportunities, facilities, dispatch jobs, work plans, employees, inventory, quotes, invoices, plus everything Phase 01 moved in from IndexedDB |
 | PostgreSQL schema | 28 migration files, 141 tables, 27 views — **designed, never deployed** |
 | `laravel-ready/` | First 12 tables only. Deprecated as of 2026-09-15. |
 | Version control | **None.** No git repository. |
@@ -53,11 +53,11 @@ This means `laravel-ready/` is **deprecated**. It converted only the first 12 of
 The CRM's own entities live in the browser while everything they point at lives on the server:
 
 ```
-  dispatchJobs (server)  ──projectId──►  jobs (browser, private)     ✗ broken across users
-  opportunities (server) ──accountId──►  accounts (browser, private) ✗ broken across users
+  dispatchJobs (server)  ──projectId──►  jobs (browser, private)     ✗ broken across users — FIXED 2026-09-16, jobs migrated + renamed to projects (server)
+  opportunities (server) ──accountId──►  accounts (browser, private) ✗ broken across users — FIXED 2026-09-15
 ```
 
-When the team tests through the Cloudflare tunnel, **everyone gets their own private accounts and contacts but a shared dispatch board.** Phase 1 exists to end this.
+This was the state when Phase 1 began. As of 2026-09-16, Phase 1 is complete — every core CRM collection this diagram worried about is now server-side and shared.
 
 ---
 
@@ -69,7 +69,7 @@ Make the application have a single, shared source of truth before building anyth
 | Phase | Name | Status |
 |---|---|---|
 | 00 | [Ground Rules & Safety Net](phase-00-ground-rules.md) | ✅ **Complete 2026-09-15** — git + GitHub, backups with tested restore, `CLAUDE.md` |
-| 01 | [One Shared Data Layer](phase-01-shared-data-layer.md) | ⏸️ **Paused 2026-09-15** — `accounts` + `contacts` migrated and verified; 9 remain. Resume needs a decision on the `jobs`→`projects` rename (see the phase doc). |
+| 01 | [One Shared Data Layer](phase-01-shared-data-layer.md) | ✅ **Complete 2026-09-16** — every collection migrated, gated by role, and verified live. IndexedDB now holds only device-scoped state (`syncQueue`, `settings`). |
 
 ### Stage B — Make the CRM Correct
 The felt pain. Almost every item on the 2026-09-15 feedback list lives here. These are data-model problems wearing UI clothes, which is why they read as "doesn't make sense" rather than as bugs.
@@ -77,7 +77,7 @@ The felt pain. Almost every item on the 2026-09-15 feedback list lives here. The
 | Phase | Name | Status |
 |---|---|---|
 | 02 | [The Places Model — Facility / Address / Location](phase-02-places-model.md) | Not started |
-| 03 | [Account Domain Correctness](phase-03-account-domain.md) | Not started |
+| 03 | [Account Domain Correctness](phase-03-account-domain.md) | 🟡 **Partially started 2026-09-16** — header title + Sales "+ Create" dropdown shipped ad hoc; Owner field no longer free text (still not sales-role-filtered, still no `ownerEmployeeId` FK) |
 | 04 | [Vendor & Subcontractor](phase-04-vendor-subcontractor.md) | Not started |
 | 05 | [Contacts & Activity Timeline](phase-05-contacts-and-timeline.md) | Not started |
 
@@ -133,6 +133,7 @@ Do not re-plan these. They are done and verified.
 - **Cleanup roadmap, Rounds 1–4** (~50 items across Account, Contact, Opportunity, Operations, Workforce) — all shipped and verified 2026-08-17. Full detail in `docs/dataverse-relationship-architecture.md`.
 - **Front Line simulator** — in-browser field-app preview with a working Job Book, template-driven work-plan gating, and typed per-task capture (photo / signature / timer / material / checklist / sample).
 - **Dispatch Job Detail** — rebuilt into a tabbed page with real employee/equipment/material pickers.
+- **Phase 01 — One Shared Data Layer** — every core CRM collection (accounts, contacts, projects, tasks, activities, project assignments/alerts, material usage, equipment logs, scheduled work, spatial data) migrated from per-browser IndexedDB to the shared JSON backend, role-gated, and verified live 2026-09-16. IndexedDB now holds only device-scoped state.
 
 ## Known-open items carried in from previous work
 
@@ -140,10 +141,10 @@ These are real, already-diagnosed, and slotted into phases below rather than bei
 
 | Item | Slotted into |
 |---|---|
-| `jobs.projectStage` is written at creation but **never read** — the stage ladder and gate both key off free-text `status`/`activePhase` heuristics | Phase 10 |
-| `crewMemberships` is a dead join table (4 frozen seed rows); one bad consumer was fixed, the collection was not retired | Phase 01 |
+| `projects.projectStage` (formerly `jobs.projectStage`) is written at creation but **never read** — the stage ladder and gate both key off free-text `status`/`activePhase` heuristics | Phase 10 |
+| `equipmentAssets.assignedJobId` (a different, still-server-side collection from the migrated `equipmentLogs`) still holds an unrenamed project reference under the old `jobId`-era naming; currently dead/unread | Unslotted — flag when next touching `equipmentAssets` |
 | `laborResources` was retired in code but 5 stale rows remain in `data/backend.json` | Phase 01 |
-| Dead `opportunities` IndexedDB store declaration still in `openDatabase()` | Phase 01 |
+| ~~Dead `opportunities` IndexedDB store declaration still in `openDatabase()`~~ | ✅ Removed 2026-09-16, alongside the dead local `projects` store, as part of the `jobs`→`projects` migration |
 | `activities` vs `sales_tasks` architectural divergence | Phase 05 (tags now, split deferred — see phase doc) |
 | `job_resource_allocations.vendor_account_id` points straight at `accounts` instead of a subcontractor assignment | Phase 04 |
 | Attachment inline-view route is not role-gated (relies on opaque IDs) | Phase 06 |

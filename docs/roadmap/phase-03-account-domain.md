@@ -1,6 +1,6 @@
 # Phase 03 — Account Domain Correctness
 
-**Status:** Not started
+**Status:** 🟡 **Partially started** — items 4 and 5 shipped ad hoc 2026-09-16 (outside formal phase sequencing, during a QoL-cleanup session), and part of item 1's Owner field. See "Corrections found during implementation" before resuming this phase — do not re-plan what's already done, but do not mark them fully complete either; each has a gap noted below.
 **Depends on:** Phase 02 (Create Account captures a primary *address*, which requires the address model to be real)
 **Estimated sessions:** 2–3
 
@@ -25,7 +25,7 @@ Today's form (`index.html:799`) requires:
 | `siteName` **required** | > *"The account creation tab forces the creation of a facility"* — an account is a company; it may not have a known site yet |
 | `city` **required** | Same — forced facility data |
 | `phase` (Lead / Assessment / Sampling / Proposal / Active) | > *"account phase uses some weird set of phases that don't make sense to the creation of an account"* — these are sales-pipeline values. Pipeline belongs on the Opportunity, not the company record. |
-| `owner` free-text input | > *"Owner is a type in box and not locked to sales persons"* — **and it's worse than it looks.** Verified 2026-09-15: `saveAccountOwner()` resolves the picked employee to a display string and writes only `owner: "Priya Patel"`. It never writes an `ownerEmployeeId` FK. So even where the UI is already a picker, storage is still free text, and reassigning an employee leaves stale names on every account they owned. |
+| `owner` free-text input | > *"Owner is a type in box and not locked to sales persons"* — **and it's worse than it looks.** Verified 2026-09-15: `saveAccountOwner()` resolves the picked employee to a display string and writes only `owner: "Priya Patel"`. It never writes an `ownerEmployeeId` FK. So even where the UI is already a picker, storage is still free text, and reassigning an employee leaves stale names on every account they owned. **🟡 Partially fixed 2026-09-16:** the Create Account form's Owner field is now a picker (`populateEmployeeSelect`), matching the pattern already used by the Owner & Primary Contact dialog and Contact Role dialog — free text is gone. But it still isn't "locked to sales persons": the picker lists the *entire* `employees` roster (dispatchers, field techs, samplers included), not a sales-role filter, and it still resolves to a display-string write, not an `ownerEmployeeId` FK. Both remain open for this phase. |
 | `risk` (Low / Medium / High) | > *"there is a risk level for some reason?"* — company-level risk at creation time is meaningless; environmental risk belongs to a **facility or site**, not a corporation |
 
 **New form:**
@@ -78,6 +78,8 @@ The problem is purely that **the Company Profile edit dialog doesn't expose it.*
 
 `index.html:29` hardcodes `<h1>Operations Platform</h1>`. The app has nine workspaces; the header should name the one you're in — Sales, Operations, Dispatch, Workforce, Inventory, Office, Finance, Client Portal, Front Line. Drive it from the existing workspace registry (`app.js:244`ff) via `getCurrentWorkspaceId()`.
 
+**✅ Done 2026-09-16.** `renderHeaderTitle()` sets `#appHeaderTitle` from `findWorkspace(getCurrentWorkspaceId())?.label` (with the " View" suffix stripped, e.g. "Sales View" → "Sales"), called alongside `renderNav()`/`renderQuickActions()` on every render. Falls back to "Operations Platform" only on the home screen.
+
 ### 5. The "+ Create" entity dropdown
 
 > *"The 'New opportunity' button should be a 'Create' button and have a drop down for Account, Contact, or Opportunity."*
@@ -92,6 +94,8 @@ Replace the context-specific primary button with one **Create** control whose me
 | Contact detail | Opportunity, Activity |
 
 Built once in `renderQuickActions()` (`app.js:2761`), which already branches on workspace.
+
+**🟡 Partially done 2026-09-16.** The Sales-workspace row is shipped: the old "+" icon-button and "New opportunity" quick action were replaced with a single `<details class="create-menu">` "+ Create" dropdown (Account / Contact / Opportunity / Activity), reusing the existing `open-account`/`open-contact`/`open-opportunity`/`open-note` dialog actions — see `renderQuickActions()` in `app.js`. **Not done:** the Account-detail and Contact-detail context-aware menu rows in the table above — those pages still have their own separate, page-specific "New opportunity"/"Add contact" buttons, untouched.
 
 ---
 
@@ -115,12 +119,12 @@ Built once in `renderQuickActions()` (`app.js:2761`), which already branches on 
 ## Verification / done criteria
 
 - [ ] Create an account with **only** a name, type, industry, owner, and address — no facility required
-- [ ] Owner field will not accept free text; only real salespeople appear
+- [x] Owner field will not accept free text (2026-09-16) — [ ] only real *salespeople* appear (currently the full employee roster; no sales-role filter yet)
 - [ ] No `phase` or `risk` field anywhere on the creation form
 - [ ] Set two industries on one account; both persist and display
 - [ ] Industry is settable from Company Profile edit
-- [ ] Header reads "Sales" in Sales and "Dispatch" in Dispatch
-- [ ] Create dropdown appears in both the Sales workspace and on an account, with correct menus
+- [x] Header reads "Sales" in Sales and "Dispatch" in Dispatch (2026-09-16, verified live via Playwright)
+- [x] Create dropdown appears in the Sales workspace with the correct menu (2026-09-16) — [ ] still missing on the Account detail and Contact detail pages
 - [ ] The edit-button audit table below is filled in, with every row passing
 
 ---
@@ -150,3 +154,9 @@ Built once in `renderQuickActions()` (`app.js:2761`), which already branches on 
 ## Corrections found during implementation
 
 *(Record here anything that turned out to be different from the plan.)*
+
+- **2026-09-16 — items 4, 5, and part of 1 shipped outside formal phase sequencing.** A QoL-cleanup session (not scoped as "Phase 03 work" at the time) independently built the header fix and the "+ Create" dropdown, and fixed the Create Account Owner field's free-text problem, because a user reported them directly. Discovered afterward that all three were already documented here. Left unfinished, still open for whoever picks this phase up:
+  - Owner picker is not filtered to sales roles (shows the entire `employees` table).
+  - Owner storage is still display-name-only — no `ownerEmployeeId` FK, so the original Phase 01 correction ("Owner is still free text in storage despite being a picker in the UI") still applies even though free-typing itself is gone.
+  - The "+ Create" dropdown only exists in the Sales workspace quick-actions bar. The Account-detail and Contact-detail context-aware menus (Contact/Opportunity/Facility/Address/Location/Activity, and Opportunity/Activity respectively) were never built — those pages still use their own separate buttons.
+  - The Create Account form itself was **not** rebuilt — `siteName`, `city`, `phase`, and `risk` are all still present and still required exactly as this doc describes. Only the Owner field within that form changed.
