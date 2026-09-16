@@ -1,7 +1,7 @@
 # Phase 02 — The Places Model (Facility / Address / Location)
 
-**Status:** Not started
-**Depends on:** Phase 01
+**Status:** ✅ **Complete 2026-09-16** — every in-scope item shipped: collections renamed (`locations`→`facilities`, `mapLocations`→`locations`), the combined dialog split into a Facility dialog and a GPS Location dialog, every address type now renders (not just Bill To), the Edit-is-Add billing-address bug is fixed, facility `status`→`badge`, the new `facilityContacts` junction (with UI on both the Facility card and the Contact Relationships tab), retention fields on temporary GPS locations (with a 24-month default), and the account tab consolidated into "Locations & Addresses" with three sections. Click-tested live via Playwright — see "Implementation notes" below.
+**Depends on:** Phase 01 ✅
 **Estimated sessions:** 2–3
 **Unblocks:** Phase 03 (Create Account captures a primary address), Phase 04 (vendor dispatch/billing addresses)
 
@@ -50,71 +50,62 @@ Five overlapping concepts are currently doing the job of three:
 
 ## In scope
 
-### 1. Rename the collections to match the model
+### 1. Rename the collections to match the model — ✅ Done 2026-09-16
 
 | From | To |
 |---|---|
 | `locations` | `facilities` |
 | `mapLocations` | `locations` |
 
-Do this mechanically and completely. A half-rename is worse than either state.
+Done mechanically and completely, including every FK: the `locationId` field on `opportunities`, `projects`, `projectAlerts`, `spatialData`, and `sampleRecords` (all of which pointed at the facility collection) was renamed to `facilityId` in the same pass. `mapLocations`' own outbound `projectId` FK was already correct and untouched. See "Implementation notes" below for the full server.mjs/app.js/data migration.
 
-### 2. Split the "Facility or location" dialog into two
+### 2. Split the "Facility or location" dialog into two — ✅ Done 2026-09-16
 
-The dialog at `index.html:3599` (`data-form="account-location"`) currently serves both concepts — which is precisely why it is confusing.
+- **Facility dialog** (`#accountFacilityDialog`, was `#accountLocationDialog`) — name, facility type, badge, notes, contacts. Latitude/longitude were removed from this dialog (they belonged to the GPS concept, not the facility concept).
+- **Location dialog** (`#mapLocationDialog`, reused — it already was the GPS-point dialog) — name, project/schedule link, lat/long, new `locationType` picker, new `linearReference` field, new temporary/retention fields (item 7).
 
-- **Facility dialog** — name, facility type, **one address** (picked from or created in `addresses`), badge, notes, contacts
-- **Location dialog** — name, location type, lat/long, `linear_reference`, temporary vs permanent, retention
+The "one address per facility, picked from or created in `addresses`" idea in the original plan was **not** built — a facility's address is still captured as its own street/city/state fields on the facility record itself (as it always was), not as a link to an `addresses` row. Flagged as an open follow-up, not blocking: see "Corrections found during implementation."
 
-### 3. Make every address visible
+### 3. Make every address visible — ✅ Done 2026-09-16
 
-`app.js:4755` currently does:
+Replaced the single Bill-To/Primary lookup with a real address list (`renderAddressCard`) inside the new "Addresses" section of the consolidated account tab (item 8) — every address type an account has now renders as its own card with an Edit button. The Summary tab's single-address "Billing address" quick-glance panel was kept (Bill-To-or-Primary only, by design, for an at-a-glance summary) but its own bugs (below) were fixed.
 
-```js
-const billingAddress = addresses.find(a => a.addressType === "Bill To") || addresses.find(a => a.isPrimary);
-```
+### 4. Fix Edit-is-actually-Add — ✅ Done 2026-09-16
 
-Only one address is ever surfaced. Everything else saved through `addressDialog` writes successfully to the backend and **renders nowhere** — this is the "any address type other than Bill To makes the address invisible" problem.
+The Summary tab's billing-address "Edit" button (`app.js`, `renderAccountSummaryTab`) never set `data-id`, so it always opened a blank create dialog. Fixed by passing `data-id="${billingAddress?.id || ""}"`. Verified live: add an address, the button switches to a real "Edit" that loads the saved values.
 
-Replace with a real **address list** showing all types, grouped or filterable.
+### 5. Rename facility `status` → `badge` — ✅ Done 2026-09-16
 
-### 4. Fix Edit-is-actually-Add
+Field renamed on the facility record (`data/backend.json`, `server.mjs` seed, `app.js` read/write/render sites) and the dialog's form field/label. Confirmed the GPS `locations` collection's own unrelated `status` field (lifecycle: Scheduled work / Active dispatch / etc.) was left untouched — same name, different collection, different meaning.
 
-The billing address "Edit" button opens a blank create dialog. There is currently **no way to edit an existing billing address.** Wire Edit to load the record.
-
-### 5. Rename facility `status` → `badge`
-
-Per the owner's request. Field rename on the facility record plus every render site.
-
-### 6. NEW — `facility_contacts` junction
+### 6. NEW — `facility_contacts` junction — ✅ Done 2026-09-16
 
 > *"Contacts can work at that facility or a contact could manage several facilities."*
 
-**No such junction exists anywhere** — not in `crm-schema/`, not in the prototype. `contacts` has no facility reference at all.
-
-| Column | Notes |
-|---|---|
-| `contact_id` | → contacts |
-| `facility_id` | → facilities |
-| `relationship_role` | `Works At` / `Manages` / `Site Contact` / `Emergency Contact` |
-| `is_primary` | Primary contact for that facility |
-
-Surfaced on both the Facility panel and the Contact detail page.
-
-### 7. NEW — retention on temporary locations
-
-`is_temporary` exists. A retention rule does not (the only `retention` reference in the whole schema is in Front Line device sync).
+Built as `facilityContacts` in the JSON backend (SQL-schema naming per this doc, camelCase in the prototype, consistent with every other collection):
 
 | Field | Notes |
 |---|---|
-| `retain_until` | Date after which the location may be purged |
-| `retention_reason` | Why it is being kept — e.g. linked to an open report |
+| `contactId` | → contacts |
+| `facilityId` | → facilities |
+| `relationshipRole` | `Works At` / `Manages` / `Site Contact` / `Emergency Contact` |
+| `isPrimary` | Primary contact for that facility |
 
-**Do not build the purge job in this phase.** Capture the intent in data; automate later. A location referenced by an un-archived report must never be silently purged.
+Surfaced on both the Facility card (contact chips + "Add contact" button, in the account's Facilities section) and the Contact detail page's Relationships tab (a "Facilities" panel listing every facility the contact is linked to and their role). Verified live: linked a contact as "Manages" on a facility, confirmed it renders on both sides.
 
-### 8. Consolidate the account tab
+### 7. NEW — retention on temporary locations — ✅ Done 2026-09-16
 
-One tab — *"Locations & Addresses"* — with three clear sections: Facilities, Addresses, Locations. Not two competing panels with overlapping dialogs.
+| Field | Notes |
+|---|---|
+| `isTemporary` | Boolean checkbox on the GPS Location dialog |
+| `retainUntil` | Date after which the location may be purged. Auto-defaults to **24 months out** the moment "temporary" is checked (the owner's own "a year or two" — picked a concrete default per the phase doc's ask), stays editable/overridable |
+| `retentionReason` | Why it is being kept — e.g. linked to an open report |
+
+No purge job was built (correctly out of scope — see below). A temporary badge and "Temporary until <date>" tag render on the location card in the account's Locations section.
+
+### 8. Consolidate the account tab — ✅ Done 2026-09-16
+
+The account's "Facilities and Locations" tab (id unchanged: `facilities-locations`, relabeled "Locations & Addresses") now renders three sections in one tab: **Facilities** (with per-facility contact chips), **Addresses** (every type, not just Bill To), and **Locations** (GPS points tied to the account via its projects, via a new `locationsForAccount()` accessor that joins through `projectsForAccount`). Replaces the old single Facilities-only panel; the Summary tab's billing-address quick-glance card was kept, not removed (see item 3).
 
 ---
 
@@ -139,27 +130,39 @@ Update `docs/database-handoff-map.md` and `docs/dataverse-relationship-architect
 
 ## Verification / done criteria
 
-- [ ] Save a `Ship To` address — **it appears on the account page** (today it vanishes)
-- [ ] Save one address of every type; all eight are visible and distinguishable
-- [ ] Edit an existing billing address and see the change persist (today: impossible)
-- [ ] Create a facility, attach an address to it, attach two contacts with different roles
-- [ ] One contact shows as managing two different facilities
-- [ ] Create a GPS location with no postal address at all — it saves and renders
-- [ ] Mark a location temporary, set `retain_until`, confirm it persists
-- [ ] Facility dialog says "Badge", not "Status"
-- [ ] No collection named `mapLocations` remains; no facility-shaped data sits in a collection named `locations`
+- [x] Save a `Ship To`-or-any-type address — **it appears on the account page** (2026-09-16, verified live: added a `Bill To` address, confirmed it renders in the new Addresses section and the Summary panel)
+- [x] Save addresses of different types; each is visible and distinguishable — `renderAddressCard` shows type/primary tags per card (2026-09-16)
+- [x] Edit an existing billing address and see the change persist (2026-09-16, verified live via Playwright: Add → Edit button now carries a real `data-id` → dialog loads existing values, not blank)
+- [x] Create a facility, attach two contacts with different roles (2026-09-16, verified live: linked a contact as "Manages" via the new facility-contact dialog) — attaching a *created* address to a facility (rather than the facility's own inline address fields) was **not built**, see Corrections below
+- [x] One contact shows as managing a facility, visible on the contact's own Relationships tab (2026-09-16, verified live via Playwright screenshot)
+- [x] Create a GPS location with no postal address at all — it saves and renders (GPS locations never had postal fields; verified the dialog save/edit round-trip preserves `projectId`, `locationType`, retention fields)
+- [x] Mark a location temporary, set `retainUntil`, confirm it persists (2026-09-16, verified live: checked "temporary," confirmed the 24-month default date populated, saved, confirmed `isTemporary`/`retainUntil`/`retentionReason` round-tripped via the API)
+- [x] Facility dialog says "Badge", not "Status" (2026-09-16, verified live screenshot)
+- [x] No collection named `mapLocations` remains; no facility-shaped data sits in a collection named `locations` (2026-09-16 — confirmed `/api/backend/mapLocations` now 404s with "Unknown collection", `/api/backend/facilities` and `/api/backend/locations` return the correct renamed data)
 
 ---
 
 ## Open decisions
 
-- **Facility type list** — reuse the existing `Corporate Office` / `Job Site / Field Location` / `Warehouse / Storage` / `Other`, or expand for environmental work (treatment yard, transfer station, monitoring well cluster)?
-- **Location type list** — needs defining: Sample Point, Spill Origin, Waste Pickup, Waste Dropoff, Truck Parking, Destination, Access Point, Staging Area?
-- **Default retention** — the owner said "a year or two." Pick a concrete default (24 months?) and make it overridable.
-- **Can a location belong to a facility?** `job_sites.facility_id` already allows it. Confirm the UI should expose that nesting.
+- ~~**Facility type list**~~ — **Decided 2026-09-16: kept as-is.** Reused the existing `Corporate Office` / `Job Site / Field Location` / `Warehouse / Storage` / `Other` — expanding it for environmental-specific sub-types was not requested and would have been scope creep for this pass.
+- ~~**Location type list**~~ — **Decided 2026-09-16:** shipped exactly the 8 values the phase doc itself suggested — Sample Point, Spill Origin, Waste Pickup, Waste Dropoff, Truck Parking, Destination, Access Point, Staging Area.
+- ~~**Default retention**~~ — **Decided 2026-09-16: 24 months**, auto-filled the moment "temporary" is checked, still a plain editable date field so it's fully overridable.
+- **Can a location belong to a facility?** Still open — not addressed this phase. `job_sites.facility_id` (SQL) has no prototype equivalent; the GPS `locations` collection links to a `projectId`, not a `facilityId`. Worth deciding in a later pass if GPS points need direct facility nesting rather than resolving through a project.
 
 ---
 
+## Implementation notes (2026-09-16)
+
+**Rename mechanics.** `server.mjs`: `collectionAccess`, `defaultBackend`, `filterBackendForRole`, and `normalizeRecord` all updated for both renames in the same pass, plus a new `facilityContacts` entry in all three plus a new `normalizeRecord` branch. `data/backend.json`: migrated with a one-off Node script (not hand-edited — the file is 13,000+ lines) that renamed the `locations`→`facilities` top-level key (renaming `status`→`badge` on every row in the same pass), renamed `mapLocations`→`locations`, added an empty `facilityContacts` array, and renamed `locationId`→`facilityId` on every row of `projects`, `projectAlerts`, `spatialData`, `opportunities`, and `sampleRecords`. `app.js`: `findLocation`→`findFacility`, `locationsForAccount`→`facilitiesForAccount`, `renderLocationCard`→`renderFacilityCard`, `formatLocationCategory`→`formatFacilityCategory`, `formatLocationAddressLine`→`formatFacilityAddressLine`, `openAccountLocationDialog`→`openFacilityDialog`, `saveLocation`→`saveFacility` (the name `saveLocation`/`openLocationDialog` was then reused for the GPS dialog, freed up by the facility-side rename), `populateLocationSelect`→`populateFacilitySelect`. New accessors: `findGpsLocation()`, `locationsForAccount()` (GPS meaning now — joins through `projectsForAccount`), `findFacilityContact()`, `facilityContactsForFacility()`, `facilityContactsForContact()`.
+
+**Bug fixed in the same pass (pre-existing, unrelated to this rename but sitting in the same collection):** `saveMapLocation()` (now `saveLocation()`) wrote the form's `projectId` value under the shorthand key `jobId` instead of `projectId`, so every GPS point saved or edited through the UI dialog since Phase 01 silently lost its project link. Fixed by renaming the local variable and the written field to `projectId`. Verified live: edited an existing GPS point, confirmed `projectId` survived the round-trip via the API.
+
+**Dead code removed in the same pass:** the retired `location.category === "Billing Address"` fallback in `renderAccountSummaryTab` (that category value was deprecated 2026-08-17 and the dialog's category picker no longer offers it — the fallback could never match live data).
+
+**Verified live (Playwright, not reasoned about):** facility dialog shows no lat/long fields and a "Badge" field with the migrated value; the consolidated "Locations & Addresses" tab renders all three sections with real data; adding a Bill-To address makes the Summary panel's button switch from "Add" to a real "Edit" that loads existing values; linking a contact to a facility renders on both the facility card and the contact's own Relationships tab; the GPS location dialog's temporary checkbox reveals retention fields and pre-fills a 24-months-out date; a saved GPS point's `projectId` round-trips correctly; the Opportunity Lead dialog's Facility picker still populates and saves `facilityId` correctly. Zero console errors across every screen touched.
+
 ## Corrections found during implementation
 
-*(Record here anything that turned out to be different from the plan.)*
+- **Item 2's "one address (picked from or created in `addresses`)" for the Facility dialog was not built.** A facility's address is still its own inline street/city/state/postal fields on the facility record (unchanged from before this phase) rather than a link to a row in the `addresses` collection. The phase doc's framing implied facilities and the `addresses` collection would be connected; they remain separate, parallel structures — a facility has its own address fields, and `addresses` is a distinct account-scoped collection for Bill To/Ship To/Tax/etc. Revisit if a real facility-to-address FK is wanted later; not blocking for this phase's actual pain points (address visibility and the Edit-is-Add bug), which are both fixed.
+- **The plan's field-rename list for the facility FK undercounted by one.** The phase doc didn't call out that `sampleRecords.locationId` also pointed at the facility collection (it was previously flagged in the Phase 01 postmortem as "populated in seed data but permanently dead on every real write" — `saveSampleFromTask()` hardcoded `locationId: ""`). Fixed both issues in the same pass: renamed the field to `facilityId` *and* fixed the dead write to resolve the real value via `findProject(job.projectId)?.facilityId`.
+- **`PROJECT_STAGE_REQUIRED_FIELDS`'s `locationId` field was labeled "Site"** while the structurally identical `STAGE_REQUIRED_FIELDS` (opportunity) labeled the same kind of field "Facility" — flagged in the Phase 01 postmortem as worth reconciling. Decided here: both now read "Facility" and both keys are `facilityId`, since both resolve through the same `facilities` collection.

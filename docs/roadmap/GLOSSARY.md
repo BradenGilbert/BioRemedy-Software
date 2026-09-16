@@ -15,15 +15,16 @@ This is the most important section in this document. These three were collapsed 
 Implies a structure or a yard. Has exactly **one** address. Contacts can work at it, and one contact can manage several of them.
 
 - **Target table:** `facilities` (`crm-schema/003_facilities.sql` — already exists)
-- **Prototype today:** the JSON collection confusingly named `locations` (6 records)
+- **Prototype today:** ✅ the JSON collection `facilities` — renamed from `locations` in Phase 02 (2026-09-16), 11 records. `status` was also renamed `badge` in the same pass.
+- A new `facilityContacts` junction (works-at/manages, Phase 02) links `contacts` to `facilities`.
 - Examples: a customer's maintenance depot, a warehouse, a corporate office, a treatment yard
 
 ### ADDRESS — *a postal record*
 
 Street, city, postal code. Has a contact person or contact info. Exists for a **reason** — Bill-To, Ship-To, Remit-To, Tax, Vendor Dispatch. A facility has one. A billing office that nobody ever visits also has one.
 
-- **Target table:** `addresses` (`crm-schema/026_account_relationship_extensions.sql` — already exists, **0 rows, no UI**)
-- **Prototype today:** partly the legacy `accounts.billing_address_*` columns, partly `customer_addresses`, partly flattened onto the `locations` collection
+- **Target table:** `addresses` (`crm-schema/026_account_relationship_extensions.sql` — already exists)
+- **Prototype today:** the JSON `addresses` collection, now with real UI and real rows (Phase 02, 2026-09-16 — every address type renders on the account page, not just Bill To). A facility's own address is still captured as inline fields on the facility record, not a link to an `addresses` row — the two are parallel, not connected. See "Corrections found during implementation" in `phase-02-places-model.md`.
 - The `address_type` enum already exists and is correct: `Bill To`, `Ship To`, `Primary`, `Tax`, `Remit-To`, `Vendor Dispatch`, `Vendor Billing`, `Other`
 
 ### LOCATION — *a GPS point*
@@ -31,12 +32,12 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 **Not tied to a postal box.** Given to crews to identify an exact spot. Where a sample was taken, where a spill is, where waste was picked up or dropped, where a truck is parked, a destination.
 
 - **Target table:** `job_sites` (`crm-schema/005_job_sites.sql` — already exists, already has `latitude`/`longitude`, `linear_reference` for highway mile markers, and `is_temporary`)
-- **Prototype today:** the JSON collection `mapLocations` (4 records)
-- **Permanence matters:** some locations belong to the account forever; some (a one-off sample point) should age out after their reporting life. `is_temporary` exists; the retention rule does not yet — added in Phase 02.
+- **Prototype today:** ✅ the JSON collection `locations` — renamed from `mapLocations` in Phase 02 (2026-09-16), 4 records. Gained `locationType`, `linearReference`, `isTemporary`, `retainUntil`, `retentionReason` in the same pass.
+- **Permanence matters:** some locations belong to the account forever; some (a one-off sample point) should age out after their reporting life. `isTemporary` + `retainUntil` (default: 24 months out, overridable) + `retentionReason` shipped in Phase 02. No purge job yet — intentionally out of scope.
 
 > **The rule:** Everything can have a *location*. Only things that get mailed, billed, shipped, or taxed need an *address*. Only places where work physically happens are *facilities*.
 
-**Naming hazard:** the prototype's `locations` collection is really *facilities*, and the prototype's `mapLocations` is really *locations*. Phase 02 renames both. Until it ships, always confirm which one a piece of code means.
+**Naming hazard — resolved 2026-09-16 (Phase 02).** The prototype's old `locations` collection (really *facilities*) is now `facilities`, and the old `mapLocations` (really *locations*) is now `locations`. If you're reading old chat history, commits, or design docs that predate 2026-09-16, they'll use the old names — translate mentally.
 
 ---
 
@@ -44,7 +45,7 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 
 | Concept | SQL (target) | JSON backend | IndexedDB | Plain English |
 |---|---|---|---|---|
-| Customer engagement | `projects` | — | `jobs` ⚠️ | The whole piece of work sold to a customer |
+| Customer engagement | `projects` | `projects` | — | The whole piece of work sold to a customer (was IndexedDB `jobs` until Phase 01, 2026-09-16) |
 | Sales request into dispatch | `job_requests` | `jobRequests` | — | "Ops, please schedule this" |
 | One dispatchable work packet | `work_orders` | `dispatchJobs` | — | One crew, one visit, one packet of work |
 | A phase inside a work packet | `job_step_definitions` → `job_step_instances` | `jobSteps` | — | Mobilize, Excavate, Demobilize |

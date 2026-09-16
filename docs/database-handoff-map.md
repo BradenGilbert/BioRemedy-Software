@@ -2,7 +2,9 @@
 
 **Status date:** August 1, 2026 (Front Line row updated August 16, 2026; `locations`
 collection move updated August 17, 2026; `accounts`/`contacts` move and collection
-counts updated September 15, 2026)
+counts updated September 15, 2026; Phase 01 completion and Phase 02 Places Model
+rename -- `locations`->`facilities`, `mapLocations`->`locations`, new
+`facilityContacts` -- updated September 16, 2026)
 
 ## Executive Summary
 
@@ -14,7 +16,7 @@ yet have a deployed production relational database.
 | PostgreSQL design | 28 ordered SQL files defining **141 tables** and **27 views** |
 | Laravel conversion | Only the first **12 tables** have Laravel migrations, models, and basic Filament resources |
 | Running prototype server | Node server using `data/backend.json` with **76 collections** |
-| Browser CRM storage | IndexedDB with **12 object stores**, including settings and an offline sync queue |
+| Browser CRM storage | IndexedDB with **2 object stores** (`syncQueue`, `settings`) -- every core CRM collection moved to the shared JSON backend in Phase 01 (complete September 16, 2026); IndexedDB is now genuinely just the local cache/outbox |
 | Uploaded files | Local filesystem under `data/uploads`; metadata is in the JSON backend |
 | Front Line | Database and sync schema defined; no standalone iOS/Android app built. A rough in-browser phone-frame simulator now exists inside the CRM web app (`app.js`, `renderFrontline*` functions, reachable from the CRM home screen) — fake login (field-lead picker, no real auth), a 3x3 tile launcher, and a real Job Book/Work Plan flow that reads and writes the existing `dispatchJobs`/`jobSteps`/`jobActions`/`jobFormSubmissions` collections through the same `/api/backend` endpoints the desktop Dispatch Job Detail page uses. It validates the data model and UX end-to-end but is not the real mobile app. |
 
@@ -255,9 +257,10 @@ since August 17, 2026.
 
 `sampleRecords` was moved out of IndexedDB into the JSON backend on
 August 16, 2026 so field-collected samples are visible to the office rather
-than being trapped on the collecting device. `locations` (Account Facilities
-& Locations) followed the same move on August 17, 2026, gaining a full
-structured address in the process -- see the JSON Backend list below.
+than being trapped on the collecting device. `facilities` (Account Facilities,
+called `locations` until Phase 02 renamed it September 16, 2026) followed the
+same move on August 17, 2026, gaining a full structured address in the
+process -- see the JSON Backend list below.
 `opportunities` moved to the JSON backend earlier (August 10, 2026, alongside
 the Opportunity page redesign) but its now-unused IndexedDB store
 declaration was left in `openDatabase`'s schema -- harmless (the store is
@@ -279,31 +282,45 @@ gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
 was retired the same way, same day: removed from `server.mjs` entirely and
 deleted from `data/backend.json`.
 
-### Node JSON Backend - 82 collections
+### Node JSON Backend - 83 collections
 
-> The count was previously documented as 72, then 76. Recounted directly from
-> both `data/backend.json`'s top-level keys and `server.mjs`'s `defaultBackend`
-> object on September 16, 2026 (after finishing Phase 01 in the same session,
-> which added `projects`/`tasks`/`activities`/`projectAssignments`/
-> `projectAlerts`/`materialUsage`/`equipmentLogs`/`scheduledWork`/`spatialData`
-> and removed `timeEntries`/`crewMemberships`/`laborResources`): **82**, not 83
-> as the running arithmetic from the prior count would suggest. Counting by
-> addition/subtraction from an old total compounds any earlier miscount (the
-> 72->74 correction already showed the earlier figures weren't exact) --
-> recount from source when it matters, don't trust the running tally.
+> The count was previously documented as 72, then 76, then 82. Recounted
+> directly from both `data/backend.json`'s top-level keys and `server.mjs`'s
+> `defaultBackend` object on September 16, 2026, after Phase 02 (Places Model)
+> added `facilityContacts` (the account-facility-vs-old-`locations`-collection
+> rename below is a rename, not a count change): **83**. Recount from source
+> when it matters, don't trust the running tally.
+
+> **Phase 02 rename, September 16, 2026:** the old `locations` collection
+> (Account Facilities) is now `facilities`, and the old `mapLocations`
+> collection (GPS points) is now `locations` -- matching the Facility/Address/
+> Location naming contract in `docs/roadmap/GLOSSARY.md`. Every `locationId`
+> FK that pointed at the old `locations` (facility) collection --
+> `opportunities`, `projects`, `projectAlerts`, `spatialData`, `sampleRecords`
+> -- was renamed to `facilityId` in the same pass. `mapLocations`' own outbound
+> `projectId` FK was untouched (it was already correctly named). New this
+> phase: `facilityContacts` (junction: which contacts work at or manage which
+> facility) and four new fields on the GPS `locations` collection
+> (`locationType`, `linearReference`, `isTemporary`, `retainUntil`,
+> `retentionReason`) for the retention-on-temporary-locations requirement.
+> Facility `status` was also renamed `badge` per the owner's request (it was
+> never a real lifecycle state -- seeded from the account's sales phase).
 
 - CRM: `accounts`, `contacts`, `projects` (formerly the IndexedDB `jobs`
   store, renamed in the same move), `tasks`, `activities`, and
   `projectAssignments` -- all moved from IndexedDB (`accounts`/`contacts`
   September 15, 2026; the rest September 16, 2026; all roadmap Phase 01,
   now complete), all six gated by the `customerDirectory` role group, which
-  spans every internal role but excludes Client Portal. Also `locations`
-  (Account Facilities & Locations -- moved from IndexedDB August 17, 2026;
-  distinct from the `mapLocations` operations collection below),
-  `opportunityAssignments` (planning/sales team assignments on an
-  opportunity, gained `employeeId`/`contactId`/`vendorAccountId`/
-  `vendorContactId` fields August 17, 2026)
-- Operations/inventory: `scheduleEvents`, `mapLocations`, `inventoryItems`,
+  spans every internal role but excludes Client Portal. Also `facilities`
+  (Account Facilities, one address each -- moved from IndexedDB August 17,
+  2026 under the name `locations`; renamed to `facilities` in Phase 02,
+  September 16, 2026, distinct from the GPS `locations` collection below) and
+  `facilityContacts` (new in Phase 02 -- works-at/manages junction between
+  `contacts` and `facilities`), `opportunityAssignments` (planning/sales team
+  assignments on an opportunity, gained `employeeId`/`contactId`/
+  `vendorAccountId`/`vendorContactId` fields August 17, 2026)
+- Operations/inventory: `scheduleEvents`, `locations` (GPS points -- named
+  `mapLocations` until Phase 02, September 16, 2026), `inventoryItems`,
   `purchaseOrders`, `equipmentAssets`, `laborAssignments`, `projectAlerts`,
   `materialUsage`, `equipmentLogs`, `scheduledWork`, `spatialData`
   (the last five moved from IndexedDB September 16, 2026, roadmap Phase 01;

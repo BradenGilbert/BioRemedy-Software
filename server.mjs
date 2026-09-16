@@ -65,7 +65,7 @@ const roleAccess = {
 
 const collectionAccess = {
   scheduleEvents: "operations",
-  mapLocations: "operations",
+  locations: "operations",
   scheduledWork: "operations",
   projectAssignments: "customerDirectory",
   projectAlerts: "operations",
@@ -135,7 +135,8 @@ const collectionAccess = {
   industries: "sales",
   accountIndustries: "sales",
   addresses: "sales",
-  locations: "sales",
+  facilities: "sales",
+  facilityContacts: "sales",
   salesTasks: "sales",
   accountRelationshipExtensions: "sales",
   accountComments: "sales",
@@ -187,7 +188,7 @@ const defaultBackend = {
       blockedReason: "",
     },
   ],
-  mapLocations: [
+  locations: [
     {
       id: "map-riverbend-yard",
       projectId: "job-riverbend-ust",
@@ -1061,7 +1062,7 @@ const defaultBackend = {
       samplingSessionName: "UST basin confirmation sampling",
       projectId: "job-riverbend-ust",
       accountId: "acct-riverbend",
-      locationId: "loc-riverbend-yard",
+      facilityId: "loc-riverbend-yard",
       sampleLocation: "B-1 near former UST basin",
       sampleType: "Soil",
       sampleMatrix: "Soil",
@@ -1089,7 +1090,7 @@ const defaultBackend = {
       samplingSessionName: "UST basin confirmation sampling",
       projectId: "job-riverbend-ust",
       accountId: "acct-riverbend",
-      locationId: "loc-riverbend-yard",
+      facilityId: "loc-riverbend-yard",
       sampleLocation: "B-2 south excavation wall",
       sampleType: "Soil",
       sampleMatrix: "Soil",
@@ -1117,7 +1118,7 @@ const defaultBackend = {
       samplingSessionName: "7/3 site sample locations",
       projectId: "job-north-river-i130",
       accountId: "acct-north-river",
-      locationId: "loc-north-river-depot",
+      facilityId: "loc-north-river-depot",
       sampleLocation: "Sample point 1",
       sampleType: "Field sample",
       sampleMatrix: "Surface soil",
@@ -1145,7 +1146,7 @@ const defaultBackend = {
       samplingSessionName: "7/3 site sample locations",
       projectId: "job-north-river-i130",
       accountId: "acct-north-river",
-      locationId: "loc-north-river-depot",
+      facilityId: "loc-north-river-depot",
       sampleLocation: "Sample point 2",
       sampleType: "Field sample",
       sampleMatrix: "Surface soil",
@@ -1173,7 +1174,7 @@ const defaultBackend = {
       samplingSessionName: "7/3 site sample locations",
       projectId: "job-north-river-i130",
       accountId: "acct-north-river",
-      locationId: "loc-north-river-depot",
+      facilityId: "loc-north-river-depot",
       sampleLocation: "Sample point 3",
       sampleType: "Field sample",
       sampleMatrix: "Surface soil",
@@ -1201,7 +1202,7 @@ const defaultBackend = {
       samplingSessionName: "7/3 site sample locations",
       projectId: "job-north-river-i130",
       accountId: "acct-north-river",
-      locationId: "loc-north-river-depot",
+      facilityId: "loc-north-river-depot",
       sampleLocation: "Sample point 4",
       sampleType: "Field sample",
       sampleMatrix: "Surface soil",
@@ -1836,7 +1837,8 @@ const defaultBackend = {
   ],
   accountIndustries: [],
   addresses: [],
-  locations: [
+  facilityContacts: [],
+  facilities: [
     {
       id: "loc-riverbend-yard",
       accountId: "acct-riverbend",
@@ -1846,7 +1848,7 @@ const defaultBackend = {
       category: "Other",
       categoryOther: "Former UST basin",
       concern: "Petroleum impacted soil",
-      status: "Sampling",
+      badge: "Sampling",
       access: "Badge access and escort required",
     },
     {
@@ -1861,7 +1863,7 @@ const defaultBackend = {
       category: "Corporate Office",
       categoryOther: "",
       concern: "",
-      status: "Active",
+      badge: "Active",
       access: "",
     },
     {
@@ -1873,7 +1875,7 @@ const defaultBackend = {
       category: "Other",
       categoryOther: "Fleet yard",
       concern: "Diesel staining and stormwater runoff",
-      status: "Assessment",
+      badge: "Assessment",
       access: "Operations escort during dispatch windows",
     },
     {
@@ -1885,7 +1887,7 @@ const defaultBackend = {
       category: "Other",
       categoryOther: "School mechanical room",
       concern: "Asbestos-containing insulation",
-      status: "Proposal",
+      badge: "Proposal",
       access: "Evening and weekend access preferred",
     },
     {
@@ -1897,7 +1899,7 @@ const defaultBackend = {
       category: "Other",
       categoryOther: "Expansion site",
       concern: "Groundwater monitoring",
-      status: "Lead",
+      badge: "Lead",
       access: "Coordinate with construction superintendent",
     },
   ],
@@ -2014,7 +2016,7 @@ function filterBackendForRole(data, role) {
     scheduledWork: canAccess(role, "operations") ? data.scheduledWork : [],
     spatialData: canAccess(role, "operations") ? data.spatialData : [],
     scheduleEvents: canAccess(role, "operations") ? data.scheduleEvents : [],
-    mapLocations: canAccess(role, "operations") ? data.mapLocations : [],
+    locations: canAccess(role, "operations") ? data.locations : [],
     inventoryItems: canAccess(role, "inventory") || canAccess(role, "dispatch") ? data.inventoryItems : [],
     purchaseOrders: canAccess(role, "inventory") ? data.purchaseOrders : [],
     equipmentAssets: canAccess(role, "inventory") || canAccess(role, "operations") ? data.equipmentAssets : [],
@@ -2074,7 +2076,8 @@ function filterBackendForRole(data, role) {
     industries: canAccess(role, "sales") ? data.industries : [],
     accountIndustries: canAccess(role, "sales") ? data.accountIndustries : [],
     addresses: canAccess(role, "sales") ? data.addresses : [],
-    locations: canAccess(role, "sales") ? data.locations : [],
+    facilities: canAccess(role, "sales") ? data.facilities : [],
+    facilityContacts: canAccess(role, "sales") ? data.facilityContacts : [],
     salesTasks: canAccess(role, "sales") ? data.salesTasks : [],
     accountRelationshipExtensions: canAccess(role, "sales") ? data.accountRelationshipExtensions : [],
     accountComments: canAccess(role, "sales") ? data.accountComments : [],
@@ -2164,7 +2167,7 @@ function normalizeRecord(collection, payload, data) {
     };
   }
 
-  if (collection === "mapLocations") {
+  if (collection === "locations") {
     return {
       id,
       projectId: payload.projectId || "",
@@ -2176,6 +2179,21 @@ function normalizeRecord(collection, payload, data) {
       status: payload.status || "Live GPS",
       lastPingAt: payload.lastPingAt || now,
       source: payload.source || "Manual",
+      locationType: payload.locationType || "",
+      linearReference: payload.linearReference || "",
+      isTemporary: Boolean(payload.isTemporary),
+      retainUntil: payload.retainUntil || "",
+      retentionReason: payload.retentionReason || "",
+    };
+  }
+
+  if (collection === "facilityContacts") {
+    return {
+      id,
+      facilityId: payload.facilityId || "",
+      contactId: payload.contactId || "",
+      relationshipRole: payload.relationshipRole || "Works At",
+      isPrimary: Boolean(payload.isPrimary),
     };
   }
 
@@ -2273,9 +2291,9 @@ async function handleOwnTracks(request, response, requestUrl) {
   if (ping.error) return json(response, 400, { error: ping.error });
 
   const data = await loadBackend();
-  const index = data.mapLocations.findIndex((location) => location.id === ping.id);
-  if (index >= 0) data.mapLocations[index] = { ...data.mapLocations[index], ...ping };
-  else data.mapLocations.push(ping);
+  const index = data.locations.findIndex((location) => location.id === ping.id);
+  if (index >= 0) data.locations[index] = { ...data.locations[index], ...ping };
+  else data.locations.push(ping);
   await saveBackend(data);
 
   return json(response, 200, { ok: true, location: ping });
@@ -2644,7 +2662,7 @@ async function handleApi(request, response, pathname) {
       const block = validateScheduleEvent(data, record);
       if (block) return json(response, 409, { error: block, blocked: true });
     }
-    if (collection === "mapLocations" && (!Number.isFinite(record.latitude) || !Number.isFinite(record.longitude))) {
+    if (collection === "locations" && (!Number.isFinite(record.latitude) || !Number.isFinite(record.longitude))) {
       return json(response, 400, { error: "Map location requires valid latitude and longitude." });
     }
     if (collection === "vendorProfiles") {

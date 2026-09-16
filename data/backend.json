@@ -1070,7 +1070,7 @@
     {
       "id": "job-riverbend-ust",
       "accountId": "acct-riverbend",
-      "locationId": "loc-riverbend-yard",
+      "facilityId": "loc-riverbend-yard",
       "opportunityId": "opp-riverbend-ust",
       "contactIds": [
         "cont-alicia-moreno",
@@ -1105,7 +1105,7 @@
     {
       "id": "job-north-river-stormwater",
       "accountId": "acct-north-river",
-      "locationId": "loc-north-river-depot",
+      "facilityId": "loc-north-river-depot",
       "opportunityId": "opp-north-river-stormwater",
       "contactIds": [
         "cont-jordan-lee"
@@ -1139,7 +1139,7 @@
     {
       "id": "job-clearwater-abatement",
       "accountId": "acct-clearwater",
-      "locationId": "loc-clearwater-boiler",
+      "facilityId": "loc-clearwater-boiler",
       "opportunityId": "opp-clearwater-abatement",
       "contactIds": [
         "cont-sam-ortega"
@@ -1173,7 +1173,7 @@
     {
       "id": "job-north-river-i130",
       "accountId": "acct-north-river",
-      "locationId": "loc-north-river-depot",
+      "facilityId": "loc-north-river-depot",
       "opportunityId": "",
       "contactIds": [
         "cont-jordan-lee"
@@ -1216,7 +1216,7 @@
       "budget": 18000,
       "outcome": "Identified historical UST area and recommended soil borings.",
       "opportunityId": "",
-      "locationId": "",
+      "facilityId": "",
       "contactIds": [],
       "activePhase": "",
       "projectManager": "",
@@ -1248,7 +1248,7 @@
       "budget": 28000,
       "outcome": "Contained release and closed incident report within 10 days.",
       "opportunityId": "",
-      "locationId": "",
+      "facilityId": "",
       "contactIds": [],
       "activePhase": "",
       "projectManager": "",
@@ -1280,7 +1280,7 @@
       "budget": 36000,
       "outcome": "Mapped abatement quantities for boiler upgrade planning.",
       "opportunityId": "",
-      "locationId": "",
+      "facilityId": "",
       "contactIds": [],
       "activePhase": "",
       "projectManager": "",
@@ -1500,7 +1500,7 @@
       "id": "alert-riverbend-scope",
       "projectId": "job-riverbend-ust",
       "accountId": "acct-riverbend",
-      "locationId": "loc-riverbend-yard",
+      "facilityId": "loc-riverbend-yard",
       "alertType": "Scope Exception",
       "severity": "High",
       "description": "Possible unlisted contaminant noted near the former tank basin. Work paused pending review.",
@@ -1518,7 +1518,7 @@
       "id": "alert-i130-nte",
       "projectId": "job-north-river-i130",
       "accountId": "acct-north-river",
-      "locationId": "loc-north-river-depot",
+      "facilityId": "loc-north-river-depot",
       "alertType": "Customer Approval Needed",
       "severity": "Medium",
       "description": "Emergency response labor and absorbents are approaching the not-to-exceed threshold.",
@@ -1629,7 +1629,7 @@
     {
       "id": "spatial-riverbend-yard",
       "accountId": "acct-riverbend",
-      "locationId": "loc-riverbend-yard",
+      "facilityId": "loc-riverbend-yard",
       "projectId": "job-riverbend-ust",
       "fileType": "Point cloud placeholder",
       "storagePath": "object-storage://sites/riverbend/south-yard/pre-scan.laz",
@@ -1645,7 +1645,7 @@
     {
       "id": "spatial-i130-response",
       "accountId": "acct-north-river",
-      "locationId": "loc-north-river-depot",
+      "facilityId": "loc-north-river-depot",
       "projectId": "job-north-river-i130",
       "fileType": "7/3/2025 3D site render",
       "storagePath": "./public/models/7_3_2025.glb",
@@ -1729,7 +1729,7 @@
       "blockedReason": ""
     }
   ],
-  "mapLocations": [
+  "locations": [
     {
       "id": "map-riverbend-yard",
       "projectId": "job-riverbend-ust",
@@ -1741,8 +1741,13 @@
         "PMP-077"
       ],
       "status": "Pre-mobilization",
-      "lastPingAt": "2026-07-07T06:09:42.795Z",
-      "source": "Manual"
+      "lastPingAt": "2026-09-16T15:17:53.015Z",
+      "source": "Manual",
+      "locationType": "",
+      "linearReference": "",
+      "isTemporary": false,
+      "retainUntil": "",
+      "retentionReason": ""
     },
     {
       "id": "map-i130-response",
@@ -12093,7 +12098,7 @@
       "samplingSessionName": "UST basin confirmation sampling",
       "projectId": "job-riverbend-ust",
       "accountId": "acct-riverbend",
-      "locationId": "loc-riverbend-yard",
+      "facilityId": "loc-riverbend-yard",
       "sampleLocation": "B-1 near former UST basin",
       "sampleType": "Soil",
       "sampleMatrix": "Soil",
@@ -12128,7 +12133,7 @@
       "samplingSessionName": "UST basin confirmation sampling",
       "projectId": "job-riverbend-ust",
       "accountId": "acct-riverbend",
-      "locationId": "loc-riverbend-yard",
+      "facilityId": "loc-riverbend-yard",
       "sampleLocation": "B-2 south excavation wall",
       "sampleType": "Soil",
       "sampleMatrix": "Soil",
@@ -12163,7 +12168,7 @@
       "samplingSessionName": "7/3 site sample locations",
       "projectId": "job-north-river-i130",
       "accountId": "acct-north-river",
-      "locationId": "loc-north-river-depot",
+      "facilityId": "loc-north-river-depot",
       "sampleLocation": "Sample point 1",
       "sampleType": "Field sample",
       "sampleMatrix": "Surface soil",
@@ -12197,7 +12202,7 @@
       "samplingSessionName": "7/3 site sample locations",
       "projectId": "job-north-river-i130",
       "accountId": "acct-north-river",
-      "locationId": "loc-north-river-depot",
+      "facilityId": "loc-north-river-depot",
       "sampleLocation": "Sample point 2",
       "sampleType": "Field sample",
       "sampleMatrix": "Surface soil",
@@ -12231,7 +12236,7 @@
       "samplingSessionName": "7/3 site sample locations",
       "projectId": "job-north-river-i130",
       "accountId": "acct-north-river",
-      "locationId": "loc-north-river-depot",
+      "facilityId": "loc-north-river-depot",
       "sampleLocation": "Sample point 3",
       "sampleType": "Field sample",
       "sampleMatrix": "Surface soil",
@@ -12265,7 +12270,7 @@
       "samplingSessionName": "7/3 site sample locations",
       "projectId": "job-north-river-i130",
       "accountId": "acct-north-river",
-      "locationId": "loc-north-river-depot",
+      "facilityId": "loc-north-river-depot",
       "sampleLocation": "Sample point 4",
       "sampleType": "Field sample",
       "sampleMatrix": "Surface soil",
@@ -12301,7 +12306,7 @@
       "dispatchJobId": "dispatch-job-mswlno3z-rbqwss",
       "actionId": "action-mswlnob7-nto2yc",
       "accountId": "acct-msw4rigr-0l2awj",
-      "locationId": "",
+      "facilityId": "",
       "sampleLocation": "",
       "sampleType": "Field sample",
       "sampleMatrix": "",
@@ -12538,8 +12543,63 @@
       "serviceType": "Scheduled Environmental Service",
       "closeDate": "2026-07-24",
       "nextStep": "Price alternate disposal option after lab report",
-      "updatedAt": "2026-08-10T21:17:28.877Z",
-      "createdAt": "2026-08-10T21:17:28.877Z"
+      "updatedAt": "2026-09-16T15:21:11.928Z",
+      "createdAt": "2026-08-10T21:17:28.877Z",
+      "facilityId": "",
+      "industry": "",
+      "contaminationNotes": "",
+      "originatingLeadId": "",
+      "sourceCampaign": "",
+      "description": "Price alternate disposal option after lab report",
+      "currentSituation": "Petroleum impacted soil near former UST basin",
+      "opportunityName": "UST removal and soil remediation",
+      "opportunityId": "opp-riverbend-ust",
+      "opportunityUniqueIdentifier": "opp-riverbend-ust",
+      "accountName": "Riverbend Manufacturing",
+      "primaryContact": "Alicia Moreno",
+      "owner": "Maya Chen",
+      "hubspotOwnerId": "",
+      "dealType": "New Business",
+      "pipeline": "Sales Pipeline",
+      "dealStage": "Proposal",
+      "status": "Open",
+      "forecastCategory": "Pipeline",
+      "closeProbability": 60,
+      "probability": 60,
+      "priority": "Normal",
+      "rating": "Close Jul 24, 2026",
+      "initialCommunication": "Contacted",
+      "customerNeed": "Scheduled Environmental Service",
+      "proposedSolution": "Price alternate disposal option after lab report",
+      "amount": 185000,
+      "amountInCompanyCurrency": 185000,
+      "estimatedValue": 185000,
+      "weightedAmount": 111000,
+      "forecastAmount": 111000,
+      "annualRecurringRevenue": 0,
+      "totalContractValue": 185000,
+      "budgetAmount": 0,
+      "notToExceed": "",
+      "currency": "USD",
+      "exchangeRate": "1.00",
+      "isRevenueSystemCalculated": false,
+      "estimatedCloseDate": "2026-07-24",
+      "actualCloseDate": "",
+      "createdOn": "2026-08-10T21:17:28.877Z",
+      "createdBy": "Olivia Grant",
+      "lastModifiedDate": "2026-09-16T15:21:11.924Z",
+      "lastContacted": "2026-07-01",
+      "nextActivityDate": "",
+      "numberOfSalesActivities": 0,
+      "numberOfAssociatedContacts": 2,
+      "stageAgeDays": 0,
+      "competitor": "",
+      "decisionMaker": "Alicia Moreno",
+      "purchaseProcess": "",
+      "purchaseTimeframe": "",
+      "quoteId": "",
+      "priceList": "",
+      "recordSource": "Local CRM"
     },
     {
       "id": "opp-north-river-stormwater",
@@ -12638,7 +12698,7 @@
       "recordSource": "Local CRM",
       "description": "get an understanding of scope and progress to date",
       "createdAt": "2026-08-16T19:00:15.488Z",
-      "locationId": "loc-msw5r935-b2tbvs",
+      "facilityId": "loc-msw5r935-b2tbvs",
       "contaminationNotes": "diesel",
       "decisionMakerFound": "Complete",
       "captureSummary": "need to understand",
@@ -13362,7 +13422,8 @@
       "updatedAt": "2026-09-15T19:16:16.867Z"
     }
   ],
-  "locations": [
+  "facilityContacts": [],
+  "facilities": [
     {
       "id": "loc-riverbend-yard",
       "accountId": "acct-riverbend",
@@ -13372,8 +13433,8 @@
       "category": "Other",
       "categoryOther": "Former UST basin",
       "concern": "Petroleum impacted soil",
-      "status": "Sampling",
-      "access": "Badge access and escort required"
+      "access": "Badge access and escort required",
+      "badge": "Sampling"
     },
     {
       "id": "loc-riverbend-billing",
@@ -13387,8 +13448,8 @@
       "category": "Corporate Office",
       "categoryOther": "",
       "concern": "",
-      "status": "Active",
-      "access": ""
+      "access": "",
+      "badge": "Active"
     },
     {
       "id": "loc-north-river-depot",
@@ -13399,8 +13460,8 @@
       "category": "Other",
       "categoryOther": "Fleet yard",
       "concern": "Diesel staining and stormwater runoff",
-      "status": "Assessment",
-      "access": "Operations escort during dispatch windows"
+      "access": "Operations escort during dispatch windows",
+      "badge": "Assessment"
     },
     {
       "id": "loc-clearwater-boiler",
@@ -13411,8 +13472,8 @@
       "category": "Other",
       "categoryOther": "School mechanical room",
       "concern": "Asbestos-containing insulation",
-      "status": "Proposal",
-      "access": "Evening and weekend access preferred"
+      "access": "Evening and weekend access preferred",
+      "badge": "Proposal"
     },
     {
       "id": "loc-prairie-cold-storage",
@@ -13423,8 +13484,8 @@
       "category": "Other",
       "categoryOther": "Expansion site",
       "concern": "Groundwater monitoring",
-      "status": "Lead",
-      "access": "Coordinate with construction superintendent"
+      "access": "Coordinate with construction superintendent",
+      "badge": "Lead"
     },
     {
       "id": "loc-mu2uhdsc-a5m69p",
@@ -13435,10 +13496,10 @@
       "category": "Corporate Office",
       "categoryOther": "",
       "concern": "test concern",
-      "status": "Lead",
       "access": "Access details not captured yet",
       "createdAt": "2026-09-15T15:46:51.369Z",
-      "updatedAt": "2026-09-15T15:46:51.369Z"
+      "updatedAt": "2026-09-15T15:46:51.369Z",
+      "badge": "Lead"
     },
     {
       "id": "loc-mu31h8xz-tx0uv2",
@@ -13449,7 +13510,6 @@
       "category": "Job Site / Field Location",
       "categoryOther": "",
       "concern": "help this is the concern section and doesnt make sense.",
-      "status": "Proposal",
       "access": "Access details not captured yet",
       "createdAt": "2026-09-15T19:02:43.385Z",
       "updatedAt": "2026-09-15T19:27:51.690Z",
@@ -13460,7 +13520,8 @@
       "countryOrRegion": "",
       "phone": "",
       "latitude": "",
-      "longitude": ""
+      "longitude": "",
+      "badge": "Proposal"
     },
     {
       "id": "loc-mu31kiuv-mu3ilp",
@@ -13478,11 +13539,11 @@
       "longitude": "0.000006",
       "category": "Corporate Office",
       "categoryOther": "",
-      "status": "didnt know wha tto put here",
       "concern": "",
       "access": "100 get rekt access note",
       "createdAt": "2026-09-15T19:05:16.213Z",
-      "updatedAt": "2026-09-15T19:05:16.213Z"
+      "updatedAt": "2026-09-15T19:05:16.213Z",
+      "badge": "didnt know wha tto put here"
     },
     {
       "id": "loc-mu31qntu-7iz7m8",
@@ -13500,11 +13561,11 @@
       "longitude": "",
       "category": "Warehouse / Storage",
       "categoryOther": "",
-      "status": "gay",
       "concern": "",
       "access": "run in screaming about cows",
       "createdAt": "2026-09-15T19:10:02.871Z",
-      "updatedAt": "2026-09-15T19:10:02.871Z"
+      "updatedAt": "2026-09-15T19:10:02.871Z",
+      "badge": "gay"
     },
     {
       "id": "loc-mu34m939-zgd7zp",
@@ -13515,10 +13576,10 @@
       "category": "Corporate Office",
       "categoryOther": "",
       "concern": "",
-      "status": "Lead",
       "access": "Access details not captured yet",
       "createdAt": "2026-09-15T20:30:35.407Z",
-      "updatedAt": "2026-09-15T20:30:35.407Z"
+      "updatedAt": "2026-09-15T20:30:35.407Z",
+      "badge": "Lead"
     },
     {
       "id": "loc-mu3iuegp-y9w0ts",
@@ -13529,10 +13590,10 @@
       "category": "Corporate Office",
       "categoryOther": "",
       "concern": "help this is the concern section and doesnt make sense.",
-      "status": "Lead",
       "access": "Access details not captured yet",
       "createdAt": "2026-09-16T03:08:50.276Z",
-      "updatedAt": "2026-09-16T03:08:50.276Z"
+      "updatedAt": "2026-09-16T03:08:50.276Z",
+      "badge": "Lead"
     }
   ],
   "salesTasks": [],

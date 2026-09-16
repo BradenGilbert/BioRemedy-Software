@@ -42,7 +42,7 @@ This means `laravel-ready/` is **deprecated**. It converted only the first 12 of
 | Layer | State |
 |---|---|
 | Browser IndexedDB | As of 2026-09-16: **every core CRM collection has moved to the shared backend** (Phase 01, now complete) — accounts, contacts, projects (formerly `jobs`), tasks, activities, project assignments, project alerts, material usage, equipment logs, scheduled work, spatial data. Only `syncQueue` and `settings` remain per-browser, correctly (device-scoped by definition). |
-| Node JSON backend | 82 collections (recounted from source, not running arithmetic — see `docs/database-handoff-map.md`), shared across users — opportunities, facilities, dispatch jobs, work plans, employees, inventory, quotes, invoices, plus everything Phase 01 moved in from IndexedDB |
+| Node JSON backend | 83 collections (recounted from source, not running arithmetic — see `docs/database-handoff-map.md`), shared across users — opportunities, facilities, dispatch jobs, work plans, employees, inventory, quotes, invoices, plus everything Phase 01 moved in from IndexedDB. Phase 02 (2026-09-16) renamed `locations`→`facilities` and `mapLocations`→`locations` to match the glossary, and added `facilityContacts`. |
 | PostgreSQL schema | 28 migration files, 141 tables, 27 views — **designed, never deployed** |
 | `laravel-ready/` | First 12 tables only. Deprecated as of 2026-09-15. |
 | Version control | **None.** No git repository. |
@@ -76,7 +76,7 @@ The felt pain. Almost every item on the 2026-09-15 feedback list lives here. The
 
 | Phase | Name | Status |
 |---|---|---|
-| 02 | [The Places Model — Facility / Address / Location](phase-02-places-model.md) | Not started |
+| 02 | [The Places Model — Facility / Address / Location](phase-02-places-model.md) | ✅ **Complete 2026-09-16** — collections renamed, dialogs split, every address type visible, Edit-is-Add fixed, `facility_contacts` junction built, retention fields shipped, account tab consolidated |
 | 03 | [Account Domain Correctness](phase-03-account-domain.md) | 🟡 **Partially started 2026-09-16** — header title + Sales "+ Create" dropdown shipped ad hoc; Owner field no longer free text (still not sales-role-filtered, still no `ownerEmployeeId` FK) |
 | 04 | [Vendor & Subcontractor](phase-04-vendor-subcontractor.md) | Not started |
 | 05 | [Contacts & Activity Timeline](phase-05-contacts-and-timeline.md) | Not started |
@@ -134,6 +134,7 @@ Do not re-plan these. They are done and verified.
 - **Front Line simulator** — in-browser field-app preview with a working Job Book, template-driven work-plan gating, and typed per-task capture (photo / signature / timer / material / checklist / sample).
 - **Dispatch Job Detail** — rebuilt into a tabbed page with real employee/equipment/material pickers.
 - **Phase 01 — One Shared Data Layer** — every core CRM collection (accounts, contacts, projects, tasks, activities, project assignments/alerts, material usage, equipment logs, scheduled work, spatial data) migrated from per-browser IndexedDB to the shared JSON backend, role-gated, and verified live 2026-09-16. IndexedDB now holds only device-scoped state.
+- **Phase 02 — The Places Model** — `locations`/`mapLocations` renamed to `facilities`/`locations` to match the glossary (with every FK renamed alongside), the combined Facility/GPS dialog split in two, every address type now visible (not just Bill To), the Edit-is-Add billing-address bug fixed, facility `status`→`badge`, a new `facilityContacts` junction (contact works-at/manages facility) surfaced on both the facility and contact pages, retention fields on temporary GPS locations with a 24-month default, and the account page consolidated into one "Locations & Addresses" tab. Verified live 2026-09-16.
 
 ## Known-open items carried in from previous work
 

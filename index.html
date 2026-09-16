@@ -257,7 +257,7 @@
         </label>
         <label>
           Facility
-          <select name="locationId"></select>
+          <select name="facilityId"></select>
         </label>
         <label>
           Industry
@@ -1916,17 +1916,51 @@
           Equipment asset tags
           <input name="assetTags" maxlength="160" placeholder="TRK-18, VAC-204" />
         </label>
+        <div class="form-grid">
+          <label>
+            Status
+            <select name="status">
+              <option>Scheduled work</option>
+              <option>Active dispatch</option>
+              <option>Live GPS</option>
+              <option>Pre-mobilization</option>
+              <option>On site</option>
+              <option>Demobilized</option>
+            </select>
+          </label>
+          <label>
+            Location type
+            <select name="locationType">
+              <option value="">Not set</option>
+              <option>Sample Point</option>
+              <option>Spill Origin</option>
+              <option>Waste Pickup</option>
+              <option>Waste Dropoff</option>
+              <option>Truck Parking</option>
+              <option>Destination</option>
+              <option>Access Point</option>
+              <option>Staging Area</option>
+            </select>
+          </label>
+        </div>
         <label>
-          Status
-          <select name="status">
-            <option>Scheduled work</option>
-            <option>Active dispatch</option>
-            <option>Live GPS</option>
-            <option>Pre-mobilization</option>
-            <option>On site</option>
-            <option>Demobilized</option>
-          </select>
+          Linear reference
+          <input name="linearReference" maxlength="120" placeholder="US-71 mile marker 214" />
         </label>
+        <label class="check-row">
+          <input type="checkbox" name="isTemporary" />
+          <span>This location is temporary and can be retired after its reporting life</span>
+        </label>
+        <div class="form-grid" id="mapLocationRetentionFields" hidden>
+          <label>
+            Retain until
+            <input name="retainUntil" type="date" />
+          </label>
+          <label>
+            Retention reason
+            <input name="retentionReason" maxlength="160" placeholder="Linked to open spill report" />
+          </label>
+        </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save GPS point</button>
@@ -3601,12 +3635,12 @@
       </form>
     </dialog>
 
-    <dialog id="accountLocationDialog" class="modal">
-      <form method="dialog" class="modal-panel" data-form="account-location">
+    <dialog id="accountFacilityDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="account-facility">
         <input name="id" type="hidden" />
         <input name="accountId" type="hidden" />
         <div class="modal-header">
-          <h2>Facility or location</h2>
+          <h2>Facility</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
@@ -3649,18 +3683,8 @@
             <input name="phone" maxlength="40" />
           </label>
           <label>
-            Status
-            <input name="status" maxlength="80" placeholder="Sampling" />
-          </label>
-        </div>
-        <div class="form-grid">
-          <label>
-            Latitude
-            <input name="latitude" type="number" step="0.0000001" />
-          </label>
-          <label>
-            Longitude
-            <input name="longitude" type="number" step="0.0000001" />
+            Badge
+            <input name="badge" maxlength="80" placeholder="Sampling" />
           </label>
         </div>
         <label>
@@ -3673,15 +3697,15 @@
             <option value="Other">Other</option>
           </select>
         </label>
-        <label id="accountLocationOtherField" hidden>
+        <label id="accountFacilityOtherField" hidden>
           Specify type
           <input name="categoryOther" maxlength="80" placeholder="Former UST basin" />
         </label>
-        <label class="check-row" id="accountLocationConcernToggle" hidden>
+        <label class="check-row" id="accountFacilityConcernToggle" hidden>
           <input type="checkbox" name="hasConcern" />
-          <span>This location has had an incident or concern to note</span>
+          <span>This facility has had an incident or concern to note</span>
         </label>
-        <label id="accountLocationConcernField">
+        <label id="accountFacilityConcernField">
           Concern
           <textarea name="concern" maxlength="300" placeholder="Petroleum impacted soil"></textarea>
         </label>
@@ -3692,6 +3716,38 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save facility</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="facilityContactDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="facility-contact">
+        <input name="id" type="hidden" />
+        <input name="facilityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Facility contact</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Contact
+          <select name="contactId" required></select>
+        </label>
+        <label>
+          Relationship
+          <select name="relationshipRole">
+            <option>Works At</option>
+            <option>Manages</option>
+            <option>Site Contact</option>
+            <option>Emergency Contact</option>
+          </select>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" name="isPrimary" />
+          <span>Primary contact for this facility</span>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save contact link</button>
         </menu>
       </form>
     </dialog>

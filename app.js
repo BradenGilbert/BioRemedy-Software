@@ -30,7 +30,7 @@ const STAGE_REQUIRED_FIELDS = {
   Qualify: [
     { key: "opportunityName", label: "Opportunity name" },
     { key: "accountId", label: "Account" },
-    { key: "locationId", label: "Facility" },
+    { key: "facilityId", label: "Facility" },
     { key: "contaminationNotes", label: "Contamination" },
     { key: "serviceType", label: "Cleanup type" },
     { key: "industry", label: "Industry" },
@@ -86,7 +86,7 @@ const PROJECT_STAGES = ["Intake", "Plan", "Mobilize", "Field Work", "Closeout"];
 const PROJECT_STAGE_REQUIRED_FIELDS = {
   Plan: [
     { key: "generatorName", label: "Generator" },
-    { key: "locationId", label: "Site" },
+    { key: "facilityId", label: "Facility" },
     { key: "insuranceCarrier", label: "Insurance" },
     { key: "epaId", label: "EPA ID" },
     { key: "tceqId", label: "TCEQ ID" },
@@ -1033,7 +1033,7 @@ const seedProjects = [
   {
     id: "job-riverbend-ust",
     accountId: "acct-riverbend",
-    locationId: "loc-riverbend-yard",
+    facilityId: "loc-riverbend-yard",
     opportunityId: "opp-riverbend-ust",
     contactIds: ["cont-alicia-moreno", "cont-marcus-hill"],
     name: "UST removal and soil remediation",
@@ -1059,7 +1059,7 @@ const seedProjects = [
   {
     id: "job-north-river-stormwater",
     accountId: "acct-north-river",
-    locationId: "loc-north-river-depot",
+    facilityId: "loc-north-river-depot",
     opportunityId: "opp-north-river-stormwater",
     contactIds: ["cont-jordan-lee"],
     name: "Stormwater and diesel cleanup program",
@@ -1085,7 +1085,7 @@ const seedProjects = [
   {
     id: "job-clearwater-abatement",
     accountId: "acct-clearwater",
-    locationId: "loc-clearwater-boiler",
+    facilityId: "loc-clearwater-boiler",
     opportunityId: "opp-clearwater-abatement",
     contactIds: ["cont-sam-ortega"],
     name: "Boiler room asbestos abatement",
@@ -1111,7 +1111,7 @@ const seedProjects = [
   {
     id: "job-north-river-i130",
     accountId: "acct-north-river",
-    locationId: "loc-north-river-depot",
+    facilityId: "loc-north-river-depot",
     opportunityId: "",
     contactIds: ["cont-jordan-lee"],
     name: "I-130 incident response",
@@ -1275,7 +1275,7 @@ const seedProjectAlerts = [
     id: "alert-riverbend-scope",
     projectId: "job-riverbend-ust",
     accountId: "acct-riverbend",
-    locationId: "loc-riverbend-yard",
+    facilityId: "loc-riverbend-yard",
     alertType: "Scope Exception",
     severity: "High",
     description: "Possible unlisted contaminant noted near the former tank basin. Work paused pending review.",
@@ -1288,7 +1288,7 @@ const seedProjectAlerts = [
     id: "alert-i130-nte",
     projectId: "job-north-river-i130",
     accountId: "acct-north-river",
-    locationId: "loc-north-river-depot",
+    facilityId: "loc-north-river-depot",
     alertType: "Customer Approval Needed",
     severity: "Medium",
     description: "Emergency response labor and absorbents are approaching the not-to-exceed threshold.",
@@ -1303,7 +1303,7 @@ const seedSpatialData = [
   {
     id: "spatial-riverbend-yard",
     accountId: "acct-riverbend",
-    locationId: "loc-riverbend-yard",
+    facilityId: "loc-riverbend-yard",
     projectId: "job-riverbend-ust",
     fileType: "Point cloud placeholder",
     storagePath: "object-storage://sites/riverbend/south-yard/pre-scan.laz",
@@ -1317,7 +1317,7 @@ const seedSpatialData = [
   {
     id: "spatial-i130-response",
     accountId: "acct-north-river",
-    locationId: "loc-north-river-depot",
+    facilityId: "loc-north-river-depot",
     projectId: "job-north-river-i130",
     fileType: "7/3/2025 3D site render",
     storagePath: "./public/models/7_3_2025.glb",
@@ -1496,7 +1496,7 @@ const state = {
   dispatchAccountFilter: "",
   accounts: [],
   contacts: [],
-  locations: [],
+  facilities: [],
   projects: [],
   projectAssignments: [],
   materialUsage: [],
@@ -1513,7 +1513,7 @@ const state = {
   syncQueue: [],
   backend: {
     scheduleEvents: [],
-    mapLocations: [],
+    locations: [],
     inventoryItems: [],
     purchaseOrders: [],
     equipmentAssets: [],
@@ -1550,7 +1550,8 @@ const state = {
     industries: [],
     accountIndustries: [],
     addresses: [],
-    locations: [],
+    facilities: [],
+    facilityContacts: [],
     salesTasks: [],
     accountRelationshipExtensions: [],
     accountComments: [],
@@ -1841,7 +1842,10 @@ async function refreshBackendState() {
     state.sampleRecords = (state.backend.sampleRecords || [])
       .slice()
       .sort((a, b) => new Date(b.collectionTime) - new Date(a.collectionTime));
-    state.locations = (state.backend.locations || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+    state.facilities = (state.backend.facilities || [])
+      .filter((facility) => !facility.deletedAt)
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
     state.accounts = (state.backend.accounts || [])
       .filter((account) => !account.deletedAt)
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -2088,7 +2092,8 @@ async function handleClick(event) {
   if (action === "open-contact-employment") openContactEmploymentDialog(actionButton.dataset.contactId, id);
   if (action === "remove-contact-employment") await removeContactEmployment(id);
   if (action === "open-account-pause") openAccountPauseDialog(actionButton.dataset.accountId);
-  if (action === "open-account-location") openAccountLocationDialog(actionButton.dataset.accountId, id);
+  if (action === "open-facility") openFacilityDialog(actionButton.dataset.accountId, id);
+  if (action === "open-facility-contact") openFacilityContactDialog(actionButton.dataset.facilityId, actionButton.dataset.accountId);
   if (action === "switch-account-tab") {
     state.accountDetailTab = actionButton.dataset.tab;
     render();
@@ -2160,7 +2165,7 @@ async function handleClick(event) {
   if (action === "open-equipment-restock") openEquipmentRestockDialog(actionButton.dataset.assetTag, id);
   if (action === "view-consumable") viewConsumable(id);
   if (action === "view-equipment-asset") viewEquipmentAsset(actionButton.dataset.assetTag);
-  if (action === "open-map-location") openMapLocationDialog(actionButton.dataset.id);
+  if (action === "open-map-location") openLocationDialog(actionButton.dataset.id);
   if (action === "open-invoice") openInvoiceDialog(actionButton.dataset.jobId);
   if (action === "open-employee") openEmployeeDialog(id);
   if (action === "open-credential") openCredentialDialog(actionButton.dataset.employeeId);
@@ -2347,7 +2352,8 @@ async function handleSubmit(event) {
   if (form.dataset.form === "account-division") await saveAccountDivision(form);
   if (form.dataset.form === "contact-employment") await saveContactEmployment(form);
   if (form.dataset.form === "account-pause") await saveAccountPause(form);
-  if (form.dataset.form === "account-location") await saveLocation(form);
+  if (form.dataset.form === "account-facility") await saveFacility(form);
+  if (form.dataset.form === "facility-contact") await saveFacilityContact(form);
   if (form.dataset.form === "service-agreement") await saveServiceAgreement(form);
   if (form.dataset.form === "subcontractor-assignment") await saveSubcontractorAssignment(form);
   if (form.dataset.form === "contact-preferences") await saveContactPreferences(form);
@@ -2364,7 +2370,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "equipment-asset") await saveEquipmentAsset(form);
   if (form.dataset.form === "equipment-maintenance") await saveEquipmentMaintenanceRecord(form);
   if (form.dataset.form === "equipment-restock") await saveEquipmentRestockItem(form);
-  if (form.dataset.form === "map-location") await saveMapLocation(form);
+  if (form.dataset.form === "map-location") await saveLocation(form);
   if (form.dataset.form === "invoice") await saveInvoice(form);
   if (form.dataset.form === "employee") await saveEmployee(form);
   if (form.dataset.form === "credential") await saveEmployeeCredential(form);
@@ -2440,15 +2446,23 @@ function handleInput(event) {
     syncActivityContactOptions();
   }
 
-  if (event.target.matches("#accountLocationDialog select[name='category']")) {
-    toggleLocationOtherField(event.target.value);
-    const hasConcern = document.querySelector("#accountLocationDialog input[name='hasConcern']")?.checked;
-    toggleLocationConcernField(event.target.value, hasConcern);
+  if (event.target.matches("#accountFacilityDialog select[name='category']")) {
+    toggleFacilityOtherField(event.target.value);
+    const hasConcern = document.querySelector("#accountFacilityDialog input[name='hasConcern']")?.checked;
+    toggleFacilityConcernField(event.target.value, hasConcern);
   }
 
-  if (event.target.matches("#accountLocationDialog input[name='hasConcern']")) {
-    const category = document.querySelector("#accountLocationDialog select[name='category']")?.value;
-    toggleLocationConcernField(category, event.target.checked);
+  if (event.target.matches("#accountFacilityDialog input[name='hasConcern']")) {
+    const category = document.querySelector("#accountFacilityDialog select[name='category']")?.value;
+    toggleFacilityConcernField(category, event.target.checked);
+  }
+
+  if (event.target.matches("#mapLocationDialog input[name='isTemporary']")) {
+    toggleLocationRetentionFields(event.target.checked);
+    const retainUntilField = document.querySelector("#mapLocationDialog input[name='retainUntil']");
+    if (event.target.checked && retainUntilField && !retainUntilField.value) {
+      retainUntilField.value = addDays(730);
+    }
   }
 
   if (event.target.matches("#opportunityAssignmentDialog select[name='type']")) {
@@ -3501,7 +3515,7 @@ function renderOpportunityLeadQualificationTab(opportunity) {
         <div class="panel-body">
           <dl class="detail-list">
             <div><dt>Contact</dt><dd>${escapeHtml(contactsForOpportunity(opportunity.id)[0]?.name || "Not linked")}</dd></div>
-            <div><dt>Facility</dt><dd>${escapeHtml(findLocation(opportunity.locationId)?.name || "Not captured")}</dd></div>
+            <div><dt>Facility</dt><dd>${escapeHtml(findFacility(opportunity.facilityId)?.name || "Not captured")}</dd></div>
             <div><dt>Industry</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "industry") || "Not captured")}</dd></div>
             <div><dt>Contamination</dt><dd>${escapeHtml(opportunity.contaminationNotes || "Not captured")}</dd></div>
             <div><dt>Originating lead</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "originatingLeadId") || "Not captured")}</dd></div>
@@ -3767,7 +3781,7 @@ function renderOpportunityMainInformation(opportunity) {
   const core = getCoreOpportunity(opportunity);
   const account = findAccount(opportunity.accountId);
   const primaryContact = contactsForOpportunity(opportunity.id)[0];
-  const site = findLocation(opportunity.locationId);
+  const site = findFacility(opportunity.facilityId);
   const field = (key) => escapeHtml(formatOpportunityFieldValue(opportunity, key));
   const row = (label, value) => `<div><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`;
 
@@ -3956,7 +3970,7 @@ function buildCoreProjectRecord(project) {
     id: project.id || makeId("proj"),
     accountId: project.accountId || "",
     opportunityId: project.opportunityId || "",
-    locationId: project.locationId || "",
+    facilityId: project.facilityId || "",
     contactIds: project.contactIds || [],
     name: project.name || "",
     jobClass: project.jobClass || "",
@@ -4698,7 +4712,7 @@ const accountDetailTabs = [
   { id: "projects", label: "Projects" },
   { id: "lab-work", label: "Lab Work" },
   { id: "files", label: "Files" },
-  { id: "facilities-locations", label: "Facilities and Locations" },
+  { id: "facilities-locations", label: "Locations & Addresses" },
   { id: "account-health", label: "Account Health" },
 ];
 
@@ -4825,9 +4839,6 @@ function renderAccountPlaceholderTab(label, note = "This tab is being built next
 function renderAccountSummaryTab(account) {
   const addresses = addressesForAccount(account.id);
   const billingAddress = addresses.find((address) => address.addressType === "Bill To") || addresses.find((address) => address.isPrimary);
-  const billingLocation = !billingAddress
-    ? locationsForAccount(account.id).find((location) => location.category === "Billing Address")
-    : null;
   const cases = alertsForAccount(account.id).filter((alert) => alert.status !== "Resolved");
   const openTasks = openTasksForAccount(account.id);
   const salesTasks = salesTasksForAccount(account.id);
@@ -4864,7 +4875,7 @@ function renderAccountSummaryTab(account) {
         <article class="panel">
           <div class="panel-header">
             <h3>Billing address</h3>
-            <button class="mini-button" type="button" data-action="open-address" data-account-id="${account.id}">${billingAddress ? "Edit" : "Add"}</button>
+            <button class="mini-button" type="button" data-action="open-address" data-account-id="${account.id}" data-id="${escapeAttribute(billingAddress?.id || "")}">${billingAddress ? "Edit" : "Add"}</button>
           </div>
           <div class="panel-body">
             ${
@@ -4874,12 +4885,6 @@ function renderAccountSummaryTab(account) {
                     <div><dt>City / State</dt><dd>${escapeHtml([billingAddress.city, billingAddress.stateOrProvince].filter(Boolean).join(", "))}</dd></div>
                     <div><dt>Postal code</dt><dd>${escapeHtml(billingAddress.postalCode || "Not captured")}</dd></div>
                     <div><dt>Country</dt><dd>${escapeHtml(billingAddress.countryOrRegion || "Not captured")}</dd></div>
-                  </dl>`
-                : billingLocation
-                ? `<dl class="detail-list">
-                    <div><dt>Source</dt><dd>Auto-filled from facility "${escapeHtml(billingLocation.name)}"</dd></div>
-                    <div><dt>Street</dt><dd>${escapeHtml(billingLocation.address || "Not captured")}</dd></div>
-                    <div><dt>City</dt><dd>${escapeHtml(billingLocation.city || "Not captured")}</dd></div>
                   </dl>`
                 : `<div class="empty-state">No billing address on file yet.</div>`
             }
@@ -5423,16 +5428,33 @@ function renderAccountFilesTab(account) {
 }
 
 function renderAccountFacilitiesTab(account) {
-  const locations = locationsForAccount(account.id);
+  const facilities = facilitiesForAccount(account.id);
+  const addresses = addressesForAccount(account.id);
+  const gpsLocations = locationsForAccount(account.id);
   return `
     <section class="detail-stack">
       <article class="panel">
         <div class="panel-header">
-          <h3>Facilities and Locations</h3>
-          <button class="mini-button" type="button" data-action="open-account-location" data-account-id="${escapeAttribute(account.id)}">Add</button>
+          <h3>Facilities</h3>
+          <button class="mini-button" type="button" data-action="open-facility" data-account-id="${escapeAttribute(account.id)}">Add</button>
         </div>
         <div class="panel-body record-list">
-          ${locations.map(renderLocationCard).join("") || `<div class="empty-state">No facilities or locations for this account yet.</div>`}
+          ${facilities.map(renderFacilityCard).join("") || `<div class="empty-state">No facilities for this account yet.</div>`}
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header">
+          <h3>Addresses</h3>
+          <button class="mini-button" type="button" data-action="open-address" data-account-id="${escapeAttribute(account.id)}">Add</button>
+        </div>
+        <div class="panel-body record-list">
+          ${addresses.map(renderAddressCard).join("") || `<div class="empty-state">No addresses for this account yet.</div>`}
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><h3>Locations</h3></div>
+        <div class="panel-body record-list">
+          ${gpsLocations.map(renderGpsLocationCard).join("") || `<div class="empty-state">No GPS locations tied to this account's projects yet.</div>`}
         </div>
       </article>
     </section>
@@ -5635,28 +5657,81 @@ function renderMiniContact(contact) {
   `;
 }
 
-function formatLocationCategory(location) {
-  const category = location.category || (location.type ? "Other" : "");
+function formatFacilityCategory(facility) {
+  const category = facility.category || (facility.type ? "Other" : "");
   if (!category) return "Uncategorized";
-  if (category === "Other") return location.categoryOther || location.type || "Other";
+  if (category === "Other") return facility.categoryOther || facility.type || "Other";
   return category;
 }
 
-function renderLocationCard(location) {
-  const cityState = [location.city, location.stateOrProvince].filter(Boolean).join(", ");
+function renderFacilityCard(facility) {
+  const cityState = [facility.city, facility.stateOrProvince].filter(Boolean).join(", ");
+  const links = facilityContactsForFacility(facility.id);
   return `
     <article class="detail-card">
-      <strong>${escapeHtml(location.name)}</strong>
+      <strong>${escapeHtml(facility.name)}</strong>
       <div class="row-meta">
-        <span>${escapeHtml(location.street1 || location.address || "")}</span>
-        <span>${escapeHtml(cityState || location.city || "")}</span>
+        <span>${escapeHtml(facility.street1 || facility.address || "")}</span>
+        <span>${escapeHtml(cityState || facility.city || "")}</span>
       </div>
-      ${location.concern ? `<p class="help-text">${escapeHtml(location.concern)}</p>` : ""}
-      ${location.access ? `<p class="help-text">${escapeHtml(location.access)}</p>` : ""}
+      ${facility.concern ? `<p class="help-text">${escapeHtml(facility.concern)}</p>` : ""}
+      ${facility.access ? `<p class="help-text">${escapeHtml(facility.access)}</p>` : ""}
       <div class="inline-actions">
-        <span class="tag">${escapeHtml(formatLocationCategory(location))}</span>
-        <span class="stage-badge">${escapeHtml(location.status)}</span>
-        <button class="mini-button" type="button" data-action="open-account-location" data-account-id="${escapeAttribute(location.accountId)}" data-id="${escapeAttribute(location.id)}">Edit</button>
+        <span class="tag">${escapeHtml(formatFacilityCategory(facility))}</span>
+        <span class="stage-badge">${escapeHtml(facility.badge)}</span>
+        <button class="mini-button" type="button" data-action="open-facility" data-account-id="${escapeAttribute(facility.accountId)}" data-id="${escapeAttribute(facility.id)}">Edit</button>
+      </div>
+      <div class="row-meta">
+        <span>Contacts:</span>
+        ${
+          links
+            .map((link) => {
+              const contact = findContact(link.contactId);
+              return contact
+                ? `<span class="tag">${escapeHtml(contact.name)} (${escapeHtml(link.relationshipRole)})</span>`
+                : "";
+            })
+            .join("") || `<span class="tag">None</span>`
+        }
+      </div>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="open-facility-contact" data-facility-id="${escapeAttribute(facility.id)}" data-account-id="${escapeAttribute(facility.accountId)}">Add contact</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderAddressCard(address) {
+  return `
+    <article class="detail-card">
+      <strong>${escapeHtml(address.addressName || address.addressType)}</strong>
+      <div class="row-meta">
+        <span class="tag">${escapeHtml(address.addressType)}</span>
+        ${address.isPrimary ? `<span class="tag">Primary</span>` : ""}
+      </div>
+      <div class="row-meta">
+        <span>${escapeHtml([address.suiteNumber ? `Suite ${address.suiteNumber}` : "", address.street1, address.street2].filter(Boolean).join(", "))}</span>
+        <span>${escapeHtml([address.city, address.stateOrProvince, address.postalCode].filter(Boolean).join(", "))}</span>
+      </div>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="open-address" data-account-id="${escapeAttribute(address.accountId)}" data-id="${escapeAttribute(address.id)}">Edit</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderGpsLocationCard(location) {
+  return `
+    <article class="detail-card">
+      <strong>${escapeHtml(location.label)}</strong>
+      <div class="row-meta">
+        <span>${escapeHtml(location.locationType || "Location type not set")}</span>
+        <span>${location.latitude}, ${location.longitude}</span>
+      </div>
+      <div class="inline-actions">
+        <span class="tag">${escapeHtml(location.status)}</span>
+        ${location.isTemporary ? `<span class="tag">Temporary${location.retainUntil ? ` until ${formatDate(location.retainUntil)}` : ""}</span>` : ""}
+        <button class="mini-button" type="button" data-action="open-map-location" data-id="${escapeAttribute(location.id)}">Edit</button>
       </div>
     </article>
   `;
@@ -6522,6 +6597,7 @@ function renderContactConnectionCard(connection) {
 function renderContactRelationshipsTab(contact) {
   const coworkers = coworkersForContact(contact);
   const connections = connectedContactsForContact(contact);
+  const facilityLinks = facilityContactsForContact(contact.id);
 
   return `
     <section class="crm-profile-grid">
@@ -6530,6 +6606,28 @@ function renderContactRelationshipsTab(contact) {
           <div class="panel-header"><h3>Coworkers</h3></div>
           <div class="panel-body record-list">
             ${coworkers.map(renderContactCoworkerCard).join("") || `<div class="empty-state">No other contacts at this account yet.</div>`}
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-header"><h3>Facilities</h3></div>
+          <div class="panel-body record-list">
+            ${
+              facilityLinks
+                .map((link) => {
+                  const facility = findFacility(link.facilityId);
+                  if (!facility) return "";
+                  return `
+                    <article class="detail-card">
+                      <strong>${escapeHtml(facility.name)}</strong>
+                      <div class="inline-actions">
+                        <span class="tag">${escapeHtml(link.relationshipRole)}</span>
+                        ${link.isPrimary ? `<span class="tag">Primary</span>` : ""}
+                      </div>
+                    </article>
+                  `;
+                })
+                .join("") || `<div class="empty-state">Not linked to any facilities yet.</div>`
+            }
           </div>
         </article>
       </div>
@@ -6766,7 +6864,7 @@ function renderProjectDetail() {
   }
 
   const account = findAccount(job.accountId);
-  const location = findLocation(job.locationId);
+  const location = findFacility(job.facilityId);
   const opportunity = findOpportunity(job.opportunityId);
   const progress = getJobProgress(job);
   const generator = getProjectGenerator(job);
@@ -6985,7 +7083,7 @@ function renderSampleDetail() {
   }
 
   const account = findAccount(sample.accountId || job.accountId);
-  const location = findLocation(sample.locationId || job.locationId);
+  const location = findFacility(sample.facilityId || job.facilityId);
   const session = groupSamplesIntoSessions(samplesForJob(job.id)).find((item) => item.id === (sample.samplingSessionId || sample.chainOfCustody || sample.projectId));
   const photos = sample.photos?.length ? sample.photos : [];
   const results = sample.results || sample.labResults || "No result summary has been entered.";
@@ -7550,7 +7648,7 @@ function initializeSampleDetailMap(sampleId) {
 
   const leaflet = window.L;
   const sample = findSample(sampleId);
-  const location = sample ? findLocation(sample.locationId) : null;
+  const location = sample ? findFacility(sample.facilityId) : null;
   const latitude = Number.isFinite(Number(sample?.latitude)) ? Number(sample.latitude) : Number(location?.latitude);
   const longitude = Number.isFinite(Number(sample?.longitude)) ? Number(sample.longitude) : Number(location?.longitude);
 
@@ -10899,7 +10997,7 @@ function renderClientSpillDetail() {
   }
 
   const account = findAccount(job.accountId);
-  const location = findLocation(job.locationId);
+  const location = findFacility(job.facilityId);
   const progress = getJobProgress(job);
   const generator = getProjectGenerator(job);
   const alerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved");
@@ -12277,7 +12375,7 @@ async function saveSampleFromTask(action, job, data, summary, submittedBy) {
       dispatchJobId: job.id,
       actionId: action.id,
       accountId: job.accountId || "",
-      locationId: "",
+      facilityId: findProject(job.projectId)?.facilityId || "",
       sampleLocation: (data.get("sampleLocation") || "").toString().trim(),
       sampleType: (data.get("sampleType") || "").toString().trim() || "Field sample",
       sampleMatrix: (data.get("sampleMatrix") || "").toString().trim(),
@@ -12688,7 +12786,7 @@ async function saveProjectAlert(form) {
     id: makeId("alert"),
     projectId: job.id,
     accountId: job.accountId,
-    locationId: job.locationId,
+    facilityId: job.facilityId,
     alertType: data.get("alertType").toString(),
     severity: data.get("severity").toString(),
     description: data.get("description").toString().trim(),
@@ -12790,7 +12888,7 @@ async function saveRemediation(form) {
   const job = buildCoreProjectRecord({
     id: makeId("proj"),
     accountId: account.id,
-    locationId: locationsForAccount(account.id)[0]?.id || "",
+    facilityId: facilitiesForAccount(account.id)[0]?.id || "",
     opportunityId: "",
     contactIds: contactsForAccount(account.id).map((contact) => contact.id),
     name: data.get("name").toString().trim(),
@@ -12960,7 +13058,7 @@ async function saveEquipmentRestockItem(form) {
   }
 }
 
-async function saveMapLocation(form) {
+async function saveLocation(form) {
   const data = new FormData(form);
   const latitude = Number(data.get("latitude"));
   const longitude = Number(data.get("longitude"));
@@ -12971,18 +13069,19 @@ async function saveMapLocation(form) {
 
   const scheduleEventId = data.get("scheduleEventId").toString();
   const scheduleEvent = getScheduleEvents().find((event) => event.id === scheduleEventId);
-  const jobId = data.get("projectId").toString() || scheduleEvent?.projectId || "";
+  const projectId = data.get("projectId").toString() || scheduleEvent?.projectId || "";
   const assetTags = data
     .get("assetTags")
     .toString()
     .split(",")
     .map((assetTag) => assetTag.trim())
     .filter(Boolean);
+  const isTemporary = form.elements.isTemporary?.checked || false;
 
   try {
-    await saveBackendRecord("mapLocations", {
+    await saveBackendRecord("locations", {
       id: data.get("id").toString() || "",
-      jobId,
+      projectId,
       scheduleEventId,
       label: data.get("label").toString().trim(),
       latitude,
@@ -12991,6 +13090,11 @@ async function saveMapLocation(form) {
       status: data.get("status").toString(),
       source: data.get("source").toString() || "Manual",
       lastPingAt: new Date().toISOString(),
+      locationType: data.get("locationType").toString(),
+      linearReference: data.get("linearReference").toString().trim(),
+      isTemporary,
+      retainUntil: isTemporary ? data.get("retainUntil").toString() : "",
+      retentionReason: isTemporary ? data.get("retentionReason").toString().trim() : "",
     });
     closeDialogs();
     render();
@@ -14069,7 +14173,7 @@ async function saveProjectFromOpportunity(form) {
   const job = buildCoreProjectRecord({
     id: makeId("proj"),
     accountId: account.id,
-    locationId: locationsForAccount(account.id)[0]?.id || "",
+    facilityId: facilitiesForAccount(account.id)[0]?.id || "",
     opportunityId: data.get("opportunityId").toString(),
     contactIds: contactsForAccount(account.id).map((contact) => contact.id),
     name: data.get("name").toString().trim(),
@@ -14341,12 +14445,12 @@ function openOpportunityDialog(accountId = "", opportunityId = "") {
   dialog.showModal();
 }
 
-function populateLocationSelect(root, accountId = "") {
-  root.querySelectorAll("select[name='locationId']").forEach((select) => {
-    const locations = accountId ? locationsForAccount(accountId) : [];
+function populateFacilitySelect(root, accountId = "") {
+  root.querySelectorAll("select[name='facilityId']").forEach((select) => {
+    const facilities = accountId ? facilitiesForAccount(accountId) : [];
     select.innerHTML = [
       `<option value="">No facility selected</option>`,
-      ...locations.map((location) => `<option value="${escapeAttribute(location.id)}">${escapeHtml(location.name)}</option>`),
+      ...facilities.map((facility) => `<option value="${escapeAttribute(facility.id)}">${escapeHtml(facility.name)}</option>`),
     ].join("");
   });
 }
@@ -14358,11 +14462,11 @@ function openOpportunityLeadDialog(opportunityId) {
   const form = dialog.querySelector("form");
   form.reset();
   const core = getCoreOpportunity(opportunity);
-  populateLocationSelect(dialog, core.accountId);
+  populateFacilitySelect(dialog, core.accountId);
   populateContactSelect(dialog, core.accountId);
   form.elements.id.value = core.id;
   form.elements.contactId.value = contactsForOpportunity(opportunity.id)[0]?.id || "";
-  form.elements.locationId.value = opportunity.locationId || "";
+  form.elements.facilityId.value = opportunity.facilityId || "";
   form.elements.industry.value = core.industry || "";
   form.elements.contaminationNotes.value = opportunity.contaminationNotes || "";
   form.elements.originatingLeadId.value = core.originatingLeadId || "";
@@ -14378,7 +14482,7 @@ async function saveOpportunityLead(form) {
   if (!opportunity) return;
   const updated = buildCoreOpportunityRecord({
     ...opportunity,
-    locationId: data.get("locationId").toString(),
+    facilityId: data.get("facilityId").toString(),
     industry: data.get("industry").toString().trim(),
     contaminationNotes: data.get("contaminationNotes").toString().trim(),
     originatingLeadId: data.get("originatingLeadId").toString().trim(),
@@ -15858,17 +15962,17 @@ async function removeAccountComment(id) {
   }
 }
 
-function toggleLocationOtherField(category) {
-  const otherField = document.querySelector("#accountLocationOtherField");
+function toggleFacilityOtherField(category) {
+  const otherField = document.querySelector("#accountFacilityOtherField");
   if (otherField) otherField.hidden = category !== "Other";
 }
 
 // Concern only makes sense unconditionally for an active job site. Every other facility category
 // (office, warehouse, billing-only address) keeps it hidden behind an explicit checkbox, since most
-// of those locations will never have an environmental concern to log.
-function toggleLocationConcernField(category, hasConcern) {
-  const toggle = document.querySelector("#accountLocationConcernToggle");
-  const field = document.querySelector("#accountLocationConcernField");
+// of those facilities will never have an environmental concern to log.
+function toggleFacilityConcernField(category, hasConcern) {
+  const toggle = document.querySelector("#accountFacilityConcernToggle");
+  const field = document.querySelector("#accountFacilityConcernField");
   const isJobSite = category === "Job Site / Field Location";
   if (toggle) toggle.hidden = isJobSite;
   if (field) field.hidden = !isJobSite && !hasConcern;
@@ -15881,51 +15985,49 @@ function toggleMeetingFormatFields(format) {
   if (offlineFields) offlineFields.hidden = format !== "Offline";
 }
 
-function openAccountLocationDialog(accountId = "", locationId = "") {
-  const dialog = document.querySelector("#accountLocationDialog");
+function openFacilityDialog(accountId = "", facilityId = "") {
+  const dialog = document.querySelector("#accountFacilityDialog");
   const form = dialog.querySelector("form");
   form.reset();
   form.elements.accountId.value = accountId;
-  const location = locationId ? findLocation(locationId) : null;
-  if (location) {
-    const category = location.category || (location.type ? "Other" : "");
-    const hasConcern = Boolean(location.concern);
-    form.elements.id.value = location.id;
-    form.elements.name.value = location.name || "";
-    form.elements.street1.value = location.street1 || location.address || "";
-    form.elements.street2.value = location.street2 || "";
-    form.elements.city.value = location.city || "";
-    form.elements.stateOrProvince.value = location.stateOrProvince || "";
-    form.elements.postalCode.value = location.postalCode || "";
-    form.elements.countryOrRegion.value = location.countryOrRegion || "";
-    form.elements.phone.value = location.phone || "";
-    form.elements.latitude.value = location.latitude || "";
-    form.elements.longitude.value = location.longitude || "";
+  const facility = facilityId ? findFacility(facilityId) : null;
+  if (facility) {
+    const category = facility.category || (facility.type ? "Other" : "");
+    const hasConcern = Boolean(facility.concern);
+    form.elements.id.value = facility.id;
+    form.elements.name.value = facility.name || "";
+    form.elements.street1.value = facility.street1 || facility.address || "";
+    form.elements.street2.value = facility.street2 || "";
+    form.elements.city.value = facility.city || "";
+    form.elements.stateOrProvince.value = facility.stateOrProvince || "";
+    form.elements.postalCode.value = facility.postalCode || "";
+    form.elements.countryOrRegion.value = facility.countryOrRegion || "";
+    form.elements.phone.value = facility.phone || "";
     form.elements.category.value = category;
-    form.elements.categoryOther.value = category === "Other" ? location.categoryOther || location.type || "" : "";
-    form.elements.status.value = location.status || "";
-    form.elements.concern.value = location.concern || "";
+    form.elements.categoryOther.value = category === "Other" ? facility.categoryOther || facility.type || "" : "";
+    form.elements.badge.value = facility.badge || "";
+    form.elements.concern.value = facility.concern || "";
     form.elements.hasConcern.checked = hasConcern;
-    form.elements.access.value = location.access || "";
-    toggleLocationOtherField(category);
-    toggleLocationConcernField(category, hasConcern);
+    form.elements.access.value = facility.access || "";
+    toggleFacilityOtherField(category);
+    toggleFacilityConcernField(category, hasConcern);
   } else {
     form.elements.id.value = "";
-    toggleLocationOtherField("");
-    toggleLocationConcernField("", false);
+    toggleFacilityOtherField("");
+    toggleFacilityConcernField("", false);
   }
   dialog.showModal();
 }
 
-async function saveLocation(form) {
+async function saveFacility(form) {
   const data = new FormData(form);
   const existingId = data.get("id").toString();
-  const existing = existingId ? findLocation(existingId) : null;
+  const existing = existingId ? findFacility(existingId) : null;
   const category = data.get("category").toString();
   const street1 = data.get("street1").toString().trim();
   const city = data.get("city").toString().trim();
   const hasConcern = category === "Job Site / Field Location" || form.elements.hasConcern.checked;
-  const location = {
+  const facility = {
     ...(existing || {}),
     id: existingId || makeId("loc"),
     accountId: data.get("accountId").toString(),
@@ -15938,20 +16040,54 @@ async function saveLocation(form) {
     postalCode: data.get("postalCode").toString().trim(),
     countryOrRegion: data.get("countryOrRegion").toString().trim(),
     phone: data.get("phone").toString().trim(),
-    latitude: data.get("latitude").toString().trim(),
-    longitude: data.get("longitude").toString().trim(),
     category,
     categoryOther: category === "Other" ? data.get("categoryOther").toString().trim() : "",
-    status: data.get("status").toString().trim(),
+    badge: data.get("badge").toString().trim(),
     concern: hasConcern ? data.get("concern").toString().trim() : "",
     access: data.get("access").toString().trim(),
   };
-  delete location.type;
-  await saveBackendRecord("locations", location);
+  delete facility.type;
+  delete facility.status;
+  delete facility.latitude;
+  delete facility.longitude;
+  await saveBackendRecord("facilities", facility);
   closeDialogs();
   await refreshState();
   render();
   showToast(existing ? "Facility updated." : "Facility added.");
+}
+
+function openFacilityContactDialog(facilityId = "", accountId = "") {
+  const dialog = document.querySelector("#facilityContactDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.facilityId.value = facilityId;
+  populateContactSelect(dialog, accountId);
+  form.elements.id.value = "";
+  dialog.showModal();
+}
+
+async function saveFacilityContact(form) {
+  const data = new FormData(form);
+  const contactId = data.get("contactId").toString();
+  const facilityId = data.get("facilityId").toString();
+  if (!contactId || !facilityId) return;
+
+  try {
+    await saveBackendRecord("facilityContacts", {
+      id: data.get("id").toString() || "",
+      facilityId,
+      contactId,
+      relationshipRole: data.get("relationshipRole").toString(),
+      isPrimary: form.elements.isPrimary.checked,
+    });
+    closeDialogs();
+    await refreshState();
+    render();
+    showToast("Facility contact saved.");
+  } catch (error) {
+    showToast(error.message || "Facility contact could not be saved.");
+  }
 }
 
 function openAccountDivisionDialog(accountId = "") {
@@ -16502,14 +16638,14 @@ function openEquipmentRestockDialog(assetTag = "", restockId = "") {
   dialog.showModal();
 }
 
-function openMapLocationDialog(locationId = "") {
+function openLocationDialog(locationId = "") {
   const dialog = document.querySelector("#mapLocationDialog");
   const form = dialog.querySelector("form");
   form.reset();
   populateProjectSelect(dialog, true);
   populateScheduleEventSelect(dialog);
 
-  const location = (state.backend.mapLocations || []).find((item) => item.id === locationId);
+  const location = findGpsLocation(locationId);
   if (location) {
     form.elements.id.value = location.id || "";
     form.elements.source.value = location.source || "Manual";
@@ -16520,13 +16656,24 @@ function openMapLocationDialog(locationId = "") {
     form.elements.longitude.value = location.longitude ?? "";
     form.elements.assetTags.value = (location.assetTags || []).join(", ");
     form.elements.status.value = location.status || "Live GPS";
+    form.elements.locationType.value = location.locationType || "";
+    form.elements.linearReference.value = location.linearReference || "";
+    form.elements.isTemporary.checked = Boolean(location.isTemporary);
+    form.elements.retainUntil.value = location.retainUntil || "";
+    form.elements.retentionReason.value = location.retentionReason || "";
   } else {
     form.elements.id.value = "";
     form.elements.source.value = "Manual";
     form.elements.status.value = "Scheduled work";
   }
+  toggleLocationRetentionFields(form.elements.isTemporary.checked);
 
   dialog.showModal();
+}
+
+function toggleLocationRetentionFields(isTemporary) {
+  const fields = document.querySelector("#mapLocationRetentionFields");
+  if (fields) fields.hidden = !isTemporary;
 }
 
 function openEmployeeDialog(employeeId = "") {
@@ -16596,13 +16743,13 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
 
   if (project) {
     const account = findAccount(project.accountId);
-    const location = findLocation(project.locationId);
+    const location = findFacility(project.facilityId);
     form.elements.accountId.value = project.accountId;
     form.elements.serviceCategory.value = mapJobClassToServiceCategory(project.jobClass);
     form.elements.priority.value = project.jobClass === "Emergency Response" ? "Emergency" : "Normal";
     form.elements.generatorResponsibleParty.value = project.generatorName || account?.name || "";
     form.elements.calledInByName.value = state.currentUser?.name || "";
-    form.elements.addressText.value = formatLocationAddressLine(location) || project.generatorSiteName || [account?.siteName, account?.city].filter(Boolean).join(", ");
+    form.elements.addressText.value = formatFacilityAddressLine(location) || project.generatorSiteName || [account?.siteName, account?.city].filter(Boolean).join(", ");
     form.elements.pricingNotes.value = (project.opportunityId && pricingSourceForOpportunity(project.opportunityId)) || (project.budget ? `${money(project.budget)} project budget.` : "");
     form.elements.description.value = [project.name, project.activePhase].filter(Boolean).join(" — ");
     if (project.jobClass === "Scheduled Work") {
@@ -16611,13 +16758,13 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
   } else if (opportunity) {
     const core = getCoreOpportunity(opportunity);
     const account = findAccount(core.accountId);
-    const location = findLocation(opportunity.locationId);
+    const location = findFacility(opportunity.facilityId);
     form.elements.accountId.value = core.accountId;
     form.elements.serviceCategory.value = mapServiceTypeToServiceCategory(core.serviceType);
     form.elements.priority.value = core.serviceType === "Emergency Spill Response" ? "Emergency" : "Normal";
     form.elements.generatorResponsibleParty.value = core.accountName || "";
     form.elements.calledInByName.value = state.currentUser?.name || "";
-    form.elements.addressText.value = formatLocationAddressLine(location) || [account?.siteName, account?.city].filter(Boolean).join(", ");
+    form.elements.addressText.value = formatFacilityAddressLine(location) || [account?.siteName, account?.city].filter(Boolean).join(", ");
     form.elements.pricingNotes.value = pricingSourceForOpportunity(opportunity.id) || `${money(core.amount)} contract value from won opportunity.`;
     form.elements.description.value = [core.opportunityName, core.nextStep, account?.concern].filter(Boolean).join(" — ");
   } else if (accountId) {
@@ -17363,7 +17510,7 @@ function getClientSpillMarkers(jobs = getClientVisibleJobs()) {
     const offsetIndex = coordinateUse.get(key) || 0;
     coordinateUse.set(key, offsetIndex + 1);
     const offset = offsetIndex * 0.00018;
-    const location = findLocation(job.locationId);
+    const location = findFacility(job.facilityId);
 
     return [
       {
@@ -17383,7 +17530,7 @@ function getClientSpillMarkers(jobs = getClientVisibleJobs()) {
 }
 
 function getJobMapCoordinates(job) {
-  const mappedLocation = (state.backend.mapLocations || []).find((location) => {
+  const mappedLocation = (state.backend.locations || []).find((location) => {
     if (location.projectId !== job.id) return false;
     return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude));
   });
@@ -17396,7 +17543,7 @@ function getJobMapCoordinates(job) {
     };
   }
 
-  const location = findLocation(job.locationId);
+  const location = findFacility(job.facilityId);
   const siteLatitude = Number(location?.latitude);
   const siteLongitude = Number(location?.longitude);
   if (Number.isFinite(siteLatitude) && Number.isFinite(siteLongitude)) {
@@ -17417,7 +17564,7 @@ function getJobMapCoordinates(job) {
     };
   }
 
-  const siteSampleCoordinates = getAverageCoordinates(state.sampleRecords.filter((sample) => sample.locationId === job.locationId));
+  const siteSampleCoordinates = getAverageCoordinates(state.sampleRecords.filter((sample) => sample.facilityId === job.facilityId));
   if (siteSampleCoordinates) {
     return {
       ...siteSampleCoordinates,
@@ -17466,16 +17613,37 @@ function findSample(sampleId) {
   return state.sampleRecords.find((sample) => sample.id === sampleId);
 }
 
-function findLocation(locationId) {
-  return state.locations.find((location) => location.id === locationId);
+function findFacility(facilityId) {
+  return state.facilities.find((facility) => facility.id === facilityId);
 }
 
 function contactsForAccount(accountId) {
   return state.contacts.filter((contact) => contact.accountId === accountId);
 }
 
+function facilitiesForAccount(accountId) {
+  return state.facilities.filter((facility) => facility.accountId === accountId);
+}
+
+function findGpsLocation(locationId) {
+  return (state.backend.locations || []).find((location) => location.id === locationId);
+}
+
 function locationsForAccount(accountId) {
-  return state.locations.filter((location) => location.accountId === accountId);
+  const projectIds = new Set(projectsForAccount(accountId).map((project) => project.id));
+  return (state.backend.locations || []).filter((location) => projectIds.has(location.projectId));
+}
+
+function findFacilityContact(id) {
+  return (state.backend.facilityContacts || []).find((link) => link.id === id);
+}
+
+function facilityContactsForFacility(facilityId) {
+  return (state.backend.facilityContacts || []).filter((link) => link.facilityId === facilityId && !link.deletedAt);
+}
+
+function facilityContactsForContact(contactId) {
+  return (state.backend.facilityContacts || []).filter((link) => link.contactId === contactId && !link.deletedAt);
 }
 
 function projectsForAccount(accountId) {
@@ -17591,10 +17759,10 @@ function quotesForOpportunity(opportunityId) {
   return (state.backend.quotes || []).filter((quote) => quote.opportunityId === opportunityId && !quote.deletedAt);
 }
 
-function formatLocationAddressLine(location) {
-  if (!location) return "";
-  const cityState = [location.city, location.stateOrProvince].filter(Boolean).join(", ");
-  return [location.street1 || location.address, cityState, location.postalCode].filter(Boolean).join(", ");
+function formatFacilityAddressLine(facility) {
+  if (!facility) return "";
+  const cityState = [facility.city, facility.stateOrProvince].filter(Boolean).join(", ");
+  return [facility.street1 || facility.address, cityState, facility.postalCode].filter(Boolean).join(", ");
 }
 
 function pricingSourceForOpportunity(opportunityId) {
@@ -17690,7 +17858,7 @@ function getAccountHealth(account, openTasks, openOpportunities, activeAlerts) {
 
 function getProjectGenerator(job) {
   const account = findAccount(job.accountId);
-  const location = findLocation(job.locationId);
+  const location = findFacility(job.facilityId);
   const contact = (job.contactIds || []).map(findContact).find(Boolean) || contactsForAccount(job.accountId)[0];
   return {
     name: job.generatorName || account?.name || "Generator not captured",
@@ -17817,7 +17985,7 @@ function getSampleCoordinates(sample) {
   const longitude = Number(sample.longitude);
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 
-  const location = findLocation(sample.locationId);
+  const location = findFacility(sample.facilityId);
   const fallbackLatitude = Number(location?.latitude);
   const fallbackLongitude = Number(location?.longitude);
   if (Number.isFinite(fallbackLatitude) && Number.isFinite(fallbackLongitude)) {
@@ -17946,7 +18114,7 @@ function buildCalendarDays() {
 }
 
 function getMapMarkers() {
-  const backendLocations = state.backend.mapLocations || [];
+  const backendLocations = state.backend.locations || [];
   if (backendLocations.length) {
     return backendLocations.flatMap((location) => {
       const latitude = Number(location.latitude);
