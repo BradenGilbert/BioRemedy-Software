@@ -17020,7 +17020,7 @@
       "decisionMaker": "Alicia Moreno",
       "purchaseProcess": "",
       "purchaseTimeframe": "",
-      "quoteId": "",
+      "quoteId": "quote-riverbend-revision",
       "priceList": "",
       "recordSource": "Local CRM",
       "closeQuarter": "2026-Q3"
@@ -17045,7 +17045,8 @@
       "serviceType": "Asbestos Abatement",
       "nextStep": "Confirm night shift pricing and containment plan",
       "updatedAt": "2026-07-02T10:20:00.000Z",
-      "closeQuarter": "2026-Q3"
+      "closeQuarter": "2026-Q3",
+      "quoteId": "quote-clearwater-night-shift"
     },
     {
       "id": "opp-prairie-phase2",
@@ -17057,6 +17058,7 @@
       "nextStep": "Send sample plan template and project references",
       "updatedAt": "2026-09-17T02:29:50.894Z",
       "quoteId": "",
+      "estimateId": "estimate-prairie-phase2",
       "opportunityName": "Phase II subsurface investigation",
       "opportunityId": "opp-prairie-phase2",
       "opportunityUniqueIdentifier": "opp-prairie-phase2",
@@ -17957,6 +17959,45 @@
       "quantity": 10,
       "pricePerUnit": 11800,
       "extendedAmount": 118000,
+      "manualDiscountAmount": 0,
+      "tax": 0
+    }
+  ],
+  "estimates": [
+    {
+      "id": "estimate-prairie-phase2",
+      "ownerId": "user-maya",
+      "ownerLogicalName": "systemuser",
+      "customerId": "acct-prairie-foods",
+      "customerLogicalName": "account",
+      "opportunityId": "opp-prairie-phase2",
+      "priceLevelId": "price-standard-2026",
+      "transactionCurrencyId": "currency-usd",
+      "estimateNumber": "E-2026-2001",
+      "name": "Phase II subsurface investigation estimate",
+      "description": "Rough-order-of-magnitude estimate pending sample plan finalization.",
+      "totalAmount": 14500,
+      "totalAmountBase": 14500,
+      "effectiveFrom": "2026-09-01",
+      "effectiveTo": "2026-10-01",
+      "stateCode": "Active",
+      "statusCode": "Draft"
+    }
+  ],
+  "estimateLines": [
+    {
+      "id": "estimate-line-prairie-phase2-1",
+      "estimateId": "estimate-prairie-phase2",
+      "productId": "prod-ust-remediation",
+      "uomId": "uom-day",
+      "transactionCurrencyId": "currency-usd",
+      "salesRepId": "user-maya",
+      "productName": "UST removal and soil remediation",
+      "productDescription": "Mobilization and one day of investigation labor.",
+      "isProductOverridden": false,
+      "quantity": 1,
+      "pricePerUnit": 14500,
+      "extendedAmount": 14500,
       "manualDiscountAmount": 0,
       "tax": 0
     }

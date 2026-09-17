@@ -89,6 +89,14 @@ Coverage: Dataverse-style ownership and relationships, product and price
 catalog, leads, quotes, orders, invoices, competitors, notes, and sales
 participants.
 
+Note (Phase 08, 2026-09-17): the running JSON prototype now also has `estimates`/`estimateLines`,
+structurally identical to `quotes`/`quoteLines` but a separate collection (owner decision: Quote
+and Estimate are two distinct documents). This SQL schema predates that decision and has no
+`estimates`/`estimate_lines` tables of its own -- whoever deploys this schema should either add
+them (mirroring `quotes`/`quote_lines`) or fold Estimate in as a `quotes.document_type` flag,
+whichever fits the eventual Postgres design better. Not resolved here since this schema is
+designed-not-deployed reference per `CLAUDE.md`.
+
 ### 3. Project History, Sampling, and Spatial Data - 4 tables
 
 `project_events`, `sampling_sessions`, `project_samples`,
@@ -278,6 +286,28 @@ the Opportunity page redesign) but its now-unused IndexedDB store
 declaration was left in `openDatabase`'s schema -- harmless (the store is
 created but never written to), just not yet cleaned up in code.
 
+**Phase 08 (2026-09-17)** added two new JSON-backend collections, `estimates` and `estimateLines`,
+structurally identical to the pre-existing `quotes`/`quoteLines` -- owner decision: Quote and
+Estimate are two genuinely separate documents, not one type with a status flag (the source notes
+used the words interchangeably, but the built system does not). Both new collections are gated
+under the existing `salesDocuments` role group alongside `quotes`/`quoteLines`/`products`/
+`priceLevels`/`unitsOfMeasure`. `opportunities.estimateId` was added alongside the pre-existing
+`opportunities.quoteId`, both pointing at whichever quote/estimate is "current" for that
+opportunity. No new fields were added to `products`, `priceLevels`, `unitsOfMeasure`, `unitGroups`,
+or `productPriceLevels` -- this phase built the missing *UI* (a line-item builder for quotes/
+estimates, and a Rate Card admin screen for products/units/price levels), not new schema, since the
+collections already existed with the right shape but zero reads/writes (see
+`phase-08-quotes-estimates.md`'s "Where this actually stands today" section). A real bug was found
+and fixed in the process: `opportunities.quoteId`/`estimateId` were previously only set when
+*creating* a brand-new quote/estimate, never when editing an existing one that had never been
+explicitly marked current -- both pre-existing seeded quotes were affected (attached via
+`quotes.opportunityId` but never marked "current" on their opportunity), which also silently
+blocked the Negotiation stage gate's "Quote" requirement for those records. `projects` did **not**
+gain its own `quoteId`/`estimateId` -- the opportunity->document link is transitively reachable via
+`projects.opportunityId`, and a project's `budget` is set once at creation time as a value snapshot
+from whichever document was current then, not a live pointer that would need its own FK. See
+`docs/roadmap/phase-08-quotes-estimates.md` for the full writeup.
+
 **Phase 07 (2026-09-17)** did not add or rename any fields, but wired real UI onto several fields
 that already existed and were write-only or read-only stubs before: `sampleRecords.labName` /
 `labStatus` / `labResults` / `chainOfCustody` / `labReceivedAt` / `reviewedBy` / `labReportUri` now
@@ -390,7 +420,7 @@ deleted from `data/backend.json`.
 - Sales/reference: `businessUnits`, `systemUsers`, `teams`,
   `transactionCurrencies`, `unitGroups`, `unitsOfMeasure`, `priceLevels`,
   `products`, `productPriceLevels`, `leads`, `opportunityContacts`,
-  `opportunityProducts`, `quotes`, `quoteLines`, `salesOrders`,
+  `opportunityProducts`, `quotes`, `quoteLines`, `estimates`, `estimateLines`, `salesOrders`,
   `salesOrderLines`, `competitors`, `opportunityCompetitors`, `annotations`,
   `connectionRoles`, `connections`, `activityParties`,
   `contactEmploymentHistory`

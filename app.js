@@ -252,6 +252,7 @@ const workspaceModules = {
     { view: "accounts", label: "Accounts" },
     { view: "contacts", label: "Contacts" },
     { view: "sales-race", label: "Delivery Tracker" },
+    { view: "rate-card", label: "Rate Card" },
   ],
   operations: [
     { view: "ops-projects", label: "All Projects" },
@@ -312,6 +313,7 @@ const viewWorkspace = {
   contacts: "sales",
   "sales-race": "sales",
   "opportunity-detail": "sales",
+  "rate-card": "sales",
   "account-detail": "sales",
   "facility-detail": "sales",
   "contact-detail": "sales",
@@ -2081,6 +2083,23 @@ async function handleClick(event) {
   if (action === "open-opportunity-proposal") openOpportunityProposalDialog(id);
   if (action === "open-opportunity-negotiation") openOpportunityNegotiationDialog(id);
   if (action === "open-opportunity-quote") openOpportunityQuoteDialog(actionButton.dataset.opportunityId, id);
+  if (action === "open-opportunity-estimate") openOpportunityEstimateDialog(actionButton.dataset.opportunityId, id);
+  if (action === "add-doc-line") {
+    const dialog = actionButton.closest("dialog");
+    const container = dialog?.querySelector("[data-line-container]");
+    if (container) {
+      container.insertAdjacentHTML("beforeend", renderDocLineRowHtml({}));
+      recomputeDocTotal(dialog);
+    }
+  }
+  if (action === "remove-doc-line") {
+    const dialog = actionButton.closest("dialog");
+    actionButton.closest(".doc-line-row")?.remove();
+    recomputeDocTotal(dialog);
+  }
+  if (action === "open-rate-card-price-level") openRateCardPriceLevelDialog(id);
+  if (action === "open-rate-card-uom") openRateCardUomDialog(id);
+  if (action === "open-rate-card-product") openRateCardProductDialog(id);
   if (action === "open-account") openAccountDialog(id);
   if (action === "open-account-owner") openAccountOwnerDialog(id);
   if (action === "open-account-billing") openAccountBillingDialog(id);
@@ -2349,6 +2368,10 @@ async function handleSubmit(event) {
   if (form.dataset.form === "opportunity-proposal") await saveOpportunityProposal(form);
   if (form.dataset.form === "opportunity-negotiation") await saveOpportunityNegotiation(form);
   if (form.dataset.form === "opportunity-quote") await saveOpportunityQuote(form);
+  if (form.dataset.form === "opportunity-estimate") await saveOpportunityEstimate(form);
+  if (form.dataset.form === "rate-card-price-level") await saveRateCardPriceLevel(form);
+  if (form.dataset.form === "rate-card-uom") await saveRateCardUom(form);
+  if (form.dataset.form === "rate-card-product") await saveRateCardProduct(form);
   if (form.dataset.form === "project-from-opportunity") await saveProjectFromOpportunity(form);
   if (form.dataset.form === "project-intake") await saveProjectIntake(form);
   if (form.dataset.form === "account") await saveAccount(form);
@@ -2440,6 +2463,28 @@ function handleInput(event) {
 }
 
 function handleInputInner(event) {
+  // Quote/Estimate line-item builder: product pick fills in default description/unit/rate from
+  // the rate card, quantity/rate edits recompute the line and document totals live, and switching
+  // the document's price level re-prices every already-picked product line against it.
+  if (event.target.matches("[data-line-product]")) {
+    applyLineProductDefaults(event.target);
+    return;
+  }
+  if (event.target.matches("[data-doc-price-level]")) {
+    applyPriceLevelToAllLines(event.target.closest("dialog"));
+    return;
+  }
+  if (event.target.closest(".doc-line-row") && (event.target.matches("[data-line-quantity]") || event.target.matches("[data-line-rate]"))) {
+    recomputeDocTotal(event.target.closest("dialog"));
+    return;
+  }
+  if (event.target.closest("#rateCardProductDialog") && event.target.name === "priceLevelId") {
+    const form = event.target.closest("form");
+    const productId = form.elements.id.value;
+    const ppl = productId ? productPriceLevelRate(productId, event.target.value) : null;
+    form.elements.rateAmount.value = ppl ? ppl.amount : "";
+  }
+
   // Changing a task's type swaps which config controls belong on the card, so the editor has to
   // re-render. Scoped to the editor root so it cannot fire on any other select in the app.
   if (event.target.matches('#templateEditorRoot [data-task-type]')) {
@@ -2635,6 +2680,7 @@ function render() {
   if (state.view === "contacts") renderContacts();
   if (state.view === "contact-detail") renderContactDetail();
   if (state.view === "sales-race") renderSalesRaceTrack();
+  if (state.view === "rate-card") renderRateCard();
   if (state.view === "operations") renderOperations();
   if (state.view === "ops-projects") renderOperationsAllProjects();
   if (state.view === "project-detail") renderProjectDetail();
@@ -3730,6 +3776,7 @@ function renderOpportunityDevelopPlanningTab(opportunity) {
 
 function renderOpportunityProposalDocumentsTab(opportunity) {
   const quotes = quotesForOpportunity(opportunity.id);
+  const estimates = estimatesForOpportunity(opportunity.id);
 
   return `
     <section class="crm-profile-grid">
@@ -3772,6 +3819,35 @@ function renderOpportunityProposalDocumentsTab(opportunity) {
                 `,
               )
               .join("") || `<div class="empty-state">No quote attached yet.</div>`
+          }
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header">
+          <h3>Estimate</h3>
+          <button class="mini-button" type="button" data-action="open-opportunity-estimate" data-opportunity-id="${opportunity.id}">Add estimate</button>
+        </div>
+        <div class="panel-body">
+          ${
+            estimates
+              .map(
+                (estimate) => `
+                  <article class="detail-card">
+                    <div class="row-meta">
+                      <div>
+                        <strong>${escapeHtml(estimate.name || estimate.estimateNumber || "Estimate")}</strong>
+                        <span>${money(Number(estimate.totalAmount || 0))} &middot; ${escapeHtml(estimate.statusCode || "Draft")}</span>
+                      </div>
+                      <div class="inline-actions">
+                        ${estimate.id === opportunity.estimateId ? `<span class="tag">Current</span>` : ""}
+                        <button class="mini-button" type="button" data-action="open-opportunity-estimate" data-opportunity-id="${opportunity.id}" data-id="${estimate.id}">Edit</button>
+                      </div>
+                    </div>
+                  </article>
+                `,
+              )
+              .join("") || `<div class="empty-state">No estimate attached yet.</div>`
           }
         </div>
       </article>
@@ -4431,6 +4507,7 @@ function buildCoreOpportunityRecord(opportunity) {
     purchaseProcess: opportunity.purchaseProcess || "",
     purchaseTimeframe: opportunity.purchaseTimeframe || "",
     quoteId: opportunity.quoteId || "",
+    estimateId: opportunity.estimateId || "",
     priceList: opportunity.priceList || "",
     recordSource: opportunity.recordSource || "Local CRM",
     description: opportunity.description || opportunity.nextStep || "",
@@ -14726,7 +14803,14 @@ function openProjectFromOpportunityDialog(opportunityId) {
   const quarterStart = closeQuarterStart(core.closeQuarter);
   const targetDate = quarterStart && quarterStart > parseDate(todayIso()) ? localIsoDate(quarterStart) : addDays(30);
   form.elements.targetDate.value = targetDate;
-  form.elements.budget.value = core.amount || 0;
+  // Item 3: default the project's value from the linked quote/estimate's computed total when one
+  // exists (the "Current" one selected on the opportunity, i.e. opportunity.quoteId/estimateId) —
+  // preferring a quote over an estimate since a quote is the more committed document. Falls back to
+  // the opportunity's own amount (the pre-existing manual-entry behavior) when neither is attached.
+  const currentQuote = opportunity.quoteId ? quotesForOpportunity(opportunity.id).find((item) => item.id === opportunity.quoteId) : null;
+  const currentEstimate = opportunity.estimateId ? estimatesForOpportunity(opportunity.id).find((item) => item.id === opportunity.estimateId) : null;
+  const documentTotal = Number(currentQuote?.totalAmount || currentEstimate?.totalAmount || 0);
+  form.elements.budget.value = documentTotal > 0 ? documentTotal : core.amount || 0;
   form.elements.projectStage.value = "Intake";
   dialog.showModal();
 }
@@ -15565,6 +15649,165 @@ async function saveOpportunityNegotiation(form) {
   showToast("Sign-off status saved.");
 }
 
+// --- Quote / Estimate line-item builder ---------------------------------------------------
+//
+// Phase 08 decision: Quote and Estimate are two separate documents (their own collections,
+// quotes/quoteLines and estimates/estimateLines), not one type with a status flag — the source
+// notes used the words loosely, but the owner decided these should be genuinely distinct records.
+// They share this line-item builder (product/free-text, quantity, unit, rate, computed line and
+// document totals) because the mechanics are identical; only the backend collection differs.
+// See docs/roadmap/phase-08-quotes-estimates.md for the full writeup.
+
+function activePriceLevels() {
+  return (state.backend.priceLevels || []).filter((level) => !level.deletedAt);
+}
+
+function getProducts() {
+  return (state.backend.products || []).filter((product) => !product.deletedAt);
+}
+
+function getUnitsOfMeasure() {
+  return (state.backend.unitsOfMeasure || []).filter((uom) => !uom.deletedAt);
+}
+
+function getUnitGroups() {
+  return (state.backend.unitGroups || []).filter((group) => !group.deletedAt);
+}
+
+function productPriceLevelRate(productId, priceLevelId) {
+  return (state.backend.productPriceLevels || []).find(
+    (ppl) => ppl.productId === productId && ppl.priceLevelId === priceLevelId && !ppl.deletedAt,
+  );
+}
+
+function defaultPriceLevelId() {
+  const levels = activePriceLevels();
+  return levels.find((level) => level.statusCode === "Active")?.id || levels[0]?.id || "";
+}
+
+function quoteLinesForQuote(quoteId) {
+  return (state.backend.quoteLines || []).filter((line) => line.quoteId === quoteId && !line.deletedAt);
+}
+
+function estimatesForOpportunity(opportunityId) {
+  return (state.backend.estimates || []).filter((estimate) => estimate.opportunityId === opportunityId && !estimate.deletedAt);
+}
+
+function estimateLinesForEstimate(estimateId) {
+  return (state.backend.estimateLines || []).filter((line) => line.estimateId === estimateId && !line.deletedAt);
+}
+
+function computeDocLinesTotal(lines) {
+  return lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.pricePerUnit || 0), 0);
+}
+
+function renderDocLineRowHtml(line = {}) {
+  const products = getProducts();
+  const uoms = getUnitsOfMeasure();
+  const qty = line.quantity ?? 1;
+  const rate = line.pricePerUnit ?? "";
+  const total = Number(qty || 0) * Number(rate || 0);
+  return `
+    <div class="doc-line-row" data-line-row>
+      <select data-line-product>
+        <option value="">Custom / free text</option>
+        ${products
+          .map(
+            (product) =>
+              `<option value="${escapeAttribute(product.id)}" ${product.id === line.productId ? "selected" : ""}>${escapeHtml(product.name)}</option>`,
+          )
+          .join("")}
+      </select>
+      <input type="text" data-line-description placeholder="Description" value="${escapeAttribute(line.productDescription || (!line.productId ? line.productName || "" : ""))}" />
+      <input type="number" min="0" step="0.01" data-line-quantity value="${escapeAttribute(qty)}" />
+      <select data-line-uom>
+        <option value="">Unit</option>
+        ${uoms
+          .map((uom) => `<option value="${escapeAttribute(uom.id)}" ${uom.id === line.uomId ? "selected" : ""}>${escapeHtml(uom.name)}</option>`)
+          .join("")}
+      </select>
+      <input type="number" min="0" step="0.01" data-line-rate value="${escapeAttribute(rate)}" />
+      <span class="doc-line-total" data-line-total>${money(total)}</span>
+      <button type="button" class="icon-button" data-action="remove-doc-line" aria-label="Remove line">&times;</button>
+    </div>
+  `;
+}
+
+function populateDocLineContainer(dialog, lines) {
+  const container = dialog.querySelector("[data-line-container]");
+  if (!container) return;
+  container.innerHTML = (lines.length ? lines : [{}]).map((line) => renderDocLineRowHtml(line)).join("");
+  recomputeDocTotal(dialog);
+}
+
+function recomputeDocTotal(dialog) {
+  if (!dialog) return;
+  const rows = dialog.querySelectorAll(".doc-line-row");
+  let total = 0;
+  rows.forEach((row) => {
+    const qty = Number(row.querySelector("[data-line-quantity]")?.value || 0);
+    const rate = Number(row.querySelector("[data-line-rate]")?.value || 0);
+    const lineTotal = qty * rate;
+    total += lineTotal;
+    const totalEl = row.querySelector("[data-line-total]");
+    if (totalEl) totalEl.textContent = money(lineTotal);
+  });
+  const totalField = dialog.querySelector("[data-doc-total]");
+  if (totalField) totalField.value = total.toFixed(2);
+}
+
+function applyLineProductDefaults(select) {
+  const row = select.closest(".doc-line-row");
+  const dialog = select.closest("dialog");
+  if (!row || !dialog) return;
+  const productId = select.value;
+  if (!productId) return;
+  const priceLevelId = dialog.querySelector("[data-doc-price-level]")?.value || defaultPriceLevelId();
+  const product = getProducts().find((item) => item.id === productId);
+  if (!product) return;
+  const descriptionField = row.querySelector("[data-line-description]");
+  const uomField = row.querySelector("[data-line-uom]");
+  const rateField = row.querySelector("[data-line-rate]");
+  if (descriptionField) descriptionField.value = product.description || product.name;
+  if (uomField && product.defaultUomId) uomField.value = product.defaultUomId;
+  const ppl = productPriceLevelRate(productId, priceLevelId);
+  if (rateField && ppl) rateField.value = ppl.amount;
+  recomputeDocTotal(dialog);
+}
+
+function applyPriceLevelToAllLines(dialog) {
+  dialog.querySelectorAll("[data-line-product]").forEach((select) => {
+    if (select.value) applyLineProductDefaults(select);
+  });
+  recomputeDocTotal(dialog);
+}
+
+function collectDocLines(dialog) {
+  const rows = Array.from(dialog.querySelectorAll(".doc-line-row"));
+  return rows
+    .map((row) => {
+      const productId = row.querySelector("[data-line-product]")?.value || "";
+      const product = productId ? getProducts().find((item) => item.id === productId) : null;
+      const quantity = Number(row.querySelector("[data-line-quantity]")?.value || 0);
+      const pricePerUnit = Number(row.querySelector("[data-line-rate]")?.value || 0);
+      const uomId = row.querySelector("[data-line-uom]")?.value || "";
+      const description = row.querySelector("[data-line-description]")?.value.trim() || "";
+      return {
+        productId,
+        productName: product ? product.name : description || "Custom line",
+        productDescription: description || product?.description || "",
+        isProductOverridden: !productId,
+        uomId,
+        quantity,
+        pricePerUnit,
+        extendedAmount: quantity * pricePerUnit,
+        manualDiscountAmount: 0,
+        tax: 0,
+      };
+    })
+    .filter((line) => line.quantity > 0 || line.pricePerUnit > 0 || line.productDescription);
+}
+
 function openOpportunityQuoteDialog(opportunityId, quoteId = "") {
   const opportunity = findOpportunity(opportunityId);
   if (!opportunity) return;
@@ -15572,37 +15815,45 @@ function openOpportunityQuoteDialog(opportunityId, quoteId = "") {
   const form = dialog.querySelector("form");
   form.reset();
   form.elements.opportunityId.value = opportunityId;
+  populatePriceLevelSelect(dialog, "priceLevelId");
   const quote = quoteId ? quotesForOpportunity(opportunityId).find((item) => item.id === quoteId) : null;
   if (quote) {
     form.elements.id.value = quote.id;
     form.elements.name.value = quote.name || "";
-    form.elements.totalAmount.value = quote.totalAmount || 0;
     form.elements.statusCode.value = quote.statusCode || "Draft";
     form.elements.effectiveFrom.value = quote.effectiveFrom || "";
     form.elements.effectiveTo.value = quote.effectiveTo || "";
+    form.elements.priceLevelId.value = quote.priceLevelId || defaultPriceLevelId();
+    populateDocLineContainer(dialog, quoteLinesForQuote(quote.id));
   } else {
     form.elements.id.value = "";
     form.elements.name.value = `${getCoreOpportunity(opportunity).opportunityName} quote`;
     form.elements.effectiveFrom.value = todayIso();
+    form.elements.priceLevelId.value = defaultPriceLevelId();
+    populateDocLineContainer(dialog, []);
   }
   dialog.showModal();
 }
 
 async function saveOpportunityQuote(form) {
+  const dialog = form.closest("dialog");
   const data = new FormData(form);
   const opportunityId = data.get("opportunityId").toString();
   const opportunity = findOpportunity(opportunityId);
   if (!opportunity) return;
   const isNewQuote = !data.get("id").toString();
   const quoteId = data.get("id").toString() || makeId("quote");
+  const lines = collectDocLines(dialog);
+  const totalAmount = computeDocLinesTotal(lines);
   const quote = {
     id: quoteId,
     opportunityId,
     customerId: opportunity.accountId,
     customerLogicalName: "account",
+    priceLevelId: data.get("priceLevelId").toString(),
     name: data.get("name").toString().trim(),
-    totalAmount: Number(data.get("totalAmount") || 0),
-    totalAmountBase: Number(data.get("totalAmount") || 0),
+    totalAmount,
+    totalAmountBase: totalAmount,
     statusCode: data.get("statusCode").toString(),
     stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
     effectiveFrom: data.get("effectiveFrom").toString(),
@@ -15610,10 +15861,21 @@ async function saveOpportunityQuote(form) {
   };
 
   try {
-    await saveBackendRecord("quotes", quote);
-    if (isNewQuote) {
+    await saveBackendRecord("quotes", quote, { refresh: false });
+    // Replace this quote's lines wholesale rather than diffing add/remove/edit — simpler and
+    // safe since the dialog is always the full, current set of lines when saved.
+    for (const existing of quoteLinesForQuote(quoteId)) {
+      await saveBackendRecord("quoteLines", { ...existing, deletedAt: new Date().toISOString() }, { refresh: false });
+    }
+    for (const line of lines) {
+      await saveBackendRecord("quoteLines", { id: makeId("quote-line"), quoteId, ...line }, { refresh: false });
+    }
+    // Mark this as the opportunity's "current" quote whenever it's new, or whenever the
+    // opportunity doesn't already have a current quote pointer (covers pre-existing quotes that
+    // were attached but never explicitly marked current — found during Phase 08 verification).
+    if (isNewQuote || !opportunity.quoteId) {
       const updated = buildCoreOpportunityRecord({ ...opportunity, quoteId, updatedAt: new Date().toISOString() });
-      await saveBackendRecord("opportunities", updated);
+      await saveBackendRecord("opportunities", updated, { refresh: false });
     }
   } catch (error) {
     showToast(error.message || "Quote could not be saved.");
@@ -15623,6 +15885,338 @@ async function saveOpportunityQuote(form) {
   await refreshState();
   render();
   showToast("Quote saved.");
+}
+
+function openOpportunityEstimateDialog(opportunityId, estimateId = "") {
+  const opportunity = findOpportunity(opportunityId);
+  if (!opportunity) return;
+  const dialog = document.querySelector("#opportunityEstimateDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.opportunityId.value = opportunityId;
+  populatePriceLevelSelect(dialog, "priceLevelId");
+  const estimate = estimateId ? estimatesForOpportunity(opportunityId).find((item) => item.id === estimateId) : null;
+  if (estimate) {
+    form.elements.id.value = estimate.id;
+    form.elements.name.value = estimate.name || "";
+    form.elements.statusCode.value = estimate.statusCode || "Draft";
+    form.elements.effectiveFrom.value = estimate.effectiveFrom || "";
+    form.elements.effectiveTo.value = estimate.effectiveTo || "";
+    form.elements.priceLevelId.value = estimate.priceLevelId || defaultPriceLevelId();
+    populateDocLineContainer(dialog, estimateLinesForEstimate(estimate.id));
+  } else {
+    form.elements.id.value = "";
+    form.elements.name.value = `${getCoreOpportunity(opportunity).opportunityName} estimate`;
+    form.elements.effectiveFrom.value = todayIso();
+    form.elements.priceLevelId.value = defaultPriceLevelId();
+    populateDocLineContainer(dialog, []);
+  }
+  dialog.showModal();
+}
+
+async function saveOpportunityEstimate(form) {
+  const dialog = form.closest("dialog");
+  const data = new FormData(form);
+  const opportunityId = data.get("opportunityId").toString();
+  const opportunity = findOpportunity(opportunityId);
+  if (!opportunity) return;
+  const isNewEstimate = !data.get("id").toString();
+  const estimateId = data.get("id").toString() || makeId("estimate");
+  const lines = collectDocLines(dialog);
+  const totalAmount = computeDocLinesTotal(lines);
+  const estimate = {
+    id: estimateId,
+    opportunityId,
+    customerId: opportunity.accountId,
+    customerLogicalName: "account",
+    priceLevelId: data.get("priceLevelId").toString(),
+    name: data.get("name").toString().trim(),
+    totalAmount,
+    totalAmountBase: totalAmount,
+    statusCode: data.get("statusCode").toString(),
+    stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
+    effectiveFrom: data.get("effectiveFrom").toString(),
+    effectiveTo: data.get("effectiveTo").toString(),
+  };
+
+  try {
+    await saveBackendRecord("estimates", estimate, { refresh: false });
+    for (const existing of estimateLinesForEstimate(estimateId)) {
+      await saveBackendRecord("estimateLines", { ...existing, deletedAt: new Date().toISOString() }, { refresh: false });
+    }
+    for (const line of lines) {
+      await saveBackendRecord("estimateLines", { id: makeId("estimate-line"), estimateId, ...line }, { refresh: false });
+    }
+    if (isNewEstimate || !opportunity.estimateId) {
+      const updated = buildCoreOpportunityRecord({ ...opportunity, estimateId, updatedAt: new Date().toISOString() });
+      await saveBackendRecord("opportunities", updated, { refresh: false });
+    }
+  } catch (error) {
+    showToast(error.message || "Estimate could not be saved.");
+    return;
+  }
+  closeDialogs();
+  await refreshState();
+  render();
+  showToast("Estimate saved.");
+}
+
+// --- Rate card admin ------------------------------------------------------------------------
+//
+// Phase 08 item 2: the "2026 Standard Environmental Services" rate card was referenced from three
+// places (quote/estimate line items above, Phase 04's vendor compliance panel, and Phase 04's
+// service-agreement panel) with no screen to author it. This is that screen — it reads and writes
+// the same products/priceLevels/unitsOfMeasure/productPriceLevels collections all three read from,
+// so there is exactly one source of truth instead of a hardcoded label repeated three times.
+
+function renderRateCard() {
+  const priceLevels = activePriceLevels();
+  const products = getProducts();
+  const unitGroups = getUnitGroups();
+  const uoms = getUnitsOfMeasure();
+
+  app.innerHTML = `
+    <section class="view">
+      ${renderWorkspaceHeader(
+        "sales",
+        "Rate Card",
+        "The single source of truth for products, units of measure, and price-level rates. Quote and estimate line items, vendor compliance, and service agreements all read from this data.",
+        `<button class="secondary-button" type="button" data-action="open-rate-card-price-level">Add price level</button>
+         <button class="secondary-button" type="button" data-action="open-rate-card-uom">Add unit of measure</button>
+         <button class="primary-button" type="button" data-action="open-rate-card-product">Add product</button>`,
+      )}
+
+      <article class="panel">
+        <div class="panel-header"><h3>Price levels</h3></div>
+        <div class="panel-body record-list">
+          ${
+            priceLevels
+              .map(
+                (level) => `
+                  <div class="row-meta">
+                    <div>
+                      <strong>${escapeHtml(level.name)}</strong>
+                      <span>${formatDate(level.beginDate)} to ${formatDate(level.endDate)}</span>
+                    </div>
+                    <button class="mini-button" type="button" data-action="open-rate-card-price-level" data-id="${escapeAttribute(level.id)}">Edit</button>
+                  </div>
+                `,
+              )
+              .join("") || `<div class="empty-state">No price levels yet.</div>`
+          }
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header"><h3>Products &amp; rates</h3></div>
+        <div class="panel-body">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Default unit</th>
+                ${priceLevels.map((level) => `<th>${escapeHtml(level.name)}</th>`).join("")}
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                products
+                  .map(
+                    (product) => `
+                      <tr>
+                        <td><strong>${escapeHtml(product.name)}</strong><br /><small>${escapeHtml(product.productNumber || "")}</small></td>
+                        <td>${escapeHtml(uoms.find((uom) => uom.id === product.defaultUomId)?.name || "Not set")}</td>
+                        ${priceLevels
+                          .map((level) => {
+                            const ppl = productPriceLevelRate(product.id, level.id);
+                            return `<td>${ppl ? money(Number(ppl.amount || 0)) : "Not set"}</td>`;
+                          })
+                          .join("")}
+                        <td><button class="mini-button" type="button" data-action="open-rate-card-product" data-id="${escapeAttribute(product.id)}">Edit</button></td>
+                      </tr>
+                    `,
+                  )
+                  .join("") || `<tr><td colspan="${3 + priceLevels.length}">No products yet.</td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header"><h3>Units of measure</h3></div>
+        <div class="panel-body record-list">
+          ${
+            uoms
+              .map(
+                (uom) => `
+                  <div class="row-meta">
+                    <div>
+                      <strong>${escapeHtml(uom.name)}</strong>
+                      <span>${escapeHtml(unitGroups.find((group) => group.id === uom.unitGroupId)?.name || "Ungrouped")}</span>
+                    </div>
+                    <button class="mini-button" type="button" data-action="open-rate-card-uom" data-id="${escapeAttribute(uom.id)}">Edit</button>
+                  </div>
+                `,
+              )
+              .join("") || `<div class="empty-state">No units of measure yet.</div>`
+          }
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function openRateCardPriceLevelDialog(id = "") {
+  const dialog = document.querySelector("#rateCardPriceLevelDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populateTransactionCurrencySelect(dialog, "transactionCurrencyId");
+  const level = id ? activePriceLevels().find((item) => item.id === id) : null;
+  if (level) {
+    form.elements.id.value = level.id;
+    form.elements.name.value = level.name || "";
+    form.elements.beginDate.value = level.beginDate || "";
+    form.elements.endDate.value = level.endDate || "";
+    form.elements.transactionCurrencyId.value = level.transactionCurrencyId || "";
+  } else {
+    form.elements.id.value = "";
+  }
+  dialog.showModal();
+}
+
+async function saveRateCardPriceLevel(form) {
+  const data = new FormData(form);
+  const record = {
+    id: data.get("id").toString() || makeId("price-level"),
+    name: data.get("name").toString().trim(),
+    beginDate: data.get("beginDate").toString(),
+    endDate: data.get("endDate").toString(),
+    transactionCurrencyId: data.get("transactionCurrencyId").toString(),
+    stateCode: "Active",
+    statusCode: "Active",
+  };
+  try {
+    await saveBackendRecord("priceLevels", record);
+    closeDialogs();
+    render();
+    showToast("Price level saved.");
+  } catch (error) {
+    showToast(error.message || "Price level could not be saved.");
+  }
+}
+
+function openRateCardUomDialog(id = "") {
+  const dialog = document.querySelector("#rateCardUomDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.unitGroupId.innerHTML = getUnitGroups()
+    .map((group) => `<option value="${escapeAttribute(group.id)}">${escapeHtml(group.name)}</option>`)
+    .join("");
+  const uom = id ? getUnitsOfMeasure().find((item) => item.id === id) : null;
+  if (uom) {
+    form.elements.id.value = uom.id;
+    form.elements.name.value = uom.name || "";
+    form.elements.unitGroupId.value = uom.unitGroupId || "";
+    form.elements.quantity.value = uom.quantity ?? 1;
+  } else {
+    form.elements.id.value = "";
+    form.elements.quantity.value = 1;
+  }
+  dialog.showModal();
+}
+
+async function saveRateCardUom(form) {
+  const data = new FormData(form);
+  const record = {
+    id: data.get("id").toString() || makeId("uom"),
+    unitGroupId: data.get("unitGroupId").toString(),
+    baseUomId: "",
+    name: data.get("name").toString().trim(),
+    quantity: Number(data.get("quantity") || 1),
+  };
+  try {
+    await saveBackendRecord("unitsOfMeasure", record);
+    closeDialogs();
+    render();
+    showToast("Unit of measure saved.");
+  } catch (error) {
+    showToast(error.message || "Unit of measure could not be saved.");
+  }
+}
+
+function openRateCardProductDialog(id = "") {
+  const dialog = document.querySelector("#rateCardProductDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populatePriceLevelSelect(dialog, "priceLevelId");
+  form.elements.defaultUomId.innerHTML = getUnitsOfMeasure()
+    .map((uom) => `<option value="${escapeAttribute(uom.id)}">${escapeHtml(uom.name)}</option>`)
+    .join("");
+  const product = id ? getProducts().find((item) => item.id === id) : null;
+  const priceLevelId = defaultPriceLevelId();
+  if (product) {
+    form.elements.id.value = product.id;
+    form.elements.name.value = product.name || "";
+    form.elements.productNumber.value = product.productNumber || "";
+    form.elements.description.value = product.description || "";
+    form.elements.defaultUomId.value = product.defaultUomId || "";
+    form.elements.priceLevelId.value = priceLevelId;
+    const ppl = productPriceLevelRate(product.id, priceLevelId);
+    form.elements.rateAmount.value = ppl ? ppl.amount : "";
+  } else {
+    form.elements.id.value = "";
+    form.elements.priceLevelId.value = priceLevelId;
+  }
+  dialog.showModal();
+}
+
+async function saveRateCardProduct(form) {
+  const data = new FormData(form);
+  const productId = data.get("id").toString() || makeId("product");
+  const priceLevelId = data.get("priceLevelId").toString();
+  const defaultUomId = data.get("defaultUomId").toString();
+  const record = {
+    id: productId,
+    name: data.get("name").toString().trim(),
+    productNumber: data.get("productNumber").toString().trim(),
+    description: data.get("description").toString().trim(),
+    defaultUomId,
+    defaultUnitGroupId: getUnitsOfMeasure().find((uom) => uom.id === defaultUomId)?.unitGroupId || "",
+    priceLevelId,
+    transactionCurrencyId: "currency-usd",
+    productStructure: "Service",
+    stateCode: "Active",
+    statusCode: "Active",
+  };
+  const rateAmount = Number(data.get("rateAmount") || 0);
+  try {
+    await saveBackendRecord("products", record, { refresh: false });
+    if (priceLevelId) {
+      const existingPpl = productPriceLevelRate(productId, priceLevelId);
+      await saveBackendRecord(
+        "productPriceLevels",
+        {
+          id: existingPpl?.id || makeId("ppl"),
+          productId,
+          priceLevelId,
+          uomId: defaultUomId,
+          unitGroupId: record.defaultUnitGroupId,
+          transactionCurrencyId: "currency-usd",
+          amount: rateAmount,
+          pricingMethodCode: "CurrencyAmount",
+        },
+        { refresh: false },
+      );
+    }
+    await refreshState();
+    closeDialogs();
+    render();
+    showToast("Product saved.");
+  } catch (error) {
+    showToast(error.message || "Product could not be saved.");
+  }
 }
 
 function populateParentAccountSelect(root, excludeAccountId = "") {

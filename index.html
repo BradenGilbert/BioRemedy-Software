@@ -603,21 +603,17 @@
     </dialog>
 
     <dialog id="opportunityQuoteDialog" class="modal">
-      <form method="dialog" class="modal-panel" data-form="opportunity-quote">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="opportunity-quote">
         <input name="id" type="hidden" />
         <input name="opportunityId" type="hidden" />
         <div class="modal-header">
           <h2>Quote</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
-        <label>
-          Quote name
-          <input name="name" required maxlength="100" placeholder="Revised disposal alternate" />
-        </label>
         <div class="form-grid">
           <label>
-            Total amount
-            <input name="totalAmount" required type="number" min="0" step="1" />
+            Quote name
+            <input name="name" required maxlength="100" placeholder="Revised disposal alternate" />
           </label>
           <label>
             Status
@@ -639,10 +635,179 @@
             Effective to
             <input name="effectiveTo" type="date" />
           </label>
+          <label>
+            Rate card / price level
+            <select name="priceLevelId" data-doc-price-level></select>
+          </label>
         </div>
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Line items</legend>
+          <div class="doc-line-items" data-line-container></div>
+          <button class="mini-button" type="button" data-action="add-doc-line">Add line</button>
+        </fieldset>
+        <label class="doc-total-field">
+          Total amount (computed)
+          <input name="totalAmount" type="number" readonly data-doc-total />
+        </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save quote</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityEstimateDialog" class="modal">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="opportunity-estimate">
+        <input name="id" type="hidden" />
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Estimate</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Estimate name
+            <input name="name" required maxlength="100" placeholder="Rough-order-of-magnitude estimate" />
+          </label>
+          <label>
+            Status
+            <select name="statusCode">
+              <option>Draft</option>
+              <option>In revision</option>
+              <option>Presented</option>
+              <option>Won</option>
+              <option>Lost</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Effective from
+            <input name="effectiveFrom" type="date" />
+          </label>
+          <label>
+            Effective to
+            <input name="effectiveTo" type="date" />
+          </label>
+          <label>
+            Rate card / price level
+            <select name="priceLevelId" data-doc-price-level></select>
+          </label>
+        </div>
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Line items</legend>
+          <div class="doc-line-items" data-line-container></div>
+          <button class="mini-button" type="button" data-action="add-doc-line">Add line</button>
+        </fieldset>
+        <label class="doc-total-field">
+          Total amount (computed)
+          <input name="totalAmount" type="number" readonly data-doc-total />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save estimate</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="rateCardPriceLevelDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="rate-card-price-level">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Price level</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Name
+          <input name="name" required maxlength="100" placeholder="2026 standard environmental services" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Begin date
+            <input name="beginDate" type="date" />
+          </label>
+          <label>
+            End date
+            <input name="endDate" type="date" />
+          </label>
+        </div>
+        <label>
+          Currency
+          <select name="transactionCurrencyId"></select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save price level</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="rateCardUomDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="rate-card-uom">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Unit of measure</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Name
+          <input name="name" required maxlength="40" placeholder="hour, day, ton" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Unit group
+            <select name="unitGroupId"></select>
+          </label>
+          <label>
+            Quantity (relative to group base unit)
+            <input name="quantity" type="number" min="0.01" step="0.01" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save unit</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="rateCardProductDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="rate-card-product">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Product / service</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Name
+            <input name="name" required maxlength="120" placeholder="UST removal and soil remediation" />
+          </label>
+          <label>
+            Product number
+            <input name="productNumber" maxlength="40" placeholder="ENV-UST-REM" />
+          </label>
+        </div>
+        <label>
+          Description
+          <textarea name="description" rows="2"></textarea>
+        </label>
+        <div class="form-grid">
+          <label>
+            Default unit of measure
+            <select name="defaultUomId"></select>
+          </label>
+          <label>
+            Price level
+            <select name="priceLevelId"></select>
+          </label>
+          <label>
+            Rate for this price level
+            <input name="rateAmount" type="number" min="0" step="0.01" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save product</button>
         </menu>
       </form>
     </dialog>

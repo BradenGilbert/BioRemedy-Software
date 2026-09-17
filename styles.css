@@ -2865,6 +2865,47 @@ textarea {
   width: min(920px, calc(100vw - 28px));
 }
 
+.doc-line-items-fieldset {
+  border: 1px solid var(--border, #d8dee6);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+}
+
+.doc-line-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.doc-line-row {
+  display: grid;
+  grid-template-columns: 1.6fr 1.6fr 0.7fr 0.9fr 0.9fr 0.9fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.doc-line-row .doc-line-total {
+  font-weight: 600;
+  text-align: right;
+}
+
+.doc-total-field {
+  max-width: 260px;
+  margin-left: auto;
+}
+
+.doc-total-field input {
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .doc-line-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .check-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
