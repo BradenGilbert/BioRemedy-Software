@@ -1598,7 +1598,7 @@
       "name": "UST removal and soil remediation",
       "jobClass": "Multi-Stage Remediation",
       "status": "Pre-mobilization",
-      "activePhase": "Investigation and disposal planning",
+      "activePhase": "Closeout",
       "projectManager": "Priya Patel",
       "salesLead": "Maya Chen",
       "startDate": "2026-07-09",
@@ -1619,7 +1619,8 @@
       "outcome": "",
       "serviceType": "",
       "createdAt": "2026-09-16T04:15:07.907Z",
-      "updatedAt": "2026-09-16T04:15:07.907Z"
+      "updatedAt": "2026-09-17T05:28:12.763Z",
+      "projectStage": "Closeout"
     },
     {
       "id": "job-north-river-stormwater",
@@ -3408,7 +3409,7 @@
         "Storm drain protection"
       ],
       "createdAt": "2026-07-28T04:29:41.643Z",
-      "updatedAt": "2026-07-28T04:29:41.643Z"
+      "updatedAt": "2026-09-17T05:29:25.274Z"
     },
     {
       "id": "emp-trey",
@@ -3714,10 +3715,13 @@
       "recordType": "Certification",
       "code": "HAZWOPER-40",
       "name": "40-hour HAZWOPER",
+      "number": "",
       "issuedOn": "2025-10-02",
-      "expiresOn": "2026-10-02",
+      "expiresOn": "2027-12-31",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "createdAt": "2026-09-17T05:29:25.238Z",
+      "updatedAt": "2026-09-17T05:29:25.238Z"
     },
     {
       "id": "cert-logan-cdl",
@@ -4557,7 +4561,7 @@
       "receivedAt": "2026-07-28T14:56:52.641Z",
       "requestedServiceAt": "2026-07-31T14:55:00.000Z",
       "requestedTimeText": "Jul 31, 2026, 9:55 AM",
-      "status": "Submitted",
+      "status": "Converted",
       "priority": "Normal",
       "serviceCategory": "Scheduled",
       "accountId": "acct-riverbend",
@@ -4579,10 +4583,10 @@
       "description": "UST removal and soil remediation — Price alternate disposal option after lab report — Petroleum impacted soil near former UST basin",
       "customerPacketStatus": "Missing",
       "quoteStatus": "Missing",
-      "convertedJobId": "",
+      "convertedJobId": "dispatch-job-mu53bq7w-izmf4m",
       "receivedBy": "Olivia Grant",
       "createdAt": "2026-07-28T14:56:48.939Z",
-      "updatedAt": "2026-07-28T14:56:48.939Z"
+      "updatedAt": "2026-09-17T05:29:57.172Z"
     },
     {
       "id": "req-ms4seyxq-iuc4z7",
@@ -5079,9 +5083,9 @@
       "jobType": "Environmental Sampling",
       "jobTypeCode": "SAMPLE",
       "jobTypeVersion": 2,
-      "status": "ready",
-      "dispatchStatus": "Unassigned",
-      "officeReviewStatus": "Not ready",
+      "status": "closed",
+      "dispatchStatus": "Closed",
+      "officeReviewStatus": "Closed",
       "priority": "High",
       "requestedServiceAt": "2026-07-28T08:00:00-05:00",
       "scheduledStart": "2026-07-28T08:00:00-05:00",
@@ -5098,9 +5102,10 @@
       "pricingSource": "Riverbend master service rates",
       "description": "Collect confirmation soil samples after excavation limits are approved.",
       "readinessStatus": "Warning",
-      "completionPercent": 0,
-      "updatedAt": "2026-07-26T13:20:00-05:00",
-      "accountId": "acct-riverbend"
+      "completionPercent": 100,
+      "updatedAt": "2026-09-17T05:28:13.771Z",
+      "accountId": "acct-riverbend",
+      "createdAt": "2026-09-17T05:28:09.505Z"
     },
     {
       "id": "dispatch-job-i130",
@@ -6461,6 +6466,42 @@
       "completionPercent": 100,
       "updatedAt": "2026-09-16T20:29:03.855Z",
       "createdAt": "2026-09-16T20:26:37.868Z"
+    },
+    {
+      "id": "dispatch-job-mu53bq7w-izmf4m",
+      "jobNumber": "JOB-2026-0731-41",
+      "jobRequestId": "req-ms4s4crl-zcmdj4",
+      "jobTypeTemplateId": "",
+      "accountId": "acct-riverbend",
+      "projectId": "",
+      "projectName": "Riverbend Manufacturing Scheduled Environmental Service",
+      "customerName": "Riverbend Manufacturing",
+      "jobName": "UST removal and soil remediation — Price alternate disposal option after lab report — Petr",
+      "jobType": "Scheduled Environmental Service",
+      "jobTypeCode": "SVC",
+      "jobTypeVersion": 1,
+      "status": "draft",
+      "dispatchStatus": "Unassigned",
+      "officeReviewStatus": "Not ready",
+      "priority": "Normal",
+      "requestedServiceAt": "2026-07-31T14:55:00.000Z",
+      "scheduledStart": "2026-07-31T14:55:00.000Z",
+      "scheduledEnd": "2026-07-31T18:55:00.000Z",
+      "timezone": "America/Chicago",
+      "fieldLeadEmployeeId": "",
+      "locationName": "South yard tank farm, St. Louis, MO",
+      "addressText": "South yard tank farm, St. Louis, MO",
+      "onsiteContactName": "Alicia Moreno",
+      "onsiteContactPhone": "(314) 555-0182",
+      "generatorResponsibleParty": "Riverbend Manufacturing",
+      "customerPoNumber": "532",
+      "bioremedyPoNumber": "987",
+      "pricingSource": "$185,000 contract value from won opportunity.",
+      "description": "UST removal and soil remediation — Price alternate disposal option after lab report — Petroleum impacted soil near former UST basin",
+      "readinessStatus": "Blocked",
+      "completionPercent": 0,
+      "updatedAt": "2026-09-17T05:29:57.123Z",
+      "createdAt": "2026-09-17T05:29:57.123Z"
     }
   ],
   "jobAssignments": [
@@ -7881,6 +7922,19 @@
       "status": "Reserved",
       "createdAt": "2026-09-16T20:27:09.700Z",
       "updatedAt": "2026-09-16T20:27:09.700Z"
+    },
+    {
+      "id": "resource-mu53ez26-unfjxn",
+      "jobId": "dispatch-job-ms2fo48o-qkullb",
+      "type": "Material",
+      "name": "Absorbents",
+      "assetTag": "",
+      "inventoryItemId": "inv-absorbents",
+      "quantity": 999999,
+      "unit": "bags",
+      "status": "Reserved",
+      "createdAt": "2026-09-17T05:32:28.547Z",
+      "updatedAt": "2026-09-17T05:32:28.547Z"
     }
   ],
   "jobConflicts": [
@@ -9440,6 +9494,50 @@
       "required": true,
       "createdAt": "2026-09-16T20:26:41.289Z",
       "updatedAt": "2026-09-16T20:28:55.855Z"
+    },
+    {
+      "id": "step-mu53bqab-dlsnti",
+      "jobId": "dispatch-job-mu53bq7w-izmf4m",
+      "key": "mobilize",
+      "name": "Mobilize",
+      "sequence": 1,
+      "status": "Available",
+      "required": true,
+      "createdAt": "2026-09-17T05:29:57.215Z",
+      "updatedAt": "2026-09-17T05:29:57.215Z"
+    },
+    {
+      "id": "step-mu53bqcq-gvpuqw",
+      "jobId": "dispatch-job-mu53bq7w-izmf4m",
+      "key": "perform_work",
+      "name": "Perform Work",
+      "sequence": 2,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-17T05:29:57.297Z",
+      "updatedAt": "2026-09-17T05:29:57.297Z"
+    },
+    {
+      "id": "step-mu53bqf1-5072h3",
+      "jobId": "dispatch-job-mu53bq7w-izmf4m",
+      "key": "document",
+      "name": "Document Work",
+      "sequence": 3,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-17T05:29:57.379Z",
+      "updatedAt": "2026-09-17T05:29:57.379Z"
+    },
+    {
+      "id": "step-mu53bqh5-hyon15",
+      "jobId": "dispatch-job-mu53bq7w-izmf4m",
+      "key": "closeout",
+      "name": "Field Closeout",
+      "sequence": 4,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-17T05:29:57.455Z",
+      "updatedAt": "2026-09-17T05:29:57.455Z"
     }
   ],
   "jobActions": [
@@ -13852,6 +13950,66 @@
       },
       "createdAt": "2026-09-16T20:26:41.817Z",
       "updatedAt": "2026-09-16T20:28:55.789Z"
+    },
+    {
+      "id": "action-mu53bqbo-2ng0yf",
+      "jobId": "dispatch-job-mu53bq7w-izmf4m",
+      "stepId": "step-mu53bqab-dlsnti",
+      "key": "mobilize_form",
+      "name": "Acknowledge dispatch and begin travel",
+      "sequence": 1,
+      "type": "Status transition",
+      "status": "Available",
+      "required": true,
+      "assigneeScope": "All assigned workers",
+      "formName": "Travel and Mileage",
+      "createdAt": "2026-09-17T05:29:57.258Z",
+      "updatedAt": "2026-09-17T05:29:57.258Z"
+    },
+    {
+      "id": "action-mu53bqdw-90frd6",
+      "jobId": "dispatch-job-mu53bq7w-izmf4m",
+      "stepId": "step-mu53bqcq-gvpuqw",
+      "key": "perform_work_form",
+      "name": "Perform Work checklist",
+      "sequence": 1,
+      "type": "Form",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Scheduled Environmental Service Perform Work",
+      "createdAt": "2026-09-17T05:29:57.338Z",
+      "updatedAt": "2026-09-17T05:29:57.338Z"
+    },
+    {
+      "id": "action-mu53bqg4-04v4ys",
+      "jobId": "dispatch-job-mu53bq7w-izmf4m",
+      "stepId": "step-mu53bqf1-5072h3",
+      "key": "document_form",
+      "name": "Document Work checklist",
+      "sequence": 1,
+      "type": "Form",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Scheduled Environmental Service Document Work",
+      "createdAt": "2026-09-17T05:29:57.418Z",
+      "updatedAt": "2026-09-17T05:29:57.418Z"
+    },
+    {
+      "id": "action-mu53bqi5-823vyg",
+      "jobId": "dispatch-job-mu53bq7w-izmf4m",
+      "stepId": "step-mu53bqh5-hyon15",
+      "key": "closeout_form",
+      "name": "Complete job recap and signature",
+      "sequence": 1,
+      "type": "Form",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Scheduled Environmental Service Field Closeout",
+      "createdAt": "2026-09-17T05:29:57.492Z",
+      "updatedAt": "2026-09-17T05:29:57.492Z"
     }
   ],
   "jobFormSubmissions": [
@@ -16012,6 +16170,96 @@
       "by": "sammy desampler",
       "createdAt": "2026-09-16T20:29:03.913Z",
       "updatedAt": "2026-09-16T20:29:03.913Z"
+    },
+    {
+      "id": "job-status-event-mu539f71-se6ouk",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "ready",
+      "toStatus": "scheduled",
+      "occurredAt": "2026-09-17T05:28:09.500Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:09.531Z",
+      "updatedAt": "2026-09-17T05:28:09.531Z"
+    },
+    {
+      "id": "job-status-event-mu539flt-vz8gl7",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "scheduled",
+      "toStatus": "dispatched",
+      "occurredAt": "2026-09-17T05:28:10.033Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:10.062Z",
+      "updatedAt": "2026-09-17T05:28:10.062Z"
+    },
+    {
+      "id": "job-status-event-mu539g0l-jjsbjp",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "dispatched",
+      "toStatus": "acknowledged",
+      "occurredAt": "2026-09-17T05:28:10.566Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:10.592Z",
+      "updatedAt": "2026-09-17T05:28:10.592Z"
+    },
+    {
+      "id": "job-status-event-mu539gfg-n56s3q",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "acknowledged",
+      "toStatus": "en_route",
+      "occurredAt": "2026-09-17T05:28:11.100Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:11.128Z",
+      "updatedAt": "2026-09-17T05:28:11.128Z"
+    },
+    {
+      "id": "job-status-event-mu539gud-8srp0k",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "en_route",
+      "toStatus": "on_site",
+      "occurredAt": "2026-09-17T05:28:11.633Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:11.663Z",
+      "updatedAt": "2026-09-17T05:28:11.663Z"
+    },
+    {
+      "id": "job-status-event-mu539h94-ikwci1",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "on_site",
+      "toStatus": "in_progress",
+      "occurredAt": "2026-09-17T05:28:12.166Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:12.199Z",
+      "updatedAt": "2026-09-17T05:28:12.199Z"
+    },
+    {
+      "id": "job-status-event-mu539hnu-8087dy",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "in_progress",
+      "toStatus": "field_complete",
+      "occurredAt": "2026-09-17T05:28:12.699Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:12.726Z",
+      "updatedAt": "2026-09-17T05:28:12.726Z"
+    },
+    {
+      "id": "job-status-event-mu539i2s-ftbl1n",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "field_complete",
+      "toStatus": "office_review",
+      "occurredAt": "2026-09-17T05:28:13.233Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:13.262Z",
+      "updatedAt": "2026-09-17T05:28:13.262Z"
+    },
+    {
+      "id": "job-status-event-mu539ihh-u0dj3e",
+      "jobId": "dispatch-job-riverbend",
+      "fromStatus": "office_review",
+      "toStatus": "closed",
+      "occurredAt": "2026-09-17T05:28:13.766Z",
+      "by": "Olivia Grant",
+      "createdAt": "2026-09-17T05:28:13.792Z",
+      "updatedAt": "2026-09-17T05:28:13.792Z"
     }
   ],
   "jobTaskAttachments": [
@@ -16186,15 +16434,20 @@
       "fieldNotes": "Confirmation sample collected along the north wall of the former UST basin.",
       "chainOfCustody": "COC-2026-071",
       "labName": "Midwest Analytical Laboratory",
-      "labStatus": "In transit",
-      "labResults": "Pending TPH-GRO/DRO and BTEX.",
+      "labStatus": "Results received",
+      "labResults": "TPH-DRO 145 mg/kg, below action level; BTEX not detected.",
       "latitude": 38.62731,
       "longitude": -90.19918,
       "photos": [
         "B-1 north wall",
         "Sample sleeve",
         "COC label"
-      ]
+      ],
+      "labReceivedAt": "",
+      "reviewedBy": "Priya Patel",
+      "labReportUri": "",
+      "createdAt": "2026-09-17T05:27:35.743Z",
+      "updatedAt": "2026-09-17T05:27:35.743Z"
     },
     {
       "id": "sample-riverbend-b2",
@@ -16713,7 +16966,6 @@
       "value": 185000,
       "stage": "Proposal",
       "serviceType": "Scheduled Environmental Service",
-      "closeDate": "2026-07-24",
       "nextStep": "Price alternate disposal option after lab report",
       "updatedAt": "2026-09-16T15:21:11.928Z",
       "createdAt": "2026-08-10T21:17:28.877Z",
@@ -16755,7 +17007,6 @@
       "currency": "USD",
       "exchangeRate": "1.00",
       "isRevenueSystemCalculated": false,
-      "estimatedCloseDate": "2026-07-24",
       "actualCloseDate": "",
       "createdOn": "2026-08-10T21:17:28.877Z",
       "createdBy": "Olivia Grant",
@@ -16771,7 +17022,8 @@
       "purchaseTimeframe": "",
       "quoteId": "",
       "priceList": "",
-      "recordSource": "Local CRM"
+      "recordSource": "Local CRM",
+      "closeQuarter": "2026-Q3"
     },
     {
       "id": "opp-north-river-stormwater",
@@ -16780,9 +17032,9 @@
       "value": 96000,
       "stage": "Qualify",
       "serviceType": "Remediation Field Work",
-      "closeDate": "2026-08-07",
       "nextStep": "Walk fleet yard and loading bay with operations",
-      "updatedAt": "2026-06-29T13:30:00.000Z"
+      "updatedAt": "2026-06-29T13:30:00.000Z",
+      "closeQuarter": "2026-Q3"
     },
     {
       "id": "opp-clearwater-abatement",
@@ -16791,9 +17043,9 @@
       "value": 132000,
       "stage": "Negotiation",
       "serviceType": "Asbestos Abatement",
-      "closeDate": "2026-07-12",
       "nextStep": "Confirm night shift pricing and containment plan",
-      "updatedAt": "2026-07-02T10:20:00.000Z"
+      "updatedAt": "2026-07-02T10:20:00.000Z",
+      "closeQuarter": "2026-Q3"
     },
     {
       "id": "opp-prairie-phase2",
@@ -16802,7 +17054,6 @@
       "value": 42000,
       "stage": "Lead",
       "serviceType": "Remediation Field Work",
-      "closeDate": "2026-08-18",
       "nextStep": "Send sample plan template and project references",
       "updatedAt": "2026-09-17T02:29:50.894Z",
       "quoteId": "",
@@ -16841,7 +17092,6 @@
       "currency": "USD",
       "exchangeRate": "1.00",
       "isRevenueSystemCalculated": false,
-      "estimatedCloseDate": "2026-08-18",
       "actualCloseDate": "",
       "createdOn": "2026-09-17T02:29:50.031Z",
       "createdBy": "Olivia Grant",
@@ -16858,7 +17108,8 @@
       "priceList": "",
       "recordSource": "Local CRM",
       "description": "Send sample plan template and project references",
-      "createdAt": "2026-09-17T02:29:50.038Z"
+      "createdAt": "2026-09-17T02:29:50.038Z",
+      "closeQuarter": "2026-Q3"
     },
     {
       "id": "opp-msw66ith-3c7npi",
@@ -16867,8 +17118,6 @@
       "opportunityName": "truck roll over east of san antonio",
       "value": 85000,
       "amount": 85000,
-      "closeDate": "2026-09-15",
-      "estimatedCloseDate": "2026-09-15",
       "stage": "Won",
       "dealStage": "Won",
       "probability": 100,
@@ -16952,7 +17201,8 @@
       "proposalPresentedStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
-      "workAuthorizationStatus": "Signed"
+      "workAuthorizationStatus": "Signed",
+      "closeQuarter": "2026-Q3"
     },
     {
       "id": "opp-mu33t6d1-iel4ko",
@@ -16961,8 +17211,6 @@
       "opportunityName": "big bank oopsy",
       "value": 67000,
       "amount": 67000,
-      "closeDate": "2026-10-31",
-      "estimatedCloseDate": "2026-10-31",
       "stage": "Lead",
       "dealStage": "Lead",
       "probability": 15,
@@ -17017,7 +17265,8 @@
       "priceList": "",
       "recordSource": "Local CRM",
       "description": "next step is brok AF my BOI",
-      "createdAt": "2026-09-15T20:07:59.161Z"
+      "createdAt": "2026-09-15T20:07:59.161Z",
+      "closeQuarter": "2026-Q4"
     },
     {
       "id": "opp-mu4c4qxs-1ucxl8",
@@ -17026,8 +17275,6 @@
       "opportunityName": "ZZZ OPPor Blue Cow opportunity",
       "value": 85000,
       "amount": 85000,
-      "closeDate": "2026-10-16",
-      "estimatedCloseDate": "2026-10-16",
       "stage": "Lead",
       "dealStage": "Lead",
       "probability": 15,
@@ -17082,7 +17329,8 @@
       "priceList": "",
       "recordSource": "Local CRM",
       "description": "Review cow potential",
-      "createdAt": "2026-09-16T16:48:42.044Z"
+      "createdAt": "2026-09-16T16:48:42.044Z",
+      "closeQuarter": "2026-Q4"
     },
     {
       "id": "opp-mu4caooh-q29n38",
@@ -17091,8 +17339,6 @@
       "opportunityName": "Multi opp test for contact",
       "value": 85000,
       "amount": 85000,
-      "closeDate": "2026-10-16",
-      "estimatedCloseDate": "2026-10-16",
       "stage": "Lead",
       "dealStage": "Lead",
       "probability": 15,
@@ -17147,7 +17393,8 @@
       "priceList": "",
       "recordSource": "Local CRM",
       "description": "Test jeff muilti ability boi",
-      "createdAt": "2026-09-16T16:53:19.043Z"
+      "createdAt": "2026-09-16T16:53:19.043Z",
+      "closeQuarter": "2026-Q4"
     },
     {
       "id": "opp-mu4covno-mqlp5w",
@@ -17156,8 +17403,6 @@
       "opportunityName": "Big Red Dog",
       "value": 1000,
       "amount": 1000,
-      "closeDate": "2026-10-31",
-      "estimatedCloseDate": "2026-10-31",
       "stage": "Lead",
       "dealStage": "Lead",
       "probability": 15,
@@ -17214,7 +17459,8 @@
       "description": "fire everywhere aaaaa",
       "createdAt": "2026-09-16T17:04:21.129Z",
       "facilityId": "",
-      "contaminationNotes": "lead details contamination test"
+      "contaminationNotes": "lead details contamination test",
+      "closeQuarter": "2026-Q4"
     },
     {
       "id": "opp-mu4d3fc2-ix14uk",
@@ -17223,8 +17469,6 @@
       "opportunityName": "Tall Tree Test stage jump op",
       "value": 85000,
       "amount": 85000,
-      "closeDate": "2026-10-16",
-      "estimatedCloseDate": "2026-10-16",
       "stage": "Won",
       "dealStage": "Won",
       "probability": 100,
@@ -17320,7 +17564,8 @@
       "proposalPresentedStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
-      "workAuthorizationStatus": "Signed"
+      "workAuthorizationStatus": "Signed",
+      "closeQuarter": "2026-Q4"
     }
   ],
   "opportunityAssignments": [

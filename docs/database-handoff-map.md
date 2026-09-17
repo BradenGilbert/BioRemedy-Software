@@ -291,6 +291,22 @@ moves through dispatch (`advanceProjectStageFromDispatchStatus`) -- closes the "
 read" known-open item for the prototype layer (the SQL schema side is unaffected). See
 `docs/roadmap/phase-07-dispatch-operations.md` for the full list.
 
+**Phase 06 item 1 (2026-09-17)** replaced `opportunities.closeDate` and its parallel/redundant
+`opportunities.estimatedCloseDate` (both were always written from the same value -- see
+`phase-06-opportunity-domain.md` item 1) with a single coarser field, `opportunities.closeQuarter`,
+a `"YYYY-Q#"` string (e.g. `"2027-Q1"`) instead of an exact date. Owner decision: exact close dates
+were "hard to follow" per the source notes; quarter granularity was chosen over month because it's
+the coarser of the two options offered and reads cleanest in list/badge UI ("Q1 2027" vs.
+"Jan 2027" -- both were viable, quarter was picked as the more decisive cut given the note's
+complaint was about *precision*, not format). Existing rows in `data/backend.json` and
+`server.mjs`'s seed data were migrated in place (derived quarter from the old exact date, not
+blanked). `getCoreOpportunity()` still falls back to deriving a quarter from any legacy
+`closeDate`/`estimatedCloseDate` value it finds on a raw record, so nothing silently loses data if
+an untouched record slips through. The SQL schema (`crm-schema/013_opportunities.sql`,
+`estimated_close_date` / `actual_close_date`) was **not** changed -- it's designed-not-deployed
+reference per `CLAUDE.md`; whoever deploys that schema should decide then whether to carry the
+quarter field forward or resolve it back to a date range.
+
 `laborResources` (JSON backend, Inventory -> Labor view) was retired in code
 on August 17, 2026, not migrated -- it duplicated real people from `employees`
 under separate, unlinked IDs with independently-drifting hours/capacity

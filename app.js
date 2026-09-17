@@ -537,7 +537,7 @@ const tableViewRegistry = {
     sales: {
       label: "Pipeline View",
       description: "Opportunity stage, value, close date, probability, service type, and next step.",
-      columns: ["name", "account", "stage", "value", "probability", "closeDate", "nextStep"],
+      columns: ["name", "account", "stage", "value", "probability", "closeQuarter", "nextStep"],
     },
   },
 };
@@ -722,7 +722,7 @@ const opportunityCoreFieldSections = [
     id: "datesActivity",
     label: "Dates and Activity",
     fields: [
-      { key: "estimatedCloseDate", label: "Estimated Close Date" },
+      { key: "closeQuarter", label: "Close Quarter" },
       { key: "actualCloseDate", label: "Actual Close Date" },
       { key: "createdOn", label: "Created On" },
       { key: "createdBy", label: "Created By" },
@@ -764,7 +764,7 @@ const opportunityTableViews = {
   forecast: {
     label: "Forecast View",
     description: "Revenue, probability, close date, and forecast category.",
-    columns: ["opportunityName", "accountName", "dealStage", "amount", "weightedAmount", "estimatedCloseDate", "forecastCategory"],
+    columns: ["opportunityName", "accountName", "dealStage", "amount", "weightedAmount", "closeQuarter", "forecastCategory"],
   },
   qualification: {
     label: "Qualification View",
@@ -1848,7 +1848,7 @@ async function refreshBackendState() {
     };
     state.opportunities = (state.backend.opportunities || [])
       .filter((opportunity) => !opportunity.deletedAt)
-      .sort((a, b) => parseDate(a.closeDate) - parseDate(b.closeDate));
+      .sort((a, b) => (a.closeQuarter || "9999-Q4").localeCompare(b.closeQuarter || "9999-Q4"));
     state.sampleRecords = (state.backend.sampleRecords || [])
       .slice()
       .sort((a, b) => new Date(b.collectionTime) - new Date(a.collectionTime));
@@ -3085,7 +3085,7 @@ function renderPipelineInsights() {
     .map((opportunity) => ({
       opportunity,
       account: findAccount(opportunity.accountId),
-      closeStatus: getCloseStatus(opportunity.closeDate),
+      closeStatus: getCloseStatus(opportunity.closeQuarter),
       nextTask: nextOpenTaskForAccount(opportunity.accountId),
     }))
     .sort((a, b) => opportunityPriorityScore(b) - opportunityPriorityScore(a))
@@ -3322,7 +3322,7 @@ function renderStageColumn(stage) {
 function renderOpportunityCard(opportunity) {
   const account = findAccount(opportunity.accountId);
   const probability = opportunity.probability ?? STAGE_PROBABILITY[opportunity.stage] ?? 15;
-  const closeStatus = getCloseStatus(opportunity.closeDate);
+  const closeStatus = getCloseStatus(opportunity.closeQuarter);
   const contacts = contactsForOpportunity(opportunity.id);
   const nextTask = nextOpenTaskForAccount(opportunity.accountId);
   const currentStageIndex = STAGES.indexOf(opportunity.stage);
@@ -3422,7 +3422,7 @@ function renderOpportunityDetail() {
 function renderOpportunityDetailHeader(opportunity) {
   const coreOpportunity = getCoreOpportunity(opportunity);
   const account = findAccount(opportunity.accountId);
-  const closeStatus = getCloseStatus(coreOpportunity.estimatedCloseDate);
+  const closeStatus = getCloseStatus(coreOpportunity.closeQuarter);
   const currentStageIndex = STAGES.indexOf(opportunity.stage);
   const nextStage = STAGES[currentStageIndex + 1];
   const resultingProject = state.projects.find((project) => project.opportunityId === opportunity.id);
@@ -3532,8 +3532,8 @@ function renderOpportunitySummaryTab(opportunity) {
           <span>${coreOpportunity.closeProbability}% probability</span>
         </div>
         <div class="metric">
-          <p class="eyebrow">Close date</p>
-          <strong>${formatDate(coreOpportunity.estimatedCloseDate)}</strong>
+          <p class="eyebrow">Close quarter</p>
+          <strong>${escapeHtml(formatCloseQuarter(coreOpportunity.closeQuarter))}</strong>
           <span>${escapeHtml(coreOpportunity.forecastCategory)}</span>
         </div>
         <div class="metric">
@@ -3915,7 +3915,7 @@ function renderOpportunityMainInformation(opportunity) {
         <div class="panel-header"><h3>Dates &amp; source</h3></div>
         <div class="panel-body">
           <dl class="detail-list">
-            ${row("Estimated close", field("estimatedCloseDate"))}
+            ${row("Close quarter", field("closeQuarter"))}
             ${core.actualCloseDate ? row("Actual close", field("actualCloseDate")) : ""}
             ${row("Purchase time frame", field("purchaseTimeframe"))}
             ${row("Last contacted", field("lastContacted"))}
@@ -4393,7 +4393,7 @@ function buildCoreOpportunityRecord(opportunity) {
     closeProbability: probability,
     probability,
     priority: opportunity.priority || "Normal",
-    rating: opportunity.rating || getCloseStatus(opportunity.closeDate).label,
+    rating: opportunity.rating || getCloseStatus(opportunity.closeQuarter).label,
     initialCommunication: opportunity.initialCommunication || "Contacted",
     currentSituation: opportunity.currentSituation || account?.concern || "",
     industry: opportunity.industry || account?.industry || "",
@@ -4413,8 +4413,10 @@ function buildCoreOpportunityRecord(opportunity) {
     currency: opportunity.currency || "USD",
     exchangeRate: opportunity.exchangeRate || "1.00",
     isRevenueSystemCalculated: Boolean(opportunity.isRevenueSystemCalculated),
-    estimatedCloseDate: opportunity.estimatedCloseDate || opportunity.closeDate || "",
-    closeDate: opportunity.closeDate || opportunity.estimatedCloseDate || "",
+    // closeDate/estimatedCloseDate (exact-date fields) were replaced by closeQuarter (Phase 06 item 1).
+    // The fallback to the legacy fields covers any record that predates the migration script
+    // (data/backend.json and server.mjs's seed data were both converted directly).
+    closeQuarter: opportunity.closeQuarter || dateToCloseQuarter(opportunity.closeDate || opportunity.estimatedCloseDate) || "",
     actualCloseDate: opportunity.actualCloseDate || "",
     createdOn: opportunity.createdOn || opportunity.createdAt || now,
     createdBy: opportunity.createdBy || state.currentUser?.name || "Local user",
@@ -4452,7 +4454,8 @@ function formatOpportunityFieldValue(opportunity, key) {
     return money(Number(value || 0));
   }
   if (key === "closeProbability") return `${Number(value || 0)}%`;
-  if (["estimatedCloseDate", "actualCloseDate", "createdOn", "lastModifiedDate", "lastContacted", "nextActivityDate"].includes(key)) return formatDate(value);
+  if (key === "closeQuarter") return formatCloseQuarter(value);
+  if (["actualCloseDate", "createdOn", "lastModifiedDate", "lastContacted", "nextActivityDate"].includes(key)) return formatDate(value);
   return String(value);
 }
 
@@ -5400,7 +5403,7 @@ function renderAccountListPanel(title, items, renderItem, seeAllAction, accountI
 }
 
 function renderOpportunityMiniCard(opportunity) {
-  const closeStatus = getCloseStatus(opportunity.closeDate);
+  const closeStatus = getCloseStatus(opportunity.closeQuarter);
   return `
     <article class="detail-card">
       <button class="link-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">${escapeHtml(opportunity.name)}</button>
@@ -6364,7 +6367,7 @@ function renderAccountOpportunityCard(opportunity) {
       <div class="row-meta">
         <span>${money(opportunity.value)}</span>
         <span>${escapeHtml(opportunity.stage)}</span>
-        <span>Close ${formatDate(opportunity.closeDate)}</span>
+        <span>Close ${formatCloseQuarter(opportunity.closeQuarter)}</span>
       </div>
       <p class="help-text">${escapeHtml(opportunity.nextStep)}</p>
       <div class="inline-actions">
@@ -12970,8 +12973,7 @@ async function saveOpportunity(form) {
     opportunityName: data.get("name").toString().trim(),
     value: Number(data.get("value")),
     amount: Number(data.get("value")),
-    closeDate: data.get("closeDate").toString(),
-    estimatedCloseDate: data.get("closeDate").toString(),
+    closeQuarter: data.get("closeQuarter").toString(),
     stage,
     dealStage: stage,
     probability: STAGE_PROBABILITY[stage],
@@ -14717,8 +14719,13 @@ function openProjectFromOpportunityDialog(opportunityId) {
   form.elements.jobClass.value = mapServiceTypeToJobClass(core.serviceType);
   populateEmployeeSelect(dialog, "projectManagerEmployeeId", "Select project manager");
   form.elements.startDate.value = todayIso();
-  const closeDate = core.estimatedCloseDate && parseDate(core.estimatedCloseDate) > parseDate(todayIso()) ? core.estimatedCloseDate : addDays(30);
-  form.elements.targetDate.value = closeDate;
+  // The opportunity's close date used to give this a precise target date. Now that close is only
+  // tracked to the quarter (Phase 06 item 1), an exact day derived from it would be false precision —
+  // use the quarter's start date as a rough anchor when it's still ahead of us, otherwise just fall
+  // back to a sensible "30 days out" default like every other quick-create flow in the app.
+  const quarterStart = closeQuarterStart(core.closeQuarter);
+  const targetDate = quarterStart && quarterStart > parseDate(todayIso()) ? localIsoDate(quarterStart) : addDays(30);
+  form.elements.targetDate.value = targetDate;
   form.elements.budget.value = core.amount || 0;
   form.elements.projectStage.value = "Intake";
   dialog.showModal();
@@ -15000,7 +15007,7 @@ function openOpportunityDialog(accountId = "", opportunityId = "") {
     form.elements.accountId.value = core.accountId;
     form.elements.name.value = core.opportunityName;
     form.elements.value.value = core.amount;
-    form.elements.closeDate.value = core.estimatedCloseDate || addDays(30);
+    populateCloseQuarterSelect(dialog, core.closeQuarter || defaultCloseQuarter());
     form.elements.serviceType.value = core.serviceType || "Scheduled Environmental Service";
     form.elements.status.value = core.status === "Lost" ? "Lost" : "Open";
     form.elements.nextStep.value = core.nextStep;
@@ -15008,7 +15015,7 @@ function openOpportunityDialog(accountId = "", opportunityId = "") {
   } else {
     form.elements.id.value = "";
     if (accountId) form.elements.accountId.value = accountId;
-    form.elements.closeDate.value = addDays(30);
+    populateCloseQuarterSelect(dialog, defaultCloseQuarter());
     if (startingStageField) startingStageField.hidden = false;
   }
   dialog.showModal();
@@ -18928,7 +18935,8 @@ function getSampleCoordinates(sample) {
 }
 
 function opportunityPriorityScore(item) {
-  const closeDays = daysUntil(item.opportunity.closeDate);
+  const closeQuarterEndDate = closeQuarterEnd(item.opportunity.closeQuarter);
+  const closeDays = closeQuarterEndDate ? daysUntil(closeQuarterEndDate) : 999;
   const taskDays = item.nextTask ? daysUntil(item.nextTask.dueDate) : 30;
   return (
     Number(item.opportunity.value) / 1000 +
@@ -18943,17 +18951,20 @@ function getOpportunityProgress(opportunity) {
   const stageIndex = Math.max(0, STAGES.indexOf(opportunity.stage));
   const percent = STAGE_PROBABILITY[opportunity.stage] ?? 15;
   const core = getCoreOpportunity(opportunity);
-  const tone = opportunity.stage === "Won" ? "low" : getCloseStatus(core.estimatedCloseDate).tone;
+  const tone = opportunity.stage === "Won" ? "low" : getCloseStatus(core.closeQuarter).tone;
   return { percent, stageIndex, tone };
 }
 
 function getCloseStatus(value) {
-  if (!value) return { label: "No close date set", tone: "low" };
-  const days = daysUntil(value);
-  if (days < 0) return { label: `${Math.abs(days)} days overdue`, tone: "high" };
-  if (days === 0) return { label: "Closes today", tone: "high" };
-  if (days <= 7) return { label: `${days} days to close`, tone: "medium" };
-  return { label: `Close ${formatDate(value)}`, tone: "low" };
+  if (!value) return { label: "No close quarter set", tone: "low" };
+  const label = formatCloseQuarter(value);
+  const start = closeQuarterStart(value);
+  const end = closeQuarterEnd(value);
+  if (!start || !end) return { label: `Close ${label}`, tone: "low" };
+  const today = parseDate(todayIso());
+  if (end < today) return { label: `${label} (overdue)`, tone: "high" };
+  if (start <= today && today <= end) return { label: `${label} (this quarter)`, tone: "medium" };
+  return { label: `Close ${label}`, tone: "low" };
 }
 
 function daysUntil(value) {
@@ -20020,6 +20031,66 @@ function formatDateTime(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(parseDate(value));
+}
+
+// Opportunity close dates were replaced with a coarser "close quarter" field (Phase 06 item 1 —
+// the owner's note that exact close dates were "hard to follow"). Values are strings shaped
+// "YYYY-Q#" (e.g. "2027-Q1"), which sort correctly with a plain string compare. These helpers
+// convert between that shape and real Date objects only where day-level math is still needed
+// internally (overdue/urgency scoring) — nothing here should push an exact day back into the UI.
+function formatCloseQuarter(value) {
+  const match = /^(\d{4})-Q([1-4])$/.exec(value || "");
+  if (!match) return "Not set";
+  return `Q${match[2]} ${match[1]}`;
+}
+
+function closeQuarterStart(value) {
+  const match = /^(\d{4})-Q([1-4])$/.exec(value || "");
+  if (!match) return null;
+  return new Date(Number(match[1]), (Number(match[2]) - 1) * 3, 1);
+}
+
+function closeQuarterEnd(value) {
+  const start = closeQuarterStart(value);
+  if (!start) return null;
+  return new Date(start.getFullYear(), start.getMonth() + 3, 0);
+}
+
+function dateToCloseQuarter(value) {
+  if (!value) return "";
+  const date = parseDate(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-Q${Math.floor(date.getMonth() / 3) + 1}`;
+}
+
+function closeQuarterOptionValues(includeValue = "") {
+  const currentYear = new Date().getFullYear();
+  const values = [];
+  for (let year = currentYear - 1; year <= currentYear + 3; year++) {
+    for (let quarter = 1; quarter <= 4; quarter++) values.push(`${year}-Q${quarter}`);
+  }
+  if (includeValue && !values.includes(includeValue)) values.push(includeValue);
+  return values.sort();
+}
+
+function defaultCloseQuarter() {
+  const today = new Date();
+  const quarter = Math.floor(today.getMonth() / 3) + 1;
+  const nextQuarter = quarter === 4 ? 1 : quarter + 1;
+  const year = quarter === 4 ? today.getFullYear() + 1 : today.getFullYear();
+  return `${year}-Q${nextQuarter}`;
+}
+
+function populateCloseQuarterSelect(root, currentValue = "") {
+  root.querySelectorAll("select[name='closeQuarter']").forEach((select) => {
+    select.innerHTML = [
+      `<option value="">No target quarter</option>`,
+      ...closeQuarterOptionValues(currentValue).map(
+        (value) => `<option value="${escapeAttribute(value)}">${escapeHtml(formatCloseQuarter(value))}</option>`,
+      ),
+    ].join("");
+    select.value = currentValue || "";
+  });
 }
 
 function parseDate(value) {
