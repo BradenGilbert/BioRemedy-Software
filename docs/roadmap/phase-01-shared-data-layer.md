@@ -126,9 +126,9 @@ This also finally makes every project-reference field across the backend (`dispa
 
 ## Out of scope
 
-- **PostgreSQL.** This phase moves data to the *existing* JSON backend, not to a real database. That is Phase 12.
-- **Authentication.** Records become shared, but there is still no login. That is Phase 10, and it is the gate before real customer data.
-- **Offline sync semantics** — conflict rules, version numbers, ID reconciliation. The sync queue keeps working as-is. Real offline sync is a Stage E concern.
+- **PostgreSQL.** This phase moves data to the *existing* JSON backend, not to a real database. That is Phase 14.
+- **Authentication.** Records become shared, but there is still no login. That is Phase 12, and it is the gate before real customer data.
+- **Offline sync semantics** — conflict rules, version numbers, ID reconciliation. The sync queue keeps working as-is. Real offline sync is a Stage B (Front Line / Field Ops) concern.
 - Any UI redesign. This phase should be invisible except that other people's records now appear.
 
 ---
@@ -202,7 +202,7 @@ The real test is **two browsers**, not one:
 **The pattern, for the remaining 10 collections.** Follow this exactly; it is now proven end-to-end.
 
 *server.mjs — four edits:*
-1. New `roleAccess.customerDirectory` group spanning all nine internal roles, **excluding Client Portal**. Accounts and contacts are referenced by nearly every workspace, and before this they had no gating at all, so a narrow group would have been a regression. Real authorization is Phase 10.
+1. New `roleAccess.customerDirectory` group spanning all nine internal roles, **excluding Client Portal**. Accounts and contacts are referenced by nearly every workspace, and before this they had no gating at all, so a narrow group would have been a regression. Real authorization is Phase 12.
 2. `collectionAccess.accounts = "customerDirectory"`
 3. `defaultBackend.accounts = []` — **required**, the route 404s with "Unknown collection" unless the key exists as an array
 4. One line in `filterBackendForRole`

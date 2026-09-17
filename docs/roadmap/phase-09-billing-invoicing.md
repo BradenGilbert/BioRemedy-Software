@@ -51,8 +51,8 @@ The generated cost report should pre-fill or feed the existing manual invoice di
 ## Out of scope
 
 - Real QuickBooks integration — stays a mock export queue; this phase does not touch that connection, only what feeds the invoice draft before export
-- Payments, allocations, credit memos, vendor bills, AP — `docs/database-handoff-map.md` Priority 1 "Accounting completion" item, tracked separately in Phase 14, not duplicated here
-- Waste-disposal cost tracking (permits, disposal receipts) — related but distinct; see the notes' TCEQ/EPA waste-tracking item, tracked in Phase 14. If disposal costs should feed the P&L in item 3, that's a real integration point to confirm during implementation, not assumed here.
+- Payments, allocations, credit memos, vendor bills, AP — `docs/database-handoff-map.md` Priority 1 "Accounting completion" item, tracked separately in Phase 11, not duplicated here
+- Waste-disposal cost tracking (permits, disposal receipts) — related but distinct; see the notes' TCEQ/EPA waste-tracking item, tracked in Phase 11. If disposal costs should feed the P&L in item 3, that's a real integration point to confirm during implementation, not assumed here.
 
 ---
 
@@ -74,8 +74,8 @@ Not yet scoped in detail — depends on Phase 08 landing first. At minimum expec
 ## Open decisions
 
 - **Does closing a project lock it from further usage entries** (equipment/labor/material), or can costs still post after close and require a report regeneration?
-- **Snapshot vs. computed-on-demand** for the cost/P&L report — matters for audit trail once Phase 10 (Identity & Audit) exists
-- **Does waste-disposal cost (Phase 14) feed this P&L**, and if so is that in this phase's scope or a follow-on once Phase 14's waste tracking exists?
+- **Snapshot vs. computed-on-demand** for the cost/P&L report — matters for audit trail once Phase 12 (Identity & Audit) exists
+- **Does waste-disposal cost (Phase 11) feed this P&L**, and if so is that in this phase's scope or a follow-on once Phase 11's waste tracking exists?
 
 ---
 

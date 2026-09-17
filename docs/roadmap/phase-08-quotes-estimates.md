@@ -56,7 +56,7 @@ The existing "Add quote" button is a page-specific action. Once Phase 03's reusa
 
 ## Out of scope
 
-- Sending a quote/estimate to a customer for signature — that's the e-signature/sign-off workflow, tracked separately (see Phase 11's expanded scope and the open Docusign question below)
+- Sending a quote/estimate to a customer for signature — that's the e-signature/sign-off workflow, tracked separately (see Phase 13's expanded scope and the open Docusign question below)
 - Automated recurring rate-card updates (e.g. year-over-year rate escalation) — no evidence this is needed yet, don't build speculative infrastructure
 - Sales orders (`salesOrders`/`salesOrderLines` collections exist but nothing in the notes asks for them) — leave alone unless a real need surfaces
 

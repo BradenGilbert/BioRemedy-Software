@@ -1,7 +1,7 @@
-# Phase 11 — Document Storage
+# Phase 13 — Document Storage
 
 **Status:** Not started
-**Depends on:** Phase 10 (documents must be access-controlled from day one, not retrofitted)
+**Depends on:** Phase 12 (documents must be access-controlled from day one, not retrofitted)
 **Estimated sessions:** 2
 **Gate:** Last phase before the Pilot Milestone.
 
@@ -46,7 +46,7 @@ Account, Contact, Opportunity, Project, Facility. One component, used everywhere
 
 ### 3. Access control from the start
 
-Phase 10 closes the un-gated attachment route. This phase must not reopen it:
+Phase 12 closes the un-gated attachment route. This phase must not reopen it:
 - Every file request is authorized against the parent record
 - No security-by-opaque-ID
 - Customer-visible vs internal-only is enforced server-side
@@ -65,10 +65,10 @@ Built on top of item 1's generic attachment store: a library of reusable forms/t
 
 ## Out of scope
 
-- **Cloud object storage** (S3/Azure Blob). Local disk is fine for pilot scale. `docs/crm-foundation.md` is right that large files eventually belong in object storage — but that is a Phase 12+ concern, and the schema above is written so the storage backend can change without a data migration.
-- **LiDAR / point clouds / 3D viewers.** `spatialData` holds metadata; the viewer already exists for what it supports. Stage E.
-- **SharePoint / Teams integration.** Stage E. The 2026-09-16 notes raise this again directly (*"I believe we may still use sharepoint and teams for this, but I need to figure out to what extent we want to continue our integration with that vs our own file sharing system"*) — this is an open product decision, not just a deferred build; see below.
-- **E-signature / Docusign integration.** Raised explicitly: *"For sending sign-offs and getting them back we might want to look at integrating with Docusign or something similar... We send it via email, they sign via a portal... then it returns to us and notifies the team members and/or sales team then automatically updates the CRM that it has been signed/approved."* This is a substantial integration (or a custom-built signing portal, per the note's own "maybe a local custom built one, who knows") layered on top of item 5's document archive — track as a Stage E follow-on once item 5 exists, not part of reaching the Pilot Milestone.
+- **Cloud object storage** (S3/Azure Blob). Local disk is fine for pilot scale. `docs/crm-foundation.md` is right that large files eventually belong in object storage — but that is a Phase 14+ concern, and the schema above is written so the storage backend can change without a data migration.
+- **LiDAR / point clouds / 3D viewers.** `spatialData` holds metadata; the viewer already exists for what it supports. Not yet slotted into a stage.
+- **SharePoint / Teams integration.** Not yet slotted into a stage. The 2026-09-16 notes raise this again directly (*"I believe we may still use sharepoint and teams for this, but I need to figure out to what extent we want to continue our integration with that vs our own file sharing system"*) — this is an open product decision, not just a deferred build; see below.
+- **E-signature / Docusign integration.** Raised explicitly: *"For sending sign-offs and getting them back we might want to look at integrating with Docusign or something similar... We send it via email, they sign via a portal... then it returns to us and notifies the team members and/or sales team then automatically updates the CRM that it has been signed/approved."* This is a substantial integration (or a custom-built signing portal, per the note's own "maybe a local custom built one, who knows") layered on top of item 5's document archive — track as a not-yet-slotted follow-on once item 5 exists, not part of reaching the Pilot Milestone.
 - Full-text search inside documents.
 - Retention *automation* — capture `retention_until`; act on it later.
 

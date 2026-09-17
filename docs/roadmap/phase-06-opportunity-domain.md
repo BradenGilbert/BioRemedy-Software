@@ -1,6 +1,6 @@
 # Phase 06 — Opportunity Domain Correctness
 
-**Status:** 🟢 **Substantial progress, 2026-09-17 session.** Items 2, 4, 6, 7, 8, 11, 14, 18 (already done), 19 (partial), 23 done and verified live. Item 1's close-date half also decided and shipped this session (`closeDate`/`estimatedCloseDate` → `closeQuarter`, quarter granularity — see item 1's writeup). A major architectural finding: "Associated Contacts" (Summary tab) and "Stakeholders" (Develop & Planning tab) were two independent, non-synced systems for the same concept — the former read a buggy scalar-derived array (`contact.opportunityIds`, item 6's bug) with a wrong edit dialog (item 7's bug), while the latter (`opportunityContacts`, a real many-to-many junction) already had working add/edit/remove. Consolidated onto the working system rather than building new infrastructure for items 6/7/11/19. Remaining items are either product decisions the owner needs to make (1's cleanup-type/jobClass alignment, 5's vocabulary, 20), coordinated with other phases (3 with Phase 03/05, 13 with Phase 04, 16 with Phase 11), or not yet started (9, 10, 12's remaining scope, 15, 17, 21, 22, 24, 25).
+**Status:** 🟢 **Substantial progress, 2026-09-17 session.** Items 2, 4, 6, 7, 8, 11, 14, 18 (already done), 19 (partial), 23 done and verified live. Item 1's close-date half also decided and shipped this session (`closeDate`/`estimatedCloseDate` → `closeQuarter`, quarter granularity — see item 1's writeup). A major architectural finding: "Associated Contacts" (Summary tab) and "Stakeholders" (Develop & Planning tab) were two independent, non-synced systems for the same concept — the former read a buggy scalar-derived array (`contact.opportunityIds`, item 6's bug) with a wrong edit dialog (item 7's bug), while the latter (`opportunityContacts`, a real many-to-many junction) already had working add/edit/remove. Consolidated onto the working system rather than building new infrastructure for items 6/7/11/19. Remaining items are either product decisions the owner needs to make (1's cleanup-type/jobClass alignment, 5's vocabulary, 20), coordinated with other phases (3 with Phase 03/05, 13 with Phase 04, 16 with Phase 13), or not yet started (9, 10, 12's remaining scope, 15, 17, 21, 22, 24, 25).
 **Depends on:** Phase 03 (Account domain patterns — edit-button audit, Create dropdown), Phase 05 (contact↔opportunity relationship touches the same `opportunityIds` field Phase 05 owns on the contact side)
 **Estimated sessions:** 3–4
 **Source:** `bioremedy crm notes 9.16.2026.docx`, verified against code 2026-09-16 (see per-item notes below)
@@ -154,10 +154,10 @@ No action this phase — the owner explicitly says free text is fine *for now*. 
 
 > *"If a site walk is needed and scheduled, we may want to have a field app for sales persons as well... If they click the site walk is complete, and no timeline activity for a site walk exists it could ask if the user would like to upload photos, videos, notes, lidar scans, pdfs, drawings, to a retroactively created site walk..."*
 
-This is a genuinely new capability, distinct from Front Line (which is for field *operations* crews, not sales reps). Scope it explicitly as **sales-side site-walk capture**, separate from the Front Line simulator (Phase 13):
+This is a genuinely new capability, distinct from Front Line (which is for field *operations* crews, not sales reps). Scope it explicitly as **sales-side site-walk capture**, separate from the Front Line simulator (Phase 10):
 - A capture surface (mobile-friendly, does not need to be a separate "app" — could be a responsive dialog) for photos/videos/notes/LiDAR/PDFs/drawings
 - Marking a site walk complete with no matching timeline activity prompts: "upload capture now?" → yes goes to the capture surface, no just marks complete
-- Depends on Phase 11 (Document Storage) for real file upload — do not build this before Phase 11 ships, or it will need to be rebuilt on top of real storage anyway
+- Depends on Phase 13 (Document Storage) for real file upload — do not build this before Phase 13 ships, or it will need to be rebuilt on top of real storage anyway
 
 ### 17. Advance-button validation should highlight what's missing
 
@@ -230,7 +230,7 @@ The forecast-category badge (normally "Pipeline") doesn't update to reflect the 
 ## Out of scope
 
 - Building `account_approved_subcontractors` itself — Phase 04 (item 13 here only prepares for it)
-- Real document/file upload for site-walk captures — Phase 11 (item 16 depends on it, does not duplicate it)
+- Real document/file upload for site-walk captures — Phase 13 (item 16 depends on it, does not duplicate it)
 - The Quote/Estimate button and module — Phase 08, this phase only assumes it will eventually exist
 - Splitting `activities` into per-type tables — deferred per Phase 05's own decision
 

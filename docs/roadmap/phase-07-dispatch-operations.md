@@ -71,21 +71,21 @@ Almost certainly a literal string typo somewhere (a status label constant or a t
 
 > *"on samples it mentions north view, sample interval, and container label. These are photos that should be uploaded during sampling. Can we get that added to the front line work load."*
 
-**⏸ Deferred — cross-phase, depends on Phase 13.** This is a Front Line task-type addition (a photo capture task), not a Dispatch/Operations change per se. Left untouched this session; implement in coordination with Phase 13's task-type work as originally scoped.
+**⏸ Deferred — cross-phase, depends on Phase 10.** This is a Front Line task-type addition (a photo capture task), not a Dispatch/Operations change per se. Left untouched this session; implement in coordination with Phase 10's task-type work as originally scoped.
 
 ### 8. Job dispatch templates may need a rebuild
 
 > *"to be honest we might want to adjust how we build out job dispatch templates, what all information they request from the frontline worker and then how that information is presented in the project report and sample report logs."*
 
-**⏸ Explicitly not a checklist item — revisit later, per the original scoping.** A broader "is the template model right" question spanning Dispatch (this phase), Front Line (Phase 13), and reporting (Phase 14). Left untouched this session; revisit once items 6/7/13 (Phase 13) are further along, not before.
+**⏸ Explicitly not a checklist item — revisit later, per the original scoping.** A broader "is the template model right" question spanning Dispatch (this phase), Front Line (Phase 10), and reporting (Phase 11). Left untouched this session; revisit once items 6/7/13 (Phase 10) are further along, not before.
 
 ### 9. Materials can be over-reserved beyond stock
 
 > *"materials listed in a job assignment section under materials are noted as reserved, but it is possible to reserve more than you have in stock."*
 
-A real validation gap — reserving a material against a job should check against on-hand inventory (`inventoryItems.onHand`) and either block or warn. Decide which (block vs. warn-and-allow) before implementing; environmental field work sometimes has legitimate reasons to over-commit against expected restock, so a hard block may be wrong. See Phase 14's Priority 1 item on the inventory ledger — that real ledger is the eventual right foundation for this check; decide whether to build a lighter interim check now or wait.
+A real validation gap — reserving a material against a job should check against on-hand inventory (`inventoryItems.onHand`) and either block or warn. Decide which (block vs. warn-and-allow) before implementing; environmental field work sometimes has legitimate reasons to over-commit against expected restock, so a hard block may be wrong. See Phase 11's Priority 1 item on the inventory ledger — that real ledger is the eventual right foundation for this check; decide whether to build a lighter interim check now or wait.
 
-**✅ CONFIRMED and fixed 2026-09-17 — added mid-session once the owner decision came back.** `saveDispatchAssignMaterial()` (`app.js`) had no check at all against `inventoryItems.onHand` — any quantity could be reserved regardless of stock. **Owner decision (2026-09-17): warn but allow, don't block** — environmental field work legitimately over-commits against expected restock sometimes. Implemented as a lightweight interim check (explicitly not the real inventory ledger from Phase 14): on save, sums all active (`status: "Reserved"`) `jobResources` for that `inventoryItemId` across every job, compares the new total against `item.onHand`, and if it exceeds on-hand stock shows a toast warning naming the item and quantities — the reservation still saves either way. Also added a persistent "Over stock" badge (not just a one-time toast) on any material resource row whose combined reservations exceed on-hand, so the condition stays visible after the toast disappears. Verified live: reserved 999,999 bags of a material with 16 on hand — the reservation saved, a warning toast named the exact over-reservation amount, and the "Over stock" badge appeared on the resource row and persisted after reload.
+**✅ CONFIRMED and fixed 2026-09-17 — added mid-session once the owner decision came back.** `saveDispatchAssignMaterial()` (`app.js`) had no check at all against `inventoryItems.onHand` — any quantity could be reserved regardless of stock. **Owner decision (2026-09-17): warn but allow, don't block** — environmental field work legitimately over-commits against expected restock sometimes. Implemented as a lightweight interim check (explicitly not the real inventory ledger from Phase 11): on save, sums all active (`status: "Reserved"`) `jobResources` for that `inventoryItemId` across every job, compares the new total against `item.onHand`, and if it exceeds on-hand stock shows a toast warning naming the item and quantities — the reservation still saves either way. Also added a persistent "Over stock" badge (not just a one-time toast) on any material resource row whose combined reservations exceed on-hand, so the condition stays visible after the toast disappears. Verified live: reserved 999,999 bags of a material with 16 on hand — the reservation saved, a warning toast named the exact over-reservation amount, and the "Over stock" badge appeared on the resource row and persisted after reload.
 
 ### 10. Expired credentials/certifications have no update/clear path
 
@@ -99,7 +99,7 @@ A real validation gap — reserving a material against a job should check agains
 
 > *"Project status never moves to mobilize or field work when it is clearly scheduled and completed."*
 
-This directly matches an already-known-open item from the roadmap: **`projects.projectStage` is written at creation but never read** (`docs/roadmap/README.md`'s "Known-open items," slotted to Phase 14 before this notes pass). This note may be describing the exact same root cause. **Do not treat this as a new bug — cross-check against that known item first** and consolidate into one fix rather than debugging it twice from scratch.
+This directly matches an already-known-open item from the roadmap: **`projects.projectStage` is written at creation but never read** (`docs/roadmap/README.md`'s "Known-open items," slotted to Phase 11 before this notes pass). This note may be describing the exact same root cause. **Do not treat this as a new bug — cross-check against that known item first** and consolidate into one fix rather than debugging it twice from scratch.
 
 **✅ CONFIRMED as the exact same root cause as the known-open item — consolidated into one fix, not debugged twice.** `projectStage` (`PROJECT_STAGES = ["Intake", "Plan", "Mobilize", "Field Work", "Closeout"]`) was written once at project creation (`saveProjectFromOpportunity`) and never read anywhere — `getJobProgress()`, the function every stage-ladder UI (`app.js`, 4 render sites) calls to compute which stage to highlight, derived `stageIndex` purely from free-text keyword matching against `job.status`/`job.activePhase` (e.g. does the text contain "mobil" or "field"). Since nothing ever wrote new keywords into `activePhase` as a project's actual dispatch work progressed, a project could have a fully closed, completed dispatch job and still show as stuck on "Intake." Fixed in two parts: (1) `getJobProgress()` now reads `job.projectStage` first when present, only falling back to the old text heuristic for legacy records that predate the field; (2) a new `advanceProjectStageFromDispatchStatus(projectId, dispatchStatus)`, called from `advanceDispatchJob()` every time a dispatch job's status changes, maps the dispatch status onto `PROJECT_STAGES` (`scheduled`/`dispatched`/`acknowledged`/`en_route` → Mobilize, `on_site`/`in_progress` → Field Work, `field_complete`/`office_review`/`closed` → Closeout) and writes both `projectStage` and `activePhase` on the project — never moving it backwards. Verified live: took a real dispatch job (linked to the "UST removal and soil remediation" project, stuck on Intake at the start of the session) through every transition from `Ready` to `Closed`, and confirmed the project detail page's stage ladder lit up Intake → Plan → Mobilize → Field Work → Closeout in step, ending fully progressed at 97% complete.
 
@@ -123,9 +123,9 @@ The intake panel's "site" field should default to (or directly reference) whatev
 
 ## Out of scope
 
-- The inventory ledger itself (lots, reorder rules, receiving) — Phase 14 Priority 1 item; item 9 here is a narrower interim check, not the full ledger
+- The inventory ledger itself (lots, reorder rules, receiving) — Phase 11 Priority 1 item; item 9 here is a narrower interim check, not the full ledger
 - Billing/invoicing on project close — Phase 09
-- Front Line task-type work (photo capture, multi-sample) — Phase 13
+- Front Line task-type work (photo capture, multi-sample) — Phase 10
 
 ---
 
@@ -153,7 +153,7 @@ None. Every fix in this phase wired new or corrected UI/logic onto fields that a
 ## Open decisions
 
 - **Resource planning: job-centric or schedule-board-centric?** (item 4) — still open, not addressed this session
-- **Template rebuild scope and timing** relative to Phase 13/14 (item 8) — still open, not addressed this session
+- **Template rebuild scope and timing** relative to Phase 10/11 (item 8) — still open, not addressed this session
 - ~~**Over-reservation: block or warn?**~~ (item 9) — ✅ resolved 2026-09-17: warn but allow, implemented
 
 ---

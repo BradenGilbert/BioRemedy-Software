@@ -1,6 +1,6 @@
 # Phase 04 — Vendor & Subcontractor
 
-**Status:** 🟢 **Most items done, 2026-09-17 session.** Items 1, 2, 3 (core build), 6, 10, 11, and 13 (documentation) done and click-tested live. Item 4 partially done (header badge shipped; the filterable list view was not). Items 7, 8 (vocab only, not upload+review), 9 (vocab only, not upload+review), 12, 14 not started — mostly blocked on Phase 08 (rate cards) or Phase 11 (document storage) per this doc's own dependency notes. Item 5 not started — bigger than the doc originally implied, see its corrected section below.
+**Status:** 🟢 **Most items done, 2026-09-17 session.** Items 1, 2, 3 (core build), 6, 10, 11, and 13 (documentation) done and click-tested live. Item 4 partially done (header badge shipped; the filterable list view was not). Items 7, 8 (vocab only, not upload+review), 9 (vocab only, not upload+review), 12, 14 not started — mostly blocked on Phase 08 (rate cards) or Phase 13 (document storage) per this doc's own dependency notes. Item 5 not started — bigger than the doc originally implied, see its corrected section below.
 **Depends on:** Phase 02 (vendor dispatch/billing address types), Phase 03 (account type classification)
 **Soft dependency:** items 7, 13, and 14 (rate-card questions) need Phase 08's rate/pricing foundation to exist first — sequence those three after Phase 08, or expect to redo them. Items 1–6 and 8–12 do not depend on Phase 08 and can proceed independently.
 **Estimated sessions:** 2–3
@@ -37,7 +37,7 @@ Customers frequently maintain their own approved-vendor lists. A sub who is full
 | `status` | Approved / Pending / Rejected / Expired |
 | `approved_scope` | What work they're approved for |
 | `approved_from` / `approved_until` | Customer approvals expire |
-| `evidence_file_id` | The customer's approval letter (real storage lands in Phase 11) |
+| `evidence_file_id` | The customer's approval letter (real storage lands in Phase 13) |
 | `notes` | |
 
 ### Layer 3 — Which sub is on *this job*?
@@ -79,7 +79,7 @@ New collection, new picker ("approve a subcontractor for this customer"), expiry
 
 **Note:** `vendorProfiles.subcontractorPermitted` (Unknown/Approved/Denied) already exists as a *blanket*, non-customer-specific flag on the vendor's own record — confirmed 2026-09-17. This phase doesn't touch that field; it's a separate, coarser gate that can coexist with the new per-customer Layer 2 table (a vendor could be blanket-`Approved` generally but still need per-customer approval for a specific account, or vice versa — not a conflict, just two different questions).
 
-**✅ Done 2026-09-17.** New collection `accountApprovedSubcontractors` (registered in `server.mjs`'s `collectionAccess`/`defaultBackend`/bootstrap-hydration map, role `salesDocuments` — matching `vendorProfiles`/`serviceAgreements`/`subcontractorAssignments`). Fields: `accountId` (customer), `subcontractorAccountId` (vendor), `status` (Pending/Approved/Rejected/Expired), `approvedScope`, `approvedFrom`, `approvedUntil`, `notes` — `evidence_file_id` deliberately omitted, real uploads are Phase 11. New dialog `#approvedSubcontractorDialog`, vendor picker sourced from `vendorAccounts()` (accounts with `accountType === "Vendor"` or an existing vendor profile). Card renderer shows an expiry badge via the same `isExpiringOrExpired()` helper used for the header badge (item 4). **Not done:** the dispatch-time approval check (moved into item 5's scope, since it can't be built before item 5's own gap is closed — see that item's correction).
+**✅ Done 2026-09-17.** New collection `accountApprovedSubcontractors` (registered in `server.mjs`'s `collectionAccess`/`defaultBackend`/bootstrap-hydration map, role `salesDocuments` — matching `vendorProfiles`/`serviceAgreements`/`subcontractorAssignments`). Fields: `accountId` (customer), `subcontractorAccountId` (vendor), `status` (Pending/Approved/Rejected/Expired), `approvedScope`, `approvedFrom`, `approvedUntil`, `notes` — `evidence_file_id` deliberately omitted, real uploads are Phase 13. New dialog `#approvedSubcontractorDialog`, vendor picker sourced from `vendorAccounts()` (accounts with `accountType === "Vendor"` or an existing vendor profile). Card renderer shows an expiry badge via the same `isExpiringOrExpired()` helper used for the header badge (item 4). **Not done:** the dispatch-time approval check (moved into item 5's scope, since it can't be built before item 5's own gap is closed — see that item's correction).
 
 ### 4. Expiry visibility
 
@@ -119,9 +119,9 @@ Same class of bug as the Account/Contact owner-field problems in Phases 03/05/06
 
 > *"On Vendor compliance W-9 should ask for a copy to be uploaded, then it messages the office admin for review and approval before marking it as 'approved'. The other options should be 'Missing', 'Under Review', 'Approved', 'Expired', and 'Needs Attention'."*
 
-Needs: file upload (depends on Phase 11), a notification to office admin on submission (no notification infrastructure exists yet per `docs/roadmap/phase-14-field-ops-depth.md`'s "Approvals & notifications" gap — decide whether to build a minimal one-off notification here or wait), and the five-state status vocabulary replacing whatever exists today.
+Needs: file upload (depends on Phase 13), a notification to office admin on submission (no notification infrastructure exists yet per `docs/roadmap/phase-11-field-ops-depth.md`'s "Approvals & notifications" gap — decide whether to build a minimal one-off notification here or wait), and the five-state status vocabulary replacing whatever exists today.
 
-**🟡 Partially done 2026-09-17 — vocabulary only.** `w9Status` options replaced with the exact five states asked for (`Missing`/`Under Review`/`Approved`/`Expired`/`Needs Attention`); the old `Received` value had no direct equivalent in the new vocabulary, so existing seed rows were remapped `Received` → `Approved` (closest match — a W-9 that was "received" and never flagged otherwise is functionally what "Approved" means here). `computeSubcontractingEligibility()` updated to check `w9Status === "Approved"` instead of the old `"Received"`. **Not done:** upload UI and the office-admin review/notification step — both explicitly depend on Phase 11 (uploads) and an undecided notification approach, per this item's own scoping.
+**🟡 Partially done 2026-09-17 — vocabulary only.** `w9Status` options replaced with the exact five states asked for (`Missing`/`Under Review`/`Approved`/`Expired`/`Needs Attention`); the old `Received` value had no direct equivalent in the new vocabulary, so existing seed rows were remapped `Received` → `Approved` (closest match — a W-9 that was "received" and never flagged otherwise is functionally what "Approved" means here). `computeSubcontractingEligibility()` updated to check `w9Status === "Approved"` instead of the old `"Received"`. **Not done:** upload UI and the office-admin review/notification step — both explicitly depend on Phase 13 (uploads) and an undecided notification approach, per this item's own scoping.
 
 ### 9. Insurance/COI upload + review workflow
 
@@ -129,7 +129,7 @@ Needs: file upload (depends on Phase 11), a notification to office admin on subm
 
 Same shape as item 8 — upload, review/approval step, and a five-state vocabulary (`Valid`/`Under Review`/`Expired`/`Expiring`/`Waived`) distinct from W-9's vocabulary. Build the upload+review pattern once and reuse it for both items 8 and 9 rather than two parallel implementations.
 
-**🟡 Partially done 2026-09-17 — vocabulary only.** `insuranceStatus` already had 4 of the 5 target states; added `Under Review` to complete the set (`Valid`/`Under Review`/`Expiring`/`Expired`/`Waived`). No seed-data remapping needed — all existing values were already valid under the new list. **Not done:** upload UI and review workflow, same reason as item 8. The shared upload+review pattern this item asks to build once (for both 8 and 9) still needs to happen when Phase 11 lands — nothing built here should need rework then, since only the vocabulary changed, not the field shape.
+**🟡 Partially done 2026-09-17 — vocabulary only.** `insuranceStatus` already had 4 of the 5 target states; added `Under Review` to complete the set (`Valid`/`Under Review`/`Expiring`/`Expired`/`Waived`). No seed-data remapping needed — all existing values were already valid under the new list. **Not done:** upload UI and review workflow, same reason as item 8. The shared upload+review pattern this item asks to build once (for both 8 and 9) still needs to happen when Phase 13 lands — nothing built here should need rework then, since only the vocabulary changed, not the field shape.
 
 ### 10. Performance rating should be a real A–F dropdown
 
@@ -179,9 +179,9 @@ A rate card (a whole schedule of rates) and a single rate amount + rate type (on
 
 ## Out of scope
 
-- Real document storage for certificates and approval letters. Phase 11 — capture metadata and file references now, wire real uploads later.
-- Automated insurance-certificate expiry *notifications*. Surface expiry in the UI here; notification infrastructure is Stage E.
-- Vendor bills, payments, and AP. Accounting is Phase 14.
+- Real document storage for certificates and approval letters. Phase 13 — capture metadata and file references now, wire real uploads later.
+- Automated insurance-certificate expiry *notifications*. Surface expiry in the UI here; notification infrastructure is not yet slotted into a stage.
+- Vendor bills, payments, and AP. Accounting is Phase 11.
 - Building the underlying quote/rate-card line-item system — Phase 08. Items 7 and 13 here only consume it.
 
 ---
@@ -207,10 +207,10 @@ Update `docs/database-handoff-map.md` (Priority 1 item 4 partially closes) and `
 - [ ] Allocate a subcontractor to a job and see the approval check fire for that job's customer — blocked on item 5, not started
 - [x] An account that is both a client and a vendor shows both sections correctly (2026-09-17, verified live on Balfour Services)
 - [x] Vendor Compliance approvals attribute to a real employee, not a placeholder name (2026-09-17)
-- [ ] Uploading a W-9 or COI triggers a review step before the status can reach Approved/Valid — blocked on Phase 11
+- [ ] Uploading a W-9 or COI triggers a review step before the status can reach Approved/Valid — blocked on Phase 13
 - [x] Performance rating renders as a real letter-grade dropdown (2026-09-17)
 - [x] A new vendor account gets an auto-generated Vendor ID with no manual entry (2026-09-17, verified live — `VEND-0001` suggested, still editable)
-- [ ] Selecting an agreement type (MSA / Standing Work Order / Rate Agreement) offers its matching template — not started, needs Phase 11 for custom-upload review
+- [ ] Selecting an agreement type (MSA / Standing Work Order / Rate Agreement) offers its matching template — not started, needs Phase 13 for custom-upload review
 - [x] The three-way client/vendor/both document matrix (item 13) is written down and the service-agreement panel matches it (2026-09-17 — see item 13's resolved matrix; panel now labels each tracker by direction)
 
 ---
@@ -219,10 +219,10 @@ Update `docs/database-handoff-map.md` (Priority 1 item 4 partially closes) and `
 
 - **Does an expired customer approval block dispatch, or just warn?** Recommendation: warn loudly, allow override with a reason and an audit event — matching the existing dispatcher-override pattern in `docs/erp-operational-architecture.md`.
 - **Is customer approval per-scope or blanket?** The `approved_scope` column assumes per-scope; confirm whether that granularity is real or whether a blanket approval is enough.
-- **Who maintains the approved list** — sales, ops, or compliance? Affects which role can write to it in Phase 10.
+- **Who maintains the approved list** — sales, ops, or compliance? Affects which role can write to it in Phase 12.
 - ~~**Vendor ID convention**~~ — ✅ Resolved 2026-09-17: `VEND-####`, sequential, auto-suggested but editable. See item 11.
 - ~~**Performance rating scale**~~ — ✅ Resolved 2026-09-17: A–F with +/- modifiers on A/B/C/D. See item 10.
-- **Notification on W-9/COI submission** — build a minimal one-off notification now, or wait for Phase 14's "Approvals & notifications" gap to close? (items 8, 9) — still open, blocked on Phase 11 for uploads regardless.
+- **Notification on W-9/COI submission** — build a minimal one-off notification now, or wait for Phase 11's "Approvals & notifications" gap to close? (items 8, 9) — still open, blocked on Phase 13 for uploads regardless.
 
 ---
 

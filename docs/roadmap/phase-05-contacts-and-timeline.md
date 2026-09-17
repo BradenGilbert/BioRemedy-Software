@@ -165,7 +165,7 @@ Same shared filter/search-button component as Phase 03 item 6 and Phase 06 item 
 
 - Splitting `activities` into dedicated Meeting/Call/Email/Task tables — explicitly deferred (item 2)
 - Migrating `activity_type = 'Task'` rows into `sales_tasks` — same deferral
-- Communication history sync with Outlook — Stage E
+- Communication history sync with Outlook — not yet slotted into a stage
 
 ---
 

@@ -114,7 +114,7 @@ The account's "Facilities and Locations" tab (id unchanged: `facilities-location
 - Purge automation for expired locations (capture `retain_until`; act on it later)
 - Map/GIS work beyond what already exists
 - Contact addresses — `customer_addresses` stays as-is; `addresses` is account-scoped only
-- Dropping the legacy `accounts.*_address_*` columns. Mark deprecated, migrate reads, drop in Phase 12.
+- Dropping the legacy `accounts.*_address_*` columns. Mark deprecated, migrate reads, drop in Phase 14.
 
 ---
 
