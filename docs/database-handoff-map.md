@@ -4,7 +4,10 @@
 collection move updated August 17, 2026; `accounts`/`contacts` move and collection
 counts updated September 15, 2026; Phase 01 completion and Phase 02 Places Model
 rename -- `locations`->`facilities`, `mapLocations`->`locations`, new
-`facilityContacts` -- updated September 16, 2026)
+`facilityContacts` -- updated September 16, 2026; Phase 03 account-domain work --
+new `facilityComments` collection (site notes on the new Facility detail page,
+mirrors `accountComments`), `accounts.ownerEmployeeId` now a real FK -- updated
+September 16, 2026)
 
 ## Executive Summary
 
@@ -282,14 +285,16 @@ gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
 was retired the same way, same day: removed from `server.mjs` entirely and
 deleted from `data/backend.json`.
 
-### Node JSON Backend - 83 collections
+### Node JSON Backend - 84 collections
 
-> The count was previously documented as 72, then 76, then 82. Recounted
-> directly from both `data/backend.json`'s top-level keys and `server.mjs`'s
-> `defaultBackend` object on September 16, 2026, after Phase 02 (Places Model)
-> added `facilityContacts` (the account-facility-vs-old-`locations`-collection
-> rename below is a rename, not a count change): **83**. Recount from source
-> when it matters, don't trust the running tally.
+> The count was previously documented as 72, then 76, then 82, then 83.
+> Recounted directly from both `data/backend.json`'s top-level keys and
+> `server.mjs`'s `defaultBackend` object on September 16, 2026, after Phase 02
+> (Places Model) added `facilityContacts` (the account-facility-vs-old-`locations`-collection
+> rename below is a rename, not a count change): 83, then again the same day
+> after Phase 03 (Account Domain) added `facilityComments` (site notes on the
+> new Facility detail page, mirrors `accountComments`): **84**. Recount from
+> source when it matters, don't trust the running tally.
 
 > **Phase 02 rename, September 16, 2026:** the old `locations` collection
 > (Account Facilities) is now `facilities`, and the old `mapLocations`

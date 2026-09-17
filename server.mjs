@@ -137,6 +137,7 @@ const collectionAccess = {
   addresses: "sales",
   facilities: "sales",
   facilityContacts: "sales",
+  facilityComments: "sales",
   salesTasks: "sales",
   accountRelationshipExtensions: "sales",
   accountComments: "sales",
@@ -1906,6 +1907,7 @@ const defaultBackend = {
   salesTasks: [],
   accountRelationshipExtensions: [],
   accountComments: [],
+  facilityComments: [],
   accountDivisions: [],
   contactEmploymentHistory: [],
   subcontractorTypes: [
@@ -2081,6 +2083,7 @@ function filterBackendForRole(data, role) {
     salesTasks: canAccess(role, "sales") ? data.salesTasks : [],
     accountRelationshipExtensions: canAccess(role, "sales") ? data.accountRelationshipExtensions : [],
     accountComments: canAccess(role, "sales") ? data.accountComments : [],
+    facilityComments: canAccess(role, "sales") ? data.facilityComments : [],
     accountDivisions: canAccess(role, "sales") ? data.accountDivisions : [],
     contactEmploymentHistory: canAccess(role, "sales") ? data.contactEmploymentHistory : [],
     subcontractorTypes: canAccess(role, "salesDocuments") ? data.subcontractorTypes : [],
@@ -2194,6 +2197,7 @@ function normalizeRecord(collection, payload, data) {
       contactId: payload.contactId || "",
       relationshipRole: payload.relationshipRole || "Works At",
       isPrimary: Boolean(payload.isPrimary),
+      deletedAt: payload.deletedAt || "",
     };
   }
 

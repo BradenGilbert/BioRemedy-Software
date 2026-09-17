@@ -184,6 +184,15 @@ Concrete, add alongside the existing header actions once the opportunity→proje
 
 The forecast-category badge (normally "Pipeline") doesn't update to reflect the resulting project's actual stage once won. Pull the linked project's stage into this badge, mirroring however the Delivery Tracker view already tracks won-opportunity → project status (reuse that logic/component rather than re-deriving it).
 
+### 25. Core "Opportunity" panel's Edit dialog doesn't match what the panel displays, and Owner/Deal Type/Decision Maker/Competitor are permanently non-editable
+
+**CONFIRMED 2026-09-16**, found during Phase 03's edit-button audit (not from the notes doc — a code-level finding, added here because it's squarely Opportunity-domain work, not an Account fix). Full detail in `phase-03-account-domain.md`'s item 2 section; summary:
+
+- The Summary tab's "Opportunity" panel displays 8 fields (Account, Site/facility, Primary contact, Owner, Deal type, Service type, Industry, Source campaign — `app.js`, `renderOpportunityMainInformation`), but its Edit button opens `#opportunityDialog`, which only actually edits **Account** and **Service type** from that list — the dialog instead carries Value/Close date/Status/Next step, none of which this panel shows.
+- **Owner** and **Deal type** (this panel) and **Decision maker**/**Competitor** (the separate "Situation & solution" panel) have **no edit path anywhere in the app** — confirmed by grep across `app.js`/`index.html`, not just "hard to find." `owner` always resolves to `account?.owner || "Unassigned"`; `dealType` always defaults to `"New Business"`; `decisionMaker`/`competitor` are similarly only ever defaulted, never settable.
+- Two separable decisions needed before fixing: (a) should the core dialog be redesigned to actually cover what the panel shows (add Site/facility, Primary contact, Owner, Industry, Source campaign fields), or should the panel be trimmed to only show what's genuinely editable there today? (b) should Opportunity `owner` follow the same `ownerEmployeeId`-FK-to-employees pattern Phase 03 just built for Accounts (see that doc's item 1/4), given the same "picker resolves to a display string, no FK" gap likely exists here too — not yet verified whether an opportunity-owner picker exists at all.
+- Also found in the same audit pass: editing a historical (non-"Current") quote from the Quote panel used to silently reassign it as the opportunity's current quote. **Already fixed** in `saveOpportunityQuote` (`app.js`) as part of the Phase 03 audit — no action needed here, noted for awareness only.
+
 ---
 
 ## Out of scope
@@ -230,6 +239,7 @@ Update `docs/database-handoff-map.md` when any of the above land.
 - **Won/lost contact associations:** auto-drop from the active list, or move to a "past opportunities" section mirroring item 12's "formerly associated" pattern? (item 6)
 - **Opportunity-scoped relationship tags:** final vocabulary beyond "Decision Maker" (item 19)
 - **"Regarding" field:** same concept as an activity tag, or a distinct free-text subject? (item 20)
+- **Core Opportunity dialog scope:** redesign it to cover everything the Summary panel displays, or trim the panel to only show what's editable today? And should Owner become an `ownerEmployeeId` FK like Accounts got in Phase 03? (item 25)
 
 ---
 

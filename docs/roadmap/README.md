@@ -42,7 +42,7 @@ This means `laravel-ready/` is **deprecated**. It converted only the first 12 of
 | Layer | State |
 |---|---|
 | Browser IndexedDB | As of 2026-09-16: **every core CRM collection has moved to the shared backend** (Phase 01, now complete) — accounts, contacts, projects (formerly `jobs`), tasks, activities, project assignments, project alerts, material usage, equipment logs, scheduled work, spatial data. Only `syncQueue` and `settings` remain per-browser, correctly (device-scoped by definition). |
-| Node JSON backend | 83 collections (recounted from source, not running arithmetic — see `docs/database-handoff-map.md`), shared across users — opportunities, facilities, dispatch jobs, work plans, employees, inventory, quotes, invoices, plus everything Phase 01 moved in from IndexedDB. Phase 02 (2026-09-16) renamed `locations`→`facilities` and `mapLocations`→`locations` to match the glossary, and added `facilityContacts`. |
+| Node JSON backend | 84 collections (recounted from source, not running arithmetic — see `docs/database-handoff-map.md`), shared across users — opportunities, facilities, dispatch jobs, work plans, employees, inventory, quotes, invoices, plus everything Phase 01 moved in from IndexedDB. Phase 02 (2026-09-16) renamed `locations`→`facilities` and `mapLocations`→`locations` to match the glossary, and added `facilityContacts`. Phase 03 (2026-09-16) added `facilityComments`. |
 | PostgreSQL schema | 28 migration files, 141 tables, 27 views — **designed, never deployed** |
 | `laravel-ready/` | First 12 tables only. Deprecated as of 2026-09-15. |
 | Version control | **None.** No git repository. |
@@ -77,7 +77,7 @@ The felt pain. Almost every item on the 2026-09-15 and 2026-09-16 feedback lists
 | Phase | Name | Status |
 |---|---|---|
 | 02 | [The Places Model — Facility / Address / Location](phase-02-places-model.md) | ✅ **Complete 2026-09-16** — collections renamed, dialogs split, every address type visible, Edit-is-Add fixed, `facility_contacts` junction built, retention fields shipped, account tab consolidated |
-| 03 | [Account Domain Correctness](phase-03-account-domain.md) | 🟡 **Partially started 2026-09-16** — header title + Sales "+ Create" dropdown shipped ad hoc; Owner field no longer free text (still not sales-role-filtered, still no `ownerEmployeeId` FK) |
+| 03 | [Account Domain Correctness](phase-03-account-domain.md) | 🟢 **Nearly complete 2026-09-16** — Create Account form rebuilt, industry editing wired up, owner FK written, Account/Contact-detail "+ Create" menus shipped, facility-contact edit/remove shipped, new Facility detail page (satellite map, prior work history, site notes) shipped, new Account "Contacts" tab shipped, full 72-panel edit-button audit done (2 real bugs found and fixed: a Contact `accountRole` data-corruption bug and an Opportunity quote "Current" reassignment bug). Only 2 items left, both blocked on the owner: list-filter-cleanup ambiguity (item 6) and an unresolved "remove the Account Table" note (item 7) |
 | 04 | [Vendor & Subcontractor](phase-04-vendor-subcontractor.md) | Not started |
 | 05 | [Contacts & Activity Timeline](phase-05-contacts-and-timeline.md) | Not started |
 | 06 | [Opportunity Domain Correctness](phase-06-opportunity-domain.md) | Not started |
@@ -135,7 +135,7 @@ Most of what's needed already exists in `crm-schema/` — the prototype simply d
 
 Do not re-plan these. They are done and verified.
 
-- **Account detail page** — 8-tab redesign, header cleanup, activity-dialog overhaul.
+- **Account detail page** — originally an 8-tab redesign with header cleanup and activity-dialog overhaul; a 9th tab (Contacts) was added in Phase 03 (2026-09-16).
 - **Contact detail page** — 7-tab redesign; added `contacts.birthday`, `contactEmploymentHistory`, `opportunities.status` with a real `Lost` value.
 - **Opportunity detail page** — 5-tab redesign + stage-gate pipeline (2026-08-10), verification gap closed and an off-by-one stage-gate bug fixed (2026-08-17), Summary layout rebuilt into focused panels + metric strip (2026-08-28).
 - **Cleanup roadmap, Rounds 1–4** (~50 items across Account, Contact, Opportunity, Operations, Workforce) — all shipped and verified 2026-08-17. Full detail in `docs/dataverse-relationship-architecture.md`.
@@ -143,6 +143,7 @@ Do not re-plan these. They are done and verified.
 - **Dispatch Job Detail** — rebuilt into a tabbed page with real employee/equipment/material pickers.
 - **Phase 01 — One Shared Data Layer** — every core CRM collection (accounts, contacts, projects, tasks, activities, project assignments/alerts, material usage, equipment logs, scheduled work, spatial data) migrated from per-browser IndexedDB to the shared JSON backend, role-gated, and verified live 2026-09-16. IndexedDB now holds only device-scoped state.
 - **Phase 02 — The Places Model** — `locations`/`mapLocations` renamed to `facilities`/`locations` to match the glossary (with every FK renamed alongside), the combined Facility/GPS dialog split in two, every address type now visible (not just Bill To), the Edit-is-Add billing-address bug fixed, facility `status`→`badge`, a new `facilityContacts` junction (contact works-at/manages facility) surfaced on both the facility and contact pages, retention fields on temporary GPS locations with a 24-month default, and the account page consolidated into one "Locations & Addresses" tab. Verified live 2026-09-16.
+- **Phase 03 — Account Domain Correctness (nearly complete)** — Create Account form rebuilt (no forced facility, real industry picker, sales-role-filtered `ownerEmployeeId` FK, inline optional address capture), industry editing reachable from Company Profile, context-aware "+ Create" menus on Account/Contact detail pages, facility-contact add/edit/remove, a new Facility detail page (location, contacts, site notes, satellite map via Esri imagery, prior work history), a new Account "Contacts" tab (full org contact directory), and a full 72-panel edit-button audit across Account/Contact/Opportunity detail pages that found and fixed two real bugs (a Contact `accountRole` data-corruption bug and an Opportunity quote "Current"-reassignment bug) plus flagged a structural Opportunity-dialog gap into Phase 06. Verified live 2026-09-16. Only 2 items left, both blocked on owner clarification, not engineering — see the phase doc.
 
 ## Known-open items carried in from previous work
 

@@ -306,6 +306,7 @@ const viewWorkspace = {
   "sales-race": "sales",
   "opportunity-detail": "sales",
   "account-detail": "sales",
+  "facility-detail": "sales",
   "contact-detail": "sales",
   operations: "operations",
   fieldwork: "operations",
@@ -1479,6 +1480,7 @@ const state = {
   operationsFilter: "All",
   taskFilter: "Open",
   selectedAccountId: "",
+  selectedFacilityId: "",
   selectedContactId: "",
   selectedOpportunityId: "",
   selectedProjectId: "",
@@ -2093,7 +2095,11 @@ async function handleClick(event) {
   if (action === "remove-contact-employment") await removeContactEmployment(id);
   if (action === "open-account-pause") openAccountPauseDialog(actionButton.dataset.accountId);
   if (action === "open-facility") openFacilityDialog(actionButton.dataset.accountId, id);
-  if (action === "open-facility-contact") openFacilityContactDialog(actionButton.dataset.facilityId, actionButton.dataset.accountId);
+  if (action === "open-facility-contact") openFacilityContactDialog(actionButton.dataset.facilityId, actionButton.dataset.accountId, id);
+  if (action === "remove-facility-contact") await removeFacilityContact(id);
+  if (action === "view-facility") viewFacility(id);
+  if (action === "open-facility-comment") openFacilityCommentDialog(actionButton.dataset.facilityId);
+  if (action === "remove-facility-comment") await removeFacilityComment(id);
   if (action === "switch-account-tab") {
     state.accountDetailTab = actionButton.dataset.tab;
     render();
@@ -2354,6 +2360,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "account-pause") await saveAccountPause(form);
   if (form.dataset.form === "account-facility") await saveFacility(form);
   if (form.dataset.form === "facility-contact") await saveFacilityContact(form);
+  if (form.dataset.form === "facility-comment") await saveFacilityComment(form);
   if (form.dataset.form === "service-agreement") await saveServiceAgreement(form);
   if (form.dataset.form === "subcontractor-assignment") await saveSubcontractorAssignment(form);
   if (form.dataset.form === "contact-preferences") await saveContactPreferences(form);
@@ -2564,6 +2571,7 @@ function render() {
   }
   if (state.view !== "ops-map") cleanupOperationsMap();
   if (!["client-dashboard", "client-spills"].includes(state.view)) cleanupClientSpillMap();
+  if (state.view !== "facility-detail") cleanupFacilityMap();
   if (!["project-detail", "sample-detail"].includes(state.view)) cleanupProjectDetailVisuals();
   if (state.view !== "frontline-job-detail") cleanupSignaturePad();
   appShell.classList.toggle("home-mode", state.view === "home");
@@ -2579,6 +2587,7 @@ function render() {
   if (state.view === "opportunity-detail") renderOpportunityDetail();
   if (state.view === "accounts") renderAccounts();
   if (state.view === "account-detail") renderAccountDetail();
+  if (state.view === "facility-detail") renderFacilityDetail();
   if (state.view === "contacts") renderContacts();
   if (state.view === "contact-detail") renderContactDetail();
   if (state.view === "sales-race") renderSalesRaceTrack();
@@ -2644,6 +2653,7 @@ function render() {
 
 const ROUTE_ID_FIELDS = [
   "selectedAccountId",
+  "selectedFacilityId",
   "selectedContactId",
   "selectedOpportunityId",
   "selectedProjectId",
@@ -2736,6 +2746,32 @@ function renderQuickActions() {
     actions.push(`<button class="primary-button" type="button" data-action="open-job-request">New job request</button>`);
   } else if (activeWorkspace === "workforce") {
     actions.push(`<button class="primary-button" type="button" data-action="open-employee">Add employee</button>`);
+  } else if (state.view === "account-detail" && state.selectedAccountId && canAccessView("pipeline")) {
+    const accountId = state.selectedAccountId;
+    actions.push(`
+      <details class="create-menu">
+        <summary class="primary-button">+ Create</summary>
+        <div class="create-menu-list">
+          <button type="button" data-action="open-contact" data-account-id="${escapeAttribute(accountId)}">Contact</button>
+          <button type="button" data-action="open-opportunity" data-account-id="${escapeAttribute(accountId)}">Opportunity</button>
+          <button type="button" data-action="open-facility" data-account-id="${escapeAttribute(accountId)}">Facility</button>
+          <button type="button" data-action="open-address" data-account-id="${escapeAttribute(accountId)}">Address</button>
+          <button type="button" data-action="open-map-location">Location</button>
+          <button type="button" data-action="open-note" data-account-id="${escapeAttribute(accountId)}">Activity</button>
+        </div>
+      </details>
+    `);
+  } else if (state.view === "contact-detail" && state.selectedContactId && canAccessView("pipeline")) {
+    const contact = findContact(state.selectedContactId);
+    actions.push(`
+      <details class="create-menu">
+        <summary class="primary-button">+ Create</summary>
+        <div class="create-menu-list">
+          <button type="button" data-action="open-opportunity" data-account-id="${escapeAttribute(contact?.accountId || "")}">Opportunity</button>
+          <button type="button" data-action="open-note" data-account-id="${escapeAttribute(contact?.accountId || "")}" data-contact-id="${escapeAttribute(state.selectedContactId)}">Activity</button>
+        </div>
+      </details>
+    `);
   } else if (activeWorkspace === "sales" && canAccessView("pipeline")) {
     actions.push(`
       <details class="create-menu">
@@ -2824,7 +2860,7 @@ function getDefaultAllowedView() {
 function isActiveModule(moduleView) {
   if (moduleView === state.view) return true;
   if (moduleView === "pipeline" && state.view === "opportunity-detail") return true;
-  if (moduleView === "accounts" && state.view === "account-detail") return true;
+  if (moduleView === "accounts" && (state.view === "account-detail" || state.view === "facility-detail")) return true;
   if (moduleView === "contacts" && state.view === "contact-detail") return true;
   if (moduleView === "ops-projects" && ["project-detail", "sample-detail"].includes(state.view)) return true;
   if (moduleView === "dispatch-jobs" && state.view === "dispatch-job-detail") return true;
@@ -4709,6 +4745,7 @@ const accountDetailTabs = [
   { id: "summary", label: "Summary" },
   { id: "details", label: "Details" },
   { id: "general", label: "General" },
+  { id: "contacts", label: "Contacts" },
   { id: "projects", label: "Projects" },
   { id: "lab-work", label: "Lab Work" },
   { id: "files", label: "Files" },
@@ -4809,6 +4846,8 @@ function renderAccountTabBody(tab, account) {
       return renderAccountDetailsTab(account);
     case "general":
       return renderAccountGeneralTab(account);
+    case "contacts":
+      return renderAccountContactsTab(account);
     case "projects":
       return renderAccountProjectsTab(account);
     case "lab-work":
@@ -4957,15 +4996,6 @@ function renderAccountSummaryTab(account) {
             }
           </div>
         </article>
-        <article class="panel">
-          <div class="panel-header">
-            <h3>Contacts</h3>
-            <button class="mini-button" type="button" data-action="open-contact" data-account-id="${account.id}">Add contact</button>
-          </div>
-          <div class="panel-body people-list">
-            ${contacts.map(renderMiniContact).join("") || `<div class="empty-state">No contacts for this account yet.</div>`}
-          </div>
-        </article>
       </div>
     </section>
   `;
@@ -4988,11 +5018,14 @@ function renderAccountDetailsTab(account) {
           </div>
           <div class="panel-body">
             <dl class="detail-list">
-              <div><dt>Industry</dt><dd>${
-                accountIndustryLinks
-                  .map((link) => escapeHtml(findIndustry(link.industryId)?.industryName || "Unknown"))
-                  .join(", ") || "Not set"
-              }</dd></div>
+              <div><dt>Industry</dt><dd>
+                ${
+                  accountIndustryLinks
+                    .map((link) => escapeHtml(findIndustry(link.industryId)?.industryName || "Unknown"))
+                    .join(", ") || "Not set"
+                }
+                <button class="mini-button" type="button" data-action="open-industries" data-account-id="${escapeAttribute(account.id)}">${accountIndustryLinks.length ? "Edit" : "Set"}</button>
+              </dd></div>
               <div><dt>SIC code</dt><dd>${relationship?.sicCode ? escapeHtml(relationship.sicCode) : `<span class="muted">Not yet captured</span>`}</dd></div>
               <div><dt>Ownership</dt><dd>${relationship?.ownershipType ? escapeHtml(relationship.ownershipType) : `<span class="muted">Not yet captured</span>`}</dd></div>
               ${
@@ -5213,6 +5246,44 @@ function renderAccountGeneralTab(account) {
         </article>
       </div>
     </section>
+  `;
+}
+
+function renderAccountContactsTab(account) {
+  const contacts = contactsForAccount(account.id);
+  return `
+    <section class="crm-profile-grid">
+      <div class="detail-stack" style="grid-column: 1 / -1;">
+        <article class="panel">
+          <div class="panel-header">
+            <h3>All contacts (${contacts.length})</h3>
+            <button class="mini-button" type="button" data-action="open-contact" data-account-id="${escapeAttribute(account.id)}">Add contact</button>
+          </div>
+          <div class="panel-body record-list">
+            ${contacts.map(renderAccountContactRow).join("") || `<div class="empty-state">No contacts at this organization yet.</div>`}
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function renderAccountContactRow(contact) {
+  const opportunityCount = opportunitiesForContact(contact).length;
+  return `
+    <article class="detail-card">
+      <button class="link-button person-name" type="button" data-action="view-contact" data-id="${escapeAttribute(contact.id)}">${escapeHtml(contact.name)}</button>
+      <div class="row-meta">
+        <span>${escapeHtml(contact.title || "No title")}</span>
+        <span>${escapeHtml(contact.email || "No email")}</span>
+        <span>${escapeHtml(contact.phone || "No phone")}</span>
+      </div>
+      <div class="inline-actions">
+        <span class="stage-badge">${escapeHtml(contact.influence || "Unknown influence")}</span>
+        <span class="tag">${opportunityCount} linked opportunit${opportunityCount === 1 ? "y" : "ies"}</span>
+        <button class="mini-button" type="button" data-action="open-contact" data-account-id="${escapeAttribute(contact.accountId)}" data-id="${escapeAttribute(contact.id)}">Edit</button>
+      </div>
+    </article>
   `;
 }
 
@@ -5664,12 +5735,244 @@ function formatFacilityCategory(facility) {
   return category;
 }
 
+let facilityLeafletMap = null;
+
+function renderFacilityDetail() {
+  const facility = findFacility(state.selectedFacilityId);
+  if (!facility) {
+    app.innerHTML = `
+      <section class="empty-state">
+        <h2>Facility not found</h2>
+        <button class="secondary-button" type="button" data-action="back-to-accounts">Back to accounts</button>
+      </section>
+    `;
+    return;
+  }
+  const account = findAccount(facility.accountId);
+
+  app.innerHTML = `
+    <section class="view">
+      <div class="account-detail-shell">
+        ${renderFacilityDetailHeader(facility, account)}
+        <section class="crm-profile-grid">
+          <div class="detail-stack">
+            ${renderFacilityLocationPanel(facility)}
+            ${renderFacilityContactsPanel(facility)}
+            ${renderFacilityNotesPanel(facility)}
+          </div>
+          <div class="detail-stack">
+            ${renderFacilityMapPanel(facility)}
+            ${renderFacilityWorkHistoryPanel(facility)}
+            ${renderFacilityPhotosPanel(facility)}
+          </div>
+        </section>
+      </div>
+    </section>
+  `;
+
+  requestAnimationFrame(() => initializeFacilityMap(facility.id));
+}
+
+function renderFacilityDetailHeader(facility, account) {
+  return `
+    <div class="account-hero">
+      <div class="account-hero-identity">
+        <span class="person-avatar large">${escapeHtml(getInitials(facility.name, "FA"))}</span>
+        <div>
+          <div class="account-hero-backrow">
+            <button class="text-button" type="button" data-action="view-account" data-id="${escapeAttribute(facility.accountId)}">Back to ${escapeHtml(account?.name || "account")}</button>
+            <button class="secondary-button" type="button" data-action="open-facility" data-account-id="${escapeAttribute(facility.accountId)}" data-id="${escapeAttribute(facility.id)}">Edit facility</button>
+          </div>
+          <h2>${escapeHtml(facility.name)}</h2>
+          <p class="eyebrow">Facility${account ? ` · ${escapeHtml(account.name)}` : ""}</p>
+        </div>
+      </div>
+      <div class="account-hero-stats">
+        <span class="tag">${escapeHtml(formatFacilityCategory(facility))}</span>
+        <span class="stage-badge">${escapeHtml(facility.badge || "Not set")}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderFacilityLocationPanel(facility) {
+  const cityState = [facility.city, facility.stateOrProvince, facility.postalCode].filter(Boolean).join(", ");
+  return `
+    <article class="panel">
+      <div class="panel-header"><h3>Location</h3></div>
+      <div class="panel-body">
+        <dl class="detail-list">
+          <div><dt>Street</dt><dd>${escapeHtml(facility.street1 || facility.address || "Not captured")}</dd></div>
+          ${facility.street2 ? `<div><dt>Street 2</dt><dd>${escapeHtml(facility.street2)}</dd></div>` : ""}
+          <div><dt>City / State / ZIP</dt><dd>${escapeHtml(cityState || "Not captured")}</dd></div>
+          <div><dt>Country</dt><dd>${escapeHtml(facility.countryOrRegion || "Not captured")}</dd></div>
+          <div><dt>Phone</dt><dd>${escapeHtml(facility.phone || "Not captured")}</dd></div>
+          <div><dt>Access instructions</dt><dd>${escapeHtml(facility.access || "Not captured")}</dd></div>
+          ${facility.concern ? `<div><dt>Concern</dt><dd>${escapeHtml(facility.concern)}</dd></div>` : ""}
+        </dl>
+      </div>
+    </article>
+  `;
+}
+
+function renderFacilityContactsPanel(facility) {
+  const links = facilityContactsForFacility(facility.id);
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <h3>Contacts</h3>
+        <button class="mini-button" type="button" data-action="open-facility-contact" data-facility-id="${escapeAttribute(facility.id)}" data-account-id="${escapeAttribute(facility.accountId)}">Add contact</button>
+      </div>
+      <div class="panel-body record-list">
+        ${
+          links
+            .map((link) => {
+              const contact = findContact(link.contactId);
+              if (!contact) return "";
+              return `
+                <article class="detail-card">
+                  <button class="link-button person-name" type="button" data-action="view-contact" data-id="${escapeAttribute(contact.id)}">${escapeHtml(contact.name)}</button>
+                  <div class="row-meta">
+                    <span>${escapeHtml(link.relationshipRole)}</span>
+                    ${link.isPrimary ? `<span class="tag" title="Primary contact — who crews/dispatch call first for this facility">★ Primary</span>` : ""}
+                  </div>
+                  <div class="inline-actions">
+                    <button class="mini-button" type="button" data-action="open-facility-contact" data-facility-id="${escapeAttribute(facility.id)}" data-account-id="${escapeAttribute(facility.accountId)}" data-id="${escapeAttribute(link.id)}">Edit</button>
+                    <button class="mini-button" type="button" data-action="remove-facility-contact" data-id="${escapeAttribute(link.id)}">Remove</button>
+                  </div>
+                </article>
+              `;
+            })
+            .join("") || `<div class="empty-state">No contacts linked to this facility yet.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderFacilityNotesPanel(facility) {
+  const notes = facilityCommentsForFacility(facility.id);
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <h3>Site notes</h3>
+        <button class="mini-button" type="button" data-action="open-facility-comment" data-facility-id="${escapeAttribute(facility.id)}">Add</button>
+      </div>
+      <div class="panel-body record-list">
+        ${
+          notes
+            .map(
+              (note) => `
+                <article class="detail-card">
+                  <div class="row-meta">
+                    <span>${escapeHtml(note.authorName || "Local user")}</span>
+                    <span>${formatDate(note.createdAt)}</span>
+                  </div>
+                  <p class="help-text">${escapeHtml(note.body)}</p>
+                  <div class="inline-actions">
+                    <button class="mini-button" type="button" data-action="remove-facility-comment" data-id="${escapeAttribute(note.id)}">Remove</button>
+                  </div>
+                </article>
+              `,
+            )
+            .join("") || `<div class="empty-state">No site notes yet.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderFacilityWorkHistoryPanel(facility) {
+  const projects = projectsForFacility(facility.id);
+  return `
+    <article class="panel">
+      <div class="panel-header"><h3>Prior work at this site</h3></div>
+      <div class="panel-body record-list">
+        ${projects.map(renderOpsProjectMiniCard).join("") || `<div class="empty-state">No projects recorded at this facility yet.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderFacilityPhotosPanel() {
+  return `
+    <article class="panel">
+      <div class="panel-header"><h3>Site photos</h3></div>
+      <div class="panel-body">
+        <div class="empty-state">Photo uploads depend on Phase 11 (Document Storage), which hasn't shipped yet.</div>
+      </div>
+    </article>
+  `;
+}
+
+function renderFacilityMapPanel(facility) {
+  return `
+    <article class="panel">
+      <div class="panel-header"><h3>Satellite view</h3></div>
+      <div class="panel-body">
+        <div id="facilityMap" class="project-sample-map" data-facility-id="${escapeAttribute(facility.id)}"></div>
+      </div>
+    </article>
+  `;
+}
+
+function cleanupFacilityMap() {
+  if (!facilityLeafletMap) return;
+  facilityLeafletMap.remove();
+  facilityLeafletMap = null;
+}
+
+function initializeFacilityMap(facilityId) {
+  const mapElement = document.querySelector("#facilityMap");
+  if (!mapElement) return;
+
+  const leaflet = window.L;
+  const points = locationsForFacility(facilityId).filter((location) => Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude)));
+  if (!leaflet) {
+    mapElement.innerHTML = `<div class="map-loading">Map library did not load.</div>`;
+    return;
+  }
+  if (!points.length) {
+    mapElement.innerHTML = `<div class="map-loading">No GPS points captured near this facility yet — points come from project work logged with a location.</div>`;
+    return;
+  }
+
+  cleanupFacilityMap();
+  mapElement.innerHTML = "";
+  facilityLeafletMap = leaflet.map(mapElement, { scrollWheelZoom: false });
+
+  leaflet
+    .tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "Tiles &copy; Esri",
+      maxZoom: 19,
+    })
+    .addTo(facilityLeafletMap);
+
+  const bounds = [];
+  points.forEach((location) => {
+    const latLng = [Number(location.latitude), Number(location.longitude)];
+    bounds.push(latLng);
+    leaflet
+      .marker(latLng, { title: location.label || "GPS point" })
+      .addTo(facilityLeafletMap)
+      .bindPopup(`
+        <div class="map-popup">
+          <strong>${escapeHtml(location.label || "GPS point")}</strong>
+          <span>${Number(location.latitude).toFixed(6)}, ${Number(location.longitude).toFixed(6)}</span>
+        </div>
+      `);
+  });
+
+  facilityLeafletMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 18 });
+  setTimeout(() => facilityLeafletMap?.invalidateSize(), 80);
+}
+
 function renderFacilityCard(facility) {
   const cityState = [facility.city, facility.stateOrProvince].filter(Boolean).join(", ");
   const links = facilityContactsForFacility(facility.id);
   return `
     <article class="detail-card">
-      <strong>${escapeHtml(facility.name)}</strong>
+      <button class="link-button account-name" type="button" data-action="view-facility" data-id="${escapeAttribute(facility.id)}">${escapeHtml(facility.name)}</button>
       <div class="row-meta">
         <span>${escapeHtml(facility.street1 || facility.address || "")}</span>
         <span>${escapeHtml(cityState || facility.city || "")}</span>
@@ -5679,17 +5982,23 @@ function renderFacilityCard(facility) {
       <div class="inline-actions">
         <span class="tag">${escapeHtml(formatFacilityCategory(facility))}</span>
         <span class="stage-badge">${escapeHtml(facility.badge)}</span>
+        <button class="mini-button" type="button" data-action="view-facility" data-id="${escapeAttribute(facility.id)}">Open</button>
         <button class="mini-button" type="button" data-action="open-facility" data-account-id="${escapeAttribute(facility.accountId)}" data-id="${escapeAttribute(facility.id)}">Edit</button>
       </div>
-      <div class="row-meta">
+      <div>
         <span>Contacts:</span>
         ${
           links
             .map((link) => {
               const contact = findContact(link.contactId);
-              return contact
-                ? `<span class="tag">${escapeHtml(contact.name)} (${escapeHtml(link.relationshipRole)})</span>`
-                : "";
+              if (!contact) return "";
+              return `
+                <div class="row-meta">
+                  <span class="tag" title="${link.isPrimary ? "Primary contact — who crews/dispatch call first for this facility" : ""}">${escapeHtml(contact.name)} (${escapeHtml(link.relationshipRole)})${link.isPrimary ? " ★ Primary" : ""}</span>
+                  <button class="mini-button" type="button" data-action="open-facility-contact" data-facility-id="${escapeAttribute(facility.id)}" data-account-id="${escapeAttribute(facility.accountId)}" data-id="${escapeAttribute(link.id)}">Edit</button>
+                  <button class="mini-button" type="button" data-action="remove-facility-contact" data-id="${escapeAttribute(link.id)}">Remove</button>
+                </div>
+              `;
             })
             .join("") || `<span class="tag">None</span>`
         }
@@ -12548,6 +12857,9 @@ async function saveAccount(form) {
   const businessDescription = data.get("businessDescription").toString().trim();
   const ownerEmployeeId = data.get("ownerEmployeeId").toString();
   const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
+  const industryId = data.get("industryId").toString();
+  const enteredCity = data.get("addressCity").toString().trim();
+  const enteredState = data.get("addressState").toString().trim();
   const account = buildCoreAccountRecord({
     ...(existing || {}),
     id: existingId || makeId("acct"),
@@ -12561,16 +12873,12 @@ async function saveAccount(form) {
     mainPhoneNumber: data.get("phone").toString().trim(),
     faxNumber: data.get("fax").toString().trim(),
     parentAccountId: data.get("parentAccountId").toString(),
-    city: data.get("city").toString().trim(),
-    addressOneCity: data.get("city").toString().trim(),
-    addressOneState: data.get("state").toString().trim() || existing?.addressOneState || "",
-    siteName: data.get("siteName").toString().trim(),
+    city: enteredCity || existing?.city || "",
+    addressOneCity: enteredCity || existing?.addressOneCity || "",
+    addressOneState: enteredState || existing?.addressOneState || "",
     concern: data.get("concern").toString().trim(),
-    risk: data.get("risk").toString(),
-    accountRating: data.get("risk").toString(),
-    phase: data.get("phase").toString(),
-    classification: data.get("phase").toString(),
     owner: ownerName || existing?.owner || "Unassigned",
+    ownerEmployeeId: ownerEmployeeId === "system" ? "system" : ownerEmployeeId || existing?.ownerEmployeeId || "",
     lastContact: existing?.lastContact || todayIso(),
     nextAction: existing?.nextAction || "Qualify cleanup scope and decision process",
     createdBy: existing?.createdBy || state.currentUser?.name || "Local user",
@@ -12578,20 +12886,56 @@ async function saveAccount(form) {
   });
 
   await saveBackendRecord("accounts", account, { refresh: false });
-  if (!existing) {
-    await saveBackendRecord("facilities", {
-      id: makeId("loc"),
+
+  if (industryId) {
+    const currentLinks = industriesForAccount(account.id);
+    const existingLink = currentLinks.find((link) => link.industryId === industryId);
+    await saveBackendRecord("accountIndustries", {
+      id: existingLink?.id || makeId("acct-industry"),
       accountId: account.id,
-      name: account.siteName,
-      address: "",
-      city: account.city,
-      category: "Corporate Office",
-      categoryOther: "",
-      concern: account.concern,
-      badge: account.phase,
-      access: "Access details not captured yet",
+      industryId,
+      isPrimary: true,
+      deletedAt: "",
+    });
+    for (const link of currentLinks) {
+      if (link.industryId !== industryId && link.isPrimary) {
+        await saveBackendRecord("accountIndustries", { ...link, isPrimary: false });
+      }
+    }
+  }
+
+  const addressStreet1 = data.get("addressStreet1").toString().trim();
+  const addressCity = data.get("addressCity").toString().trim();
+  const addressState = data.get("addressState").toString().trim();
+  const addressPostalCode = data.get("addressPostalCode").toString().trim();
+  const addressCountry = data.get("addressCountry").toString().trim();
+  if (addressStreet1 || addressCity || addressState || addressPostalCode) {
+    const existingPrimary = addressesForAccount(account.id).find((address) => address.isPrimary);
+    await saveBackendRecord("addresses", {
+      id: existingPrimary?.id || makeId("address"),
+      accountId: account.id,
+      addressName: existingPrimary?.addressName || "Primary address",
+      addressType: existingPrimary?.addressType || "Primary",
+      isPrimary: true,
+      suiteNumber: existingPrimary?.suiteNumber || "",
+      street1: addressStreet1,
+      street2: existingPrimary?.street2 || "",
+      street3: existingPrimary?.street3 || "",
+      city: addressCity,
+      county: existingPrimary?.county || "",
+      stateOrProvince: addressState,
+      postalCode: addressPostalCode,
+      countryOrRegion: addressCountry || existingPrimary?.countryOrRegion || "United States",
+      phone: existingPrimary?.phone || "",
+      latitude: existingPrimary?.latitude ?? null,
+      longitude: existingPrimary?.longitude ?? null,
+      freightTerms: existingPrimary?.freightTerms || "",
+      shippingMethod: existingPrimary?.shippingMethod || "",
+      contactId: existingPrimary?.contactId || "",
+      deliveryInstructions: existingPrimary?.deliveryInstructions || "",
     });
   }
+
   if (businessDescription) {
     await saveRelationshipExtensionPatch(account.id, { businessDescription });
   }
@@ -12601,7 +12945,7 @@ async function saveAccount(form) {
   state.selectedAccountId = account.id;
   state.view = "account-detail";
   render();
-  showToast(existing ? "Account updated." : "Account saved. Add a contact from the Summary tab when you're ready.");
+  showToast(existing ? "Account updated." : "Account saved. Add a facility from the Locations & Addresses tab when you're ready.");
 }
 
 async function saveContact(form) {
@@ -12622,7 +12966,6 @@ async function saveContact(form) {
     businessPhone: data.get("phone").toString().trim(),
     influence: data.get("influence").toString(),
     relationshipRole: data.get("influence").toString(),
-    accountRole: data.get("influence").toString(),
     preferredContact: data.get("preferredContact").toString(),
     preferredContactMethod: data.get("preferredContact").toString(),
     opportunityIds: opportunityId ? [opportunityId] : [],
@@ -15005,6 +15348,7 @@ async function saveOpportunityQuote(form) {
   const opportunityId = data.get("opportunityId").toString();
   const opportunity = findOpportunity(opportunityId);
   if (!opportunity) return;
+  const isNewQuote = !data.get("id").toString();
   const quoteId = data.get("id").toString() || makeId("quote");
   const quote = {
     id: quoteId,
@@ -15022,8 +15366,10 @@ async function saveOpportunityQuote(form) {
 
   try {
     await saveBackendRecord("quotes", quote);
-    const updated = buildCoreOpportunityRecord({ ...opportunity, quoteId, updatedAt: new Date().toISOString() });
-    await saveBackendRecord("opportunities", updated);
+    if (isNewQuote) {
+      const updated = buildCoreOpportunityRecord({ ...opportunity, quoteId, updatedAt: new Date().toISOString() });
+      await saveBackendRecord("opportunities", updated);
+    }
   } catch (error) {
     showToast(error.message || "Quote could not be saved.");
     return;
@@ -15092,7 +15438,8 @@ function openAccountDialog(accountId = "") {
   const form = dialog.querySelector("form");
   form.reset();
   populateParentAccountSelect(dialog, accountId);
-  populateEmployeeSelect(dialog, "ownerEmployeeId", "Unassigned", [{ value: "system", label: "System" }]);
+  populateEmployeeSelect(dialog, "ownerEmployeeId", "Unassigned", [{ value: "system", label: "System" }], SALES_OWNER_JOB_TITLES);
+  populateIndustrySelect(dialog, "industryId");
   const account = accountId ? findAccount(accountId) : null;
   if (account) {
     const core = getCoreAccount(account);
@@ -15104,13 +15451,16 @@ function openAccountDialog(accountId = "") {
     form.elements.phone.value = core.phone || "";
     form.elements.fax.value = account.faxNumber || "";
     form.elements.parentAccountId.value = account.parentAccountId || "";
-    form.elements.siteName.value = account.siteName || "";
-    form.elements.city.value = core.city || "";
-    form.elements.state.value = core.addressOneState || "";
-    form.elements.phase.value = account.phase || "Lead";
-    form.elements.risk.value = account.risk || core.accountRating || "Low";
     const matchingOwnerEmployee = getEmployees().find((employee) => employee.displayName === core.owner);
-    form.elements.ownerEmployeeId.value = core.owner === "System" ? "system" : matchingOwnerEmployee?.id || "";
+    form.elements.ownerEmployeeId.value = account.ownerEmployeeId || (core.owner === "System" ? "system" : matchingOwnerEmployee?.id || "");
+    const primaryIndustryLink = industriesForAccount(account.id).find((link) => link.isPrimary) || industriesForAccount(account.id)[0];
+    form.elements.industryId.value = primaryIndustryLink?.industryId || "";
+    const primaryAddress = addressesForAccount(account.id).find((address) => address.isPrimary);
+    form.elements.addressStreet1.value = primaryAddress?.street1 || "";
+    form.elements.addressCity.value = primaryAddress?.city || "";
+    form.elements.addressState.value = primaryAddress?.stateOrProvince || "";
+    form.elements.addressPostalCode.value = primaryAddress?.postalCode || "";
+    form.elements.addressCountry.value = primaryAddress?.countryOrRegion || "";
     form.elements.concern.value = account.concern || "";
     form.elements.businessDescription.value = relationshipExtensionForAccount(account.id)?.businessDescription || "";
   } else {
@@ -15140,10 +15490,10 @@ function openAccountOwnerDialog(accountId) {
   const account = findAccount(accountId);
   if (!account) return;
   form.elements.id.value = account.id;
-  populateEmployeeSelect(dialog, "ownerEmployeeId", "Unassigned", [{ value: "system", label: "System" }]);
+  populateEmployeeSelect(dialog, "ownerEmployeeId", "Unassigned", [{ value: "system", label: "System" }], SALES_OWNER_JOB_TITLES);
   populateContactSelect(dialog, accountId);
   const matchingEmployee = getEmployees().find((employee) => employee.displayName === account.owner);
-  form.elements.ownerEmployeeId.value = account.owner === "System" ? "system" : matchingEmployee?.id || "";
+  form.elements.ownerEmployeeId.value = account.ownerEmployeeId || (account.owner === "System" ? "system" : matchingEmployee?.id || "");
   const matchingContact = account.primaryContactId
     ? findContact(account.primaryContactId)
     : contactsForAccount(account.id).find((contact) => contact.name === account.contact);
@@ -15163,6 +15513,7 @@ async function saveAccountOwner(form) {
   const account = buildCoreAccountRecord({
     ...existing,
     owner: ownerName || "Unassigned",
+    ownerEmployeeId: ownerEmployeeId === "system" ? "system" : ownerEmployeeId || "",
     contact: contact?.name || "",
     primaryContactId: contactId || "",
   });
@@ -16057,14 +16408,78 @@ async function saveFacility(form) {
   showToast(existing ? "Facility updated." : "Facility added.");
 }
 
-function openFacilityContactDialog(facilityId = "", accountId = "") {
+function openFacilityContactDialog(facilityId = "", accountId = "", linkId = "") {
   const dialog = document.querySelector("#facilityContactDialog");
   const form = dialog.querySelector("form");
   form.reset();
   form.elements.facilityId.value = facilityId;
   populateContactSelect(dialog, accountId);
-  form.elements.id.value = "";
+  const link = linkId ? facilityContactsForFacility(facilityId).find((item) => item.id === linkId) : null;
+  if (link) {
+    form.elements.id.value = link.id;
+    form.elements.contactId.value = link.contactId || "";
+    form.elements.relationshipRole.value = link.relationshipRole || "Works At";
+    form.elements.isPrimary.checked = Boolean(link.isPrimary);
+  } else {
+    form.elements.id.value = "";
+  }
   dialog.showModal();
+}
+
+async function removeFacilityContact(id) {
+  if (!confirm("Remove this contact from the facility?")) return;
+  const link = (state.backend.facilityContacts || []).find((item) => item.id === id);
+  if (!link) return;
+  try {
+    await saveBackendRecord("facilityContacts", { ...link, deletedAt: new Date().toISOString() });
+    await refreshState();
+    render();
+    showToast("Facility contact removed.");
+  } catch (error) {
+    showToast(error.message || "Facility contact could not be removed.");
+  }
+}
+
+function openFacilityCommentDialog(facilityId = "") {
+  const dialog = document.querySelector("#facilityCommentDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.facilityId.value = facilityId;
+  dialog.showModal();
+}
+
+async function saveFacilityComment(form) {
+  const data = new FormData(form);
+  const record = {
+    id: makeId("facility-comment"),
+    facilityId: data.get("facilityId").toString(),
+    authorName: state.currentUser?.name || "Local user",
+    body: data.get("body").toString().trim(),
+    createdAt: new Date().toISOString(),
+  };
+  try {
+    await saveBackendRecord("facilityComments", record);
+    closeDialogs();
+    await refreshState();
+    render();
+    showToast("Note added.");
+  } catch (error) {
+    showToast(error.message || "Note could not be saved.");
+  }
+}
+
+async function removeFacilityComment(id) {
+  if (!confirm("Remove this note?")) return;
+  const note = (state.backend.facilityComments || []).find((item) => item.id === id);
+  if (!note) return;
+  try {
+    await saveBackendRecord("facilityComments", { ...note, deletedAt: new Date().toISOString() });
+    await refreshState();
+    render();
+    showToast("Note removed.");
+  } catch (error) {
+    showToast(error.message || "Note could not be removed.");
+  }
 }
 
 async function saveFacilityContact(form) {
@@ -16923,12 +17338,27 @@ function populateAccountSelect(root, blankLabel = "") {
   });
 }
 
-function populateEmployeeSelect(root, fieldName, blankLabel = "", extraOptions = []) {
+const SALES_OWNER_JOB_TITLES = ["Sales Manager", "Account Manager"];
+
+function populateEmployeeSelect(root, fieldName, blankLabel = "", extraOptions = [], jobTitleFilter = null) {
   root.querySelectorAll(`select[name='${fieldName}']`).forEach((select) => {
+    const pool = jobTitleFilter ? getEmployees().filter((employee) => jobTitleFilter.includes(employee.jobTitle)) : getEmployees();
     select.innerHTML = [
       ...(blankLabel ? [`<option value="">${escapeHtml(blankLabel)}</option>`] : []),
       ...extraOptions.map((option) => `<option value="${escapeAttribute(option.value)}">${escapeHtml(option.label)}</option>`),
-      ...getEmployees().map((employee) => `<option value="${escapeAttribute(employee.id)}">${escapeHtml(employee.displayName)} - ${escapeHtml(employee.jobTitle)}</option>`),
+      ...pool.map((employee) => `<option value="${escapeAttribute(employee.id)}">${escapeHtml(employee.displayName)} - ${escapeHtml(employee.jobTitle)}</option>`),
+    ].join("");
+  });
+}
+
+function populateIndustrySelect(root, fieldName, blankLabel = "Not set") {
+  root.querySelectorAll(`select[name='${fieldName}']`).forEach((select) => {
+    const sortedIndustries = getIndustries()
+      .slice()
+      .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    select.innerHTML = [
+      ...(blankLabel ? [`<option value="">${escapeHtml(blankLabel)}</option>`] : []),
+      ...sortedIndustries.map((industry) => `<option value="${escapeAttribute(industry.id)}">${escapeHtml(industry.industryName)}</option>`),
     ].join("");
   });
 }
@@ -17284,6 +17714,17 @@ function pendingQueue() {
   return state.syncQueue.filter((item) => item.status !== "Synced");
 }
 
+function viewFacility(facilityId) {
+  if (!canAccessView("facility-detail")) {
+    showToast("Your current role cannot open Sales account records.");
+    return;
+  }
+  state.selectedFacilityId = facilityId;
+  state.view = "facility-detail";
+  render();
+  window.scrollTo(0, 0);
+}
+
 function viewAccount(accountId) {
   if (!canAccessView("account-detail")) {
     showToast("Your current role cannot open Sales account records.");
@@ -17634,6 +18075,11 @@ function locationsForAccount(accountId) {
   return (state.backend.locations || []).filter((location) => projectIds.has(location.projectId));
 }
 
+function locationsForFacility(facilityId) {
+  const projectIds = new Set(projectsForFacility(facilityId).map((project) => project.id));
+  return (state.backend.locations || []).filter((location) => projectIds.has(location.projectId));
+}
+
 function findFacilityContact(id) {
   return (state.backend.facilityContacts || []).find((link) => link.id === id);
 }
@@ -17642,12 +18088,22 @@ function facilityContactsForFacility(facilityId) {
   return (state.backend.facilityContacts || []).filter((link) => link.facilityId === facilityId && !link.deletedAt);
 }
 
+function facilityCommentsForFacility(facilityId) {
+  return (state.backend.facilityComments || [])
+    .filter((note) => note.facilityId === facilityId && !note.deletedAt)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
 function facilityContactsForContact(contactId) {
   return (state.backend.facilityContacts || []).filter((link) => link.contactId === contactId && !link.deletedAt);
 }
 
 function projectsForAccount(accountId) {
   return state.projects.filter((project) => project.accountId === accountId);
+}
+
+function projectsForFacility(facilityId) {
+  return state.projects.filter((project) => project.facilityId === facilityId);
 }
 
 function scheduledWorkForAccount(accountId) {

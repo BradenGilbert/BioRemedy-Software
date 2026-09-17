@@ -843,46 +843,44 @@
             <select name="parentAccountId"></select>
           </label>
         </div>
-        <label>
-          Site name
-          <input name="siteName" required maxlength="90" placeholder="Fleet maintenance depot" />
-        </label>
         <div class="form-grid">
           <label>
-            Site city
-            <input name="city" required maxlength="60" placeholder="Kansas City" />
-          </label>
-          <label>
-            Site state
-            <input name="state" maxlength="60" placeholder="MO" />
-          </label>
-        </div>
-        <div class="form-grid">
-          <label>
-            Account phase
-            <select name="phase">
-              <option>Lead</option>
-              <option>Assessment</option>
-              <option>Sampling</option>
-              <option>Proposal</option>
-              <option>Active</option>
-            </select>
-          </label>
-        </div>
-        <div class="form-grid">
-          <label>
-            Risk level
-            <select name="risk">
-              <option>Low</option>
-              <option>Medium</option>
-              <option>High</option>
-            </select>
+            Industry
+            <select name="industryId"></select>
           </label>
           <label>
             Owner
             <select name="ownerEmployeeId"></select>
           </label>
         </div>
+        <fieldset class="settings-section">
+          <legend>Primary address (optional)</legend>
+          <p class="help-text">A postal address for billing/shipping — not a facility. Add facilities separately from the account page once the account exists.</p>
+          <label>
+            Street
+            <input name="addressStreet1" maxlength="120" placeholder="1400 Industrial Pkwy" />
+          </label>
+          <div class="form-grid">
+            <label>
+              City
+              <input name="addressCity" maxlength="60" placeholder="Kansas City" />
+            </label>
+            <label>
+              State
+              <input name="addressState" maxlength="60" placeholder="MO" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Postal code
+              <input name="addressPostalCode" maxlength="20" placeholder="64101" />
+            </label>
+            <label>
+              Country
+              <input name="addressCountry" maxlength="60" placeholder="United States" />
+            </label>
+          </div>
+        </fieldset>
         <label>
           Business description
           <textarea name="businessDescription" rows="2" maxlength="400" placeholder="What this account does, e.g. regional trucking company with a maintenance yard"></textarea>
@@ -3745,9 +3743,28 @@
           <input type="checkbox" name="isPrimary" />
           <span>Primary contact for this facility</span>
         </label>
+        <p class="help-text">The primary contact is who crews and dispatch call first for this specific facility. A facility can have several contacts, but only one primary.</p>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save contact link</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="facilityCommentDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="facility-comment">
+        <input name="facilityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Site note</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Note
+          <textarea name="body" required maxlength="600" placeholder="Anything worth logging about this site — access changes, hazards, ongoing conditions"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save note</button>
         </menu>
       </form>
     </dialog>
