@@ -1227,6 +1227,28 @@ h3 {
   gap: 6px;
 }
 
+/* A chip is a link/tag inline in a list or table cell, not an action button — the standard
+   .mini-button box (border + fill) reads as clutter when there are several per row. Keep it
+   clickable, drop the box. */
+.chip-list .mini-button {
+  min-height: auto;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  padding: 2px 4px;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 140ms ease;
+}
+
+.chip-list .mini-button:hover {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  text-decoration-color: currentColor;
+}
+
 .mini-button {
   min-height: 32px;
   border-radius: 8px;

@@ -42,7 +42,14 @@ const STAGE_REQUIRED_FIELDS = {
     { key: "purchaseTimeframe", label: "Purchase time frame" },
     { key: "budgetAmount", label: "Estimated budget", validate: (opportunity) => Number(opportunity.budgetAmount || 0) > 0 },
     { key: "purchaseProcess", label: "Purchase process" },
-    { key: "decisionMakerFound", label: "Decision maker found", validate: (opportunity) => opportunity.decisionMakerFound === "Complete" },
+    {
+      key: "decisionMakerFound",
+      label: "Decision maker found",
+      // Prefer the real signal (a stakeholder actually tagged "Decision maker" in Associated
+      // Contacts) over the manual dropdown, but don't regress anything already marked Complete
+      // by hand before a tagged stakeholder existed to back it up.
+      validate: (opportunity) => opportunity.decisionMakerFound === "Complete" || hasDecisionMakerStakeholder(opportunity.id),
+    },
     { key: "captureSummary", label: "Capture summary" },
   ],
   Proposal: [
@@ -1479,6 +1486,7 @@ const state = {
   opportunityTableView: "board",
   operationsFilter: "All",
   taskFilter: "Open",
+  showFormerStakeholders: false,
   selectedAccountId: "",
   selectedFacilityId: "",
   selectedContactId: "",
@@ -2060,6 +2068,11 @@ async function handleClick(event) {
   if (action === "open-opportunity-develop") openOpportunityDevelopDialog(id);
   if (action === "open-opportunity-stakeholder") openOpportunityStakeholderDialog(actionButton.dataset.opportunityId, id);
   if (action === "remove-opportunity-stakeholder") await removeOpportunityStakeholder(id);
+  if (action === "restore-opportunity-stakeholder") await restoreOpportunityStakeholder(id);
+  if (action === "toggle-former-stakeholders") {
+    state.showFormerStakeholders = !state.showFormerStakeholders;
+    render();
+  }
   if (action === "open-opportunity-competitor") openOpportunityCompetitorDialog(actionButton.dataset.opportunityId, id);
   if (action === "remove-opportunity-competitor") await removeOpportunityCompetitor(id);
   if (action === "open-opportunity-assignment") openOpportunityAssignmentDialog(actionButton.dataset.opportunityId, actionButton.dataset.purpose, id);
@@ -3410,6 +3423,7 @@ function renderOpportunityDetailHeader(opportunity) {
   const closeStatus = getCloseStatus(coreOpportunity.estimatedCloseDate);
   const currentStageIndex = STAGES.indexOf(opportunity.stage);
   const nextStage = STAGES[currentStageIndex + 1];
+  const resultingProject = state.projects.find((project) => project.opportunityId === opportunity.id);
   return `
     <div class="account-hero">
       <div>
@@ -3427,6 +3441,7 @@ function renderOpportunityDetailHeader(opportunity) {
         ${account ? `<button class="secondary-button" type="button" data-action="view-account" data-id="${account.id}">Open account</button>` : ""}
         <button class="secondary-button" type="button" data-action="open-note" data-account-id="${opportunity.accountId}" data-opportunity-id="${opportunity.id}">Add activity</button>
         <button class="secondary-button" type="button" data-action="open-opportunity" data-id="${opportunity.id}" data-account-id="${opportunity.accountId}">Edit opportunity</button>
+        ${resultingProject ? `<button class="secondary-button" type="button" data-action="view-project" data-id="${escapeAttribute(resultingProject.id)}">Open project</button>` : ""}
         ${
           nextStage
             ? `<button class="primary-button" type="button" data-action="advance-opportunity" data-id="${opportunity.id}">Advance</button>`
@@ -3493,7 +3508,7 @@ function renderOpportunityWonProjectPrompt(opportunity) {
 
 function renderOpportunitySummaryTab(opportunity) {
   const coreOpportunity = getCoreOpportunity(opportunity);
-  const contacts = contactsForOpportunity(opportunity.id);
+  const stakeholderCount = stakeholdersForOpportunity(opportunity.id).length;
   const tasks = openTasksForAccount(opportunity.accountId);
   const activities = activitiesForOpportunity(opportunity.id);
   const team = assignmentsForOpportunity(opportunity.id);
@@ -3521,7 +3536,7 @@ function renderOpportunitySummaryTab(opportunity) {
         </div>
         <div class="metric">
           <p class="eyebrow">Contacts</p>
-          <strong>${contacts.length}</strong>
+          <strong>${stakeholderCount}</strong>
           <span>${tasks.length} open account tasks</span>
         </div>
       </section>
@@ -3542,12 +3557,7 @@ function renderOpportunitySummaryTab(opportunity) {
         </div>
 
         <div class="detail-stack">
-          <article class="panel">
-            <div class="panel-header"><h3>Associated contacts</h3></div>
-            <div class="panel-body people-list">
-              ${contacts.map(renderMiniContact).join("") || `<div class="empty-state">No contacts linked to this opportunity.</div>`}
-            </div>
-          </article>
+          ${renderStakeholdersPanel(opportunity, "Associated contacts")}
           <article class="panel">
             <div class="panel-header"><h3>Open tasks</h3></div>
             <div class="panel-body task-list">
@@ -3600,7 +3610,7 @@ function renderOpportunityLeadQualificationTab(opportunity) {
             <div><dt>Purchase time frame</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "purchaseTimeframe") || "Not captured")}</dd></div>
             <div><dt>Estimated budget</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "budgetAmount") || "Not captured")}</dd></div>
             <div><dt>Purchase process</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "purchaseProcess") || "Not captured")}</dd></div>
-            <div><dt>Decision maker found</dt><dd>${escapeHtml(opportunity.decisionMakerFound || "Not complete")}</dd></div>
+            <div><dt>Decision maker found</dt><dd>${escapeHtml(opportunity.decisionMakerFound || "Not complete")} ${hasDecisionMakerStakeholder(opportunity.id) ? `<span class="tag" title="A stakeholder in Associated Contacts is tagged Decision maker">✓ Tagged stakeholder found</span>` : ""}</dd></div>
             <div><dt>Capture summary</dt><dd>${escapeHtml(opportunity.captureSummary || "Not captured")}</dd></div>
           </dl>
         </div>
@@ -3635,7 +3645,6 @@ function renderOpportunityAssignmentRow(entry) {
 }
 
 function renderOpportunityDevelopPlanningTab(opportunity) {
-  const stakeholders = stakeholdersForOpportunity(opportunity.id);
   const competitors = competitorsForOpportunity(opportunity.id);
 
   return `
@@ -3654,36 +3663,7 @@ function renderOpportunityDevelopPlanningTab(opportunity) {
         </div>
       </article>
 
-      <article class="panel">
-        <div class="panel-header">
-          <h3>Stakeholders</h3>
-          <button class="mini-button" type="button" data-action="open-opportunity-stakeholder" data-opportunity-id="${opportunity.id}">Add</button>
-        </div>
-        <div class="panel-body people-list">
-          ${
-            stakeholders
-              .map((entry) => {
-                const contact = findContact(entry.contactId);
-                return `
-                  <article class="detail-card">
-                    <div class="row-meta">
-                      <div>
-                        <strong>${escapeHtml(contact?.name || "Unknown contact")}</strong>
-                        <span>${escapeHtml(entry.relationshipRole || "")}${entry.influenceLevel ? ` &middot; ${escapeHtml(entry.influenceLevel)}` : ""}</span>
-                      </div>
-                      <div class="inline-actions">
-                        ${entry.isPrimary ? `<span class="tag">Primary</span>` : ""}
-                        <button class="mini-button" type="button" data-action="open-opportunity-stakeholder" data-opportunity-id="${opportunity.id}" data-id="${entry.id}">Edit</button>
-                        <button class="mini-button" type="button" data-action="remove-opportunity-stakeholder" data-id="${entry.id}">Remove</button>
-                      </div>
-                    </div>
-                  </article>
-                `;
-              })
-              .join("") || `<div class="empty-state">No stakeholders identified yet.</div>`
-          }
-        </div>
-      </article>
+      ${renderStakeholdersPanel(opportunity, "Stakeholders")}
 
       <article class="panel">
         <div class="panel-header">
@@ -5834,24 +5814,6 @@ function renderAccountRelationshipSummary(record) {
   `;
 }
 
-function renderMiniContact(contact) {
-  return `
-    <div class="person-row">
-      <div>
-        <button class="link-button person-name" type="button" data-action="view-contact" data-id="${contact.id}">
-          ${escapeHtml(contact.name)}
-        </button>
-        <div class="row-meta">
-          <span>${escapeHtml(contact.title)}</span>
-          <span>${escapeHtml(contact.preferredContact)}</span>
-        </div>
-      </div>
-      <span class="stage-badge">${escapeHtml(contact.influence)}</span>
-      <button class="mini-button" type="button" data-action="open-contact" data-account-id="${escapeAttribute(contact.accountId)}" data-id="${escapeAttribute(contact.id)}">Edit</button>
-    </div>
-  `;
-}
-
 function formatFacilityCategory(facility) {
   const category = facility.category || (facility.type ? "Other" : "");
   if (!category) return "Uncategorized";
@@ -7015,19 +6977,27 @@ function renderContactCoworkerCard(coworker) {
 }
 
 function renderContactConnectionCard(connection) {
-  const labelParts = [
-    ...new Set([
-      ...connection.sharedOpportunities.map((id) => findOpportunity(id)?.name).filter(Boolean),
-      ...connection.sharedJobs.map((job) => job.name).filter(Boolean),
-    ]),
-  ];
+  const badges = [
+    ...connection.sharedOpportunities
+      .map((id) => findOpportunity(id))
+      .filter(Boolean)
+      .map((opportunity) => `<button class="mini-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">${escapeHtml(opportunity.name)}</button>`),
+    ...connection.sharedJobs.map(
+      (job) => `<button class="mini-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${escapeHtml(job.name)}</button>`,
+    ),
+  ].slice(0, 4);
   return `
     <article class="detail-card">
       <button class="link-button person-name" type="button" data-action="view-contact" data-id="${escapeAttribute(connection.contact.id)}">${escapeHtml(connection.contact.name)}</button>
       <div class="row-meta">
         <span>${escapeHtml(connection.contact.title || "Title not captured")}</span>
       </div>
-      <p class="help-text">Connected via ${escapeHtml(labelParts.join(", ") || "shared work")}</p>
+      <div class="row-meta">
+        <span class="help-text">Connected via:</span>
+      </div>
+      <div class="chip-list">
+        ${badges.join("") || `<span class="tag">Shared work</span>`}
+      </div>
     </article>
   `;
 }
@@ -12997,7 +12967,7 @@ async function saveOpportunity(form) {
   await queueChange("Opportunity", existing ? "updated" : "created", opportunity);
   closeDialogs();
   await refreshState();
-  render();
+  viewOpportunity(opportunity.id);
   showToast(existing ? "Opportunity updated." : "Opportunity saved.");
   await maybeOfferProjectForWonOpportunity(previousStage, opportunity);
 }
@@ -13121,7 +13091,12 @@ async function saveContact(form) {
     relationshipRole: data.get("influence").toString(),
     preferredContact: data.get("preferredContact").toString(),
     preferredContactMethod: data.get("preferredContact").toString(),
-    opportunityIds: opportunityId ? [opportunityId] : [],
+    // opportunityIds is a real one-to-many field (a contact can be a stakeholder on several
+    // opportunities — see the opportunity-side Stakeholders panel, the actual source of truth
+    // for adding/removing these). This dialog's picker only ever shows the *first* entry, so on
+    // an edit it must never overwrite the array — only a brand-new contact gets its initial pick
+    // written here; every other change goes through the opportunity's own Stakeholders panel.
+    opportunityIds: existing ? existing.opportunityIds || [] : opportunityId ? [opportunityId] : [],
     notes: data.get("notes").toString().trim() || "No relationship notes yet.",
     divisionId: data.get("divisionId").toString(),
     owner: existing?.owner || findAccount(data.get("accountId").toString())?.owner || "Unassigned",
@@ -15134,6 +15109,18 @@ async function saveOpportunityStakeholder(form) {
   }
 }
 
+async function restoreOpportunityStakeholder(id) {
+  const record = (state.backend.opportunityContacts || []).find((item) => item.id === id);
+  if (!record) return;
+  try {
+    await saveBackendRecord("opportunityContacts", { ...record, deletedAt: "" });
+    render();
+    showToast("Stakeholder restored.");
+  } catch (error) {
+    showToast(error.message || "Stakeholder could not be restored.");
+  }
+}
+
 async function removeOpportunityStakeholder(id) {
   if (!confirm("Remove this stakeholder?")) return;
   const record = (state.backend.opportunityContacts || []).find((item) => item.id === id);
@@ -15768,10 +15755,18 @@ function openContactDialog(accountId = "", contactId = "") {
     form.elements.notes.value = core.notes || "";
     populateDivisionSelect(dialog, core.accountId);
     form.elements.divisionId.value = contact.divisionId || "";
+    // Editing no longer writes this field back (see saveContact) — a contact's opportunity
+    // associations are managed from each opportunity's Stakeholders panel now, since this
+    // picker can only ever show/set one of potentially several. Hide it rather than leave a
+    // control that looks editable but silently does nothing on save.
+    dialog.querySelector("#contactOpportunityField").hidden = true;
+    dialog.querySelector("#contactOpportunityNote").hidden = false;
   } else {
     form.elements.id.value = "";
     if (accountId) form.elements.accountId.value = accountId;
     populateDivisionSelect(dialog, accountId);
+    dialog.querySelector("#contactOpportunityField").hidden = false;
+    dialog.querySelector("#contactOpportunityNote").hidden = true;
   }
   dialog.showModal();
 }
@@ -18434,8 +18429,74 @@ function opportunitiesForContact(contact) {
   return (contact.opportunityIds || []).map(findOpportunity).filter(Boolean);
 }
 
+function renderStakeholderCard(entry, { removable = true } = {}) {
+  const contact = findContact(entry.contactId);
+  return `
+    <article class="detail-card">
+      <div class="row-meta">
+        <div>
+          <strong>${escapeHtml(contact?.name || "Unknown contact")}</strong>
+          <span>${escapeHtml(entry.relationshipRole || "")}${entry.influenceLevel ? ` &middot; ${escapeHtml(entry.influenceLevel)}` : ""}</span>
+        </div>
+        <div class="inline-actions">
+          ${entry.isPrimary ? `<span class="tag">Primary</span>` : ""}
+          ${
+            removable
+              ? `
+                <button class="mini-button" type="button" data-action="open-opportunity-stakeholder" data-opportunity-id="${escapeAttribute(entry.opportunityId)}" data-id="${escapeAttribute(entry.id)}">Edit</button>
+                <button class="mini-button" type="button" data-action="remove-opportunity-stakeholder" data-id="${escapeAttribute(entry.id)}">Remove</button>
+              `
+              : `<button class="mini-button" type="button" data-action="restore-opportunity-stakeholder" data-id="${escapeAttribute(entry.id)}">Restore</button>`
+          }
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderStakeholdersPanel(opportunity, title) {
+  const stakeholders = stakeholdersForOpportunity(opportunity.id);
+  const formerStakeholders = formerStakeholdersForOpportunity(opportunity.id);
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <h3>${escapeHtml(title)}</h3>
+        <div class="inline-actions">
+          ${
+            formerStakeholders.length
+              ? `<button class="mini-button" type="button" data-action="toggle-former-stakeholders">${state.showFormerStakeholders ? "Hide" : "Show"} formerly associated (${formerStakeholders.length})</button>`
+              : ""
+          }
+          <button class="mini-button" type="button" data-action="open-opportunity-stakeholder" data-opportunity-id="${escapeAttribute(opportunity.id)}">Add</button>
+        </div>
+      </div>
+      <div class="panel-body people-list">
+        ${stakeholders.map((entry) => renderStakeholderCard(entry)).join("") || `<div class="empty-state">No ${escapeHtml(title.toLowerCase())} identified yet.</div>`}
+      </div>
+      ${
+        state.showFormerStakeholders && formerStakeholders.length
+          ? `
+            <div class="panel-body people-list" style="border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px;">
+              <p class="help-text">Formerly associated</p>
+              ${formerStakeholders.map((entry) => renderStakeholderCard(entry, { removable: false })).join("")}
+            </div>
+          `
+          : ""
+      }
+    </article>
+  `;
+}
+
 function stakeholdersForOpportunity(opportunityId) {
   return (state.backend.opportunityContacts || []).filter((entry) => entry.opportunityId === opportunityId && !entry.deletedAt);
+}
+
+function formerStakeholdersForOpportunity(opportunityId) {
+  return (state.backend.opportunityContacts || []).filter((entry) => entry.opportunityId === opportunityId && entry.deletedAt);
+}
+
+function hasDecisionMakerStakeholder(opportunityId) {
+  return stakeholdersForOpportunity(opportunityId).some((entry) => entry.influenceLevel === "Decision maker");
 }
 
 function findCompetitor(competitorId) {

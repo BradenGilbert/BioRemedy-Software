@@ -404,9 +404,9 @@
             </select>
           </label>
         </div>
-        <label class="checkbox-label">
+        <label class="check-row">
           <input name="isPrimary" type="checkbox" />
-          Primary stakeholder
+          <span>Primary stakeholder</span>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
@@ -1065,10 +1065,11 @@
           Division
           <select name="divisionId"></select>
         </label>
-        <label>
+        <label id="contactOpportunityField">
           Associated opportunity
           <select name="opportunityId"></select>
         </label>
+        <p class="help-text" id="contactOpportunityNote" hidden>This contact may be linked to more than one opportunity — manage all of them from each opportunity's own Stakeholders panel (Develop &amp; Planning tab), not here.</p>
         <label>
           General notes
           <textarea name="notes" rows="4" maxlength="400" placeholder="Decision role, buyer concerns, communication preferences. For personal notes and birthday, use the Personal editor on the contact's Details tab."></textarea>

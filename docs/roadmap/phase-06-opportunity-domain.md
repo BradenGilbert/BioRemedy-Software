@@ -1,6 +1,6 @@
 # Phase 06 — Opportunity Domain Correctness
 
-**Status:** Not started
+**Status:** 🟢 **Substantial progress, 2026-09-17 session.** Items 2, 4, 6, 7, 8, 11, 14, 18 (already done), 19 (partial), 23 done and verified live. A major architectural finding: "Associated Contacts" (Summary tab) and "Stakeholders" (Develop & Planning tab) were two independent, non-synced systems for the same concept — the former read a buggy scalar-derived array (`contact.opportunityIds`, item 6's bug) with a wrong edit dialog (item 7's bug), while the latter (`opportunityContacts`, a real many-to-many junction) already had working add/edit/remove. Consolidated onto the working system rather than building new infrastructure for items 6/7/11/19. Remaining items are either product decisions the owner needs to make (1, 5's vocabulary, 20), coordinated with other phases (3 with Phase 03/05, 13 with Phase 04, 16 with Phase 11), or not yet started (9, 10, 12's remaining scope, 15, 17, 21, 22, 24, 25).
 **Depends on:** Phase 03 (Account domain patterns — edit-button audit, Create dropdown), Phase 05 (contact↔opportunity relationship touches the same `opportunityIds` field Phase 05 owns on the contact side)
 **Estimated sessions:** 3–4
 **Source:** `bioremedy crm notes 9.16.2026.docx`, verified against code 2026-09-16 (see per-item notes below)
@@ -31,6 +31,8 @@ Not yet investigated against code — this is a product-direction question as mu
 
 **CONFIRMED, but deterministic, not intermittent.** `saveOpportunity()` (`app.js:12500-12539`) is the single save handler for every "New opportunity" entry point (global pipeline button and the account-page button both route through the same dialog/handler, `app.js:2319`). On success it only does `closeDialogs(); await refreshState(); render();` — it never sets `state.selectedOpportunityId` / `state.view = "opportunity-detail"`, unlike `saveAccount()` and `saveContact()`, which both do. A working navigation helper already exists (`viewOpportunity(opportunityId)`, `app.js:17312-17323`) — `saveOpportunity()` just never calls it. **Fix: call `viewOpportunity()` (or set the two state fields directly) after a successful create**, matching the account/contact pattern. Rewrite the note as "always fails to navigate," not "sometimes."
 
+**✅ Done 2026-09-17.** Replaced the bare `render()` call with `viewOpportunity(opportunity.id)` (which itself calls `render()`), for both create and edit. Verified live via Playwright — first attempt appeared to still fail, but that was a test-script bug (the dialog's required "Next step" field was left empty, so the browser's native HTML5 validation silently blocked submission before `handleSubmit` ever ran); with all required fields filled, navigation to the new opportunity's detail page is confirmed working, hash-routing included.
+
 ### 3. List-view search/filter cleanup (Opportunities)
 
 > *"Do these same cleanup steps on contacts and opportunities. Note that on opportunity views that have lists should also have the same search ability like detailed above."*
@@ -42,6 +44,8 @@ Companion to Phase 03 item — replace ad hoc "Search accounts or sites" / "all 
 > *"Also on the opportunity and contact table remove the blue text boxes like we did for accounts."*
 
 Purely visual — find whatever styling was already removed from the account list/table view and apply the same treatment to the opportunity table. Cross-check against the account fix before assuming which class/style is meant.
+
+**✅ Done 2026-09-17 — found by visual comparison, not by guessing.** The Accounts table has no equivalent column, so "what we did for accounts" wasn't a direct precedent to copy. Screenshotted all three list views to find the actual match: the Contacts table's "Opportunity Links" column renders each linked opportunity as a `.mini-button` — a bordered, light-blue-filled pill, meant for action buttons, reused here as an inline tag list, which reads as clutter with several per row. Fixed with a scoped CSS rule (`.chip-list .mini-button`) that strips the border/background/shadow and shows plain underlined blue text on hover, keeping the click behavior — "text link," not "text box." Applied the same class to the newly-clickable badges in item 8's fix (Contact page's "Connected via" panel) for consistency, since duplicating the boxed style there would have reintroduced the same complaint immediately.
 
 ### 5. Rename "Cleanup Type" → "Opportunity Type"; add new values
 
@@ -60,17 +64,23 @@ Rename the field/label everywhere it renders (creation dialog, detail page, any 
 
 **Fix:** replace the single select with the multi-select/lookup pattern Phase 05 is already building (item 4 of that phase — "one reusable lookup component"). Decide whether won/lost opportunities should auto-drop off the contact's active list or move to a "past opportunities" section (mirrors the "formerly associated contact" pattern in item 12 below — consider building one generic "current vs. former association" UI pattern and reusing it for both).
 
+**✅ Done 2026-09-17 — root cause was narrower than "needs a multi-select component."** The real damage wasn't that the contact dialog's picker only shows one entry — it's that `saveContact()` **overwrote** `opportunityIds` with a fresh one-element array on every save (`opportunityIds: opportunityId ? [opportunityId] : []`), silently destroying every other association a contact had accumulated via the (separately correct) opportunity-side Stakeholders flow, which already appends via `linkContactToOpportunity()` without dropping existing entries. Fixed by making `saveContact()` preserve the existing array untouched on every edit (`existing ? existing.opportunityIds || [] : ...`) — only a brand-new contact's initial pick is ever written from this dialog. The dialog's "Associated opportunity" field is now hidden entirely when editing an existing contact (with a note pointing to the opportunity's own Stakeholders panel), since a field that silently no-ops on save is worse than no field. **No new lookup component needed** — see item 7, which found the two "add a contact to an opportunity" surfaces were really the same underlying junction (`opportunityContacts`) already supporting true one-to-many.
+
 ### 7. Associated Contacts "Edit" opens the wrong dialog
 
 > *"When in an opportunity under associated contacts you can click 'edit' and it will let you edit the contacts core details using the standard contact edit page. We should have this be a relevant edit page as it relates to the specific opportunity that is open."*
 
 **CONFIRMED.** The opportunity's Associated Contacts panel (`app.js:3481`, `renderMiniContact` at `app.js:5642-5658`) wires its Edit button to the exact same `open-contact` action (`app.js:2073` → `openContactDialog`) used by every other "edit a contact's core details" entry point in the app. There is no opportunity-specific relationship/role editor. See item 19 for what that editor should actually contain (a Decision Maker tag, and likely other opportunity-scoped relationship metadata) — build both together, this item is the UI shell and item 19 is what goes inside it.
 
+**✅ Done 2026-09-17 — a fully-working opportunity-scoped editor already existed, one tab over, unconnected.** The Develop & Planning tab's "Stakeholders" panel (`opportunityContacts` collection, `openOpportunityStakeholderDialog`/`saveOpportunityStakeholder`/`removeOpportunityStakeholder`) already had exactly what this item asks for: a relationship role, an influence-level vocabulary (including "Decision maker" — see item 19), a primary flag, and working add/edit/remove. It was simply never connected to the Summary tab's "Associated Contacts" panel, which used a completely different, buggier data source (see item 6). Extracted the shared rendering into `renderStakeholdersPanel()`/`renderStakeholderCard()` and pointed **both** panels at it — Associated Contacts and Stakeholders are now the same data, same dialog, same add/edit/remove, in two places on the page. Verified live: adding a stakeholder from Summary's "Associated Contacts" panel immediately shows up in Develop & Planning's "Stakeholders" panel and vice versa.
+
 ### 8. Opportunity links on the Contact page aren't clickable
 
 > *"On contact linked opportunity page, opportunities are not clickable."*
 
 **CONFIRMED** for the "Connected via projects and opportunities" panel: `renderContactConnectionCard()` (`app.js:6579-6595`) renders the connected *person's* name as a real button (`data-action="view-contact"`, `app.js:6588`) but concatenates the opportunity/project names into plain, inert text (`app.js:6592`) with no click handler at all. Make them real links (`data-action="view-opportunity"` / `view-project"`). If a *separate* "this contact's own associated opportunity" display also exists elsewhere on the contact page and is likewise non-clickable, fix it there too — confirm during implementation which surface(s) this note was pointing at (it may be exactly the panel above, since a contact's single associated opportunity would also show up in "connected via").
+
+**✅ Done 2026-09-17.** `renderContactConnectionCard()` now renders each shared opportunity/project as its own `view-opportunity`/`view-project` button instead of a joined text blob, capped at 4 (partially covers item 12's "render as badges, cap to most recent 3-4" too — see that item for what's still missing). Styled as plain chips, not boxed buttons (see item 4).
 
 ### 9. Multiple contacts per activity
 
@@ -96,6 +106,8 @@ Specific UI spec, not just a data model gap:
 - That section is hidden by default, shown only when at least one former contact exists
 - A small toggle button, right-aligned on the same header line as "Associated Contacts," shows/hides it
 
+**✅ Done 2026-09-17 — confirms the note's own suspicion: add/remove already existed, just on the wrong panel.** `removeOpportunityStakeholder()` was real (soft-delete via `deletedAt`) but only reachable from the Develop & Planning tab's "Stakeholders" panel — exactly the "I somehow was able to remove a contact... not sure how" the notes describe. Now reachable from Associated Contacts too (item 7's consolidation). Built the rest of the spec on top: former (soft-deleted) stakeholders are queried separately (`formerStakeholdersForOpportunity()`), a toggle button on the panel header reads "Show/Hide formerly associated (N)" and only appears when N > 0, and a new "Restore" action clears `deletedAt` to bring one back without re-creating it from scratch. Verified live: remove → toggle appears → show reveals the former entry with Restore → restore brings it back to the active list.
+
 ### 12. "Connected via" panel — broaden sources, add filtering, badge display, cap the list
 
 > *"On contact page connected via projects and opportunities only populates if the contact is listed as a associated contact for a project which forces them to be a account contact. This should include 'team Members' and maybe some other areas. But we also want this filterable. ...we want those opportunities to be listed like badges and only list the most recent 3-4 opportunities or projects."*
@@ -105,6 +117,8 @@ This is really a Contact-page item (Phase 05 owns the Contact detail page) but i
 - Make it filterable (ties to Phase 05's activity-tag filtering work — reuse the same filter-chip pattern if it fits)
 - Render opportunities/projects as badges, not a comma-joined text blob
 - Cap the display to the most recent 3–4, not the full history
+
+**🟡 Partially done 2026-09-17, alongside item 8.** Badges (not text blob) and the cap (4, not "most recent" — no reliable recency field to sort by was found) are both done. **Not done:** including project team-member assignments as a connection source, and filtering. Both are real additions beyond the click-target fix, left for a dedicated pass.
 
 ### 13. Resource Needs (Develop & Planning) — vendor/sub free text now, approved-list-only later
 
@@ -117,6 +131,8 @@ No action this phase — the owner explicitly says free text is fine *for now*. 
 > *"on opportunity develop and planning the primary stakeholder checkbox is floating way off out of the way."*
 
 **CONFIRMED, exact cause found.** The Stakeholder dialog's checkbox uses `class="checkbox-label"` (`index.html:407-410`), a class with **zero rules defined anywhere in `styles.css`**. Every other checkbox-plus-label pairing in the app (40+ occurrences) uses `class="check-row"`, which has real layout rules (`styles.css:4271-4283`). Without a matching rule, this one checkbox falls back to the bare `label` grid rule (`styles.css:2789-2795`), which is built for "label text above a single input," not "checkbox beside inline text" — producing exactly the "floating" look described. **Fix is one attribute change:** `class="checkbox-label"` → `class="check-row"` at `index.html:407`.
+
+**✅ Done 2026-09-17 — exactly as scoped, plus the matching markup pattern.** Confirmed `checkbox-label` had zero other uses anywhere in `index.html` (a one-off, not a class other dialogs depend on). Swapped to `check-row` and wrapped the label text in a `<span>` (the pattern every other `check-row` checkbox in the app uses) for full consistency.
 
 ### 15. Site walk should be schedulable, not just a status dropdown
 
@@ -148,11 +164,15 @@ The stage-gate/required-fields check already exists (`STAGE_REQUIRED_FIELDS`, th
 
 Small, concrete. Add alongside the existing account name/link if one doesn't already function as a real navigation button — verify during implementation whether the account name already does this before assuming it's missing entirely.
 
+**✅ Already done, confirmed 2026-09-17 — no code change needed.** `renderOpportunityDetailHeader()`'s toolbar already has a working `data-action="view-account"` "Open account" button. This item's premise was stale by the time this session picked it up (or was already fixed incidentally by other work) — verifying before implementing avoided adding a duplicate button.
+
 ### 19. "Decision Maker Found" should check for a tagged associated contact, not a manual toggle
 
 > *"Lead & Qualifications stage... it says 'Decision Maker Found' and requires a complete or not complete. This should have a check to see if we have connected an associated contact with the tag 'Decision Maker' now this associated contact panel does need an overhaul because it edits the core contact details, iin this overhaul we might be able to create opportunity specific role/relationship/duty tags..."*
 
 Directly extends item 7. Building the opportunity-contextual Associated Contacts editor (item 7) should include an opportunity-scoped relationship tag (Decision Maker, and likely others worth defining alongside it — Champion, Technical Evaluator, Economic Buyer are common CRM equivalents, but confirm the real vocabulary wanted rather than importing a generic one). Once that tag exists, `decisionMakerFound` becomes a derived value (does any associated contact carry the Decision Maker tag?) instead of a manually-toggled field.
+
+**🟡 Partially done 2026-09-17 — vocabulary already existed, wired a safe derivation, didn't fully replace the manual field.** The Stakeholder dialog's `influenceLevel` vocabulary already included "Decision maker" (and Evaluator/Influencer/Gatekeeper/User — a reasonable existing set, no new vocabulary needed). Added `hasDecisionMakerStakeholder(opportunityId)` and used it in the stage-gate check (`STAGE_REQUIRED_FIELDS.Develop`) as an **OR** with the existing manual field — an opportunity passes if either a tagged stakeholder exists or someone already marked it Complete by hand. Checked the seed data first: one opportunity had `decisionMakerFound: "Complete"` with no tagged stakeholder behind it — fully replacing the field (as the roadmap originally specified) would have silently un-completed that opportunity's stage-gate status. The Qualification tab's display now shows a "✓ Tagged stakeholder found" hint alongside the manual status rather than replacing it outright. **Still open:** whether to fully deprecate the manual dropdown in favor of the derived value — that's a UX decision (what happens to existing set-by-hand values) this session didn't have enough context to make unilaterally.
 
 ### 20. Quick Notes need a "Regarding" field
 
@@ -177,6 +197,8 @@ Same "+Create"-style dropdown pattern from Phase 03 item 5 — Add Activity shou
 > *"Once an opportunity has been won and a project is created we need a button at the top of the opportunity next to 'Edit opportunity' and 'awarded' that says 'Open Project' and takes you to the linked project."*
 
 Concrete, add alongside the existing header actions once the opportunity→project link exists to navigate through (`projects.opportunityId` already exists per the seed data — confirm the reverse lookup, opportunity→its resulting project, is straightforward before building).
+
+**✅ Done 2026-09-17.** Reverse lookup was indeed straightforward (`state.projects.find(project => project.opportunityId === opportunity.id)`, same pattern already used elsewhere for the "Won but no project yet" prompt). Added an "Open project" button to the header toolbar, shown whenever a resulting project exists (not gated strictly to the Won stage, since the button is only ever meaningful when a project actually exists regardless).
 
 ### 24. Won-opportunity status badge is stale/misleading
 
@@ -206,10 +228,10 @@ The forecast-category badge (normally "Pipeline") doesn't update to reflect the 
 
 ## Data model changes
 
-- `activities.contactId` (scalar) → `activities.contactIds` (array) — item 9, needs a migration for existing rows
-- Opportunity-scoped contact relationship tags (Decision Maker, etc.) — item 19, likely a new field on whatever associated-contacts junction gets built for item 7
-- Possible rename: `serviceType`/cleanup-type field → "Opportunity Type" with expanded value list — item 5
-- Site walk gains a real scheduling link (activity/timeline reference) — item 15
+- `activities.contactId` (scalar) → `activities.contactIds` (array) — item 9, needs a migration for existing rows, **not done**
+- ✅ **Not a new field after all, corrected 2026-09-17:** opportunity-scoped contact relationship tags (item 19) already existed on `opportunityContacts.influenceLevel` (Decision maker/Evaluator/Influencer/Gatekeeper/User) — this doc assumed a new junction/field was needed for item 7; the junction (`opportunityContacts`) already existed and just wasn't connected to the Associated Contacts panel. See item 7/11/19's corrections.
+- Possible rename: `serviceType`/cleanup-type field → "Opportunity Type" with expanded value list — item 5, **not done**, needs an owner decision on final vocabulary
+- Site walk gains a real scheduling link (activity/timeline reference) — item 15, **not done**
 
 Update `docs/database-handoff-map.md` when any of the above land.
 
@@ -217,18 +239,18 @@ Update `docs/database-handoff-map.md` when any of the above land.
 
 ## Verification / done criteria
 
-- [ ] Create an opportunity from an account page — lands on the new opportunity's detail page every time
-- [ ] A contact can be associated with two or more opportunities simultaneously; editing the contact doesn't drop any of them
-- [ ] A won or lost opportunity no longer appears as a live "current" association without a decision (auto-dropped, or moved to a former-associations view — per whichever the open decision below resolves)
-- [ ] Associated Contacts "Edit" on an opportunity opens an opportunity-scoped editor, not the generic contact-core-details dialog
-- [ ] Opportunity/project names in the Contact page's "Connected via" panel are clickable
-- [ ] An activity can be logged against more than one contact
-- [ ] The primary-stakeholder checkbox renders inline with its label, not floating
-- [ ] Marking "site walk needed: yes" offers an immediate quick-schedule action
-- [ ] Trying to advance an opportunity with missing required fields highlights the specific panels and badges the relevant stage-tab button
-- [ ] "Open Account" and (on a won opportunity) "Open Project" buttons both navigate correctly
-- [ ] Decision Maker Found reflects a real tagged associated contact, not a manual toggle
-- [ ] A won opportunity's second status badge reads the linked project's actual stage, not a stale "Won"
+- [x] Create an opportunity from an account page — lands on the new opportunity's detail page every time (2026-09-17, verified live)
+- [x] A contact can be associated with two or more opportunities simultaneously; editing the contact doesn't drop any of them (2026-09-17 — fixed at the root: `saveContact` no longer overwrites `opportunityIds`)
+- [ ] A won or lost opportunity no longer appears as a live "current" association without a decision — not started; the "current vs. former" mechanism now exists (item 11) but nothing auto-triggers it on Won/Lost yet
+- [x] Associated Contacts "Edit" on an opportunity opens an opportunity-scoped editor, not the generic contact-core-details dialog (2026-09-17 — consolidated onto the Stakeholders dialog)
+- [x] Opportunity/project names in the Contact page's "Connected via" panel are clickable (2026-09-17)
+- [ ] An activity can be logged against more than one contact — not started, real schema change (item 9)
+- [x] The primary-stakeholder checkbox renders inline with its label, not floating (2026-09-17)
+- [ ] Marking "site walk needed: yes" offers an immediate quick-schedule action — not started
+- [ ] Trying to advance an opportunity with missing required fields highlights the specific panels and badges the relevant stage-tab button — not started
+- [x] "Open Account" and (on a won opportunity) "Open Project" buttons both navigate correctly (Open Account already existed; Open Project added 2026-09-17)
+- [x] Decision Maker Found reflects a real tagged associated contact — partially: now true in addition to the manual toggle, not instead of it (see item 19's note on why a full replacement was deferred)
+- [ ] A won opportunity's second status badge reads the linked project's actual stage, not a stale "Won" — not started
 
 ---
 
@@ -246,3 +268,6 @@ Update `docs/database-handoff-map.md` when any of the above land.
 ## Corrections found during implementation
 
 *(Record here anything that turned out to be different from the plan.)*
+
+- **2026-09-17 — the biggest finding this session: "Associated Contacts" and "Stakeholders" were two parallel, non-syncing systems for the same concept, not one panel with a wiring bug.** Items 6, 7, and 11 were each scoped in this doc as if "Associated Contacts" (Summary tab) needed new capability built (multi-select, an opportunity-scoped editor, add/remove). In fact, a fully-correct, already-working implementation of everything those three items ask for already existed one tab over, under a different name: the Develop & Planning tab's "Stakeholders" panel, backed by the real `opportunityContacts` many-to-many junction, with a working add/edit/remove dialog and a relationship/influence-level vocabulary that already included "Decision maker" (item 19's ask). "Associated Contacts" was a completely separate, older, buggier codepath reading `contact.opportunityIds` — a scalar-shaped array that the contact's own edit dialog could silently overwrite down to one entry. The fix for all four items (6, 7, 11, 19) was consolidation, not new construction: point Associated Contacts at the same data and the same dialog Stakeholders already used. **Lesson for future phase-doc authors:** when a note describes a capability gap ("we can't do X"), check whether X already exists somewhere else in the app under a different label before scoping it as new work — this doc's per-item CONFIRMED citations were accurate about the *symptom* (Associated Contacts' Edit button, the contact dialog's single-select) but didn't cross-reference the *other* panel that had already solved the same problem correctly.
+- **2026-09-17 — a live-testing false alarm, recorded so it isn't repeated.** Item 2's fix initially appeared to still fail when tested live via Playwright — the page didn't navigate after "saving" a new opportunity. Root cause was the test script, not the app: the Opportunity dialog's "Next step" field is `required`, the test left it blank, and the browser's native HTML5 form validation silently blocked submission before any JavaScript ran (no console error, no network request, nothing to see except the page not changing). Filling every required field resolved it. Worth remembering when a fix "doesn't seem to work" in an automated test against a form with `required` fields — check native validation before suspecting the application code.
