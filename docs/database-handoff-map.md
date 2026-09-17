@@ -278,6 +278,19 @@ the Opportunity page redesign) but its now-unused IndexedDB store
 declaration was left in `openDatabase`'s schema -- harmless (the store is
 created but never written to), just not yet cleaned up in code.
 
+**Phase 07 (2026-09-17)** did not add or rename any fields, but wired real UI onto several fields
+that already existed and were write-only or read-only stubs before: `sampleRecords.labName` /
+`labStatus` / `labResults` / `chainOfCustody` / `labReceivedAt` / `reviewedBy` / `labReportUri` now
+have an office-side "Assign lab / report results" dialog (previously display-only, no way to set
+them after field capture); `employeeCertifications` records can now be edited in place via a
+"Renew / update" action (previously `openCredentialDialog` only ever created a new row, so an
+expired credential could never actually be cleared -- editing "renewed" it by leaving the stale
+expired row alongside a new one); `projects.projectStage` is now read (via `getJobProgress`), not
+just written at creation, and `dispatchJobs` status transitions now write it forward as the job
+moves through dispatch (`advanceProjectStageFromDispatchStatus`) -- closes the "written but never
+read" known-open item for the prototype layer (the SQL schema side is unaffected). See
+`docs/roadmap/phase-07-dispatch-operations.md` for the full list.
+
 `laborResources` (JSON backend, Inventory -> Labor view) was retired in code
 on August 17, 2026, not migrated -- it duplicated real people from `employees`
 under separate, unlinked IDs with independently-drifting hours/capacity

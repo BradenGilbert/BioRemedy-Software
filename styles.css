@@ -2982,6 +2982,7 @@ textarea {
 }
 
 .readiness-badge.ready,
+.readiness-badge.completed,
 .readiness-badge.valid,
 .readiness-badge.eligible,
 .readiness-badge.in-field,
@@ -2994,6 +2995,7 @@ textarea {
 }
 
 .readiness-badge.ready > span,
+.readiness-badge.completed > span,
 .readiness-badge.valid > span,
 .readiness-badge.eligible > span,
 .readiness-badge.in-field > span {
@@ -4061,17 +4063,12 @@ textarea {
 }
 
 .job-assignment-row {
-  display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) auto;
-  gap: 9px;
+  display: flex;
   align-items: center;
+  gap: 9px;
   border: 0;
   border-bottom: 1px solid var(--border);
-  background: transparent;
-  color: var(--ink);
   padding: 0 0 9px;
-  text-align: left;
-  font: inherit;
 }
 
 .job-assignment-row:last-child {
@@ -4079,7 +4076,22 @@ textarea {
   padding-bottom: 0;
 }
 
-.job-assignment-row > span:nth-child(2) {
+.job-assignment-row > button:first-child {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  text-align: left;
+  font: inherit;
+}
+
+.job-assignment-row > button:first-child > span:nth-child(2) {
   display: grid;
   gap: 2px;
 }

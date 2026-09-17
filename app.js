@@ -2187,7 +2187,8 @@ async function handleClick(event) {
   if (action === "open-map-location") openLocationDialog(actionButton.dataset.id);
   if (action === "open-invoice") openInvoiceDialog(actionButton.dataset.jobId);
   if (action === "open-employee") openEmployeeDialog(id);
-  if (action === "open-credential") openCredentialDialog(actionButton.dataset.employeeId);
+  if (action === "open-credential") openCredentialDialog(actionButton.dataset.employeeId, actionButton.dataset.credentialId);
+  if (action === "open-sample-lab") openSampleLabDialog(actionButton.dataset.id);
   if (action === "open-job-request") openJobRequestDialog(actionButton.dataset.accountId, "", actionButton.dataset.projectId);
   if (action === "open-job-schedule") openDispatchScheduleDialog(actionButton.dataset.jobId);
   if (action === "export-qbo") await exportInvoiceToQbo(id);
@@ -2397,6 +2398,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "invoice") await saveInvoice(form);
   if (form.dataset.form === "employee") await saveEmployee(form);
   if (form.dataset.form === "credential") await saveEmployeeCredential(form);
+  if (form.dataset.form === "sample-lab") await saveSampleLabInfo(form);
   if (form.dataset.form === "job-request") await saveJobRequest(form);
   if (form.dataset.form === "dispatch-schedule") await saveDispatchSchedule(form);
   if (form.dataset.form === "activity") await saveActivity(form);
@@ -7581,6 +7583,7 @@ function renderSampleDetail() {
                 <h3>Laboratory and results</h3>
                 <span>Requested analyses, custody, receipt, and current interpretation.</span>
               </div>
+              <button class="mini-button" type="button" data-action="open-sample-lab" data-id="${escapeAttribute(sample.id)}">Assign lab / report results</button>
             </div>
             <div class="panel-body detail-stack">
               <dl class="detail-list sample-detail-list">
@@ -8881,6 +8884,7 @@ function renderCredentialRow(record) {
         <strong>Expires ${formatDate(record.expiresOn)}</strong>
       </div>
       <span class="risk-badge ${tone}">${escapeHtml(record.status)}</span>
+      <button class="mini-button" type="button" data-action="open-credential" data-employee-id="${escapeAttribute(record.employeeId)}" data-credential-id="${escapeAttribute(record.id)}">Renew / update</button>
     </article>
   `;
 }
@@ -9973,6 +9977,7 @@ function renderDispatchJobDetail() {
       <div class="detail-topline">
         <button class="back-button" type="button" data-action="back-to-dispatch-jobs">Back to jobs</button>
         <div class="inline-actions">
+          ${job.projectId ? `<button class="secondary-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.projectId)}">Back to project</button>` : ""}
           <button class="secondary-button" type="button" data-action="open-job-schedule" data-job-id="${job.id}">Schedule</button>
           ${nextTransition ? `<button class="primary-button" type="button" data-action="advance-dispatch-job" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>` : ""}
         </div>
@@ -10299,10 +10304,20 @@ function renderJobResource(resource) {
     : inventoryItem
       ? `${Number(resource.quantity || 1)} ${inventoryItem.unit || ""}`
       : resource.assetTag || `${Number(resource.quantity || 1)} ${resource.unit || resource.type}`;
+  // Interim over-reservation warning (item 9, warn-but-allow): flag a material line whose combined
+  // active reservations across every job exceed what's actually on hand for that inventory item.
+  const overReserved =
+    resource.type === "Material" &&
+    resource.status === "Reserved" &&
+    inventoryItem &&
+    (state.backend.jobResources || [])
+      .filter((item) => item.type === "Material" && item.inventoryItemId === inventoryItem.id && item.status === "Reserved")
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0) > Number(inventoryItem.onHand || 0);
   return `
     <article class="job-resource-row">
       <span class="resource-type-mark">${escapeHtml(getInitials(resource.type, "R"))}</span>
       <div><strong>${escapeHtml(name)}</strong><span>${escapeHtml(detail)}</span></div>
+      ${overReserved ? `<span class="risk-badge high" title="Total reservations exceed on-hand stock">Over stock</span>` : ""}
       <span class="source-badge">${escapeHtml(resource.status)}</span>
       <button class="mini-button" type="button" data-action="remove-job-resource" data-id="${escapeAttribute(resource.id)}">Remove</button>
     </article>
@@ -12708,6 +12723,18 @@ async function frontlineCompleteAction(form) {
     if (action.type === "Sample") {
       await saveSampleFromTask(action, job, data, summary, submittedBy);
     }
+    if (action.type === "Timer" && fieldLead && Number(payload.hours) > 0) {
+      // The labor section's hoursWorked was previously only ever carried over unchanged from the
+      // existing value in saveEmployee — nothing wrote to it when a worker was scheduled or when they
+      // actually logged time in the field, so it silently never tracked real hours (item 12). A Timer
+      // task submission is the one place the app captures real logged hours, so that's where this adds
+      // the write.
+      await saveBackendRecord(
+        "employees",
+        { ...fieldLead, hoursWorked: Number(fieldLead.hoursWorked || 0) + Number(payload.hours) },
+        { refresh: false },
+      );
+    }
 
     await saveBackendRecord(
       "jobFormSubmissions",
@@ -13636,8 +13663,9 @@ async function saveEmployeeCredential(form) {
     showToast("Select a valid employee.");
     return;
   }
+  const existingId = data.get("id")?.toString().trim();
   const record = {
-    id: makeId("cert"),
+    id: existingId || makeId("cert"),
     employeeId,
     recordType: data.get("recordType").toString(),
     code: data.get("code").toString().trim(),
@@ -13819,13 +13847,26 @@ function renderJobTemplateOption(template, requestId, requestServiceCategory) {
   `;
 }
 
+const jobRequestConversionsInFlight = new Set();
+
 async function convertJobRequest(requestId, templateId = "") {
   const request = getJobRequests().find((item) => item.id === requestId);
   if (!request) return;
+  if (request.status === "Converted" || request.convertedJobId) {
+    showToast("This request already has a dispatch job.");
+    return;
+  }
+  if (jobRequestConversionsInFlight.has(requestId)) {
+    // Guards against the double-write bug where a fast double-click (or a slow first
+    // request combined with an impatient second click) created two dispatchJobs records
+    // for one job request — JOB-2026-0916-35 and -36 from the same "Create job" click.
+    return;
+  }
   if (!request.requestedServiceAt || !request.onsiteContactName || !request.addressText) {
     showToast("Request needs a service time, onsite contact, and address before job creation.");
     return;
   }
+  jobRequestConversionsInFlight.add(requestId);
 
   const template = templateId ? findJobTypeTemplate(templateId) : null;
   const serviceMap = {
@@ -13895,6 +13936,8 @@ async function convertJobRequest(requestId, templateId = "") {
     showToast(template ? `Dispatch job created using the "${template.name}" template.` : "Dispatch job created from the sales request.");
   } catch (error) {
     showToast(error.message || "Job could not be created.");
+  } finally {
+    jobRequestConversionsInFlight.delete(requestId);
   }
 }
 
@@ -14188,6 +14231,15 @@ async function saveDispatchAssignMaterial(form) {
     showToast("Enter a quantity greater than zero.");
     return;
   }
+  // Owner decision (item 9, 2026-09-17): warn but allow — environmental field work sometimes has
+  // legitimate reasons to reserve ahead of restock, so this checks against on-hand stock and warns
+  // rather than blocking the reservation. This is a lightweight interim check against onHand, not the
+  // real inventory ledger (lots/reorder rules/receiving) planned for Phase 14.
+  const alreadyReserved = (state.backend.jobResources || [])
+    .filter((resource) => resource.type === "Material" && resource.inventoryItemId === item.id && resource.status === "Reserved")
+    .reduce((sum, resource) => sum + Number(resource.quantity || 0), 0);
+  const projectedTotal = alreadyReserved + quantity;
+  const onHand = Number(item.onHand || 0);
   try {
     await saveBackendRecord("jobResources", {
       id: makeId("resource"),
@@ -14202,7 +14254,11 @@ async function saveDispatchAssignMaterial(form) {
     });
     closeDialogs();
     render();
-    showToast("Material assigned to job.");
+    if (projectedTotal > onHand) {
+      showToast(`Material assigned, but reservations for ${item.materialType} (${projectedTotal} ${item.unit}) now exceed the ${onHand} ${item.unit} on hand.`);
+    } else {
+      showToast("Material assigned to job.");
+    }
   } catch (error) {
     showToast(error.message || "Material could not be assigned.");
   }
@@ -14260,6 +14316,7 @@ async function advanceDispatchJob(jobId, { silent = false } = {}) {
       occurredAt,
       by: state.frontlineSession ? findEmployee(state.frontlineSession.employeeId)?.displayName || "Front Line" : state.currentUser?.name || "Local user",
     });
+    await advanceProjectStageFromDispatchStatus(job.projectId, transition.status);
     if (!silent) {
       render();
       showToast(`Job moved to ${formatDispatchStatus(transition.status)}.`);
@@ -14267,6 +14324,40 @@ async function advanceDispatchJob(jobId, { silent = false } = {}) {
   } catch (error) {
     showToast(error.message || "Job status could not be updated.");
   }
+}
+
+// Maps a dispatch job's own status onto the parent project's PROJECT_STAGES ladder, and writes it
+// (both projectStage and, for the free-text-heuristic fallback in getJobProgress, activePhase) so the
+// project's stage actually advances as the field work it's tracking moves along. Fixes the
+// known-open "projectStage written at creation but never read" item and Phase 07 item 11 in one place
+// — never moves a project backwards if it's already further along (e.g. from a second dispatch job).
+async function advanceProjectStageFromDispatchStatus(projectId, dispatchStatus) {
+  if (!projectId) return;
+  const project = findProject(projectId);
+  if (!project) return;
+  const stageForDispatchStatus = {
+    draft: "Plan",
+    ready: "Plan",
+    scheduled: "Mobilize",
+    dispatched: "Mobilize",
+    acknowledged: "Mobilize",
+    en_route: "Mobilize",
+    on_site: "Field Work",
+    in_progress: "Field Work",
+    field_complete: "Closeout",
+    office_review: "Closeout",
+    closed: "Closeout",
+  };
+  const targetStage = stageForDispatchStatus[dispatchStatus];
+  if (!targetStage) return;
+  const currentIndex = PROJECT_STAGES.indexOf(project.projectStage || "Intake");
+  const targetIndex = PROJECT_STAGES.indexOf(targetStage);
+  if (targetIndex <= currentIndex) return;
+  await saveBackendRecord("projects", {
+    ...project,
+    projectStage: targetStage,
+    activePhase: targetStage,
+  });
 }
 
 async function saveInvoice(form) {
@@ -14640,14 +14731,19 @@ async function saveProjectFromOpportunity(form) {
     showToast("That account is no longer available.");
     return;
   }
+  const opportunityId = data.get("opportunityId").toString();
+  const opportunity = findOpportunity(opportunityId);
   const projectManagerEmployeeId = data.get("projectManagerEmployeeId").toString();
   const projectManager = getEmployees().find((employee) => employee.id === projectManagerEmployeeId)?.displayName || "";
   const projectStage = data.get("projectStage").toString() || "Intake";
   const job = buildCoreProjectRecord({
     id: makeId("proj"),
     accountId: account.id,
-    facilityId: facilitiesForAccount(account.id)[0]?.id || "",
-    opportunityId: data.get("opportunityId").toString(),
+    // Default the intake "Site" to whichever facility was already selected during the sales process
+    // (the opportunity's own facilityId), not an arbitrary "first facility on the account" — the two
+    // can differ for accounts with multiple sites, which was the reported bug (item 13).
+    facilityId: opportunity?.facilityId || facilitiesForAccount(account.id)[0]?.id || "",
+    opportunityId,
     contactIds: contactsForAccount(account.id).map((contact) => contact.id),
     name: data.get("name").toString().trim(),
     jobClass: data.get("jobClass").toString(),
@@ -17067,21 +17163,21 @@ async function removeSubcontractorAssignment(id) {
 function openAlertDialog(jobId = "") {
   const dialog = document.querySelector("#alertDialog");
   populateProjectSelect(dialog);
-  if (jobId) dialog.querySelector("select[name='jobId']").value = jobId;
+  if (jobId) dialog.querySelector("select[name='projectId']").value = jobId;
   dialog.showModal();
 }
 
 function openMaterialDialog(jobId = "") {
   const dialog = document.querySelector("#materialDialog");
   populateProjectSelect(dialog);
-  if (jobId) dialog.querySelector("select[name='jobId']").value = jobId;
+  if (jobId) dialog.querySelector("select[name='projectId']").value = jobId;
   dialog.showModal();
 }
 
 function openEquipmentDialog(jobId = "") {
   const dialog = document.querySelector("#equipmentDialog");
   populateProjectSelect(dialog);
-  if (jobId) dialog.querySelector("select[name='jobId']").value = jobId;
+  if (jobId) dialog.querySelector("select[name='projectId']").value = jobId;
   dialog.showModal();
 }
 
@@ -17091,7 +17187,7 @@ function openScheduleDialog(jobId = "") {
   populateEquipmentAssetSelect(dialog);
   populateLaborResourceSelect(dialog);
   dialog.querySelector("input[name='date']").value = todayIso();
-  if (jobId) dialog.querySelector("select[name='jobId']").value = jobId;
+  if (jobId) dialog.querySelector("select[name='projectId']").value = jobId;
   dialog.showModal();
 }
 
@@ -17354,15 +17450,93 @@ function openEmployeeDialog(employeeId = "") {
   dialog.showModal();
 }
 
-function openCredentialDialog(employeeId = "") {
+function openCredentialDialog(employeeId = "", credentialId = "") {
   const dialog = document.querySelector("#credentialDialog");
   const form = dialog.querySelector("form");
   form.reset();
   populateEmployeeSelect(dialog, "employeeId");
-  form.elements.employeeId.value = employeeId || state.selectedEmployeeId || getEmployees()[0]?.id || "";
-  form.elements.issuedOn.value = todayIso();
-  form.elements.expiresOn.value = addDays(365);
+  const record = credentialId ? getEmployeeCertifications().find((item) => item.id === credentialId) : null;
+  const title = dialog.querySelector("[data-credential-dialog-title]");
+  if (record) {
+    title.textContent = "Update credential";
+    form.elements.id.value = record.id;
+    form.elements.employeeId.value = record.employeeId;
+    form.elements.recordType.value = record.recordType || "Certification";
+    form.elements.code.value = record.code || "";
+    form.elements.name.value = record.name || "";
+    form.elements.number.value = record.number || "";
+    form.elements.issuedOn.value = record.issuedOn || todayIso();
+    form.elements.expiresOn.value = record.expiresOn || addDays(365);
+    form.elements.status.value = record.status || "Valid";
+    form.elements.verified.checked = Boolean(record.verified);
+  } else {
+    title.textContent = "Add credential";
+    form.elements.id.value = "";
+    form.elements.employeeId.value = employeeId || state.selectedEmployeeId || getEmployees()[0]?.id || "";
+    form.elements.issuedOn.value = todayIso();
+    form.elements.expiresOn.value = addDays(365);
+  }
   dialog.showModal();
+}
+
+function openSampleLabDialog(sampleId) {
+  const sample = findSample(sampleId);
+  if (!sample) {
+    showToast("That sample record could not be found.");
+    return;
+  }
+  const dialog = document.querySelector("#sampleLabDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.id.value = sample.id;
+  form.elements.labName.value = sample.labName || "";
+  form.elements.chainOfCustody.value = sample.chainOfCustody || "";
+  form.elements.labStatus.value = sample.labStatus || "Logged in field";
+  form.elements.labReceivedAt.value = sample.labReceivedAt ? sample.labReceivedAt.slice(0, 10) : "";
+  form.elements.requestedAnalyses.value = Array.isArray(sample.requestedAnalyses)
+    ? sample.requestedAnalyses.join("\n")
+    : sample.requestedAnalyses || "";
+  form.elements.labResults.value = sample.labResults || sample.results || "";
+  form.elements.reviewedBy.value = sample.reviewedBy || "";
+  form.elements.labReportUri.value = sample.labReportUri || "";
+  dialog.showModal();
+}
+
+async function saveSampleLabInfo(form) {
+  const data = new FormData(form);
+  const sampleId = data.get("id").toString();
+  const sample = findSample(sampleId);
+  if (!sample) {
+    showToast("That sample record could not be found.");
+    return;
+  }
+  const analyses = data
+    .get("requestedAnalyses")
+    .toString()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const labReceivedAt = data.get("labReceivedAt").toString();
+  const record = {
+    ...sample,
+    labName: data.get("labName").toString().trim(),
+    chainOfCustody: data.get("chainOfCustody").toString().trim(),
+    labStatus: data.get("labStatus").toString(),
+    labReceivedAt: labReceivedAt ? new Date(labReceivedAt).toISOString() : sample.labReceivedAt || "",
+    requestedAnalyses: analyses,
+    labResults: data.get("labResults").toString().trim(),
+    reviewedBy: data.get("reviewedBy").toString().trim(),
+    labReportUri: data.get("labReportUri").toString().trim(),
+  };
+
+  try {
+    await saveBackendRecord("sampleRecords", record);
+    closeDialogs();
+    render();
+    showToast("Sample lab information saved.");
+  } catch (error) {
+    showToast(error.message || "Sample lab information could not be saved.");
+  }
 }
 
 function openJobRequestDialog(accountId = "", opportunityId = "", projectId = "") {
@@ -18774,7 +18948,12 @@ function getOpportunityProgress(opportunity) {
 }
 
 function getCloseStatus(value) {
-  return { label: value ? `Close ${formatDate(value)}` : "No close date set", tone: "low" };
+  if (!value) return { label: "No close date set", tone: "low" };
+  const days = daysUntil(value);
+  if (days < 0) return { label: `${Math.abs(days)} days overdue`, tone: "high" };
+  if (days === 0) return { label: "Closes today", tone: "high" };
+  if (days <= 7) return { label: `${days} days to close`, tone: "medium" };
+  return { label: `Close ${formatDate(value)}`, tone: "low" };
 }
 
 function daysUntil(value) {
@@ -18800,13 +18979,25 @@ function projectsForContact(contact) {
 }
 
 function getJobProgress(job) {
-  const phaseText = `${job.status} ${job.activePhase}`.toLowerCase();
+  // projectStage (PROJECT_STAGES: Intake/Plan/Mobilize/Field Work/Closeout) is the authoritative
+  // field written at project creation and, since the Phase 07 dispatch-status bridge below, kept in
+  // sync as the project's dispatch job(s) move through the field. Previously this function never read
+  // it at all and derived stageIndex purely from free-text status/activePhase keyword matching, which
+  // is why a project could be "clearly scheduled and completed" in dispatch and still show as stuck on
+  // Intake here (known-open item, README.md "Known-open items"). Fall back to the old heuristic only
+  // for legacy records that predate projectStage being set.
+  const projectStageIndex = job.projectStage ? PROJECT_STAGES.indexOf(job.projectStage) : -1;
   let stageIndex = 0;
-  if (phaseText.includes("site walk") || phaseText.includes("investigation") || phaseText.includes("planning")) stageIndex = 0;
-  else if (phaseText.includes("review") || phaseText.includes("pre-mobilization") || phaseText.includes("scheduled")) stageIndex = 1;
-  else if (phaseText.includes("dispatch") || phaseText.includes("stabilization") || phaseText.includes("mobil")) stageIndex = 2;
-  else if (phaseText.includes("field") || phaseText.includes("active")) stageIndex = 3;
-  else if (phaseText.includes("closeout") || phaseText.includes("complete")) stageIndex = 4;
+  if (projectStageIndex >= 0) {
+    stageIndex = projectStageIndex;
+  } else {
+    const phaseText = `${job.status} ${job.activePhase}`.toLowerCase();
+    if (phaseText.includes("site walk") || phaseText.includes("investigation") || phaseText.includes("planning")) stageIndex = 0;
+    else if (phaseText.includes("review") || phaseText.includes("pre-mobilization") || phaseText.includes("scheduled")) stageIndex = 1;
+    else if (phaseText.includes("dispatch") || phaseText.includes("stabilization") || phaseText.includes("mobil")) stageIndex = 2;
+    else if (phaseText.includes("field") || phaseText.includes("active")) stageIndex = 3;
+    else if (phaseText.includes("closeout") || phaseText.includes("complete")) stageIndex = 4;
+  }
 
   const dateProgress = getDateProgress(job.startDate, job.targetDate);
   const phaseProgress = [18, 35, 55, 74, 94][stageIndex] || 20;
@@ -19515,8 +19706,21 @@ function getJobReadiness(job) {
   ];
   const hasBlock = checks.some((check) => check.status === "Block");
   const hasWarning = checks.some((check) => check.status === "Warning");
-  const status = hasBlock ? "Blocked" : hasWarning ? "Warning" : ["in_progress", "on_site", "en_route", "acknowledged"].includes(job.status) ? "In field" : ["field_complete", "office_review"].includes(job.status) ? "Review" : "Ready";
-  const summary = hasBlock ? "Resolve blocking checks before dispatch" : hasWarning ? "Dispatcher review recommended" : status === "In field" ? "Job package active in Front Line" : status === "Review" ? "Field package returned for review" : "All required dispatch checks pass";
+  // Terminal jobs (closed/cancelled) must be checked first — without this, a completed job on the
+  // calendar/dispatch board fell through every other branch and showed "Ready" (misheard/transcribed
+  // as "Yeady" in the field notes that reported this bug), which reads as if it still needed dispatch.
+  const status = isTerminalDispatchStatus(job.status)
+    ? "Completed"
+    : hasBlock
+      ? "Blocked"
+      : hasWarning
+        ? "Warning"
+        : ["in_progress", "on_site", "en_route", "acknowledged"].includes(job.status)
+          ? "In field"
+          : ["field_complete", "office_review"].includes(job.status)
+            ? "Review"
+            : "Ready";
+  const summary = status === "Completed" ? "Job closed out" : hasBlock ? "Resolve blocking checks before dispatch" : hasWarning ? "Dispatcher review recommended" : status === "In field" ? "Job package active in Front Line" : status === "Review" ? "Field package returned for review" : "All required dispatch checks pass";
   return { status, summary, checks };
 }
 
@@ -19534,7 +19738,7 @@ function renderDeviceSyncBadge(status) {
 }
 
 function getReadinessTone(status) {
-  if (["Ready", "Valid", "Eligible", "Pass", "Information"].includes(status)) return "low";
+  if (["Ready", "Completed", "Valid", "Eligible", "Pass", "Information"].includes(status)) return "low";
   if (["Expiring", "Warning", "Overridden", "Review", "Office"].includes(status)) return "medium";
   return "high";
 }

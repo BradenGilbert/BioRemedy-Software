@@ -2460,10 +2460,11 @@
 
     <dialog id="credentialDialog" class="modal">
       <form method="dialog" class="modal-panel" data-form="credential">
+        <input name="id" type="hidden" />
         <div class="modal-header">
           <div>
             <p class="eyebrow">Workforce</p>
-            <h2>Add credential</h2>
+            <h2 data-credential-dialog-title>Add credential</h2>
           </div>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
@@ -2514,6 +2515,7 @@
               <option>Pending verification</option>
               <option>Expired</option>
               <option>Suspended</option>
+              <option>Revoked</option>
             </select>
           </label>
           <label class="check-row">
@@ -2524,6 +2526,70 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save credential</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="sampleLabDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="sample-lab">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Sample</p>
+            <h2>Assign lab &amp; report results</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Laboratory
+            <input name="labName" maxlength="140" placeholder="Envirolab Analytics" />
+          </label>
+          <label>
+            COC number
+            <input name="chainOfCustody" maxlength="80" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Lab status
+            <select name="labStatus">
+              <option>Logged in field</option>
+              <option>Pending pickup</option>
+              <option>In transit</option>
+              <option>Logged at lab</option>
+              <option>Analysis in progress</option>
+              <option>Expedited</option>
+              <option>Results received</option>
+              <option>Reviewed</option>
+            </select>
+          </label>
+          <label>
+            Lab received
+            <input name="labReceivedAt" type="date" />
+          </label>
+        </div>
+        <label>
+          Requested analyses (one per line)
+          <textarea name="requestedAnalyses" rows="2"></textarea>
+        </label>
+        <label>
+          Result summary
+          <textarea name="labResults" rows="3" placeholder="Below detection limits for all requested analytes."></textarea>
+        </label>
+        <div class="form-grid">
+          <label>
+            Reviewed by
+            <input name="reviewedBy" maxlength="120" />
+          </label>
+          <label>
+            Lab report reference
+            <input name="labReportUri" maxlength="200" placeholder="File name or link" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save lab info</button>
         </menu>
       </form>
     </dialog>
