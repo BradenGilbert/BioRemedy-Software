@@ -7,7 +7,10 @@ rename -- `locations`->`facilities`, `mapLocations`->`locations`, new
 `facilityContacts` -- updated September 16, 2026; Phase 03 account-domain work --
 new `facilityComments` collection (site notes on the new Facility detail page,
 mirrors `accountComments`), `accounts.ownerEmployeeId` now a real FK -- updated
-September 16, 2026)
+September 16, 2026; Phase 04 vendor/subcontractor work -- new
+`accountApprovedSubcontractors` collection (Layer 2: which vendors a specific
+customer account has approved), `vendorProfiles.approvedById` now a real
+employee FK -- updated September 17, 2026)
 
 ## Executive Summary
 
@@ -285,16 +288,19 @@ gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
 was retired the same way, same day: removed from `server.mjs` entirely and
 deleted from `data/backend.json`.
 
-### Node JSON Backend - 84 collections
+### Node JSON Backend - 85 collections
 
-> The count was previously documented as 72, then 76, then 82, then 83.
+> The count was previously documented as 72, then 76, then 82, then 83, then 84.
 > Recounted directly from both `data/backend.json`'s top-level keys and
 > `server.mjs`'s `defaultBackend` object on September 16, 2026, after Phase 02
 > (Places Model) added `facilityContacts` (the account-facility-vs-old-`locations`-collection
 > rename below is a rename, not a count change): 83, then again the same day
 > after Phase 03 (Account Domain) added `facilityComments` (site notes on the
-> new Facility detail page, mirrors `accountComments`): **84**. Recount from
-> source when it matters, don't trust the running tally.
+> new Facility detail page, mirrors `accountComments`): 84, then again
+> September 17, 2026 after Phase 04 (Vendor & Subcontractor) added
+> `accountApprovedSubcontractors` (Layer 2: which vendors a specific customer
+> account has approved): **85**. Recount from source when it matters, don't
+> trust the running tally.
 
 > **Phase 02 rename, September 16, 2026:** the old `locations` collection
 > (Account Facilities) is now `facilities`, and the old `mapLocations`
@@ -418,14 +424,24 @@ there.
    `027_vendor_subcontractor_management.sql` -- `vendor_profiles` (1:1
    account extension carrying onboarding/insurance/W-9/safety compliance),
    `subcontractor_types`, `service_agreements`, and
-   `subcontractor_assignments` for job-specific commitments. **Still open:**
-   job/dispatch tables (`022_jobs_dispatch_assignments.sql`) do not link to
-   this layer yet -- `job_resource_allocations.vendor_account_id` still
-   points straight at `accounts`. When dispatch work resumes, point
-   job-level vendor relationships at `subcontractor_assignments` instead, so
-   job-specific terms don't get mixed into the vendor's general standing
-   record. See the planning note in `docs/erp-operational-architecture.md`
-   and in `docs/dataverse-relationship-architecture.md`.
+   `subcontractor_assignments` for job-specific commitments. Phase 04
+   (2026-09-17) built the prototype equivalents of the first three (plus a
+   new Layer 2, `accountApprovedSubcontractors` / customer-specific
+   subcontractor approval, which has no SQL counterpart yet either -- add it
+   to `027` when this schema is next touched) and gave them a real "Vendor &
+   Subcontractor" tab on the account page. **Still open:** job/dispatch
+   tables (`022_jobs_dispatch_assignments.sql`) do not link to this layer
+   yet -- `job_resource_allocations.vendor_account_id` still points straight
+   at `accounts`. **Correction, verified 2026-09-17:** this isn't just a
+   SQL-schema gap -- the running JSON prototype's own dispatch-resource
+   collection (`jobResources`) has no vendor/account FK at all today; its
+   "Vendor" resource type is a bare free-text field. Closing this is a
+   from-scratch build in both layers, not a repoint in either. When dispatch
+   work resumes, point job-level vendor relationships at
+   `subcontractor_assignments` instead, so job-specific terms don't get
+   mixed into the vendor's general standing record. See the planning note in
+   `docs/erp-operational-architecture.md` and in
+   `docs/dataverse-relationship-architecture.md`.
 5. **Accounting completion and QuickBooks integration:** payments, payment
    allocations, credit memos, vendor bills, expenses, tax mappings,
    accounting connections, export batches, sync results, and reconciliation.

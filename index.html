@@ -2978,6 +2978,7 @@
             <select name="subcontractorTypeId"></select>
           </label>
         </div>
+        <p class="help-text">Vendor number is auto-suggested (VEND-####) for a new vendor — edit it if this account already has one from elsewhere.</p>
         <div class="form-grid">
           <label>
             Onboarding status
@@ -3013,14 +3014,17 @@
             W-9 status
             <select name="w9Status">
               <option>Missing</option>
-              <option>Received</option>
+              <option>Under Review</option>
+              <option>Approved</option>
               <option>Expired</option>
+              <option>Needs Attention</option>
             </select>
           </label>
           <label>
             Insurance status
             <select name="insuranceStatus">
               <option>Valid</option>
+              <option>Under Review</option>
               <option>Expiring</option>
               <option>Expired</option>
               <option>Waived</option>
@@ -3054,7 +3058,22 @@
         <div class="form-grid">
           <label>
             Performance rating
-            <input name="performanceRating" type="number" min="0" max="5" step="0.1" />
+            <select name="performanceRating">
+              <option value="">Not yet rated</option>
+              <option>A+</option>
+              <option>A</option>
+              <option>A-</option>
+              <option>B+</option>
+              <option>B</option>
+              <option>B-</option>
+              <option>C+</option>
+              <option>C</option>
+              <option>C-</option>
+              <option>D+</option>
+              <option>D</option>
+              <option>D-</option>
+              <option>F</option>
+            </select>
           </label>
           <label>
             Accounting vendor ID
@@ -3085,6 +3104,25 @@
           Notes
           <textarea name="notes" rows="3" maxlength="400"></textarea>
         </label>
+        <label class="check-row">
+          <input type="checkbox" name="isSubcontractor" />
+          <span>This vendor is a subcontractor (eligible for job assignments, not just supply/materials)</span>
+        </label>
+        <div class="form-grid">
+          <label>
+            Subcontractor permitted (blanket)
+            <select name="subcontractorPermitted">
+              <option>Unknown</option>
+              <option>Approved</option>
+              <option>Denied</option>
+            </select>
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="subcontractorPreapprovalRequired" />
+            <span>Preapproval required</span>
+          </label>
+        </div>
+        <p class="help-text">"Permitted" here is a blanket flag on this vendor's own record — it's separate from a specific customer approving them (see Approved Subcontractors on this tab). Eligible for Subcontracting is computed from this vendor's compliance fields above.</p>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save vendor profile</button>
@@ -3183,25 +3221,6 @@
             </select>
           </label>
         </div>
-        <label class="check-row">
-          <input type="checkbox" name="isSubcontractor" />
-          <span>Subcontractor</span>
-        </label>
-        <div class="form-grid">
-          <label>
-            Subcontractor permitted
-            <select name="subcontractorPermitted">
-              <option>Unknown</option>
-              <option>Approved</option>
-              <option>Denied</option>
-            </select>
-          </label>
-          <label class="check-row">
-            <input type="checkbox" name="subcontractorPreapprovalRequired" />
-            <span>Preapproval required</span>
-          </label>
-        </div>
-        <p class="help-text">Eligible for Subcontracting is computed from the vendor profile's compliance fields.</p>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save company profile</button>
@@ -3429,6 +3448,55 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save agreement</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="approvedSubcontractorDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="approved-subcontractor">
+        <input name="id" type="hidden" />
+        <input name="accountId" type="hidden" />
+        <div class="modal-header">
+          <h2>Approve a subcontractor</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">This approves a vendor to work on jobs for <em>this specific customer</em> — separate from that vendor's own general compliance standing.</p>
+        <label>
+          Vendor
+          <select name="subcontractorAccountId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Status
+            <select name="status">
+              <option>Pending</option>
+              <option>Approved</option>
+              <option>Rejected</option>
+              <option>Expired</option>
+            </select>
+          </label>
+          <label>
+            Approved scope
+            <input name="approvedScope" maxlength="120" placeholder="e.g. Asbestos abatement only" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Approved from
+            <input name="approvedFrom" type="date" />
+          </label>
+          <label>
+            Approved until
+            <input name="approvedUntil" type="date" />
+          </label>
+        </div>
+        <label>
+          Notes
+          <textarea name="notes" rows="2" maxlength="400"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save approval</button>
         </menu>
       </form>
     </dialog>

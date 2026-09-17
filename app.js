@@ -2267,6 +2267,8 @@ async function handleClick(event) {
   if (action === "remove-account-relationship") await removeAccountRelationship(id);
   if (action === "remove-service-agreement") await removeServiceAgreement(id);
   if (action === "remove-subcontractor-assignment") await removeSubcontractorAssignment(id);
+  if (action === "open-approved-subcontractor") openApprovedSubcontractorDialog(actionButton.dataset.accountId, id);
+  if (action === "remove-approved-subcontractor") await removeApprovedSubcontractor(id);
   if (action === "sync-now") await simulateSync();
   if (action === "use-demo-user") await useDemoUser();
   if (action === "set-demo-role") await setDemoRole(actionButton.dataset.profile);
@@ -2362,6 +2364,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "facility-contact") await saveFacilityContact(form);
   if (form.dataset.form === "facility-comment") await saveFacilityComment(form);
   if (form.dataset.form === "service-agreement") await saveServiceAgreement(form);
+  if (form.dataset.form === "approved-subcontractor") await saveApprovedSubcontractor(form);
   if (form.dataset.form === "subcontractor-assignment") await saveSubcontractorAssignment(form);
   if (form.dataset.form === "contact-preferences") await saveContactPreferences(form);
   if (form.dataset.form === "alert") await saveProjectAlert(form);
@@ -4751,6 +4754,7 @@ const accountDetailTabs = [
   { id: "files", label: "Files" },
   { id: "facilities-locations", label: "Locations & Addresses" },
   { id: "account-health", label: "Account Health" },
+  { id: "vendor-subcontractor", label: "Vendor & Subcontractor" },
 ];
 
 function renderAccountDetail() {
@@ -4782,11 +4786,23 @@ function renderAccountDetail() {
   `;
 }
 
+function accountVendorExpiryWarning(account) {
+  const vendorProfile = vendorProfileForAccount(account.id);
+  const vendorExpiry = vendorProfile ? isExpiringOrExpired(vendorProfile.insuranceExpiration) : null;
+  const approvalExpiries = approvedSubcontractorsForAccount(account.id)
+    .map((link) => isExpiringOrExpired(link.approvedUntil))
+    .filter(Boolean);
+  if (vendorExpiry === "expired" || approvalExpiries.includes("expired")) return "expired";
+  if (vendorExpiry === "expiring" || approvalExpiries.includes("expiring")) return "expiring";
+  return null;
+}
+
 function renderAccountDetailHeader(account) {
   const relationshipExtension = relationshipExtensionForAccount(account.id);
   const statusLabel = relationshipExtension?.relationshipStatus || "Not set";
   const statusTone = statusLabel === "Active" ? "low" : statusLabel === "Suspended" || statusLabel === "Inactive" ? "high" : "medium";
   const isPaused = Boolean(relationshipExtension?.isPaused);
+  const expiryWarning = accountVendorExpiryWarning(account);
   return `
     <div class="account-hero">
       <div class="account-hero-identity">
@@ -4803,6 +4819,7 @@ function renderAccountDetailHeader(account) {
       </div>
       <div class="account-hero-stats">
         ${isPaused ? `<span class="risk-badge high">Paused</span>` : ""}
+        ${expiryWarning ? `<span class="risk-badge ${expiryWarning === "expired" ? "high" : "medium"}" title="Vendor insurance or a subcontractor approval is expired or expiring within 30 days — see the Vendor & Subcontractor tab">${expiryWarning === "expired" ? "Compliance expired" : "Compliance expiring soon"}</span>` : ""}
         <span class="risk-badge ${statusTone}">Account ${escapeHtml(statusLabel)}</span>
         <div class="metric account-hero-metric">
           <p class="eyebrow">Annual Revenue</p>
@@ -4858,6 +4875,8 @@ function renderAccountTabBody(tab, account) {
       return renderAccountFacilitiesTab(account);
     case "account-health":
       return renderAccountHealthTab(account);
+    case "vendor-subcontractor":
+      return renderAccountVendorSubcontractorTab(account);
     case "summary":
     default:
       return renderAccountSummaryTab(account);
@@ -5003,9 +5022,6 @@ function renderAccountSummaryTab(account) {
 
 function renderAccountDetailsTab(account) {
   const accountIndustryLinks = industriesForAccount(account.id);
-  const vendorProfile = vendorProfileForAccount(account.id);
-  const serviceAgreements = serviceAgreementsForAccount(account.id);
-  const subcontractorAssignments = vendorProfile ? subcontractorAssignmentsForVendorProfile(vendorProfile.id) : [];
   const relationship = relationshipExtensionForAccount(account.id);
 
   return `
@@ -5028,55 +5044,7 @@ function renderAccountDetailsTab(account) {
               </dd></div>
               <div><dt>SIC code</dt><dd>${relationship?.sicCode ? escapeHtml(relationship.sicCode) : `<span class="muted">Not yet captured</span>`}</dd></div>
               <div><dt>Ownership</dt><dd>${relationship?.ownershipType ? escapeHtml(relationship.ownershipType) : `<span class="muted">Not yet captured</span>`}</dd></div>
-              ${
-                relationship?.isSubcontractor
-                  ? `
-                    <div><dt>Subcontractor permitted</dt><dd><span class="risk-badge ${relationship.subcontractorPermitted === "Approved" ? "low" : relationship.subcontractorPermitted === "Denied" ? "high" : "medium"}">${escapeHtml(relationship.subcontractorPermitted || "Unknown")}</span></dd></div>
-                    <div><dt>Preapproval required</dt><dd>${relationship.subcontractorPreapprovalRequired ? "Yes" : "No"}</dd></div>
-                  `
-                  : ""
-              }
             </dl>
-          </div>
-        </article>
-        <article class="panel">
-          <div class="panel-header">
-            <h3>Vendor compliance</h3>
-            <button class="mini-button" type="button" data-action="open-vendor-profile" data-account-id="${account.id}">${vendorProfile ? "Edit" : "Add"}</button>
-          </div>
-          <div class="panel-body">
-            ${renderVendorProfileSummary(vendorProfile)}
-          </div>
-        </article>
-        <article class="panel">
-          <div class="panel-header">
-            <h3>Service agreements</h3>
-            <button class="mini-button" type="button" data-action="open-service-agreement" data-account-id="${account.id}">Add</button>
-          </div>
-          <div class="panel-body record-list">
-            ${serviceAgreements.map(renderServiceAgreementCard).join("") || `<div class="empty-state">No service agreements for this account yet.</div>`}
-          </div>
-          <div class="panel-body">
-            <dl class="detail-list">
-              <div><dt>Master Service Agreement</dt><dd><span class="stage-badge">${escapeHtml(relationship?.msaStatus || "Not Sent")}</span></dd></div>
-              <div><dt>Certificate of Insurance</dt><dd><span class="stage-badge">${escapeHtml(relationship?.coiStatus || "Not Sent")}</span></dd></div>
-              <div><dt>W-9</dt><dd><span class="stage-badge">${escapeHtml(relationship?.w9DocumentStatus || "Not Sent")}</span></dd></div>
-            </dl>
-            <button class="mini-button" type="button" data-action="open-document-status" data-account-id="${escapeAttribute(account.id)}">${relationship ? "Edit" : "Add"} document status</button>
-          </div>
-        </article>
-        <article class="panel">
-          <div class="panel-header">
-            <h3>Subcontractor assignments</h3>
-            ${vendorProfile ? `<button class="mini-button" type="button" data-action="open-subcontractor-assignment" data-vendor-profile-id="${vendorProfile.id}">Add</button>` : ""}
-          </div>
-          <div class="panel-body record-list">
-            ${
-              vendorProfile
-                ? subcontractorAssignments.map(renderSubcontractorAssignmentCard).join("") ||
-                  `<div class="empty-state">No subcontractor assignments yet.</div>`
-                : `<div class="empty-state">Add a vendor profile first to create assignments.</div>`
-            }
           </div>
         </article>
       </div>
@@ -5133,6 +5101,121 @@ function renderAccountDetailsTab(account) {
         </article>
       </div>
     </section>
+  `;
+}
+
+function renderAccountVendorSubcontractorTab(account) {
+  const relationship = relationshipExtensionForAccount(account.id);
+  const vendorProfile = vendorProfileForAccount(account.id);
+  const serviceAgreements = serviceAgreementsForAccount(account.id);
+  const subcontractorAssignments = vendorProfile ? subcontractorAssignmentsForVendorProfile(vendorProfile.id) : [];
+  const approvedSubs = approvedSubcontractorsForAccount(account.id);
+  const showCompliance = Boolean(relationship?.isVendor || relationship?.isSubcontractor);
+  const showApprovedSubs = Boolean(relationship?.isClient);
+
+  return `
+    <section class="crm-profile-grid">
+      <div class="detail-stack">
+        ${
+          showCompliance
+            ? `
+              <article class="panel">
+                <div class="panel-header">
+                  <h3>Compliance &amp; Paperwork</h3>
+                  <button class="mini-button" type="button" data-action="open-vendor-profile" data-account-id="${escapeAttribute(account.id)}">${vendorProfile ? "Edit" : "Add"}</button>
+                </div>
+                <p class="help-text">Documents we collect from them — this account is our vendor/subcontractor.</p>
+                <div class="panel-body">
+                  ${renderVendorProfileSummary(vendorProfile)}
+                </div>
+              </article>
+            `
+            : `
+              <article class="panel">
+                <div class="panel-header"><h3>Compliance &amp; Paperwork</h3></div>
+                <div class="panel-body"><div class="empty-state">This account isn't flagged as a vendor or subcontractor (Relationship Snapshot on the General tab). Flag it there, then add a vendor profile here.</div></div>
+              </article>
+            `
+        }
+        ${
+          showApprovedSubs
+            ? `
+              <article class="panel">
+                <div class="panel-header">
+                  <h3>Approved Subcontractors</h3>
+                  <button class="mini-button" type="button" data-action="open-approved-subcontractor" data-account-id="${escapeAttribute(account.id)}">Add</button>
+                </div>
+                <p class="help-text">Which vendors <em>this customer</em> permits us to use on their jobs — separate from a vendor's own general compliance standing.</p>
+                <div class="panel-body record-list">
+                  ${approvedSubs.map(renderApprovedSubcontractorCard).join("") || `<div class="empty-state">No subcontractors approved for this customer yet.</div>`}
+                </div>
+              </article>
+            `
+            : `
+              <article class="panel">
+                <div class="panel-header"><h3>Approved Subcontractors</h3></div>
+                <div class="panel-body"><div class="empty-state">This account isn't flagged as a client yet. Set Customer status on the Relationship Snapshot (General tab) to "Active customer" to enable subcontractor approvals.</div></div>
+              </article>
+            `
+        }
+      </div>
+      <div class="detail-stack">
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Service Agreements</h3>
+            <button class="mini-button" type="button" data-action="open-service-agreement" data-account-id="${escapeAttribute(account.id)}">Add</button>
+          </div>
+          <div class="panel-body record-list">
+            ${serviceAgreements.map(renderServiceAgreementCard).join("") || `<div class="empty-state">No service agreements for this account yet.</div>`}
+          </div>
+          <div class="panel-body">
+            <p class="help-text">Documents we send them — this account is our customer.</p>
+            <dl class="detail-list">
+              <div><dt>Master Service Agreement</dt><dd><span class="stage-badge">${escapeHtml(relationship?.msaStatus || "Not Sent")}</span></dd></div>
+              <div><dt>Certificate of Insurance</dt><dd><span class="stage-badge">${escapeHtml(relationship?.coiStatus || "Not Sent")}</span></dd></div>
+              <div><dt>W-9</dt><dd><span class="stage-badge">${escapeHtml(relationship?.w9DocumentStatus || "Not Sent")}</span></dd></div>
+            </dl>
+            <button class="mini-button" type="button" data-action="open-document-status" data-account-id="${escapeAttribute(account.id)}">${relationship ? "Edit" : "Add"} document status</button>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Subcontractor Assignments</h3>
+            ${vendorProfile ? `<button class="mini-button" type="button" data-action="open-subcontractor-assignment" data-vendor-profile-id="${vendorProfile.id}">Add</button>` : ""}
+          </div>
+          <div class="panel-body record-list">
+            ${
+              vendorProfile
+                ? subcontractorAssignments.map(renderSubcontractorAssignmentCard).join("") ||
+                  `<div class="empty-state">No subcontractor assignments yet.</div>`
+                : `<div class="empty-state">Add a vendor profile first to create assignments.</div>`
+            }
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+function renderApprovedSubcontractorCard(link) {
+  const vendor = findAccount(link.subcontractorAccountId);
+  const expiry = isExpiringOrExpired(link.approvedUntil);
+  const statusTone = link.status === "Approved" ? "low" : link.status === "Rejected" || link.status === "Expired" ? "high" : "medium";
+  return `
+    <article class="detail-card">
+      <button class="link-button account-name" type="button" data-action="view-account" data-id="${escapeAttribute(link.subcontractorAccountId)}">${escapeHtml(vendor?.name || "Unknown vendor")}</button>
+      <div class="row-meta">
+        <span class="risk-badge ${statusTone}">${escapeHtml(link.status || "Pending")}</span>
+        ${link.approvedScope ? `<span>${escapeHtml(link.approvedScope)}</span>` : ""}
+        ${link.approvedUntil ? `<span>Until ${formatDate(link.approvedUntil)}</span>` : ""}
+        ${expiry ? `<span class="risk-badge ${expiry === "expired" ? "high" : "medium"}">${expiry === "expired" ? "Expired" : "Expiring soon"}</span>` : ""}
+      </div>
+      ${link.notes ? `<p class="help-text">${escapeHtml(link.notes)}</p>` : ""}
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="open-approved-subcontractor" data-account-id="${escapeAttribute(link.accountId)}" data-id="${escapeAttribute(link.id)}">Edit</button>
+        <button class="mini-button" type="button" data-action="remove-approved-subcontractor" data-id="${escapeAttribute(link.id)}">Remove</button>
+      </div>
+    </article>
   `;
 }
 
@@ -5673,18 +5756,31 @@ function renderVendorProfileSummary(profile) {
     return `<div class="empty-state">No vendor profile yet. Add one to track onboarding, insurance, and compliance.</div>`;
   }
   const subcontractorType = findSubcontractorType(profile.subcontractorTypeId);
-  const approver = (state.backend.systemUsers || []).find((user) => user.id === profile.approvedById);
+  const approver = findEmployee(profile.approvedById);
+  const insuranceExpiry = isExpiringOrExpired(profile.insuranceExpiration);
   return `
     <dl class="detail-list">
       <div><dt>Vendor #</dt><dd>${escapeHtml(profile.vendorNumber || "Not set")}</dd></div>
       <div><dt>Type</dt><dd>${escapeHtml(subcontractorType?.name || "Not set")}</dd></div>
-      <div><dt>Onboarding</dt><dd><span class="stage-badge">${escapeHtml(profile.onboardingStatus || "Candidate")}</span>${approver ? ` <span class="tag">Approved by ${escapeHtml(approver.fullName)}</span>` : ""}</dd></div>
-      <div><dt>Insurance</dt><dd>${escapeHtml(profile.insuranceStatus || "Not set")}${profile.insuranceExpiration ? ` (exp. ${formatDate(profile.insuranceExpiration)})` : ""}</dd></div>
+      <div><dt>Onboarding</dt><dd><span class="stage-badge">${escapeHtml(profile.onboardingStatus || "Candidate")}</span>${approver ? ` <span class="tag">Approved by ${escapeHtml(approver.displayName)}</span>` : ""}</dd></div>
+      <div><dt>Insurance</dt><dd>${escapeHtml(profile.insuranceStatus || "Not set")}${profile.insuranceExpiration ? ` (exp. ${formatDate(profile.insuranceExpiration)})` : ""} ${insuranceExpiry ? `<span class="risk-badge ${insuranceExpiry === "expired" ? "high" : "medium"}">${insuranceExpiry === "expired" ? "Expired" : "Expiring soon"}</span>` : ""}</dd></div>
       <div><dt>W-9</dt><dd>${escapeHtml(profile.w9Status || "Missing")}</dd></div>
       <div><dt>Safety</dt><dd>${escapeHtml(profile.safetyStatus || "Pending")}</dd></div>
+      <div><dt>Performance rating</dt><dd>${escapeHtml(profile.performanceRating || "Not yet rated")}</dd></div>
       ${profile.isSuspended ? `<div><dt>Status</dt><dd><span class="risk-badge high">Suspended</span></dd></div>` : ""}
     </dl>
   `;
+}
+
+function isExpiringOrExpired(dateString, withinDays = 30) {
+  if (!dateString) return null;
+  const target = new Date(dateString);
+  if (Number.isNaN(target.getTime())) return null;
+  const now = new Date();
+  const daysUntil = (target - now) / (1000 * 60 * 60 * 24);
+  if (daysUntil < 0) return "expired";
+  if (daysUntil <= withinDays) return "expiring";
+  return null;
 }
 
 function renderAccountRelationshipSummary(record) {
@@ -15894,7 +15990,7 @@ function computeSubcontractingEligibility(vendorProfile, isSubcontractor) {
   return (
     vendorProfile.onboardingStatus === "Approved" &&
     vendorProfile.insuranceStatus === "Valid" &&
-    vendorProfile.w9Status === "Received" &&
+    vendorProfile.w9Status === "Approved" &&
     vendorProfile.safetyStatus === "Approved" &&
     !vendorProfile.isSuspended
   );
@@ -15920,8 +16016,9 @@ function openVendorProfileDialog(accountId = "") {
   populateAddressSelect(dialog, "dispatchAddressId", accountId);
   populateAddressSelect(dialog, "billingAddressId", accountId);
   populateContactSelect(dialog, accountId);
-  populateSystemUserSelect(dialog, "approvedById");
+  populateEmployeeSelect(dialog, "approvedById", "Not yet reviewed");
   const profile = vendorProfileForAccount(accountId);
+  const relationship = relationshipExtensionForAccount(accountId);
   if (profile) {
     form.elements.id.value = profile.id;
     form.elements.vendorNumber.value = profile.vendorNumber || "";
@@ -15937,7 +16034,7 @@ function openVendorProfileDialog(accountId = "") {
     form.elements.paymentTerms.value = profile.paymentTerms || "";
     form.elements.defaultPriceLevelId.value = profile.defaultPriceLevelId || "";
     form.elements.serviceTerritory.value = profile.serviceTerritory || "";
-    form.elements.performanceRating.value = profile.performanceRating ?? "";
+    form.elements.performanceRating.value = profile.performanceRating || "";
     form.elements.accountingVendorId.value = profile.accountingVendorId || "";
     form.elements.remitToAddressId.value = profile.remitToAddressId || "";
     form.elements.dispatchAddressId.value = profile.dispatchAddressId || "";
@@ -15946,18 +16043,32 @@ function openVendorProfileDialog(accountId = "") {
     form.elements.notes.value = profile.notes || "";
   } else {
     form.elements.id.value = "";
+    form.elements.vendorNumber.value = nextVendorNumber();
   }
+  form.elements.isSubcontractor.checked = Boolean(relationship?.isSubcontractor);
+  form.elements.subcontractorPermitted.value = relationship?.subcontractorPermitted || "Unknown";
+  form.elements.subcontractorPreapprovalRequired.checked = Boolean(relationship?.subcontractorPreapprovalRequired);
   dialog.showModal();
+}
+
+function nextVendorNumber() {
+  const existingNumbers = getVendorProfiles()
+    .map((profile) => /^VEND-(\d+)$/.exec(String(profile.vendorNumber || "").trim()))
+    .filter(Boolean)
+    .map((match) => Number(match[1]));
+  const next = (existingNumbers.length ? Math.max(...existingNumbers) : 0) + 1;
+  return `VEND-${String(next).padStart(4, "0")}`;
 }
 
 async function saveVendorProfile(form) {
   const data = new FormData(form);
   const accountId = data.get("accountId").toString();
   const existing = vendorProfileForAccount(accountId);
+  const isSubcontractor = form.elements.isSubcontractor.checked;
   const record = {
     id: data.get("id").toString() || existing?.id || makeId("vendor-profile"),
     accountId,
-    vendorNumber: data.get("vendorNumber").toString().trim(),
+    vendorNumber: data.get("vendorNumber").toString().trim() || existing?.vendorNumber || nextVendorNumber(),
     subcontractorTypeId: data.get("subcontractorTypeId").toString(),
     onboardingStatus: data.get("onboardingStatus").toString(),
     isSuspended: form.elements.isSuspended.checked,
@@ -15970,7 +16081,7 @@ async function saveVendorProfile(form) {
     paymentTerms: data.get("paymentTerms").toString().trim(),
     defaultPriceLevelId: data.get("defaultPriceLevelId").toString(),
     serviceTerritory: data.get("serviceTerritory").toString().trim(),
-    performanceRating: data.get("performanceRating") ? Number(data.get("performanceRating")) : null,
+    performanceRating: data.get("performanceRating").toString(),
     accountingVendorId: data.get("accountingVendorId").toString().trim(),
     remitToAddressId: data.get("remitToAddressId").toString(),
     dispatchAddressId: data.get("dispatchAddressId").toString(),
@@ -15981,7 +16092,12 @@ async function saveVendorProfile(form) {
 
   try {
     await saveBackendRecord("vendorProfiles", record);
-    await syncSubcontractingEligibility(accountId, record);
+    await saveRelationshipExtensionPatch(accountId, {
+      isSubcontractor,
+      subcontractorPermitted: data.get("subcontractorPermitted").toString(),
+      subcontractorPreapprovalRequired: form.elements.subcontractorPreapprovalRequired.checked,
+      eligibleForSubcontracting: computeSubcontractingEligibility(record, isSubcontractor),
+    });
     closeDialogs();
     render();
     showToast("Vendor profile saved.");
@@ -16131,25 +16247,16 @@ function openCompanyProfileDialog(accountId = "") {
   form.elements.id.value = record?.id || "";
   form.elements.sicCode.value = record?.sicCode || "";
   form.elements.ownershipType.value = record?.ownershipType || "";
-  form.elements.isSubcontractor.checked = Boolean(record?.isSubcontractor);
-  form.elements.subcontractorPermitted.value = record?.subcontractorPermitted || "Unknown";
-  form.elements.subcontractorPreapprovalRequired.checked = Boolean(record?.subcontractorPreapprovalRequired);
   dialog.showModal();
 }
 
 async function saveCompanyProfile(form) {
   const data = new FormData(form);
   const accountId = data.get("accountId").toString();
-  const isSubcontractor = form.elements.isSubcontractor.checked;
-  const vendorProfile = vendorProfileForAccount(accountId);
   try {
     await saveRelationshipExtensionPatch(accountId, {
       sicCode: data.get("sicCode").toString().trim(),
       ownershipType: data.get("ownershipType").toString(),
-      isSubcontractor,
-      subcontractorPermitted: data.get("subcontractorPermitted").toString(),
-      subcontractorPreapprovalRequired: form.elements.subcontractorPreapprovalRequired.checked,
-      eligibleForSubcontracting: computeSubcontractingEligibility(vendorProfile, isSubcontractor),
     });
     closeDialogs();
     render();
@@ -16767,6 +16874,73 @@ async function removeServiceAgreement(id) {
     showToast("Service agreement removed.");
   } catch (error) {
     showToast(error.message || "Service agreement could not be removed.");
+  }
+}
+
+function openApprovedSubcontractorDialog(accountId = "", linkId = "") {
+  const dialog = document.querySelector("#approvedSubcontractorDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.accountId.value = accountId;
+  const vendors = vendorAccounts().filter((vendor) => vendor.id !== accountId);
+  form.elements.subcontractorAccountId.innerHTML = [
+    `<option value="">Select a vendor</option>`,
+    ...vendors.map((vendor) => `<option value="${escapeAttribute(vendor.id)}">${escapeHtml(vendor.name)}</option>`),
+  ].join("");
+  const link = linkId ? getApprovedSubcontractors().find((item) => item.id === linkId) : null;
+  if (link) {
+    form.elements.id.value = link.id;
+    form.elements.subcontractorAccountId.value = link.subcontractorAccountId || "";
+    form.elements.status.value = link.status || "Pending";
+    form.elements.approvedScope.value = link.approvedScope || "";
+    form.elements.approvedFrom.value = link.approvedFrom || "";
+    form.elements.approvedUntil.value = link.approvedUntil || "";
+    form.elements.notes.value = link.notes || "";
+  } else {
+    form.elements.id.value = "";
+  }
+  dialog.showModal();
+}
+
+async function saveApprovedSubcontractor(form) {
+  const data = new FormData(form);
+  const accountId = data.get("accountId").toString();
+  const subcontractorAccountId = data.get("subcontractorAccountId").toString();
+  if (!subcontractorAccountId) {
+    showToast("Pick a vendor to approve.");
+    return;
+  }
+  const record = {
+    id: data.get("id").toString() || makeId("approved-sub"),
+    accountId,
+    subcontractorAccountId,
+    status: data.get("status").toString(),
+    approvedScope: data.get("approvedScope").toString().trim(),
+    approvedFrom: data.get("approvedFrom").toString(),
+    approvedUntil: data.get("approvedUntil").toString(),
+    notes: data.get("notes").toString().trim(),
+  };
+
+  try {
+    await saveBackendRecord("accountApprovedSubcontractors", record);
+    closeDialogs();
+    render();
+    showToast("Approved subcontractor saved.");
+  } catch (error) {
+    showToast(error.message || "Could not save approved subcontractor.");
+  }
+}
+
+async function removeApprovedSubcontractor(id) {
+  if (!confirm("Remove this subcontractor approval?")) return;
+  const link = getApprovedSubcontractors().find((item) => item.id === id);
+  if (!link) return;
+  try {
+    await saveBackendRecord("accountApprovedSubcontractors", { ...link, deletedAt: new Date().toISOString() });
+    render();
+    showToast("Approval removed.");
+  } catch (error) {
+    showToast(error.message || "Approval could not be removed.");
   }
 }
 
@@ -18838,6 +19012,22 @@ function getServiceAgreements() {
 
 function serviceAgreementsForAccount(accountId) {
   return getServiceAgreements().filter((agreement) => agreement.accountId === accountId && !agreement.deletedAt);
+}
+
+function getApprovedSubcontractors() {
+  return state.backend.accountApprovedSubcontractors || [];
+}
+
+function approvedSubcontractorsForAccount(accountId) {
+  return getApprovedSubcontractors().filter((link) => link.accountId === accountId && !link.deletedAt);
+}
+
+function approvalsForSubcontractorAccount(subcontractorAccountId) {
+  return getApprovedSubcontractors().filter((link) => link.subcontractorAccountId === subcontractorAccountId && !link.deletedAt);
+}
+
+function vendorAccounts() {
+  return state.accounts.filter((account) => account.accountType === "Vendor" || vendorProfileForAccount(account.id));
 }
 
 function getSubcontractorAssignments() {

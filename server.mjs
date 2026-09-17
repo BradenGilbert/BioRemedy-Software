@@ -147,6 +147,7 @@ const collectionAccess = {
   vendorProfiles: "salesDocuments",
   serviceAgreements: "salesDocuments",
   subcontractorAssignments: "salesDocuments",
+  accountApprovedSubcontractors: "salesDocuments",
 };
 
 const defaultBackend = {
@@ -1919,6 +1920,7 @@ const defaultBackend = {
   vendorProfiles: [],
   serviceAgreements: [],
   subcontractorAssignments: [],
+  accountApprovedSubcontractors: [],
   qboSettings: {
     connectionStatus: "Not connected",
     realmId: "",
@@ -2090,6 +2092,7 @@ function filterBackendForRole(data, role) {
     vendorProfiles: canAccess(role, "salesDocuments") ? data.vendorProfiles : [],
     serviceAgreements: canAccess(role, "salesDocuments") ? data.serviceAgreements : [],
     subcontractorAssignments: canAccess(role, "salesDocuments") ? data.subcontractorAssignments : [],
+    accountApprovedSubcontractors: canAccess(role, "salesDocuments") ? data.accountApprovedSubcontractors : [],
   };
 }
 
