@@ -1599,6 +1599,12 @@ const state = {
   frontlineSignatureStrokes: [],
   frontlineGps: null,
   frontlineNotificationPrefs: defaultFrontlineNotificationPrefs,
+  // "+ Activity" ad hoc capture (Phase 10, Part 2 gap item 4) -- open type picker on the job detail
+  // screen, independent of the template's work-plan gating.
+  frontlineAdHocType: "",
+  frontlineMessagingJobId: "",
+  frontlineMessageDraft: "",
+  frontlineOpenFormKey: "",
 };
 
 let dbPromise;
@@ -2354,18 +2360,42 @@ async function handleClick(event) {
   }
   if (action === "frontline-capture-gps") await frontlineCaptureGps();
   if (action === "frontline-add-material-row") frontlineAddMaterialRow(actionButton);
+  if (action === "frontline-adhoc-pick-type") {
+    state.frontlineAdHocType = actionButton.dataset.type;
+    state.frontlineSignatureStrokes = [];
+    render();
+  }
+  if (action === "frontline-adhoc-cancel") {
+    state.frontlineAdHocType = "";
+    render();
+  }
+  if (action === "frontline-messaging-select-job") {
+    state.frontlineMessagingJobId = actionButton.dataset.jobId || "";
+    render();
+  }
+  if (action === "frontline-open-form") {
+    state.frontlineOpenFormKey = actionButton.dataset.key || "";
+    render();
+  }
+  if (action === "frontline-close-form") {
+    state.frontlineOpenFormKey = "";
+    render();
+  }
 }
 
 // Cloning the row in place rather than re-rendering keeps everything else the crew has already
 // typed into the open form.
 function frontlineAddMaterialRow(button) {
   const picker = button.closest(".frontline-material-picker");
-  const lastRow = picker?.querySelector(".frontline-material-row:last-of-type");
-  if (!lastRow) return;
-  const clone = lastRow.cloneNode(true);
-  clone.querySelector("select").value = "";
-  clone.querySelector('input[name="materialQuantity"]').value = "";
-  lastRow.after(clone);
+  const lastEntry = picker?.querySelector(".frontline-material-entry:last-of-type");
+  if (!lastEntry) return;
+  const clone = lastEntry.cloneNode(true);
+  const select = clone.querySelector("select");
+  if (select) select.value = "";
+  clone.querySelectorAll("input").forEach((input) => {
+    input.value = "";
+  });
+  lastEntry.after(clone);
 }
 
 async function handleSubmit(event) {
@@ -2451,6 +2481,10 @@ async function handleSubmit(event) {
   if (form.dataset.form === "identity") await saveIdentityConfig(form);
   if (form.dataset.form === "settings") await savePlatformSettings(form);
   if (form.dataset.form === "frontline-complete-action") await frontlineCompleteAction(form);
+  if (form.dataset.form === "frontline-adhoc-activity") await frontlineSubmitAdHocActivity(form);
+  if (form.dataset.form === "frontline-form-submission") await frontlineSubmitStandaloneForm(form);
+  if (form.dataset.form === "frontline-message") await frontlineSendMessage(form);
+  if (form.dataset.form === "frontline-location-ping") await frontlineRecordLocationPing(form);
   if (form.dataset.form === "frontline-clock-in") await frontlineClockIn(form);
   if (form.dataset.form === "frontline-clock-out") await frontlineClockOut(form);
   if (form.dataset.form === "frontline-log-trip") await frontlineLogTrip(form);
@@ -2752,11 +2786,11 @@ function render() {
   if (state.view === "frontline-jobbook") renderFrontlineJobBook();
   if (state.view === "frontline-job-detail") renderFrontlineJobDetail();
   if (state.view === "frontline-timesheet") renderFrontlineTimesheet();
-  if (state.view === "frontline-messaging") renderFrontlineStub("Messaging");
-  if (state.view === "frontline-forms") renderFrontlineStub("Forms");
+  if (state.view === "frontline-messaging") renderFrontlineMessaging();
+  if (state.view === "frontline-forms") renderFrontlineForms();
   if (state.view === "frontline-trips") renderFrontlineTrips();
-  if (state.view === "frontline-location") renderFrontlineStub("Location");
-  if (state.view === "frontline-invoices") renderFrontlineStub("Invoices");
+  if (state.view === "frontline-location") renderFrontlineLocation();
+  if (state.view === "frontline-invoices") renderFrontlineInvoices();
   if (state.view === "frontline-settings") renderFrontlineSettings();
   syncRouteToHistory();
   updateBackButtonState();
@@ -10136,7 +10170,11 @@ function renderDispatchJobDetail() {
         <button class="back-button" type="button" data-action="back-to-dispatch-jobs">Back to jobs</button>
         <div class="inline-actions">
           ${job.projectId ? `<button class="secondary-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.projectId)}">Back to project</button>` : ""}
-          <button class="secondary-button" type="button" data-action="open-job-schedule" data-job-id="${job.id}">Schedule</button>
+          ${
+            job.status === "closed"
+              ? `<button class="secondary-button" type="button" data-action="open-job-request" data-account-id="${escapeAttribute(job.accountId)}" data-project-id="${escapeAttribute(job.projectId)}">New dispatch request</button>`
+              : `<button class="secondary-button" type="button" data-action="open-job-schedule" data-job-id="${job.id}">Schedule</button>`
+          }
           ${nextTransition ? `<button class="primary-button" type="button" data-action="advance-dispatch-job" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>` : ""}
         </div>
       </div>
@@ -12439,22 +12477,29 @@ function renderFrontlineTaskCapture(action, job) {
         ${rows
           .map(
             (itemId) => `
-              <div class="frontline-material-row">
-                <select name="materialItemId">
-                  <option value="">Not used</option>
-                  ${items
-                    .map(
-                      (item) =>
-                        `<option value="${escapeAttribute(item.id)}" ${item.id === itemId ? "selected" : ""}>${escapeHtml(item.materialType)} - ${Number(item.onHand || 0)} ${escapeHtml(item.unit || "")} on hand</option>`,
-                    )
-                    .join("")}
-                </select>
-                <input type="number" name="materialQuantity" min="0" step="0.1" placeholder="Qty" />
+              <div class="frontline-material-entry">
+                <div class="frontline-material-row">
+                  <select name="materialItemId">
+                    <option value="">Not used</option>
+                    ${items
+                      .map(
+                        (item) =>
+                          `<option value="${escapeAttribute(item.id)}" ${item.id === itemId ? "selected" : ""}>${escapeHtml(item.materialType)} - ${Number(item.onHand || 0)} ${escapeHtml(item.unit || "")} on hand</option>`,
+                      )
+                      .join("")}
+                  </select>
+                  <input type="number" name="materialQuantity" min="0" step="0.1" placeholder="Qty" />
+                </div>
+                <div class="frontline-material-row">
+                  <input type="text" name="materialWriteInName" maxlength="90" placeholder="...or write in an item not in the catalog" />
+                  <input type="text" name="materialWriteInUnit" maxlength="20" placeholder="Unit" />
+                </div>
               </div>
             `,
           )
           .join("")}
         <button class="mini-button" type="button" data-action="frontline-add-material-row">Add another material</button>
+        <p class="help-text">Logging more than what's on hand won't be blocked -- you'll be asked to confirm, and the ops manager gets flagged automatically.</p>
       </fieldset>
       ${notes("Notes", "Where were they used?", false)}
     `;
@@ -12480,6 +12525,23 @@ function renderFrontlineTaskCapture(action, job) {
 
   if (action.type === "Sample") {
     return renderFrontlineSampleCapture(action, job, config);
+  }
+
+  if (action.type === "Odometer") {
+    return `
+      <div class="form-grid">
+        <label>Site / relocation label
+          <input name="siteLabel" maxlength="90" placeholder="${escapeAttribute(config.siteLabelHint || "e.g. Site B, second relocation")}" required />
+        </label>
+        <label>Start odometer
+          <input type="number" name="startOdometer" min="0" step="1" required />
+        </label>
+        <label>Arrival odometer
+          <input type="number" name="arrivalOdometer" min="0" step="1" required />
+        </label>
+      </div>
+      ${notes("Notes", "Anything about this leg?", false)}
+    `;
   }
 
   return notes(action.formName || action.name, "What did you do or observe?");
@@ -12536,7 +12598,21 @@ function renderFrontlineSampleCapture(action, job, config) {
           : "No coordinates captured yet."
       }</span>
     </div>
-    <label>Sample photos
+    <!-- Phase 10 Part 2 gap item 3 (same ask as Phase 07 item 7): these three shots are photo
+         captures, not text fields -- a written interval or container label can't be QA'd later, a
+         photo can. -->
+    <div class="form-grid">
+      <label>North view photo
+        <input type="file" name="northViewPhoto" accept="image/png,image/jpeg" capture="environment" required />
+      </label>
+      <label>Sample interval photo
+        <input type="file" name="intervalPhoto" accept="image/png,image/jpeg" capture="environment" required />
+      </label>
+      <label>Container label photo
+        <input type="file" name="containerLabelPhoto" accept="image/png,image/jpeg" capture="environment" required />
+      </label>
+    </div>
+    <label>Additional sample photos
       <input type="file" name="photos" accept="image/png,image/jpeg" capture="environment" multiple />
     </label>
     <label>Field notes
@@ -12598,8 +12674,13 @@ function renderFrontlineJobDetail() {
 
   const nextTransition = getNextDispatchTransition(job.status);
   const gate = getWorkPlanGate(job);
-  const steps = stepsForDispatchJob(job.id);
+  // The ad hoc "+ Activity" step (see ensureFrontlineAdHocStep) is a real jobSteps row so it can
+  // reuse the normal action/submission machinery, but it never gates the template work plan and
+  // isn't rendered as a step to complete in order -- it gets its own section below instead.
+  const steps = stepsForDispatchJob(job.id).filter((step) => !step.adHoc);
   const submissions = submissionsForDispatchJob(job.id);
+  const adHocSubmissions = submissions.filter((submission) => submission.adHoc);
+  const templateSubmissions = submissions.filter((submission) => !submission.adHoc);
   const assignments = dispatchAssignmentsForJob(job.id);
 
   app.innerHTML = `
@@ -12632,6 +12713,21 @@ function renderFrontlineJobDetail() {
             ${steps.map((step) => renderFrontlineWorkPlanStep(step, steps, job)).join("") || `<div class="empty-state">No execution plan instantiated.</div>`}
           </div>
 
+          <h3>Additional activity</h3>
+          <p class="help-text">Not on the template? Add a note, extra sample, signature, photo, or travel leg without waiting on a work-plan step.</p>
+          <div class="inline-actions">
+            ${["Note", "Photo", "Signature", "Sample", "Odometer"]
+              .map(
+                (type) =>
+                  `<button class="mini-button ${state.frontlineAdHocType === type ? "active" : ""}" type="button" data-action="frontline-adhoc-pick-type" data-type="${escapeAttribute(type)}">+ ${escapeHtml(type)}</button>`,
+              )
+              .join("")}
+          </div>
+          ${state.frontlineAdHocType ? renderFrontlineAdHocCaptureForm(state.frontlineAdHocType, job) : ""}
+          <div class="form-submission-list">
+            ${adHocSubmissions.map(renderJobFormSubmission).join("") || `<div class="empty-state compact">No ad hoc activity yet.</div>`}
+          </div>
+
           <h3>Assigned crew</h3>
           <div class="record-list">
             ${
@@ -12646,7 +12742,7 @@ function renderFrontlineJobDetail() {
 
           <h3>Forms and submissions</h3>
           <div class="form-submission-list">
-            ${submissions.map(renderJobFormSubmission).join("") || `<div class="empty-state">No forms submitted yet.</div>`}
+            ${templateSubmissions.map(renderJobFormSubmission).join("") || `<div class="empty-state">No forms submitted yet.</div>`}
           </div>
         </div>
       </div>
@@ -12998,14 +13094,511 @@ async function frontlineSaveNotificationPrefs(form) {
   render();
 }
 
-function renderFrontlineStub(title) {
+// ---- Phase 10, Part 2: Forms tile ----
+//
+// Reuses `jobFormSubmissions` (the same collection Job Book's typed task capture writes to) as a
+// general-purpose form browser: a small catalog of standalone forms not tied to a template step, e.g.
+// a daily safety checklist or an incident report. Checked what already existed before inventing
+// anything: `jobTypeTemplates` only defines task types *inside* a work-plan template, there was no
+// "fill this out any time, not tied to a job step" form catalog anywhere in the prototype, so this is
+// a small hardcoded one rather than a guess at a bigger config system nobody asked for yet.
+const FRONTLINE_STANDALONE_FORMS = [
+  {
+    key: "daily-safety-checklist",
+    name: "Daily Safety Checklist",
+    type: "Checklist",
+    options: [
+      "PPE inspected and worn",
+      "Vehicle pre-trip inspection complete",
+      "Site hazards reviewed with crew",
+      "Emergency contacts confirmed",
+    ],
+  },
+  { key: "incident-report", name: "Incident Report", type: "Note" },
+  {
+    key: "vehicle-inspection",
+    name: "Vehicle Inspection",
+    type: "Checklist",
+    options: ["Tires and brakes checked", "Fluids checked", "Lights and signals working", "No visible damage"],
+  },
+  { key: "near-miss-report", name: "Near-Miss Report", type: "Note" },
+];
+
+function findFrontlineStandaloneForm(key) {
+  return FRONTLINE_STANDALONE_FORMS.find((form) => form.key === key);
+}
+
+function frontlineStandaloneSubmissions(employeeId) {
+  return (state.backend.jobFormSubmissions || [])
+    .filter((submission) => submission.standalone && submission.submittedByEmployeeId === employeeId)
+    .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+}
+
+function renderFrontlineForms() {
+  const employeeId = state.frontlineSession?.employeeId;
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+  const openKey = state.frontlineOpenFormKey;
+  const recent = frontlineStandaloneSubmissions(employeeId);
+
   app.innerHTML = `
     <div class="frontline-shell">
       <div class="frontline-device">
         ${renderFrontlineHeader()}
         <div class="frontline-body">
-          <h2>${escapeHtml(title)}</h2>
-          <div class="empty-state">${escapeHtml(title)} isn't wired up in this simulator yet.</div>
+          <h2>Forms</h2>
+          <p class="help-text">Standalone forms not tied to a specific job step — safety checklists, incident reports.</p>
+          <div class="frontline-job-list">
+            ${FRONTLINE_STANDALONE_FORMS.map(
+              (form) => `
+                <button class="frontline-job-card" type="button" data-action="frontline-open-form" data-key="${escapeAttribute(form.key)}">
+                  <strong>${escapeHtml(form.name)}</strong>
+                  <span>${form.type === "Checklist" ? `${form.options.length} checklist items` : "Free-text form"}</span>
+                </button>
+              `,
+            ).join("")}
+          </div>
+
+          ${
+            openKey && findFrontlineStandaloneForm(openKey)
+              ? renderFrontlineStandaloneFormCapture(findFrontlineStandaloneForm(openKey), myJobs)
+              : ""
+          }
+
+          <h3>Recently submitted</h3>
+          <div class="form-submission-list">
+            ${recent.map(renderJobFormSubmission).join("") || `<div class="empty-state compact">No standalone forms submitted yet.</div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFrontlineStandaloneFormCapture(formDef, myJobs) {
+  return `
+    <h3>${escapeHtml(formDef.name)}</h3>
+    <form class="frontline-action-form" data-form="frontline-form-submission">
+      <input type="hidden" name="formKey" value="${escapeAttribute(formDef.key)}" />
+      <label>Related job (optional)
+        <select name="jobId">
+          <option value="">Not tied to a specific job</option>
+          ${myJobs.map((job) => `<option value="${escapeAttribute(job.id)}">${escapeHtml(frontlineJobOptionLabel(job))}</option>`).join("")}
+        </select>
+      </label>
+      ${
+        formDef.type === "Checklist"
+          ? `
+            <fieldset class="frontline-checklist">
+              ${formDef.options
+                .map(
+                  (option) => `
+                    <label class="check-row">
+                      <input type="checkbox" name="checklistOption" value="${escapeAttribute(option)}" />
+                      <span>${escapeHtml(option)}</span>
+                    </label>
+                  `,
+                )
+                .join("")}
+            </fieldset>
+            <label>Notes<textarea name="summary" placeholder="Anything worth flagging?"></textarea></label>
+          `
+          : `<label>Details<textarea name="summary" rows="4" placeholder="What happened?" required></textarea></label>`
+      }
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="frontline-close-form">Cancel</button>
+        <button class="primary-button" type="submit">Submit</button>
+      </div>
+    </form>
+  `;
+}
+
+async function frontlineSubmitStandaloneForm(form) {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) return;
+  if (submitButton) submitButton.disabled = true;
+
+  const data = new FormData(form);
+  const formKey = data.get("formKey").toString();
+  const formDef = findFrontlineStandaloneForm(formKey);
+  if (!formDef) return;
+  const jobId = (data.get("jobId") || "").toString();
+  const summary = (data.get("summary") || "").toString().trim();
+  const fieldLead = findEmployee(state.frontlineSession?.employeeId);
+  const submittedBy = fieldLead?.displayName || "Front Line";
+
+  let payload = {};
+  let description = "Submitted in Front Line.";
+  if (formDef.type === "Checklist") {
+    const checked = data.getAll("checklistOption").map((value) => value.toString());
+    payload = { options: formDef.options, checked, unchecked: formDef.options.filter((option) => !checked.includes(option)) };
+    description = `${checked.length} of ${formDef.options.length} checked.`;
+  } else {
+    payload = { note: summary };
+  }
+
+  try {
+    await saveBackendRecord(
+      "jobFormSubmissions",
+      {
+        id: makeId("form-sub"),
+        jobId,
+        actionId: "",
+        formName: formDef.name,
+        status: "Submitted",
+        submittedBy,
+        submittedByEmployeeId: fieldLead?.id || "",
+        submittedAt: new Date().toISOString(),
+        summary: summary || description,
+        payload,
+        standalone: true,
+      },
+      { refresh: false },
+    );
+    await refreshBackendState();
+    state.frontlineOpenFormKey = "";
+    render();
+    showToast(`${formDef.name} submitted.`);
+  } catch (error) {
+    if (submitButton) submitButton.disabled = false;
+    showToast(error.message || "Could not submit that form.");
+  }
+}
+
+// ---- Phase 10, Part 2: Messaging tile ----
+//
+// A new `messages` collection (server.mjs), threaded by dispatch job when one is picked, or a shared
+// "general" thread when it isn't. No group channels, no attachments, no per-person office directory
+// to address -- the simulator has no office-side session to message as, so the recipient is always
+// "Dispatch." Enough for a pilot: a field worker messaging their dispatcher/field lead, threaded by
+// job or by a general channel.
+function frontlineThreadKey(jobId) {
+  return jobId || "general";
+}
+
+function frontlineMessagesForThread(threadKey) {
+  return (state.backend.messages || [])
+    .filter((message) => message.threadKey === threadKey)
+    .sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
+}
+
+function renderFrontlineMessaging() {
+  const employeeId = state.frontlineSession?.employeeId;
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+  const activeJobId = state.frontlineMessagingJobId;
+  const threadKey = frontlineThreadKey(activeJobId);
+  const thread = frontlineMessagesForThread(threadKey);
+  const unreadByThread = {};
+  (state.backend.messages || []).forEach((message) => {
+    if (message.senderRole === "office" && !message.readAt) {
+      unreadByThread[message.threadKey] = (unreadByThread[message.threadKey] || 0) + 1;
+    }
+  });
+
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body">
+          <h2>Messaging</h2>
+          <div class="frontline-filter-row">
+            <button class="mini-button ${!activeJobId ? "active" : ""}" type="button" data-action="frontline-messaging-select-job" data-job-id="">
+              General${unreadByThread.general ? ` (${unreadByThread.general})` : ""}
+            </button>
+            ${myJobs
+              .map(
+                (job) => `
+                  <button class="mini-button ${activeJobId === job.id ? "active" : ""}" type="button" data-action="frontline-messaging-select-job" data-job-id="${escapeAttribute(job.id)}">
+                    ${escapeHtml(job.jobNumber)}${unreadByThread[job.id] ? ` (${unreadByThread[job.id]})` : ""}
+                  </button>
+                `,
+              )
+              .join("")}
+          </div>
+
+          <div class="frontline-message-list">
+            ${
+              thread
+                .map(
+                  (message) => `
+                    <article class="frontline-message ${message.senderRole === "office" ? "from-office" : "from-field"}">
+                      <div class="inline-actions"><strong>${escapeHtml(message.senderName)}</strong><span>${formatDateTime(message.sentAt)}</span></div>
+                      <p>${escapeHtml(message.body)}</p>
+                    </article>
+                  `,
+                )
+                .join("") || `<div class="empty-state compact">No messages in this thread yet.</div>`
+            }
+          </div>
+
+          <form class="frontline-action-form" data-form="frontline-message">
+            <input type="hidden" name="jobId" value="${escapeAttribute(activeJobId)}" />
+            <label>Message
+              <textarea name="body" rows="2" placeholder="Message dispatch..." required></textarea>
+            </label>
+            <button class="primary-button" type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+  // Viewing a thread marks any unread office messages in it as read -- a real write, not a fake badge.
+  frontlineMarkMessagesRead(activeJobId);
+}
+
+async function frontlineSendMessage(form) {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) return;
+  if (submitButton) submitButton.disabled = true;
+
+  const data = new FormData(form);
+  const jobId = (data.get("jobId") || "").toString();
+  const body = (data.get("body") || "").toString().trim();
+  if (!body) {
+    if (submitButton) submitButton.disabled = false;
+    return;
+  }
+  const employee = findEmployee(state.frontlineSession?.employeeId);
+  const job = jobId ? findDispatchJob(jobId) : null;
+
+  try {
+    await saveBackendRecord(
+      "messages",
+      {
+        id: makeId("message"),
+        threadKey: frontlineThreadKey(jobId),
+        dispatchJobId: jobId || "",
+        senderId: employee?.id || "",
+        senderName: employee?.displayName || "Field worker",
+        senderRole: "field",
+        recipientId: "office",
+        recipientName: job ? `Dispatch (${job.jobNumber})` : "Dispatch",
+        body,
+        sentAt: new Date().toISOString(),
+        readAt: null,
+      },
+      { refresh: false },
+    );
+    await refreshBackendState();
+    form.reset();
+    render();
+  } catch (error) {
+    if (submitButton) submitButton.disabled = false;
+    showToast(error.message || "Could not send that message.");
+  }
+}
+
+async function frontlineMarkMessagesRead(jobId) {
+  const threadKey = frontlineThreadKey(jobId);
+  const unread = (state.backend.messages || []).filter(
+    (message) => message.threadKey === threadKey && message.senderRole === "office" && !message.readAt,
+  );
+  if (!unread.length) return;
+  const readAt = new Date().toISOString();
+  for (const message of unread) {
+    await saveBackendRecord("messages", { ...message, readAt }, { refresh: false });
+  }
+  await refreshBackendState();
+}
+
+// ---- Phase 10, Part 2: Location tile ----
+//
+// Reuses the existing `locations` GPS-point collection (Phase 02's rename target for the old
+// mapLocations -- see GLOSSARY.md) and the same Leaflet satellite-tile pattern the Facility detail
+// page uses (renderFacilityMapPanel/initializeFacilityMap) rather than inventing a second map
+// component. Shows the field worker's own recent pings plus any GPS points tied to their assigned
+// jobs' projects, and lets them record a real "here now" ping via the browser's geolocation API -- a
+// genuine write to the shared `locations` collection, not a fake status string.
+function frontlineLocationsForEmployee(employeeId) {
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+  const projectIds = new Set(myJobs.map((job) => job.projectId).filter(Boolean));
+  return (state.backend.locations || [])
+    .filter((location) => projectIds.has(location.projectId) || location.reportedByEmployeeId === employeeId)
+    .sort((a, b) => new Date(b.lastPingAt || 0) - new Date(a.lastPingAt || 0));
+}
+
+let frontlineLocationLeafletMap = null;
+
+function renderFrontlineLocation() {
+  const employeeId = state.frontlineSession?.employeeId;
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+  const points = frontlineLocationsForEmployee(employeeId);
+
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body">
+          <h2>Location</h2>
+          <p class="help-text">Your last recorded position and the GPS points tied to your assigned jobs.</p>
+          <div id="frontlineLocationMap" class="project-sample-map"></div>
+
+          <form class="frontline-action-form" data-form="frontline-location-ping">
+            <label>Job (optional)
+              <select name="jobId">
+                <option value="">Not tied to a specific job</option>
+                ${myJobs.map((job) => `<option value="${escapeAttribute(job.id)}">${escapeHtml(frontlineJobOptionLabel(job))}</option>`).join("")}
+              </select>
+            </label>
+            <label>Label
+              <input name="label" maxlength="90" value="Field check-in" />
+            </label>
+            <button class="primary-button" type="submit">Record my current location</button>
+          </form>
+
+          <h3>Recent points</h3>
+          <div class="record-list">
+            ${
+              points
+                .map(
+                  (location) => `
+                    <div class="frontline-action-row">
+                      <span>${escapeHtml(location.label || "GPS point")}${location.reportedByEmployeeId === employeeId ? " (you)" : ""}</span>
+                      <span>${formatDateTime(location.lastPingAt)}</span>
+                    </div>
+                  `,
+                )
+                .join("") || `<div class="empty-state compact">No GPS points yet.</div>`
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  requestAnimationFrame(() => initializeFrontlineLocationMap(points));
+}
+
+function initializeFrontlineLocationMap(points) {
+  const mapElement = document.querySelector("#frontlineLocationMap");
+  if (!mapElement) return;
+  const leaflet = window.L;
+  const plottable = points.filter((location) => Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude)));
+  if (!leaflet) {
+    mapElement.innerHTML = `<div class="map-loading">Map library did not load.</div>`;
+    return;
+  }
+  if (!plottable.length) {
+    mapElement.innerHTML = `<div class="map-loading">No GPS points captured yet — record your current location, or it will fill in as field work is logged with a location.</div>`;
+    return;
+  }
+  if (frontlineLocationLeafletMap) {
+    frontlineLocationLeafletMap.remove();
+    frontlineLocationLeafletMap = null;
+  }
+  mapElement.innerHTML = "";
+  frontlineLocationLeafletMap = leaflet.map(mapElement, { scrollWheelZoom: false });
+  leaflet
+    .tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      attribution: "Tiles &copy; Esri",
+      maxZoom: 19,
+    })
+    .addTo(frontlineLocationLeafletMap);
+  const bounds = [];
+  plottable.forEach((location) => {
+    const latLng = [Number(location.latitude), Number(location.longitude)];
+    bounds.push(latLng);
+    leaflet
+      .marker(latLng, { title: location.label || "GPS point" })
+      .addTo(frontlineLocationLeafletMap)
+      .bindPopup(
+        `<div class="map-popup"><strong>${escapeHtml(location.label || "GPS point")}</strong><span>${formatDateTime(location.lastPingAt)}</span></div>`,
+      );
+  });
+  frontlineLocationLeafletMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 17 });
+  setTimeout(() => frontlineLocationLeafletMap?.invalidateSize(), 80);
+}
+
+async function frontlineRecordLocationPing(form) {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) return;
+  if (submitButton) submitButton.disabled = true;
+
+  const data = new FormData(form);
+  const jobId = (data.get("jobId") || "").toString();
+  const label = (data.get("label") || "Field check-in").toString().trim();
+  const employee = findEmployee(state.frontlineSession?.employeeId);
+  const job = jobId ? findDispatchJob(jobId) : null;
+
+  if (!navigator.geolocation) {
+    showToast("This device doesn't support geolocation.");
+    if (submitButton) submitButton.disabled = false;
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        await saveBackendRecord(
+          "locations",
+          {
+            id: makeId("location"),
+            projectId: job?.projectId || "",
+            label,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            assetTags: [],
+            status: "Field ping",
+            reportedByEmployeeId: employee?.id || "",
+            lastPingAt: new Date().toISOString(),
+          },
+          { refresh: false },
+        );
+        await refreshBackendState();
+        render();
+        showToast("Location recorded.");
+      } catch (error) {
+        showToast(error.message || "Could not record location.");
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
+    },
+    (error) => {
+      showToast(error.message || "Could not get your location.");
+      if (submitButton) submitButton.disabled = false;
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+  );
+}
+
+// ---- Phase 10, Part 2: Invoices tile ----
+//
+// Read-only for the field worker: visibility into billing status for jobs they're assigned to, not a
+// duplicate of the office Finance workspace. Reuses getFinanceRows() (Phase 09) rather than
+// recomputing cost/margin numbers a second way -- getFinanceRows() is keyed by project, so each of
+// the field worker's dispatch jobs is joined to its project's finance row through job.projectId.
+function renderFrontlineInvoices() {
+  const employeeId = state.frontlineSession?.employeeId;
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+  const financeRows = getFinanceRows();
+  const rows = myJobs
+    .filter((job) => job.projectId)
+    .map((job) => ({ job, project: findProject(job.projectId), financeRow: financeRows.find((row) => row.job.id === job.projectId) }))
+    .filter((entry) => entry.financeRow);
+
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body">
+          <h2>Invoices</h2>
+          <p class="help-text">Billing status for your assigned jobs — view only. Talk to the office to change an invoice.</p>
+          <div class="record-list">
+            ${
+              rows
+                .map(
+                  (entry) => `
+                    <div class="frontline-record-card">
+                      <div class="inline-actions">
+                        <strong>${escapeHtml(entry.job.jobNumber)}</strong>
+                        <span class="status-pill ${entry.financeRow.statusTone === "high" ? "offline" : ""}">${escapeHtml(entry.financeRow.status)}</span>
+                      </div>
+                      <span>${escapeHtml(entry.project?.name || "")}</span>
+                      <span>${escapeHtml(entry.financeRow.invoiceSignal)}</span>
+                    </div>
+                  `,
+                )
+                .join("") || `<div class="empty-state">No billing activity on your assigned jobs yet.</div>`
+            }
+          </div>
         </div>
       </div>
     </div>
@@ -13192,8 +13785,47 @@ async function frontlineCompleteAction(form) {
     if (submitButton) submitButton.disabled = false;
     return;
   }
+  if (action.type === "Sample") {
+    const hasAll = form.elements.northViewPhoto?.files?.[0] && form.elements.intervalPhoto?.files?.[0] && form.elements.containerLabelPhoto?.files?.[0];
+    if (!hasAll) {
+      showToast("North view, sample interval, and container label photos are all required.");
+      if (submitButton) submitButton.disabled = false;
+      return;
+    }
+  }
+  if (action.type === "Odometer") {
+    const startOdometer = Number(data.get("startOdometer") || 0);
+    const arrivalOdometer = Number(data.get("arrivalOdometer") || 0);
+    if (arrivalOdometer < startOdometer) {
+      showToast("Arrival odometer can't be less than the start odometer.");
+      if (submitButton) submitButton.disabled = false;
+      return;
+    }
+  }
 
   const payload = buildTaskPayload(action, config, data, form);
+
+  // Gap item "PPE quantity handling" (Phase 10, Part 2): never block on a resulting negative
+  // balance -- confirm with the worker, and if they proceed, force it through and let the server
+  // flag the ops manager (inventoryAlerts). Declining just returns them to the form to fix the qty.
+  if (action.type === "Material" && payload.materials?.length) {
+    for (const line of payload.materials) {
+      if (line.writeInName) continue;
+      const item = findInventoryItem(line.inventoryItemId);
+      if (!item) continue;
+      if (Number(item.onHand || 0) - Number(line.quantity) < 0) {
+        const proceed = window.confirm(
+          `This will take ${item.materialType} negative (${Number(item.onHand || 0)} ${item.unit} on hand, ${line.quantity} requested). Log it anyway and flag the ops manager?`,
+        );
+        if (!proceed) {
+          if (submitButton) submitButton.disabled = false;
+          showToast("Adjust the quantity, or confirm to log it as negative inventory.");
+          return;
+        }
+        line.force = true;
+      }
+    }
+  }
 
   try {
     // Attachments upload first so they are self-describing by actionId: if a later write fails the
@@ -13222,7 +13854,36 @@ async function frontlineCompleteAction(form) {
       });
     }
     if (action.type === "Sample") {
+      const namedPhotos = [
+        { file: form.elements.northViewPhoto?.files?.[0], caption: "North view" },
+        { file: form.elements.intervalPhoto?.files?.[0], caption: "Sample interval" },
+        { file: form.elements.containerLabelPhoto?.files?.[0], caption: "Container label" },
+      ];
+      for (const { file, caption } of namedPhotos) {
+        if (!file) continue;
+        await uploadRawFile(`/api/job-actions/${encodeURIComponent(actionId)}/attachments`, file, {
+          "X-Attachment-Kind": "photo",
+          "X-Caption": encodeURIComponent(caption),
+        });
+      }
       await saveSampleFromTask(action, job, data, summary, submittedBy);
+    }
+    if (action.type === "Odometer") {
+      await saveBackendRecord(
+        "jobMileageEntries",
+        {
+          id: makeId("mileage"),
+          employeeId: fieldLead?.id || "",
+          dispatchJobId: jobId,
+          mileageType: "job",
+          beginningOdometer: payload.startOdometer,
+          endingOdometer: payload.arrivalOdometer,
+          calculatedDistance: payload.calculatedDistance,
+          capturedAt: new Date().toISOString(),
+          notes: `${payload.siteLabel}${summary ? ` — ${summary}` : ""}`,
+        },
+        { refresh: false },
+      );
     }
     if (action.type === "Timer" && fieldLead && Number(payload.hours) > 0) {
       // The labor section's hoursWorked was previously only ever carried over unchanged from the
@@ -13283,18 +13944,30 @@ function buildTaskPayload(action, config, data, form) {
     };
   }
   if (action.type === "Material") {
+    // Gap item "PPE quantity handling" (Phase 10, Part 2): a row is either a catalog pick
+    // (inventoryItemId) or a free-text write-in (materialWriteInName) alongside it -- write-ins never
+    // touch inventory on-hand, they are just tracked as used, per the owner's ask.
     const ids = data.getAll("materialItemId").map((value) => value.toString());
     const quantities = data.getAll("materialQuantity").map((value) => Number(value));
+    const writeInNames = data.getAll("materialWriteInName").map((value) => value.toString().trim());
+    const writeInUnits = data.getAll("materialWriteInUnit").map((value) => value.toString().trim());
     const materials = ids
-      .map((inventoryItemId, index) => ({ inventoryItemId, quantity: quantities[index] }))
-      .filter((entry) => entry.inventoryItemId && Number.isFinite(entry.quantity) && entry.quantity > 0);
+      .map((inventoryItemId, index) => {
+        const quantity = quantities[index];
+        if (!Number.isFinite(quantity) || quantity <= 0) return null;
+        const writeInName = writeInNames[index];
+        if (writeInName) return { writeInName, unit: writeInUnits[index] || "", quantity };
+        if (!inventoryItemId) return null;
+        return { inventoryItemId, quantity };
+      })
+      .filter(Boolean);
     return {
       materials,
-      lines: materials.map((entry) => ({
-        ...entry,
-        name: findInventoryItem(entry.inventoryItemId)?.materialType || "Material",
-        unit: findInventoryItem(entry.inventoryItemId)?.unit || "",
-      })),
+      lines: materials.map((entry) =>
+        entry.writeInName
+          ? { ...entry, name: entry.writeInName }
+          : { ...entry, name: findInventoryItem(entry.inventoryItemId)?.materialType || "Material", unit: findInventoryItem(entry.inventoryItemId)?.unit || "" },
+      ),
     };
   }
   if (action.type === "Photo") {
@@ -13302,6 +13975,16 @@ function buildTaskPayload(action, config, data, form) {
   }
   if (action.type === "Sample") {
     return { sampleId: (data.get("sampleId") || "").toString().trim() };
+  }
+  if (action.type === "Odometer") {
+    const startOdometer = Number(data.get("startOdometer") || 0);
+    const arrivalOdometer = Number(data.get("arrivalOdometer") || 0);
+    return {
+      siteLabel: (data.get("siteLabel") || "").toString().trim(),
+      startOdometer,
+      arrivalOdometer,
+      calculatedDistance: Math.max(0, arrivalOdometer - startOdometer),
+    };
   }
   return {};
 }
@@ -13312,7 +13995,243 @@ function describeTaskPayload(type, payload) {
   if (type === "Material") return `${payload.lines.map((line) => `${line.quantity} ${line.unit} ${line.name}`).join(", ")}.`;
   if (type === "Photo") return `${payload.photoCount} photo${payload.photoCount === 1 ? "" : "s"} attached.`;
   if (type === "Signature") return `Signed by ${payload.signedBy}.`;
+  if (type === "Odometer") return `${payload.siteLabel || "Leg"}: ${payload.calculatedDistance} mi (${payload.startOdometer} to ${payload.arrivalOdometer}).`;
   return "Completed in Front Line.";
+}
+
+// ---- Phase 10, Part 2: "+ Activity" ad hoc capture ----
+//
+// Gap item 4: the template-driven work plan stays primary, but a field worker can add a note, extra
+// sample, signature, photo, or travel leg that doesn't fit a predefined template step. Rather than
+// build a second, parallel data model for "things that happened on a job outside the template," this
+// creates a real jobActions row on the fly (filed under one shared, hidden "Additional field
+// activity" step per job that never gates the real work plan) and reuses every existing
+// attachment/consume/sample write path unchanged. That is the concrete design implication the phase
+// doc's gap item flagged: the template no longer fully describes what jobActions can exist for a job.
+function renderFrontlineAdHocCaptureForm(type, job) {
+  const config = normalizeTaskConfig(type, {});
+  const notes = (label, placeholder, required = true) => `
+    <label>${escapeHtml(label)}
+      <textarea name="summary" placeholder="${escapeAttribute(placeholder)}" ${required ? "required" : ""}></textarea>
+    </label>
+  `;
+  let fields = "";
+  if (type === "Note") {
+    fields = notes("Note", "What's worth flagging that doesn't fit the template?");
+  } else if (type === "Photo") {
+    fields = `
+      <label>Photos
+        <input type="file" name="photos" accept="image/png,image/jpeg" capture="environment" multiple required />
+      </label>
+      ${notes("What do these show?", "Before, progress, after...", false)}
+    `;
+  } else if (type === "Signature") {
+    fields = `
+      <label>Signature
+        <canvas id="frontlineSignaturePad" class="frontline-signature-pad" width="360" height="150"></canvas>
+      </label>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="frontline-clear-signature">Clear</button>
+      </div>
+      <label>Signed by
+        <input name="signedBy" maxlength="90" placeholder="Print name" required />
+      </label>
+      ${notes("Notes", "Anything the signer said?", false)}
+    `;
+  } else if (type === "Sample") {
+    fields = renderFrontlineSampleCapture(null, job, config);
+  } else if (type === "Odometer") {
+    fields = `
+      <div class="form-grid">
+        <label>Site / relocation label
+          <input name="siteLabel" maxlength="90" placeholder="e.g. Site C, third relocation" required />
+        </label>
+        <label>Start odometer
+          <input type="number" name="startOdometer" min="0" step="1" required />
+        </label>
+        <label>Arrival odometer
+          <input type="number" name="arrivalOdometer" min="0" step="1" required />
+        </label>
+      </div>
+      ${notes("Notes", "Anything about this leg?", false)}
+    `;
+  }
+  return `
+    <form class="frontline-action-form" data-form="frontline-adhoc-activity">
+      <input type="hidden" name="jobId" value="${escapeAttribute(job.id)}" />
+      <input type="hidden" name="activityType" value="${escapeAttribute(type)}" />
+      ${fields}
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="frontline-adhoc-cancel">Cancel</button>
+        <button class="primary-button" type="submit">Add to job</button>
+      </div>
+    </form>
+  `;
+}
+
+async function ensureFrontlineAdHocStep(jobId) {
+  const existing = (state.backend.jobSteps || []).find((step) => step.jobId === jobId && step.adHoc);
+  if (existing) return existing;
+  const allSteps = stepsForDispatchJob(jobId);
+  return saveBackendRecord(
+    "jobSteps",
+    {
+      id: makeId("job-step"),
+      jobId,
+      name: "Additional field activity",
+      // Sorts after every template step but is filtered out of the rendered work-plan list --
+      // see renderFrontlineJobDetail -- so it never appears as something to "complete in order."
+      sequence: (allSteps[allSteps.length - 1]?.sequence || 0) + 1000,
+      status: "Complete",
+      adHoc: true,
+    },
+    { refresh: false },
+  );
+}
+
+async function frontlineSubmitAdHocActivity(form) {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) return;
+  if (submitButton) submitButton.disabled = true;
+
+  const data = new FormData(form);
+  const jobId = data.get("jobId").toString();
+  const type = data.get("activityType").toString();
+  const job = findDispatchJob(jobId);
+  if (!job) return;
+  const summary = (data.get("summary") || "").toString().trim();
+  const fieldLead = findEmployee(state.frontlineSession?.employeeId);
+  const submittedBy = fieldLead?.displayName || "Front Line";
+  const files = [...(form.elements.photos?.files || [])];
+
+  if (type === "Photo" && !files.length) {
+    showToast("Attach at least one photo.");
+    if (submitButton) submitButton.disabled = false;
+    return;
+  }
+  if (type === "Signature" && !state.frontlineSignatureStrokes.length) {
+    showToast("Capture a signature before submitting.");
+    if (submitButton) submitButton.disabled = false;
+    return;
+  }
+  if (type === "Sample") {
+    const hasAll = form.elements.northViewPhoto?.files?.[0] && form.elements.intervalPhoto?.files?.[0] && form.elements.containerLabelPhoto?.files?.[0];
+    if (!hasAll) {
+      showToast("North view, sample interval, and container label photos are all required.");
+      if (submitButton) submitButton.disabled = false;
+      return;
+    }
+  }
+  if (type === "Odometer") {
+    const startOdometer = Number(data.get("startOdometer") || 0);
+    const arrivalOdometer = Number(data.get("arrivalOdometer") || 0);
+    if (arrivalOdometer < startOdometer) {
+      showToast("Arrival odometer can't be less than the start odometer.");
+      if (submitButton) submitButton.disabled = false;
+      return;
+    }
+  }
+
+  try {
+    const adHocStep = await ensureFrontlineAdHocStep(job.id);
+    const existingAdHocActions = actionsForDispatchStep(adHocStep.id);
+    const action = await saveBackendRecord(
+      "jobActions",
+      {
+        id: makeId("job-action"),
+        jobId: job.id,
+        stepId: adHocStep.id,
+        sequence: existingAdHocActions.length + 1,
+        name: `Ad hoc: ${type}`,
+        formName: `Ad hoc: ${type}`,
+        type,
+        assigneeScope: "Any assigned worker",
+        status: "Complete",
+        adHoc: true,
+        config: {},
+      },
+      { refresh: false },
+    );
+
+    const config = normalizeTaskConfig(type, {});
+    const payload = buildTaskPayload({ type }, config, data, form);
+
+    for (const file of files) {
+      await uploadRawFile(`/api/job-actions/${encodeURIComponent(action.id)}/attachments`, file, {
+        "X-Attachment-Kind": "photo",
+        "X-Caption": encodeURIComponent(summary.slice(0, 120)),
+      });
+    }
+    if (type === "Signature") {
+      const blob = await signatureToBlob();
+      if (blob) {
+        const file = new File([blob], `signature-${action.id}.png`, { type: "image/png" });
+        await uploadRawFile(`/api/job-actions/${encodeURIComponent(action.id)}/attachments`, file, {
+          "X-Attachment-Kind": "signature",
+          "X-Caption": encodeURIComponent(payload.signedBy || ""),
+        });
+      }
+    }
+    if (type === "Sample") {
+      const namedPhotos = [
+        { file: form.elements.northViewPhoto?.files?.[0], caption: "North view" },
+        { file: form.elements.intervalPhoto?.files?.[0], caption: "Sample interval" },
+        { file: form.elements.containerLabelPhoto?.files?.[0], caption: "Container label" },
+      ];
+      for (const { file, caption } of namedPhotos) {
+        if (!file) continue;
+        await uploadRawFile(`/api/job-actions/${encodeURIComponent(action.id)}/attachments`, file, {
+          "X-Attachment-Kind": "photo",
+          "X-Caption": encodeURIComponent(caption),
+        });
+      }
+      await saveSampleFromTask(action, job, data, summary, submittedBy);
+    }
+    if (type === "Odometer") {
+      await saveBackendRecord(
+        "jobMileageEntries",
+        {
+          id: makeId("mileage"),
+          employeeId: fieldLead?.id || "",
+          dispatchJobId: job.id,
+          mileageType: "job",
+          beginningOdometer: payload.startOdometer,
+          endingOdometer: payload.arrivalOdometer,
+          calculatedDistance: payload.calculatedDistance,
+          capturedAt: new Date().toISOString(),
+          notes: `${payload.siteLabel}${summary ? ` — ${summary}` : ""}`,
+        },
+        { refresh: false },
+      );
+    }
+
+    await saveBackendRecord(
+      "jobFormSubmissions",
+      {
+        id: makeId("form-sub"),
+        jobId: job.id,
+        actionId: action.id,
+        formName: `Ad hoc: ${type}`,
+        status: "Submitted",
+        submittedBy,
+        submittedAt: new Date().toISOString(),
+        summary: summary || describeTaskPayload(type, payload),
+        payload,
+        adHoc: true,
+      },
+      { refresh: false },
+    );
+
+    await refreshBackendState();
+    state.frontlineAdHocType = "";
+    state.frontlineSignatureStrokes = [];
+    state.frontlineGps = null;
+    render();
+    showToast("Added to the job -- visible on the dispatch dashboard now.");
+  } catch (error) {
+    if (submitButton) submitButton.disabled = false;
+    showToast(error.message || "Could not add that activity.");
+  }
 }
 
 // A sample is a real record, not just a submission: it lands on the dispatch job AND on the
@@ -14513,6 +15432,15 @@ async function saveDispatchSchedule(form) {
   const fieldLead = findEmployee(data.get("fieldLeadEmployeeId").toString());
   if (!job || !fieldLead) {
     showToast("Select a valid job and field lead.");
+    return;
+  }
+  // Gap item "Completed jobs shouldn't be reschedulable in place" (Phase 10, Part 2): once a job
+  // reaches Closed, the only allowed paths are editing the completed record's own data or creating a
+  // fresh dispatch request -- never moving its schedule in place. Enforced here (the one place a
+  // schedule write actually commits) rather than only in the dialog, since the job picker inside the
+  // dialog can be changed to any job regardless of how it was opened.
+  if (job.status === "closed") {
+    showToast(`${job.jobNumber} is completed and can't be rescheduled in place. Edit its data, or create a new dispatch request for additional work.`);
     return;
   }
   const date = data.get("date").toString();
@@ -18781,6 +19709,13 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
 }
 
 function openDispatchScheduleDialog(jobId = "") {
+  if (jobId) {
+    const targetJob = findDispatchJob(jobId);
+    if (targetJob && targetJob.status === "closed") {
+      showToast(`${targetJob.jobNumber} is completed and can't be rescheduled in place. Edit its data, or create a new dispatch request for additional work.`);
+      return;
+    }
+  }
   const dialog = document.querySelector("#dispatchScheduleDialog");
   const form = dialog.querySelector("form");
   form.reset();
@@ -20696,6 +21631,12 @@ function normalizeTaskConfig(type, config = {}) {
       defaultContainer: String(source.defaultContainer || "").trim(),
       defaultAnalyses: analyses.map((item) => String(item).trim()).filter(Boolean),
     };
+  }
+  // Odometer/travel-time capture (Phase 10, Part 2 gap item 1): start/arrival odometer for one site
+  // relocation leg. Repeatable within a job via the "+ Activity" ad hoc path below, not a fixed single
+  // slot -- a sampling job may relocate several times in one visit.
+  if (type === "Odometer") {
+    return { siteLabelHint: String(source.siteLabelHint || "").trim() };
   }
   return {};
 }

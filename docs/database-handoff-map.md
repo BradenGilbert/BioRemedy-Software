@@ -22,7 +22,16 @@ collections -- updated September 17, 2026; Phase 10 Part 1 Front Line tiles (Tim
 Settings) -- `timeEntries` reintroduced with a real Time Sheet tile behind it, new
 `jobMileageEntries` collection behind a real Trips tile, Settings tile reads real session/employee/
 device/connection state plus a new persisted `frontlineNotificationPrefs` browser setting -- updated
-September 17, 2026)
+September 17, 2026; Phase 10 Part 2 Front Line tiles (Forms, Messaging, Location, Invoices) and the
+concrete-gaps backlog -- new `messages` collection (threaded field-worker/dispatch messaging), new
+`inventoryAlerts` collection (ops-manager flag when a Material task submission is forced past zero
+on-hand), Forms tile reuses `jobFormSubmissions` with a new `standalone`/`submittedByEmployeeId`
+shape, Location tile reuses `locations` with a new `reportedByEmployeeId` field, Invoices tile is
+read-only against existing Phase 09 finance data, new `"Odometer"` job-action type writing to
+`jobMileageEntries`, new ad hoc "+ Activity" job-action/jobFormSubmissions path (`adHoc: true`) for
+untemplated notes/samples/signatures/photos/odometer legs, Sample task gained three required photo
+fields (north view / interval / container label) and Material task gained free-text write-in items
+(`jobResources.writeIn`) -- updated September 17, 2026)
 
 ## Executive Summary
 
@@ -36,7 +45,7 @@ yet have a deployed production relational database.
 | Running prototype server | Node server using `data/backend.json` with **88 collections** (counted directly from `server.mjs`'s `collectionAccess` map, September 17, 2026 -- the prior "76" here had drifted stale across several phases) |
 | Browser CRM storage | IndexedDB with **2 object stores** (`syncQueue`, `settings`) -- every core CRM collection moved to the shared JSON backend in Phase 01 (complete September 16, 2026); IndexedDB is now genuinely just the local cache/outbox |
 | Uploaded files | Local filesystem under `data/uploads`; metadata is in the JSON backend |
-| Front Line | Database and sync schema defined; no standalone iOS/Android app built (that decision is explicitly deferred -- see `docs/roadmap/phase-10-frontline.md`). A web-hosted phone-frame simulator exists inside the CRM web app (`app.js`, `renderFrontline*` functions, reachable from the CRM home screen) — fake login (field-lead picker, no real auth), a 3x3 tile launcher, and four real tiles that read/write the shared JSON backend through the same `/api/backend` endpoints the desktop uses: Job Book (work plan / typed task capture against `dispatchJobs`/`jobSteps`/`jobActions`/`jobFormSubmissions`), Time Sheet (clock-in/out against `timeEntries`), Trips (mileage against `jobMileageEntries`), and Settings (real session/employee/device/connection state plus a persisted notification-preferences setting). Forms, Messaging, Location, and Invoices remain stubs (Phase 10 Part 2). It validates the data model and UX end-to-end but is not the real mobile app. |
+| Front Line | Database and sync schema defined; no standalone iOS/Android app built (that decision is explicitly deferred -- see `docs/roadmap/phase-10-frontline.md`). A web-hosted phone-frame simulator exists inside the CRM web app (`app.js`, `renderFrontline*` functions, reachable from the CRM home screen) — fake login (field-lead picker, no real auth), a 3x3 tile launcher, and **eight real tiles** (all of Phase 10) that read/write the shared JSON backend through the same `/api/backend` endpoints the desktop uses: Job Book (work plan / typed task capture against `dispatchJobs`/`jobSteps`/`jobActions`/`jobFormSubmissions`, including a repeatable "+ Activity" ad hoc path and an `"Odometer"` task type), Time Sheet (clock-in/out against `timeEntries`), Trips (mileage against `jobMileageEntries`), Settings (real session/employee/device/connection state plus a persisted notification-preferences setting), Forms (a small standalone form catalog against `jobFormSubmissions`), Messaging (new `messages` collection, threaded by job or general), Location (the `locations` GPS collection plus a Leaflet satellite map, reused from the Facility detail page), and Invoices (read-only, reusing Phase 09's finance rows). It validates the data model and UX end-to-end but is not the real mobile app. |
 
 In other words, the architecture is much farther along than the production
 database implementation. The next major technical task is to consolidate the
@@ -462,6 +471,20 @@ deleted from `data/backend.json`.
   (travel_to/job/travel_from/other), `beginningOdometer`, `endingOdometer`,
   `calculatedDistance`, `capturedAt`, `notes`. General-purpose trip logging,
   not sampling-specific. Gated `operations`.
+- Operations/dispatch, new September 17, 2026 (Phase 10 Part 2): `messages`
+  -- behind the Front Line Messaging tile. `id`, `threadKey` (a `dispatchJobId`
+  or the literal `"general"`), `dispatchJobId` (nullable), `senderId`,
+  `senderName`, `senderRole` (`field`/`office`), `recipientId`,
+  `recipientName`, `body`, `sentAt`, `readAt` (nullable). No group channels, no
+  attachments, no per-person office directory -- the simulator has no
+  office-side session, so the recipient is always "Dispatch." Gated `dispatch`.
+  Also `inventoryAlerts` -- written by `handleJobTaskConsume` (`server.mjs`)
+  when a Front Line Material task submission is force-confirmed past zero
+  on-hand (Phase 10 Part 2's PPE-quantity gap item): `id`, `inventoryItemId`,
+  `materialType`, `jobId`, `actionId`, `requestedQuantity`,
+  `onHandAtRequest`, `resultingBalance`, `requestedBy`, `status` (`Open`),
+  `createdAt`. No alerts-inbox UI built yet -- this is the record such an
+  inbox would query. Gated `dispatch` (also readable under `inventory`).
 - Workforce: `employees`, `employeeCertifications`, `workforceTeams`,
   `workforceTeamMemberships`, `crewProfiles`,
   `availabilityBlocks`, `frontlineDevices`

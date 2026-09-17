@@ -1,6 +1,8 @@
 # Phase 10 — Front Line: Real Tiles
 
-**Status:** Scoped 2026-09-17, web-hosted full-feature build (mobile app decision deferred)
+**Status:** Both parts shipped 2026-09-17. All eight tiles are real; the concrete-gaps backlog is
+resolved or explicitly deferred (see "Part 2 implementation notes" below). Mobile app / production
+auth / offline sync decisions remain explicitly out of scope, as planned.
 **Depends on:** Phases 06, 07, 08
 **Owner decision, 2026-09-17:** the pilot-gated "outline only" posture below is superseded. The owner
 wants the in-browser Front Line simulator built out to a fully-working, web-hosted field-service
@@ -10,10 +12,11 @@ remain explicitly open and out of scope for this build. In the owner's words: *"
 system to operate fully with all of it's features. we do not need it to be a mobile app. lets get
 the virtual webhosted version to function before we think about PWA vs native mobile app."*
 
-This phase is being delivered in two passes against the same tile list:
+This phase was delivered in two passes against the same tile list, both shipped 2026-09-17:
 
-- **Part 1 (this pass, 2026-09-17):** Time Sheet, Trips, Settings.
-- **Part 2 (separate pass, not yet started):** Forms, Messaging, Location, Invoices.
+- **Part 1:** Time Sheet, Trips, Settings.
+- **Part 2:** Forms, Messaging, Location, Invoices, plus the "Concrete gaps raised 2026-09-16"
+  backlog below.
 
 ---
 
@@ -42,10 +45,10 @@ It validates the data model and UX end-to-end. It is not the real mobile app.
 | Time Sheet | ✅ Real (Part 1, 2026-09-17) — clock-in/out against a `timeEntries` collection, optionally linked to a dispatch job. See "Time Sheet vs. Timer-task hours" below — this is a distinct concept from Phase 09's per-project labor cost hours, not a replacement for it. |
 | Trips | ✅ Real (Part 1, 2026-09-17) — mileage logging against a new `jobMileageEntries` collection (JSON equivalent of the designed `job_mileage_entries` table), general-purpose (not sampling-specific). |
 | Settings | ✅ Real (Part 1, 2026-09-17) — field-lead/device profile (from the existing session + `employees`/`frontlineDevices`), a real online/offline connection indicator, and persisted notification preferences. |
-| Forms | Stub — Part 2, not started. Would reuse `jobFormSubmissions`. |
-| Messaging | Stub — Part 2, not started. Needs a new `messages` collection. |
-| Location | Stub — Part 2, not started. |
-| Invoices | Stub — Part 2, not started. |
+| Forms | ✅ Real (Part 2, 2026-09-17) — a small standalone form catalog (Daily Safety Checklist, Incident Report, Vehicle Inspection, Near-Miss Report) writing to `jobFormSubmissions` with `standalone: true`, optionally linked to a job. |
+| Messaging | ✅ Real (Part 2, 2026-09-17) — new `messages` collection, threaded by dispatch job or a shared "general" thread. |
+| Location | ✅ Real (Part 2, 2026-09-17) — reuses the `locations` GPS collection and the Facility page's Leaflet satellite-map pattern; records a real geolocation ping. |
+| Invoices | ✅ Real (Part 2, 2026-09-17) — read-only billing status for the field worker's assigned jobs, reusing Phase 09's `getFinanceRows()`. |
 
 ---
 
@@ -194,19 +197,123 @@ above ship in the commit.
 
 ---
 
+## Part 2 implementation notes (2026-09-17): Forms, Messaging, Location, Invoices, and the gaps backlog
+
+### Tiles
+
+- **Forms.** Investigated first, per this repo's "verify before you trust a plan" rule: neither
+  `jobTypeTemplates` nor anything else in the prototype defined a standalone "fill this out any time,
+  not tied to a job step" form catalog, so guessing at a bigger config system wasn't warranted. Built
+  `FRONTLINE_STANDALONE_FORMS` (`app.js`) — four hardcoded forms (Daily Safety Checklist, Incident
+  Report, Vehicle Inspection, Near-Miss Report) — reusing `jobFormSubmissions` with `standalone: true`
+  and an optional `jobId`, exactly the pattern the phase doc suggested.
+- **Messaging.** New `messages` collection (`server.mjs`: `defaultBackend`, `collectionAccess` under
+  `dispatch`, and `filterBackendForRole` — all three, per Part 1's trap). Threaded by `dispatchJobId`
+  when one is picked, or a shared `"general"` thread key when not. No group channels, no attachments,
+  no per-person office directory — the simulator has no office-side session to message as, so the
+  recipient is always "Dispatch." Viewing a thread marks unread office-sent messages `readAt` with a
+  real write.
+- **Location.** Reuses the existing `locations` GPS-point collection (Phase 02's rename target for
+  the old `mapLocations` — confirmed against `GLOSSARY.md` before touching it) and the exact Leaflet
+  satellite-tile pattern from the Facility detail page's `renderFacilityMapPanel`/
+  `initializeFacilityMap`, rather than a second map component. Records a real
+  `navigator.geolocation` ping as a `locations` row. **Correction found during implementation:**
+  `server.mjs`'s `normalizeRecord()` for `"locations"` is a strict field allowlist — a first version of
+  this tile wrote `reportedByEmployeeId` on the client, but the server silently dropped it on save
+  (same class of trap as Part 1's `filterBackendForRole` allowlist, different function). Fixed by
+  adding `reportedByEmployeeId` to the server's `locations` normalizer explicitly. Caught live: the
+  written-then-reloaded record was missing the field, so the tile's own "your pings" filter couldn't
+  find it.
+- **Invoices.** Read-only. Reuses Phase 09's `getFinanceRows()` (keyed by project) joined through each
+  of the field worker's `dispatchJobs` via `job.projectId`, rather than recomputing cost/margin a
+  second way. Shows job number, invoice status, and the same `invoiceSignal` text the office Finance
+  workspace shows — no edit affordance.
+
+### Concrete gaps backlog
+
+- **Odometer/travel-time capture** — new `"Odometer"` job-action type (start/arrival odometer,
+  computed distance), writing to the existing `jobMileageEntries` collection (`mileageType: "job"`)
+  per the note left in Part 1 pointing future work there instead of a second mileage collection.
+- **Multiple samples per job** and **"+ activity" ad hoc capture** — solved together, deliberately,
+  because they're the same underlying problem. Rather than special-case "let Sample repeat," this
+  built a general **"+ Activity"** mechanism (`ensureFrontlineAdHocStep`,
+  `frontlineSubmitAdHocActivity`, `renderFrontlineAdHocCaptureForm`): a real `jobSteps` row (flagged
+  `adHoc: true`, filtered out of the rendered work-plan step list so it never gates the template) that
+  new `jobActions` rows get created under on the fly, for type Note / Photo / Signature / Sample /
+  Odometer. This reuses every existing attachment/sample/mileage write path unchanged instead of a
+  parallel data model. The template's single Sample/Odometer slot stays the first, structured capture;
+  repeats go through "+ Activity" on the job detail screen. This is the concrete design implication
+  the phase doc flagged: **the template no longer fully describes what job actions can exist for a
+  job** — a hidden, non-gating step can hold an arbitrary number of ad hoc ones.
+- **Sample photo-capture fields** (same item as Phase 07 item 7) — "North view," "Sample interval,"
+  and "Container label" are now three separate required photo inputs on the Sample capture form
+  (`renderFrontlineSampleCapture`), uploaded with distinct captions via the existing job-task-attachment
+  endpoint. The prior free-text `depthInterval`/`containerSummary` fields were kept as supplementary
+  metadata, not replaced — the photos are the new requirement, not a replacement for the written record.
+- **PPE quantity handling** — `handleJobTaskConsume` (`server.mjs`) no longer hard-blocks a line that
+  would take an item negative; a line with `force: true` is allowed through and raises a new
+  `inventoryAlerts` row (`inventoryItemId`, `resultingBalance`, `requestedBy`, `status: "Open"`) for
+  ops-manager visibility — no alerts-inbox UI was built for this pass, this is the record such an
+  inbox would query. The client (`frontlineCompleteAction`) precomputes the negative-balance case and
+  uses a `window.confirm` before setting `force: true`, so the worker is asked, not silently allowed
+  or silently blocked. Free-text write-in items (`materialWriteInName`/`materialWriteInUnit`) never
+  touch inventory at all — they're tracked as used via a `jobResources` row with no `inventoryItemId`.
+  Verified live: forcing 9999 PPE kits against 34 on hand raised the confirm dialog, and after
+  accepting it wrote a real `inventoryAlerts` row and drove `inventoryItems.onHand` negative, exactly
+  as designed. Same "log what happened, don't gate on the count" philosophy as Phase 07 item 9's
+  materials-over-reservation resolution — kept consistent rather than solved twice.
+- **Completed jobs shouldn't be reschedulable in place** — `saveDispatchSchedule` and
+  `openDispatchScheduleDialog` (`app.js`) both now refuse a job whose `status === "closed"`, with a
+  toast naming the two allowed paths (edit the record, or a new dispatch request). The Dispatch Job
+  Detail page's "Schedule" button is swapped for a "New dispatch request" button (pre-filled with the
+  job's account/project) once a job is closed, so the blocked path isn't even offered as the first
+  affordance. Verified live: the closed Riverbend job (`dispatch-job-riverbend`) shows "New dispatch
+  request" instead of "Schedule" on its detail page.
+- **Job status doesn't progress with work-plan completion** — checked directly in code before treating
+  this as a new bug, per this repo's working rules. It is **already resolved**, and not by this pass:
+  `advanceDispatchJob()` (`app.js`) calls `advanceProjectStageFromDispatchStatus()` on every dispatch
+  status transition, which is exactly Phase 07 item 11's fix. The Front Line status-action path
+  (`frontlineCompleteStatusAction`) calls `advanceDispatchJob()` too, so a Front Line-driven status
+  change already propagates to the project's stage ladder the same way an office-driven one does. No
+  code change was needed here; this entry exists so the gap is marked closed with its reasoning
+  recorded rather than silently dropped.
+- **Waste tracking for regulatory compliance** — still explicitly deferred, as planned. The permit
+  data model doesn't exist yet (Phase 11/13), and guessing at capture fields before that model is
+  decided was called out as the wrong order of operations in the original gap note. Not touched in
+  this pass.
+- **Research StreetSmart for reference** — done in Part 1; unchanged by Part 2.
+
+### Click-testing (Playwright, live against `server.mjs` + `data/backend.json`)
+
+Verified end-to-end with scripted Chromium sessions: submitted a standalone Incident Report form and
+confirmed it appeared in Forms' recent-submissions list; sent a field-to-dispatch message and
+confirmed it rendered in the thread; recorded a real geolocation ping on the Location tile and
+confirmed it round-tripped through the API (after the `reportedByEmployeeId` normalizer fix above);
+viewed the Invoices tile against a job with real Phase 09 billing data; completed a Sample task with
+all three required photos, then added a **second** sample via "+ Activity" (multi-sample gap
+resolved); added an ad hoc Odometer entry and an ad hoc Note outside the template; forced a Material
+submission to 9999 units against 34 on hand, confirmed the `window.confirm` prompt text, accepted it,
+and confirmed a real `inventoryAlerts` row and a negative `onHand` resulted; confirmed the closed
+Riverbend job shows "New dispatch request" instead of "Schedule." Zero console or page errors across
+every run. All test-session writes were reverted out of `data/backend.json` afterward
+(`git checkout`) so only the intentional seed rows described above ship in the commit.
+
+---
+
 ## Concrete gaps raised 2026-09-16 (`bioremedy crm notes 9.16.2026.docx`)
 
-This is still an outline — these items add specific, real detail to "likely scope" above, but this section is not yet a session-ready implementation plan. Treat it as the backlog to draw from once the pilot (or further scoping) says which of these matter most.
+All items below are now resolved or explicitly deferred — see "Part 2 implementation notes" above for
+what was built and why. Kept here as the original source record.
 
-- **Odometer/travel time capture.** *"On frontline app for sampling job we need capture travel and truck time we need to capture start odometer and then arrival odometer on site then again for each time the truck relocates to a new site."* Needs a new task type or extension to the existing task model — capture start/arrival odometer readings, repeatable per site relocation within a single job.
-- **Only one sample can be added per job.** *"front line app doesn't let you add additional samples. Its only one."* The Job Book's Sample task type needs to support repeatable entries, not a single fixed slot.
-- **Job status doesn't progress with work-plan completion.** *"Job status progression does not move along with work plan completion."* Related to the already-known-open `projects.projectStage`-written-but-never-read gap (see Phase 07 item 11) — check whether this is the same root cause before treating it as a separate Front Line bug.
-- **Completed jobs shouldn't be reschedulable.** *"completed jobs should not be able to be rescheduled, it should be either an edit to the data or a new dispatch request."* A workflow/state-machine gap — once a job reaches Completed, rescheduling it in place should be blocked; the two allowed paths are editing the existing completed record's data, or creating a fresh dispatch request.
-- **PPE quantity handling.** *"In frontline app for Log PPE you can get a negative amount of materials, this shouldn't block equipment usage, but should ask or confirm if this is correct and if they force it... it should flag the ops manager that inventory is wrong and going negative. Regardless of inventory count we should track what was used and potentially even let us do write in items."* Specific, non-obvious behavior wanted: don't block on negative inventory, confirm-and-flag instead, and support free-text "write-in" material entries alongside the catalog. Related to Phase 07 item 9's materials-over-reservation gap — same underlying "inventory truth vs. field reality" tension, worth solving with one consistent philosophy across both.
-- **Waste tracking for regulatory compliance.** *"We also need to track waste post site work completion if waste requires to be tracked per TCEQ and EPA guidelines, we will be using BioRemedy's 10 day storage permit and oily waste handler permit as well as many other permits the company holds. These permits should also be tracked and managed by the crm. We need to make sure we get disposal requests, receipts, and any other expenses needed to track total cost on jobs."* Two halves: (1) **field capture** of waste-tracking data belongs here in Front Line (what a worker records on-site); (2) **permit management and cost roll-up** is a bigger, ongoing-compliance concern — tracked in Phase 11, and the cost side connects to Phase 09 (Billing & Invoicing)'s P&L report. Do not build the capture UI without first deciding the permit data model in Phase 11 — the fields captured need to match what the permits actually require.
-- **Sample-adjacent fields that should be photo captures.** *"on samples it mentions north view, sample interval, and container label. These are photos that should be uploaded during sampling."* Same item as Phase 07's item 7 — a new photo-capture task type for these three specific shots.
-- **Flexible "+ activity" capture alongside the structured template.** *"We want the front line workers to fill in information in a structured way but also be able to note things as we progress... There should almost be a '+ activity' button and the front line worker can add different things into the report like notes, or additional samples, or a waste signature, or photos. This way the frontline worker follows their required template, but can add in additional info as needed since the front line environment may deviate from the template."* A real design principle, not just a feature request: the Job Book's template-driven work plan should stay the primary structure, but allow ad hoc additions (notes, extra samples, signatures, photos) that don't fit the predefined template steps. This has real design implications for the work-plan/task-gating model — it's not a small addition, it changes the assumption that the template fully describes what can happen on a job.
-- **Research StreetSmart for reference.** *"look into streetsmart and see how granular the data can get for their connection. If looking at a few sample post work reports could help you get an understanding of what type of info we need to be gather that could be good."* Done, 2026-09-17 — see "Part 1 implementation notes" above. StreetSmart's time tracking is shift-level (matches Time Sheet as built) and its trip tracking is manual start/end odometer (matches Trips as built).
+- **Odometer/travel time capture.** *"On frontline app for sampling job we need capture travel and truck time we need to capture start odometer and then arrival odometer on site then again for each time the truck relocates to a new site."* ✅ Resolved — new `"Odometer"` job-action type, repeatable per relocation via "+ Activity," writing to `jobMileageEntries`.
+- **Only one sample can be added per job.** *"front line app doesn't let you add additional samples. Its only one."* ✅ Resolved — additional samples go through "+ Activity."
+- **Job status doesn't progress with work-plan completion.** *"Job status progression does not move along with work plan completion."* ✅ Verified already resolved by Phase 07 item 11's fix, on both the office and Front Line status-change paths — see above.
+- **Completed jobs shouldn't be reschedulable.** *"completed jobs should not be able to be rescheduled, it should be either an edit to the data or a new dispatch request."* ✅ Resolved — reschedule blocked for `status === "closed"`, with a "New dispatch request" alternative surfaced in the UI.
+- **PPE quantity handling.** *"In frontline app for Log PPE you can get a negative amount of materials, this shouldn't block equipment usage, but should ask or confirm if this is correct and if they force it... it should flag the ops manager that inventory is wrong and going negative. Regardless of inventory count we should track what was used and potentially even let us do write in items."* ✅ Resolved — confirm-and-force flow plus `inventoryAlerts`, and free-text write-in items.
+- **Waste tracking for regulatory compliance.** *"We also need to track waste post site work completion..."* Still deferred — permit data model doesn't exist yet (Phase 11/13). Not built.
+- **Sample-adjacent fields that should be photo captures.** *"on samples it mentions north view, sample interval, and container label..."* ✅ Resolved — three required photo-capture fields on the Sample task.
+- **Flexible "+ activity" capture alongside the structured template.** *"...There should almost be a '+ activity' button..."* ✅ Resolved — see "+ Activity" above.
+- **Research StreetSmart for reference.** Done, 2026-09-17, in Part 1.
 
 ---
 
@@ -229,3 +336,18 @@ This is still an outline — these items add specific, real detail to "likely sc
   every role's `/api/backend` GET silently receives an empty array for it. Worth calling out because
   it's easy to add a collection in two of the three required places and still see empty data with no
   error.
+- **(Part 2) `normalizeRecord()` in `server.mjs` is the same kind of allowlist trap, one level down.**
+  A collection can be wired into all three places above and still silently drop a field on every
+  write, if that collection has its own `normalizeRecord()` branch (several do — `locations` among
+  them) that only carries forward a fixed set of named fields. The Location tile's
+  `reportedByEmployeeId` was written by the client, accepted with a 200, and silently dropped by the
+  server before it ever reached `data/backend.json`. Caught by reading the value back after a real
+  write, not by inspecting the client code that sent it — the same "verify against running code, not
+  the plan" lesson as Part 1's `filterBackendForRole` finding, just one layer deeper. Fixed by adding
+  the field to the `locations` branch of `normalizeRecord()` explicitly.
+- **"Multiple samples per job" and "+ activity" were the same problem, not two.** The gap list
+  presented them as separate items, but implementing repeatable Sample capture as its own special case
+  would have meant re-solving "how does a field worker do something the template didn't pre-author"
+  twice with two different mechanisms. Building the general "+ Activity" ad hoc path first and letting
+  repeat samples (and repeat Odometer legs) use it resolved both gap items with one piece of work and
+  kept the work-plan/task-gating model change to a single, well-reasoned place instead of two.

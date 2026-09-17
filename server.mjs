@@ -88,6 +88,8 @@ const collectionAccess = {
   frontlineDevices: "workforce",
   timeEntries: "operations",
   jobMileageEntries: "operations",
+  messages: "dispatch",
+  inventoryAlerts: "dispatch",
   jobRequests: "dispatch",
   jobRequestDocuments: "dispatch",
   dispatchJobs: "dispatch",
@@ -577,6 +579,31 @@ const defaultBackend = {
       updatedAt: "2026-07-24T13:05:00-05:00",
     },
   ],
+  // Front Line Messaging tile (Phase 10, Part 2). Threaded by dispatch job when one is picked, or a
+  // shared "general" thread when it isn't -- no group channels, no per-person directory of office
+  // staff to pick from (the simulator has no office-side session), just a field-worker-to-dispatch
+  // conversation. senderRole distinguishes a Front Line write ("field") from a message seeded/sent
+  // from the office side ("office") for read/unread purposes.
+  messages: [
+    {
+      id: "message-georgetown-seed",
+      threadKey: "dispatch-job-georgetown",
+      dispatchJobId: "dispatch-job-georgetown",
+      senderId: "office",
+      senderName: "Dispatch",
+      senderRole: "office",
+      recipientId: "emp-logan",
+      recipientName: "Logan",
+      body: "Customer confirmed site access for 1pm -- gate code is unchanged.",
+      sentAt: "2026-07-24T12:40:00-05:00",
+      readAt: null,
+    },
+  ],
+  // Material-usage-going-negative flag (Phase 10, Part 2, gap item "PPE quantity handling"). Written
+  // by handleJobTaskConsume when a Front Line Material task submission is force-confirmed past zero
+  // on-hand. Not surfaced anywhere fancy yet -- this is the record an ops manager review would query;
+  // building a full alerts inbox UI was out of scope for this pass.
+  inventoryAlerts: [],
   jobRequests: [
     {
       id: "req-georgetown-072426",
@@ -2213,6 +2240,8 @@ function filterBackendForRole(data, role) {
     frontlineDevices: canAccess(role, "workforce") ? data.frontlineDevices : [],
     timeEntries: canAccess(role, "operations") ? data.timeEntries : [],
     jobMileageEntries: canAccess(role, "operations") ? data.jobMileageEntries : [],
+    messages: canAccess(role, "dispatch") ? data.messages : [],
+    inventoryAlerts: canAccess(role, "dispatch") || canAccess(role, "inventory") ? data.inventoryAlerts : [],
     jobRequests: canAccess(role, "dispatch") ? data.jobRequests : [],
     jobRequestDocuments: canAccess(role, "dispatch") ? data.jobRequestDocuments : [],
     dispatchJobs: canAccess(role, "dispatch") ? data.dispatchJobs : [],
@@ -2370,6 +2399,9 @@ function normalizeRecord(collection, payload, data) {
       isTemporary: Boolean(payload.isTemporary),
       retainUntil: payload.retainUntil || "",
       retentionReason: payload.retentionReason || "",
+      // Phase 10, Part 2: Front Line Location tile writes a "here now" ping attributable to the
+      // field worker even when it isn't tied to a project (admin time, travel between jobs).
+      reportedByEmployeeId: payload.reportedByEmployeeId || "",
     };
   }
 
@@ -2723,18 +2755,41 @@ async function handleJobTaskConsume(request, response, actionId) {
   const items = Array.isArray(payload.items) ? payload.items : [];
   if (!items.length) return json(response, 400, { error: "Select at least one material to consume." });
 
+  // Gap item "PPE quantity handling" (Phase 10, Part 2): logging usage must never silently block on
+  // negative resulting inventory. A catalog line with `force: true` is allowed to go negative once
+  // the field UI has already confirmed that with the worker; it produces an `inventoryAlerts` row so
+  // an ops manager can see it happened. A `writeInName` line has no catalog entry at all -- it never
+  // touches inventory, it is tracked as used regardless.
   const planned = [];
+  const writeIns = [];
+  const alerts = [];
   for (const entry of items) {
+    if (entry.writeInName) {
+      const quantity = Number(entry.quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        return json(response, 400, { error: `Quantity for ${entry.writeInName} must be greater than zero.` });
+      }
+      writeIns.push({ name: String(entry.writeInName).trim(), quantity, unit: String(entry.unit || "").trim() });
+      continue;
+    }
     const inventoryItem = data.inventoryItems.find((item) => item.id === entry.inventoryItemId);
     if (!inventoryItem) return json(response, 404, { error: "A selected inventory item no longer exists." });
     const quantity = Number(entry.quantity);
     if (!Number.isFinite(quantity) || quantity <= 0) {
       return json(response, 400, { error: `Quantity for ${inventoryItem.materialType} must be greater than zero.` });
     }
-    if (Number(inventoryItem.onHand || 0) - quantity < 0) {
+    const resultingBalance = Number(inventoryItem.onHand || 0) - quantity;
+    if (resultingBalance < 0 && !entry.force) {
       return json(response, 409, {
         error: `Only ${Number(inventoryItem.onHand || 0)} ${inventoryItem.unit} of ${inventoryItem.materialType} on hand.`,
+        wouldGoNegative: true,
+        onHand: Number(inventoryItem.onHand || 0),
+        unit: inventoryItem.unit,
+        materialType: inventoryItem.materialType,
       });
+    }
+    if (resultingBalance < 0 && entry.force) {
+      alerts.push({ inventoryItem, quantity, resultingBalance });
     }
     planned.push({ inventoryItem, quantity });
   }
@@ -2760,9 +2815,44 @@ async function handleJobTaskConsume(request, response, actionId) {
     data.jobResources.push(resource);
     return resource;
   });
+  const createdWriteIns = writeIns.map((entry) => {
+    const resource = {
+      id: makeId("job-resource"),
+      jobId: action.jobId,
+      actionId,
+      inventoryItemId: "",
+      type: "Material",
+      name: entry.name,
+      assetTag: "",
+      quantity: entry.quantity,
+      unit: entry.unit,
+      status: "Consumed",
+      writeIn: true,
+      consumedAt,
+      consumedBy,
+    };
+    data.jobResources.push(resource);
+    return resource;
+  });
+  if (!data.inventoryAlerts) data.inventoryAlerts = [];
+  alerts.forEach(({ inventoryItem, quantity, resultingBalance }) => {
+    data.inventoryAlerts.push({
+      id: makeId("inventory-alert"),
+      inventoryItemId: inventoryItem.id,
+      materialType: inventoryItem.materialType,
+      jobId: action.jobId,
+      actionId,
+      requestedQuantity: quantity,
+      onHandAtRequest: Number(inventoryItem.onHand || 0) + quantity,
+      resultingBalance,
+      requestedBy: consumedBy,
+      status: "Open",
+      createdAt: consumedAt,
+    });
+  });
 
   await saveBackend(data);
-  return json(response, 201, { resources: created });
+  return json(response, 201, { resources: [...created, ...createdWriteIns], alertsRaised: alerts.length });
 }
 
 async function handleApi(request, response, pathname) {
