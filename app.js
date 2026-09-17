@@ -2205,6 +2205,8 @@ async function handleClick(event) {
   if (action === "view-equipment-asset") viewEquipmentAsset(actionButton.dataset.assetTag);
   if (action === "open-map-location") openLocationDialog(actionButton.dataset.id);
   if (action === "open-invoice") openInvoiceDialog(actionButton.dataset.jobId);
+  if (action === "close-project") await closeProject(actionButton.dataset.id);
+  if (action === "regenerate-cost-report") await regenerateProjectCloseReport(actionButton.dataset.id);
   if (action === "open-employee") openEmployeeDialog(id);
   if (action === "open-credential") openCredentialDialog(actionButton.dataset.employeeId, actionButton.dataset.credentialId);
   if (action === "open-sample-lab") openSampleLabDialog(actionButton.dataset.id);
@@ -7396,6 +7398,7 @@ function renderProjectDetail() {
           <button class="secondary-button" type="button" data-action="open-material" data-job-id="${escapeAttribute(job.id)}">Log material</button>
           <button class="secondary-button" type="button" data-action="open-equipment" data-job-id="${escapeAttribute(job.id)}">Log equipment</button>
           <button class="secondary-button" type="button" data-action="open-schedule" data-job-id="${escapeAttribute(job.id)}">Schedule</button>
+          ${!job.closedAt && projectCanClose(job) ? `<button class="primary-button" type="button" data-action="close-project" data-id="${escapeAttribute(job.id)}">Close project</button>` : ""}
           <button class="primary-button" type="button" data-action="open-job-request" data-account-id="${escapeAttribute(job.accountId)}" data-project-id="${escapeAttribute(job.id)}">New job request</button>
         </div>
       </div>
@@ -7513,6 +7516,8 @@ function renderProjectDetail() {
             </div>
           </article>
 
+          ${renderProjectBillingPanel(job)}
+
           <article class="panel">
             <div class="panel-header"><h3>Sales and account links</h3></div>
             <div class="panel-body record-list">
@@ -7538,6 +7543,60 @@ function renderProjectDetail() {
     initializeProjectSampleMap(job.id);
     initializeProjectModelViewers();
   });
+}
+
+// Phase 09 — Billing & Invoicing. Shows the close-project gate before a project closes, and the
+// stored cost-report/P&L snapshot afterward (never recomputed on view — see buildProjectCostReport).
+function renderProjectBillingPanel(job) {
+  const report = job.closeReport;
+  if (!report) {
+    const eligible = projectCanClose(job);
+    return `
+      <article class="panel">
+        <div class="panel-header"><h3>Billing &amp; cost report</h3></div>
+        <div class="panel-body">
+          ${
+            eligible
+              ? `<div class="empty-state">This project has reached Closeout and is ready to close. Closing generates a cost report and P&amp;L from logged equipment, labor, and material usage, priced from the rate card, and feeds the invoice dialog.</div>`
+              : `<div class="empty-state">Project must reach the Closeout stage before it can be closed (currently ${escapeHtml(job.projectStage || "Intake")}). No cost report or P&amp;L exists yet.</div>`
+          }
+        </div>
+      </article>
+    `;
+  }
+
+  const { costs, revenue, margin, marginPercent } = report;
+  const generatedLabel = report.regeneratedAt
+    ? `Regenerated ${formatDateTime(report.regeneratedAt)} (originally generated ${formatDateTime(report.generatedAt)})`
+    : `Generated at close ${formatDateTime(report.generatedAt)}`;
+
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <div>
+          <h3>Billing &amp; cost report</h3>
+          <span>${escapeHtml(generatedLabel)}</span>
+        </div>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="regenerate-cost-report" data-id="${escapeAttribute(job.id)}">Regenerate</button>
+          <button class="mini-button" type="button" data-action="open-invoice" data-job-id="${escapeAttribute(job.id)}">Create invoice</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <dl class="detail-list">
+          <div><dt>Materials (${costs.materials.items.length} logged, ${money(costs.materials.unitCost)}/unit${costs.materials.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.materials.total)}</dd></div>
+          <div><dt>Equipment (${costs.equipment.items.length} logged, ${money(costs.equipment.unitCost)}/day${costs.equipment.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.equipment.total)}</dd></div>
+          <div><dt>Labor (${costs.labor.hours} hrs logged, ${money(costs.labor.unitCost)}/hr${costs.labor.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.labor.total)}</dd></div>
+          <div><dt>Total cost</dt><dd><strong>${money(costs.total)}</strong></dd></div>
+          <div><dt>Revenue (${escapeHtml(revenue.quotedSource === "quote" ? "quote" : revenue.quotedSource === "estimate" ? "estimate" : revenue.quotedSource === "none" ? "no quote/estimate on file" : "opportunity value")})</dt><dd>${money(revenue.quoted)}</dd></div>
+          ${revenue.invoiced != null ? `<div><dt>Invoiced amount</dt><dd>${money(revenue.invoiced)}</dd></div>` : ""}
+          <div><dt>Margin</dt><dd><strong class="${margin >= 0 ? "" : "risk-badge high"}">${money(margin)}${marginPercent != null ? ` (${marginPercent.toFixed(1)}%)` : ""}</strong></dd></div>
+        </dl>
+        ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
+        <p class="help-text">Waste-disposal cost tracking (permits, disposal manifests) is not included — that's Phase 11/Field Ops Depth scope, not yet built.</p>
+      </div>
+    </article>
+  `;
 }
 
 function renderProjectDispatchJobCard(dispatchJob) {
@@ -14439,6 +14498,173 @@ async function advanceProjectStageFromDispatchStatus(projectId, dispatchStatus) 
   });
 }
 
+// ---- Phase 09: Billing & Invoicing — project close, cost report, and P&L ----
+
+// A project can only be explicitly closed once its dispatch-driven stage ladder (Phase 07 item 11,
+// advanceProjectStageFromDispatchStatus) has actually reached the terminal "Closeout" stage. Closing
+// is a distinct, explicit action layered on top of that stage, not a replacement for it — see the
+// phase doc's item 1.
+function projectCanClose(project) {
+  const stageIndex = PROJECT_STAGES.indexOf(project?.projectStage || "Intake");
+  return stageIndex >= PROJECT_STAGES.indexOf("Closeout");
+}
+
+// Real per-project labor hours. `employee.hoursWorked` (fixed in Phase 07 item 12) is a cumulative,
+// cross-project running total, not attributable to a single job, so it can't be used here. The one
+// place the app captures hours *tied to a specific dispatch job* is a Front Line Timer task submission
+// (`jobFormSubmissions`, payload.hours) — this sums those across every dispatch job linked to the
+// project.
+function laborHoursForProject(projectId) {
+  const entries = [];
+  let hours = 0;
+  dispatchJobsForProject(projectId).forEach((dispatchJob) => {
+    submissionsForDispatchJob(dispatchJob.id).forEach((submission) => {
+      const action = findJobAction(submission.actionId);
+      if (action?.type !== "Timer") return;
+      const submissionHours = Number(submission.payload?.hours || 0);
+      if (!(submissionHours > 0)) return;
+      hours += submissionHours;
+      entries.push({
+        employee: submission.submittedBy || "Unknown",
+        hours: submissionHours,
+        submittedAt: submission.submittedAt,
+        dispatchJobId: dispatchJob.id,
+      });
+    });
+  });
+  return { hours, entries };
+}
+
+// Resolves a per-unit cost basis from Phase 08's rate card (priceLevels/products/productPriceLevels).
+// Gap found while building this phase: the existing rate-card catalog is priced entirely as whole-
+// engagement day-rate services (e.g. "$14,500/day UST removal"), not as granular per-hour-labor,
+// per-checkout-day-equipment, or per-unit-material cost inputs a cost report needs. Rather than fake
+// a false level of per-asset/per-employee-role granularity that doesn't exist in the prototype yet,
+// this phase added three generic cost-basis products to the rate card (`prod-field-labor-standard`,
+// `prod-equipment-standard-daily`, `prod-material-standard-unit` — see server.mjs's defaultBackend
+// seed) so real rate-card data still drives the numbers. Falls back to the given flat default only if
+// even that generic product has no rate configured for the resolved price level.
+function resolveCostBasisRate(productId, priceLevelId, fallbackAmount) {
+  const rate = priceLevelId ? productPriceLevelRate(productId, priceLevelId) : null;
+  if (rate) return { amount: Number(rate.amount) || 0, source: "rate-card" };
+  return { amount: fallbackAmount, source: "fallback" };
+}
+
+function currentQuoteOrEstimateForOpportunity(opportunity) {
+  if (!opportunity) return { document: null, type: "none", total: 0, priceLevelId: "" };
+  const quote = opportunity.quoteId ? quotesForOpportunity(opportunity.id).find((item) => item.id === opportunity.quoteId) : null;
+  if (quote) return { document: quote, type: "quote", total: Number(quote.totalAmount || 0), priceLevelId: quote.priceLevelId || "" };
+  const estimate = opportunity.estimateId ? estimatesForOpportunity(opportunity.id).find((item) => item.id === opportunity.estimateId) : null;
+  if (estimate) return { document: estimate, type: "estimate", total: Number(estimate.totalAmount || 0), priceLevelId: estimate.priceLevelId || "" };
+  return { document: null, type: "none", total: 0, priceLevelId: "" };
+}
+
+// Builds (or rebuilds) the stored cost-report/P&L snapshot for a project from real logged usage —
+// the first real consumer of Phase 08's rate data beyond quoting. Owner decision (2026-09-17): this
+// is a stored snapshot generated at close time, not recomputed on every view — only closeProject()
+// and regenerateProjectCloseReport() ever call this; no render path does.
+function buildProjectCostReport(project) {
+  const opportunity = findOpportunity(project.opportunityId);
+  const docRef = currentQuoteOrEstimateForOpportunity(opportunity);
+  const priceLevelId = docRef.priceLevelId || defaultPriceLevelId();
+
+  const materials = materialUsageForJob(project.id);
+  const materialRate = resolveCostBasisRate("prod-material-standard-unit", priceLevelId, 42);
+  const materialItems = materials.map((item) => ({
+    id: item.id,
+    materialType: item.materialType,
+    quantity: Number(item.quantity || 0),
+    unit: item.unit,
+    unitCost: materialRate.amount,
+    lineCost: Number(item.quantity || 0) * materialRate.amount,
+  }));
+  const materialsTotal = materialItems.reduce((sum, item) => sum + item.lineCost, 0);
+
+  const equipment = equipmentLogsForJob(project.id);
+  const equipmentRate = resolveCostBasisRate("prod-equipment-standard-daily", priceLevelId, 650);
+  const equipmentItems = equipment.map((item) => ({
+    id: item.id,
+    assetTag: item.assetTag,
+    equipment: item.equipment,
+    unitCost: equipmentRate.amount,
+    lineCost: equipmentRate.amount,
+  }));
+  const equipmentTotal = equipmentItems.reduce((sum, item) => sum + item.lineCost, 0);
+
+  const labor = laborHoursForProject(project.id);
+  const laborRate = resolveCostBasisRate("prod-field-labor-standard", priceLevelId, 95);
+  const laborTotal = labor.hours * laborRate.amount;
+
+  const costsTotal = materialsTotal + equipmentTotal + laborTotal;
+
+  const existingInvoice = (state.backend.invoices || []).find((invoice) => invoice.projectId === project.id);
+  const quotedRevenue = docRef.total || Number(opportunity?.value || project.budget || project.notToExceed || 0);
+  const invoicedRevenue = existingInvoice && Number(existingInvoice.invoiceAmount) > 0 ? Number(existingInvoice.invoiceAmount) : null;
+  const revenueUsed = invoicedRevenue != null ? invoicedRevenue : quotedRevenue;
+  const margin = revenueUsed - costsTotal;
+  const marginPercent = revenueUsed ? (margin / revenueUsed) * 100 : null;
+
+  return {
+    priceLevelId,
+    costs: {
+      materials: { unitCost: materialRate.amount, rateSource: materialRate.source, items: materialItems, total: materialsTotal },
+      equipment: { unitCost: equipmentRate.amount, rateSource: equipmentRate.source, items: equipmentItems, total: equipmentTotal },
+      labor: { unitCost: laborRate.amount, rateSource: laborRate.source, hours: labor.hours, entries: labor.entries, total: laborTotal },
+      total: costsTotal,
+    },
+    revenue: {
+      quoted: quotedRevenue,
+      quotedSource: docRef.type,
+      invoiced: invoicedRevenue,
+    },
+    margin,
+    marginPercent,
+    // Explicitly deferred, not forgotten (owner decision 2026-09-17): waste-disposal cost tracking
+    // (permits, disposal manifests/receipts — Phase 11/Field Ops Depth) does not feed this P&L. That
+    // phase hasn't been built yet, so there is no fourth cost bucket here for it. Add one once Phase
+    // 11's waste-tracking data exists rather than stubbing it out now.
+  };
+}
+
+async function closeProject(projectId) {
+  const project = findProject(projectId);
+  if (!project) return;
+  if (project.closedAt) {
+    showToast('Project is already closed. Use "Regenerate cost report" to refresh it.');
+    return;
+  }
+  if (!projectCanClose(project)) {
+    showToast(`Project must reach the Closeout stage before it can be closed (currently ${project.projectStage || "Intake"}).`);
+    return;
+  }
+  const report = buildProjectCostReport(project);
+  const generatedAt = new Date().toISOString();
+  await saveBackendRecord("projects", {
+    ...project,
+    closedAt: generatedAt,
+    closeReport: { ...report, generatedAt, regeneratedAt: null },
+  });
+  render();
+  showToast("Project closed. Cost report and P&L generated.");
+}
+
+// Owner decision (2026-09-17): closing a project does NOT lock out further equipment/labor/material
+// usage entries — costs can still post after close (e.g. a late equipment return or material log).
+// This action re-runs the same generation logic and overwrites the stored snapshot in place (no
+// history array kept — see phase doc's "Corrections/decisions" section for why), stamping
+// `regeneratedAt` so it's visible the numbers changed after close, without recomputing on every view.
+async function regenerateProjectCloseReport(projectId) {
+  const project = findProject(projectId);
+  if (!project || !project.closedAt) return;
+  const report = buildProjectCostReport(project);
+  await saveBackendRecord("projects", {
+    ...project,
+    closeReport: { ...report, generatedAt: project.closeReport?.generatedAt || project.closedAt, regeneratedAt: new Date().toISOString() },
+  });
+  render();
+  showToast("Cost report and P&L regenerated.");
+}
+
 async function saveInvoice(form) {
   const data = new FormData(form);
   const job = findProject(data.get("projectId").toString());
@@ -20521,12 +20747,17 @@ function getFinanceRows() {
     const invoice = invoices.find((item) => item.projectId === job.id);
     const materials = state.materialUsage.filter((item) => item.projectId === job.id);
     const equipment = state.equipmentLogs.filter((item) => item.projectId === job.id);
-    const materialCost = materials.reduce((sum, item) => sum + Number(item.quantity || 0) * 42, 0);
-    const equipmentCost = equipment.length * 650;
-    const laborCost = assignmentsForJob(job.id).length * 1200;
-    const expenses = materialCost + equipmentCost + laborCost;
-    const quoted = Number(invoice?.quotedAmount || opportunity?.value || job.notToExceed || job.budget || 0);
-    const invoicePrep = Number(invoice?.invoiceAmount || Math.max(quoted, expenses * 1.35));
+    // Once a project has a real generated cost report (Phase 09), use its numbers instead of the
+    // rough portfolio-wide heuristic below — this is what "feeds" the real numbers into this table
+    // and, through it, into openInvoiceDialog's prefill (it reads these same row.quoted/invoicePrep
+    // fields). The heuristic below only still applies to projects that haven't been closed yet.
+    const closeReport = job.closeReport;
+    const materialCost = closeReport ? closeReport.costs.materials.total : materials.reduce((sum, item) => sum + Number(item.quantity || 0) * 42, 0);
+    const equipmentCost = closeReport ? closeReport.costs.equipment.total : equipment.length * 650;
+    const laborCost = closeReport ? closeReport.costs.labor.total : assignmentsForJob(job.id).length * 1200;
+    const expenses = closeReport ? closeReport.costs.total : materialCost + equipmentCost + laborCost;
+    const quoted = Number(invoice?.quotedAmount || closeReport?.revenue.quoted || opportunity?.value || job.notToExceed || job.budget || 0);
+    const invoicePrep = Number(invoice?.invoiceAmount || (closeReport ? closeReport.revenue.quoted : Math.max(quoted, expenses * 1.35)));
     const lastCommunication = activitiesForAccount(job.accountId)[0];
     const highAlert = alertsForJob(job.id).some((alert) => alert.severity === "High" && alert.status !== "Resolved");
     const pastDue = invoice?.status === "Past due" ? invoice.invoiceAmount : 0;
@@ -20543,7 +20774,11 @@ function getFinanceRows() {
       expenses,
       invoicePrep,
       lastCommunication,
-      invoiceSignal: highAlert ? "Needs scope review before invoice" : "Ready for invoice prep",
+      invoiceSignal: highAlert
+        ? "Needs scope review before invoice"
+        : closeReport
+          ? `Cost report generated ${formatDate(job.closeReport.regeneratedAt || job.closeReport.generatedAt)} — costs ${money(closeReport.costs.total)}, margin ${money(closeReport.margin)}`
+          : "Ready for invoice prep",
       pastDue,
       status,
       statusTone,

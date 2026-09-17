@@ -16849,6 +16849,13 @@
       "baseUomName": "ton",
       "stateCode": "Active",
       "statusCode": "Active"
+    },
+    {
+      "id": "unit-group-consumables",
+      "name": "Field consumables",
+      "baseUomName": "unit",
+      "stateCode": "Active",
+      "statusCode": "Active"
     }
   ],
   "unitsOfMeasure": [
@@ -16871,6 +16878,13 @@
       "unitGroupId": "unit-group-disposal",
       "baseUomId": "",
       "name": "ton",
+      "quantity": 1
+    },
+    {
+      "id": "uom-unit",
+      "unitGroupId": "unit-group-consumables",
+      "baseUomId": "",
+      "name": "unit",
       "quantity": 1
     }
   ],
@@ -16924,6 +16938,45 @@
       "description": "Profiled disposal, manifest coordination, transportation handling, and disposal documentation.",
       "stateCode": "Active",
       "statusCode": "Active"
+    },
+    {
+      "id": "prod-field-labor-standard",
+      "defaultUomId": "uom-hour",
+      "defaultUnitGroupId": "unit-group-services",
+      "priceLevelId": "price-standard-2026",
+      "transactionCurrencyId": "currency-usd",
+      "name": "Field labor (standard hourly cost basis)",
+      "productNumber": "COST-LABOR-STD",
+      "productStructure": "Service",
+      "description": "Generic per-hour labor cost basis used by the project close-report generator when no role-specific rate exists yet.",
+      "stateCode": "Active",
+      "statusCode": "Active"
+    },
+    {
+      "id": "prod-equipment-standard-daily",
+      "defaultUomId": "uom-day",
+      "defaultUnitGroupId": "unit-group-services",
+      "priceLevelId": "price-standard-2026",
+      "transactionCurrencyId": "currency-usd",
+      "name": "Equipment usage (standard daily cost basis)",
+      "productNumber": "COST-EQUIP-STD",
+      "productStructure": "Service",
+      "description": "Generic per-checkout-day equipment cost basis used by the project close-report generator when no asset-specific rate exists yet.",
+      "stateCode": "Active",
+      "statusCode": "Active"
+    },
+    {
+      "id": "prod-material-standard-unit",
+      "defaultUomId": "uom-unit",
+      "defaultUnitGroupId": "unit-group-consumables",
+      "priceLevelId": "price-standard-2026",
+      "transactionCurrencyId": "currency-usd",
+      "name": "Field consumables (standard per-unit cost basis)",
+      "productNumber": "COST-MAT-STD",
+      "productStructure": "Service",
+      "description": "Generic per-unit material/consumable cost basis used by the project close-report generator when no material-specific rate exists yet.",
+      "stateCode": "Active",
+      "statusCode": "Active"
     }
   ],
   "productPriceLevels": [
@@ -16955,6 +17008,36 @@
       "unitGroupId": "unit-group-disposal",
       "transactionCurrencyId": "currency-usd",
       "amount": 185,
+      "pricingMethodCode": "CurrencyAmount"
+    },
+    {
+      "id": "ppl-labor-standard",
+      "productId": "prod-field-labor-standard",
+      "priceLevelId": "price-standard-2026",
+      "uomId": "uom-hour",
+      "unitGroupId": "unit-group-services",
+      "transactionCurrencyId": "currency-usd",
+      "amount": 95,
+      "pricingMethodCode": "CurrencyAmount"
+    },
+    {
+      "id": "ppl-equipment-standard",
+      "productId": "prod-equipment-standard-daily",
+      "priceLevelId": "price-standard-2026",
+      "uomId": "uom-day",
+      "unitGroupId": "unit-group-services",
+      "transactionCurrencyId": "currency-usd",
+      "amount": 650,
+      "pricingMethodCode": "CurrencyAmount"
+    },
+    {
+      "id": "ppl-material-standard",
+      "productId": "prod-material-standard-unit",
+      "priceLevelId": "price-standard-2026",
+      "uomId": "uom-unit",
+      "unitGroupId": "unit-group-consumables",
+      "transactionCurrencyId": "currency-usd",
+      "amount": 42,
       "pricingMethodCode": "CurrencyAmount"
     }
   ],

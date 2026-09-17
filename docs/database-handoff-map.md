@@ -16,7 +16,9 @@ dialogs (general business notes vs. personal notes), split into `notes` /
 `birthdayNote` / `personalNotes`; `contacts.accountId` is now optional
 (account-less contacts, e.g. regulators/referrals, are now supported); fixed
 an app-wide bug where every search-as-you-type input lost keyboard focus
-after every keystroke -- updated September 17, 2026)
+after every keystroke; Phase 09 billing/invoicing work -- new `projects.closedAt` /
+`projects.closeReport` fields (a stored, regenerable cost-report/P&L snapshot), no new top-level
+collections -- updated September 17, 2026)
 
 ## Executive Summary
 
@@ -285,6 +287,39 @@ process -- see the JSON Backend list below.
 the Opportunity page redesign) but its now-unused IndexedDB store
 declaration was left in `openDatabase`'s schema -- harmless (the store is
 created but never written to), just not yet cleaned up in code.
+
+**Phase 09 (2026-09-17)** added a real "close project" transition and a stored cost-report/P&L
+snapshot, both on the existing `projects` collection -- no new top-level collections. New fields:
+`projects.closedAt` (ISO timestamp, set once when a project is explicitly closed; `null`/absent
+means not closed) and `projects.closeReport` (an object snapshot, not a live-computed view --
+`{ priceLevelId, costs: { materials: { unitCost, rateSource, items[], total }, equipment: {...},
+labor: { unitCost, rateSource, hours, entries[], total }, total }, revenue: { quoted, quotedSource,
+invoiced }, margin, marginPercent, generatedAt, regeneratedAt } }`). Owner decisions (2026-09-17):
+(1) closing a project does **not** lock out further equipment/labor/material usage entries --
+costs can post after close, and a "Regenerate" button on the project's new Billing & cost report
+panel re-runs the same generation logic and overwrites `closeReport` in place (keeping the original
+`generatedAt` but stamping a new `regeneratedAt`); (2) the report is a stored snapshot generated at
+close/regenerate time, never recomputed on page view; no history array is kept -- only the latest
+snapshot persists, an explicit simplicity-over-audit-trail choice documented in
+`phase-09-billing-invoicing.md` (Phase 12's real audit log is the better place for point-in-time
+history once it exists); (3) waste-disposal cost (Phase 11/Field Ops Depth) does **not** feed this
+P&L -- explicitly deferred, not forgotten. The close action is gated on `projects.projectStage`
+having reached "Closeout" on the existing `PROJECT_STAGES` ladder (Phase 07 item 11's fix is what
+makes that field trustworthy). Real per-project labor hours turned out not to exist anywhere (Phase
+07 item 12 only fixed a cross-project cumulative `employees.hoursWorked`, not a per-job figure) --
+the cost report instead sums Front Line Timer-task `jobFormSubmissions.payload.hours` across every
+`dispatchJobs` row linked to the project, the one place the app captures hours tied to a specific
+job. A second gap: Phase 08's rate card (`products`/`priceLevels`/`productPriceLevels`) was priced
+entirely as whole-engagement day-rate services, with nothing granular enough to cost a single
+equipment-log or unit of material. Rather than fabricate false per-asset/per-employee-role
+granularity, this phase added three generic cost-basis products to the rate card seed data --
+`prod-field-labor-standard` ($95/hr), `prod-equipment-standard-daily` ($650/day),
+`prod-material-standard-unit` ($42/unit) -- plus a new `unit-group-consumables`/`uom-unit` pair so
+material usage (which has no UoM FK, just a free-text `unit` string) has a genuine per-unit rate
+to resolve. `getFinanceRows()`/`openInvoiceDialog()` were updated to prefer a project's
+`closeReport` numbers over the old flat per-item cost heuristics once one exists, which is how the
+generated report "feeds" the existing invoice dialog without a parallel invoice path. See
+`docs/roadmap/phase-09-billing-invoicing.md` for the full writeup.
 
 **Phase 08 (2026-09-17)** added two new JSON-backend collections, `estimates` and `estimateLines`,
 structurally identical to the pre-existing `quotes`/`quoteLines` -- owner decision: Quote and
