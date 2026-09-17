@@ -10,7 +10,13 @@ mirrors `accountComments`), `accounts.ownerEmployeeId` now a real FK -- updated
 September 16, 2026; Phase 04 vendor/subcontractor work -- new
 `accountApprovedSubcontractors` collection (Layer 2: which vendors a specific
 customer account has approved), `vendorProfiles.approvedById` now a real
-employee FK -- updated September 17, 2026)
+employee FK -- updated September 17, 2026; Phase 05 contacts work -- fixed a
+live data-loss bug where `contacts.notes` was shared between two unrelated
+dialogs (general business notes vs. personal notes), split into `notes` /
+`birthdayNote` / `personalNotes`; `contacts.accountId` is now optional
+(account-less contacts, e.g. regulators/referrals, are now supported); fixed
+an app-wide bug where every search-as-you-type input lost keyboard focus
+after every keystroke -- updated September 17, 2026)
 
 ## Executive Summary
 

@@ -2399,6 +2399,32 @@ async function handleSubmit(event) {
 }
 
 function handleInput(event) {
+  const target = event.target;
+  const refocusId = target.id;
+  const refocusSelection =
+    (target.tagName === "INPUT" || target.tagName === "TEXTAREA") && typeof target.selectionStart === "number"
+      ? { start: target.selectionStart, end: target.selectionEnd }
+      : null;
+  try {
+    handleInputInner(event);
+  } finally {
+    // Every render*() in this app replaces app.innerHTML wholesale, which destroys and
+    // recreates every DOM node — including whatever input the user is actively typing in,
+    // losing focus and cursor position after every keystroke. Restore both by id once the
+    // (re-created) element exists again.
+    if (refocusId) {
+      const restored = document.getElementById(refocusId);
+      if (restored && restored !== document.activeElement) {
+        restored.focus();
+        if (refocusSelection && typeof restored.setSelectionRange === "function") {
+          restored.setSelectionRange(refocusSelection.start, refocusSelection.end);
+        }
+      }
+    }
+  }
+}
+
+function handleInputInner(event) {
   // Changing a task's type swaps which config controls belong on the card, so the editor has to
   // re-render. Scoped to the editor root so it cannot fire on any other select in the app.
   if (event.target.matches('#templateEditorRoot [data-task-type]')) {
@@ -4898,7 +4924,9 @@ function renderAccountSummaryTab(account) {
   const addresses = addressesForAccount(account.id);
   const billingAddress = addresses.find((address) => address.addressType === "Bill To") || addresses.find((address) => address.isPrimary);
   const cases = alertsForAccount(account.id).filter((alert) => alert.status !== "Resolved");
-  const openTasks = openTasksForAccount(account.id);
+  const upcomingItems = [...openTasksForAccount(account.id), ...upcomingActivitiesAsTaskLike(activitiesForAccount(account.id))].sort(
+    (a, b) => parseDate(a.dueDate) - parseDate(b.dueDate),
+  );
   const salesTasks = salesTasksForAccount(account.id);
   const contacts = contactsForAccount(account.id);
   const accountIndustryLinks = industriesForAccount(account.id);
@@ -4955,9 +4983,9 @@ function renderAccountSummaryTab(account) {
           </div>
         </article>
         <article class="panel">
-          <div class="panel-header"><h3>Open tasks</h3></div>
+          <div class="panel-header"><h3>Upcoming tasks &amp; activities</h3></div>
           <div class="panel-body task-list">
-            ${openTasks.slice(0, 3).map(renderTaskRow).join("") || `<div class="empty-state">No open tasks for this account.</div>`}
+            ${upcomingItems.slice(0, 5).map(renderTaskRow).join("") || `<div class="empty-state">No open tasks or upcoming activities for this account.</div>`}
           </div>
         </article>
         <article class="panel">
@@ -6667,9 +6695,12 @@ function renderContactSummaryTab(contact) {
   const account = findAccount(contact.accountId);
   const core = getCoreContact(contact);
   const opportunities = opportunitiesForContact(contact);
-  const openTasks = tasksForContact(contact.id);
+  const contactActivities = activitiesForContact(contact.id);
+  const upcomingItems = [...tasksForContact(contact.id), ...upcomingActivitiesAsTaskLike(contactActivities)].sort(
+    (a, b) => parseDate(a.dueDate) - parseDate(b.dueDate),
+  );
   const openSalesTasks = salesTasksForContact(contact.id);
-  const recentActivities = activitiesForContact(contact.id).slice(0, 3);
+  const recentActivities = contactActivities.slice(0, 3);
 
   return `
     <section class="crm-profile-grid">
@@ -6686,13 +6717,14 @@ function renderContactSummaryTab(contact) {
                   ? `<button class="link-button" type="button" data-action="view-account" data-id="${escapeAttribute(account.id)}">${escapeHtml(account.name)}</button>`
                   : "Unknown account"
               }</dd></div>
+              <div><dt>General notes</dt><dd>${escapeHtml(core.notes || "No general notes yet.")} <span class="help-text">(edit via "Edit contact" in the header)</span></dd></div>
             </dl>
           </div>
         </article>
         <article class="panel">
-          <div class="panel-header"><h3>Open tasks</h3></div>
+          <div class="panel-header"><h3>Upcoming tasks &amp; activities</h3></div>
           <div class="panel-body task-list">
-            ${openTasks.slice(0, 3).map(renderTaskRow).join("") || `<div class="empty-state">No open tasks for this contact.</div>`}
+            ${upcomingItems.slice(0, 5).map(renderTaskRow).join("") || `<div class="empty-state">No open tasks or upcoming activities for this contact.</div>`}
           </div>
         </article>
         <article class="panel">
@@ -6776,7 +6808,8 @@ function renderContactDetailsTab(contact) {
           <div class="panel-body">
             <dl class="detail-list">
               <div><dt>Birthday</dt><dd>${core.birthday ? formatDate(core.birthday) : "Not captured"}</dd></div>
-              <div><dt>Notes</dt><dd>${escapeHtml(core.notes || "No relationship notes yet.")}</dd></div>
+              ${core.birthdayNote ? `<div><dt>Birthday note</dt><dd>${escapeHtml(core.birthdayNote)}</dd></div>` : ""}
+              <div><dt>Personal notes</dt><dd>${escapeHtml(core.personalNotes || "No personal notes yet.")}</dd></div>
             </dl>
           </div>
         </article>
@@ -7023,7 +7056,7 @@ function renderContactRelationshipsTab(contact) {
                   if (!facility) return "";
                   return `
                     <article class="detail-card">
-                      <strong>${escapeHtml(facility.name)}</strong>
+                      <button class="link-button account-name" type="button" data-action="view-facility" data-id="${escapeAttribute(facility.id)}">${escapeHtml(facility.name)}</button>
                       <div class="inline-actions">
                         <span class="tag">${escapeHtml(link.relationshipRole)}</span>
                         ${link.isPrimary ? `<span class="tag">Primary</span>` : ""}
@@ -11798,6 +11831,28 @@ function renderFieldwork() {
   `;
 }
 
+function upcomingActivitiesAsTaskLike(activities) {
+  // Tasks and activities are different collections with different field names (see
+  // GLOSSARY.md), but "Open tasks" panels only ever queried `tasks`, so an activity with a due
+  // date (a scheduled call, a follow-up) never showed up as something upcoming. Normalize the
+  // fields this display needs so both can render in one list without merging the collections.
+  // Task-type activities are excluded: persistActivity() already creates a companion `tasks`
+  // row (type "Activity task") for those, so including the activity here too would duplicate it.
+  return activities
+    .filter((activity) => activity.activityType !== "Task" && activity.status !== "Completed" && (activity.dueDate || activity.activityDate))
+    .map((activity) => ({
+      id: activity.id,
+      title: activity.subject || activity.description || "Activity",
+      accountId: activity.accountId,
+      dueDate: activity.dueDate || activity.activityDate,
+      priority: activity.priority || "Normal",
+      owner: activity.owner || "Unassigned",
+      type: activity.activityType || "Activity",
+      status: activity.status,
+      isActivity: true,
+    }));
+}
+
 function renderTaskRow(task) {
   const account = findAccount(task.accountId);
   const complete = task.status === "Complete";
@@ -11813,9 +11868,11 @@ function renderTaskRow(task) {
       <div class="inline-actions">
         <span class="stage-badge">${escapeHtml(task.type)}</span>
         ${
-          complete
-            ? `<span class="tag">Complete</span>`
-            : `<button class="mini-button" type="button" data-action="complete-task" data-id="${task.id}">Complete</button>`
+          task.isActivity
+            ? `<span class="tag">Logged activity</span>`
+            : complete
+              ? `<span class="tag">Complete</span>`
+              : `<button class="mini-button" type="button" data-action="complete-task" data-id="${task.id}">Complete</button>`
         }
       </div>
     </article>
@@ -13067,7 +13124,7 @@ async function saveContact(form) {
     opportunityIds: opportunityId ? [opportunityId] : [],
     notes: data.get("notes").toString().trim() || "No relationship notes yet.",
     divisionId: data.get("divisionId").toString(),
-    owner: existing?.owner || state.currentUser?.name || "Unassigned",
+    owner: existing?.owner || findAccount(data.get("accountId").toString())?.owner || "Unassigned",
   });
 
   await saveBackendRecord("contacts", contact, { refresh: false });
@@ -13143,7 +13200,8 @@ async function saveContactPersonal(form) {
     contactId,
     {
       birthday: data.get("birthday").toString(),
-      notes: data.get("notes").toString().trim() || "No relationship notes yet.",
+      birthdayNote: data.get("birthdayNote").toString().trim(),
+      personalNotes: data.get("personalNotes").toString().trim(),
     },
     "Personal info saved.",
   );
@@ -13154,19 +13212,20 @@ async function saveContactRole(form) {
   const contactId = data.get("id").toString();
   const ownerEmployeeId = data.get("ownerEmployeeId").toString();
   const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
-  await saveContactPatch(
-    contactId,
-    {
-      accountRole: data.get("accountRole").toString(),
-      relationshipRole: data.get("relationshipRole").toString(),
-      influence: data.get("relationshipRole").toString(),
-      lifecycleStage: data.get("lifecycleStage").toString(),
-      leadStatus: data.get("leadStatus").toString(),
-      owner: ownerName || "Unassigned",
-      divisionId: data.get("divisionId").toString(),
-    },
-    "Role saved.",
-  );
+  const patch = {
+    accountRole: data.get("accountRole").toString(),
+    relationshipRole: data.get("relationshipRole").toString(),
+    influence: data.get("relationshipRole").toString(),
+    lifecycleStage: data.get("lifecycleStage").toString(),
+    leadStatus: data.get("leadStatus").toString(),
+    divisionId: data.get("divisionId").toString(),
+  };
+  // Only touch owner when a real selection was made — the picker can fail to preselect an
+  // existing owner (e.g. a demo/session identity with no matching employee row), and silently
+  // writing "Unassigned" in that case wipes out a real owner just because this dialog was
+  // opened and saved without anyone touching the Owner field.
+  if (ownerName) patch.owner = ownerName;
+  await saveContactPatch(contactId, patch, "Role saved.");
 }
 
 async function saveContactAddressOne(form) {
@@ -15692,7 +15751,7 @@ function openContactDialog(accountId = "", contactId = "") {
   const dialog = document.querySelector("#contactDialog");
   const form = dialog.querySelector("form");
   form.reset();
-  populateAccountSelect(dialog);
+  populateAccountSelect(dialog, "No account (unaffiliated)");
   populateOpportunitySelect(dialog);
   const contact = contactId ? findContact(contactId) : null;
   if (contact) {
@@ -15762,7 +15821,8 @@ function openContactPersonalDialog(contactId = "") {
   const core = getCoreContact(contact);
   form.elements.id.value = core.id;
   form.elements.birthday.value = core.birthday || "";
-  form.elements.notes.value = core.notes || "";
+  form.elements.birthdayNote.value = core.birthdayNote || "";
+  form.elements.personalNotes.value = core.personalNotes || "";
   dialog.showModal();
 }
 
@@ -17578,13 +17638,20 @@ function populateOpportunitySelect(root) {
 
 function populateContactSelect(root, accountId = "") {
   root.querySelectorAll("select[name='contactId']").forEach((select) => {
-    const contacts = accountId ? contactsForAccount(accountId) : state.contacts;
+    // Scoping strictly to the account in context made unaffiliated contacts (regulators,
+    // referrals, consultants who don't belong to a customer account) permanently unreachable
+    // from any dialog opened in an account's context. Always include them, in their own group,
+    // alongside whatever the account scope already matched.
+    const scopedContacts = accountId ? contactsForAccount(accountId) : state.contacts;
+    const unaffiliated = accountId ? state.contacts.filter((contact) => !contact.accountId) : [];
+    const renderOption = (contact) => {
+      const account = findAccount(contact.accountId);
+      return `<option value="${escapeAttribute(contact.id)}">${escapeHtml(contact.name)} - ${escapeHtml(account?.name ?? "Unaffiliated")}</option>`;
+    };
     select.innerHTML = [
       `<option value="">No contact selected</option>`,
-      ...contacts.map((contact) => {
-        const account = findAccount(contact.accountId);
-        return `<option value="${escapeAttribute(contact.id)}">${escapeHtml(contact.name)} - ${escapeHtml(account?.name ?? "Unknown account")}</option>`;
-      }),
+      ...scopedContacts.map(renderOption),
+      ...(unaffiliated.length ? [`<optgroup label="Unaffiliated">${unaffiliated.map(renderOption).join("")}</optgroup>`] : []),
     ].join("");
   });
 }

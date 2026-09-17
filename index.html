@@ -1017,8 +1017,9 @@
         </div>
         <label>
           Account
-          <select name="accountId" required></select>
+          <select name="accountId"></select>
         </label>
+        <p class="help-text">Leave as "No account" for regulators, referrals, or other contacts who don't belong to a customer account yet.</p>
         <div class="form-grid">
           <label>
             Name
@@ -1069,8 +1070,8 @@
           <select name="opportunityId"></select>
         </label>
         <label>
-          Notes
-          <textarea name="notes" rows="4" maxlength="400" placeholder="Decision role, buyer concerns, communication preferences, or relationship context."></textarea>
+          General notes
+          <textarea name="notes" rows="4" maxlength="400" placeholder="Decision role, buyer concerns, communication preferences. For personal notes and birthday, use the Personal editor on the contact's Details tab."></textarea>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
@@ -1191,8 +1192,12 @@
           <input name="birthday" type="date" />
         </label>
         <label>
-          Notes
-          <textarea name="notes" rows="5" maxlength="600" placeholder="Relationship context, personal notes, interests, buyer concerns."></textarea>
+          Birthday note
+          <input name="birthdayNote" maxlength="200" placeholder="Gift ideas, how they celebrate, anything worth remembering" />
+        </label>
+        <label>
+          Personal notes
+          <textarea name="personalNotes" rows="5" maxlength="600" placeholder="Relationship context, personal notes, interests — separate from business notes on the main Contact dialog."></textarea>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
