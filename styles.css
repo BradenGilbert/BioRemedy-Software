@@ -5221,6 +5221,31 @@ body[data-theme="dark"] textarea::placeholder {
   font-size: 0.8rem;
 }
 
+.frontline-record-card {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.frontline-record-card span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.frontline-checkbox-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .frontline-filter-row {
   display: flex;
   align-items: center;

@@ -86,6 +86,8 @@ const collectionAccess = {
   crewProfiles: "workforce",
   availabilityBlocks: "workforce",
   frontlineDevices: "workforce",
+  timeEntries: "operations",
+  jobMileageEntries: "operations",
   jobRequests: "dispatch",
   jobRequestDocuments: "dispatch",
   dispatchJobs: "dispatch",
@@ -533,6 +535,47 @@ const defaultBackend = {
     { id: "device-logan-ipad", employeeId: "emp-logan", deviceIdentifier: "BR-IPAD-014", displayName: "Logan field iPad", platform: "iPadOS", appVersion: "0.9.4", registrationStatus: "Active", lastSeenAt: "2026-07-26T15:42:00-05:00", syncStatus: "Healthy", pendingCommands: 0 },
     { id: "device-trey-phone", employeeId: "emp-trey", deviceIdentifier: "BR-PHONE-021", displayName: "Trey field phone", platform: "Android", appVersion: "0.9.4", registrationStatus: "Active", lastSeenAt: "2026-07-26T15:38:00-05:00", syncStatus: "2 pending", pendingCommands: 2 },
     { id: "device-tristan-phone", employeeId: "emp-tristan", deviceIdentifier: "BR-PHONE-027", displayName: "Tristan field phone", platform: "Android", appVersion: "0.9.3", registrationStatus: "Active", lastSeenAt: "2026-07-26T14:11:00-05:00", syncStatus: "Update required", pendingCommands: 0 },
+  ],
+  // Front Line Time Sheet tile (Phase 10, Part 1). Distinct from Timer-task hours captured on a
+  // job action (`jobFormSubmissions`, payload.hours) — those feed Phase 09's per-project labor cost
+  // roll-up. `timeEntries` is a clock-in/out style payroll/attendance record: travel, work, break,
+  // standby, other. It can optionally link to a dispatchJobId for reporting, but it is not currently
+  // read by the Phase 09 cost report. See phase-10-frontline.md "Corrections found during
+  // implementation" for the full reasoning. (This collection previously existed with zero readers/
+  // writers and was retired 2026-09-16 -- it is reintroduced here with a real tile behind it.)
+  timeEntries: [
+    {
+      id: "time-entry-logan-georgetown",
+      employeeId: "emp-logan",
+      dispatchJobId: "dispatch-job-georgetown",
+      entryType: "work",
+      startedAt: "2026-07-24T13:20:00-05:00",
+      endedAt: "2026-07-24T16:05:00-05:00",
+      durationMinutes: 165,
+      notes: "Georgetown emergency response.",
+      source: "frontline-timesheet",
+      createdAt: "2026-07-24T16:05:00-05:00",
+      updatedAt: "2026-07-24T16:05:00-05:00",
+    },
+  ],
+  // Front Line Trips tile (Phase 10, Part 1). Maps to the designed `job_mileage_entries` table
+  // (crm-schema/023_job_execution_events.sql) -- beginning/ending odometer and calculated distance,
+  // general-purpose trip logging (not sampling-specific; the sampling odometer-per-relocation gap
+  // stays a Job Book task-type concern for a future pass).
+  jobMileageEntries: [
+    {
+      id: "mileage-logan-georgetown",
+      employeeId: "emp-logan",
+      dispatchJobId: "dispatch-job-georgetown",
+      mileageType: "travel_to",
+      beginningOdometer: 58210,
+      endingOdometer: 58234,
+      calculatedDistance: 24,
+      capturedAt: "2026-07-24T13:05:00-05:00",
+      notes: "Shop to Georgetown site.",
+      createdAt: "2026-07-24T13:05:00-05:00",
+      updatedAt: "2026-07-24T13:05:00-05:00",
+    },
   ],
   jobRequests: [
     {
@@ -2168,6 +2211,8 @@ function filterBackendForRole(data, role) {
     crewProfiles: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.crewProfiles : [],
     availabilityBlocks: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.availabilityBlocks : [],
     frontlineDevices: canAccess(role, "workforce") ? data.frontlineDevices : [],
+    timeEntries: canAccess(role, "operations") ? data.timeEntries : [],
+    jobMileageEntries: canAccess(role, "operations") ? data.jobMileageEntries : [],
     jobRequests: canAccess(role, "dispatch") ? data.jobRequests : [],
     jobRequestDocuments: canAccess(role, "dispatch") ? data.jobRequestDocuments : [],
     dispatchJobs: canAccess(role, "dispatch") ? data.dispatchJobs : [],

@@ -128,6 +128,17 @@ const defaultPlatformSettings = {
   inventoryAlertMode: "operations-buyers",
 };
 
+// Front Line Settings tile (Phase 10, Part 1) -- a real, persisted-per-browser preference set,
+// stored the same way as defaultPlatformSettings (IndexedDB `settings` store via
+// getSetting/putSetting). Kept intentionally small: only preferences that map to something real
+// in this app (the simulator has no push infrastructure to actually deliver these alerts, but the
+// on/off state itself is real and saved, not decorative).
+const defaultFrontlineNotificationPrefs = {
+  jobAssignedAlerts: true,
+  messageAlerts: true,
+  endOfDayReminder: false,
+};
+
 const demoUser = {
   name: "Olivia Grant",
   email: "olivia.grant@example.com",
@@ -1540,6 +1551,8 @@ const state = {
     crewProfiles: [],
     availabilityBlocks: [],
     frontlineDevices: [],
+    timeEntries: [],
+    jobMileageEntries: [],
     jobRequests: [],
     jobRequestDocuments: [],
     dispatchJobs: [],
@@ -1585,6 +1598,7 @@ const state = {
   frontlineOpenActionId: "",
   frontlineSignatureStrokes: [],
   frontlineGps: null,
+  frontlineNotificationPrefs: defaultFrontlineNotificationPrefs,
 };
 
 let dbPromise;
@@ -1837,6 +1851,7 @@ async function refreshState() {
   };
   state.currentUser = await getSetting("currentUser", demoUser);
   state.authError = await getSetting("authError", "");
+  state.frontlineNotificationPrefs = await getSetting("frontlineNotificationPrefs", defaultFrontlineNotificationPrefs);
   applyPlatformSettings();
   await refreshBackendState();
 }
@@ -2436,6 +2451,10 @@ async function handleSubmit(event) {
   if (form.dataset.form === "identity") await saveIdentityConfig(form);
   if (form.dataset.form === "settings") await savePlatformSettings(form);
   if (form.dataset.form === "frontline-complete-action") await frontlineCompleteAction(form);
+  if (form.dataset.form === "frontline-clock-in") await frontlineClockIn(form);
+  if (form.dataset.form === "frontline-clock-out") await frontlineClockOut(form);
+  if (form.dataset.form === "frontline-log-trip") await frontlineLogTrip(form);
+  if (form.dataset.form === "frontline-notification-prefs") await frontlineSaveNotificationPrefs(form);
 }
 
 function handleInput(event) {
@@ -2732,13 +2751,13 @@ function render() {
   if (state.view === "frontline-home") renderFrontlineHome();
   if (state.view === "frontline-jobbook") renderFrontlineJobBook();
   if (state.view === "frontline-job-detail") renderFrontlineJobDetail();
-  if (state.view === "frontline-timesheet") renderFrontlineStub("Time Sheet");
+  if (state.view === "frontline-timesheet") renderFrontlineTimesheet();
   if (state.view === "frontline-messaging") renderFrontlineStub("Messaging");
   if (state.view === "frontline-forms") renderFrontlineStub("Forms");
-  if (state.view === "frontline-trips") renderFrontlineStub("Trips");
+  if (state.view === "frontline-trips") renderFrontlineTrips();
   if (state.view === "frontline-location") renderFrontlineStub("Location");
   if (state.view === "frontline-invoices") renderFrontlineStub("Invoices");
-  if (state.view === "frontline-settings") renderFrontlineStub("Settings");
+  if (state.view === "frontline-settings") renderFrontlineSettings();
   syncRouteToHistory();
   updateBackButtonState();
 }
@@ -12636,6 +12655,349 @@ function renderFrontlineJobDetail() {
   requestAnimationFrame(initializeSignaturePad);
 }
 
+// ---- Phase 10, Part 1: Time Sheet tile ----
+//
+// Distinct from the Timer job-action captured inside the Job Book work plan
+// (jobFormSubmissions, payload.hours) -- that is task-level duration used by Phase 09's
+// per-project labor cost report (see laborHoursForProject). Time Sheet is a clock-in/out style
+// attendance record: a worker starts a shift-level entry (Work/Travel/Break/Standby/Other),
+// optionally attached to a dispatch job for reporting, and clocks out later. It is not summed
+// into the Phase 09 cost report today -- see the phase doc's "Corrections found during
+// implementation" for why they were kept separate rather than merged.
+function getTimeEntries() {
+  return state.backend.timeEntries || [];
+}
+
+function timeEntriesForEmployee(employeeId) {
+  return getTimeEntries()
+    .filter((entry) => entry.employeeId === employeeId)
+    .sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+}
+
+function openTimeEntryForEmployee(employeeId) {
+  return getTimeEntries().find((entry) => entry.employeeId === employeeId && !entry.endedAt) || null;
+}
+
+// Monday 00:00 local time of the current week, used to total "this week's" hours.
+function currentTimesheetPeriodStart() {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday);
+  return monday;
+}
+
+function frontlineMyDispatchJobs(employeeId) {
+  return getDispatchJobs()
+    .filter((job) => job.fieldLeadEmployeeId === employeeId || dispatchAssignmentsForJob(job.id).some((assignment) => assignment.employeeId === employeeId))
+    .slice()
+    .sort((a, b) => parseDate(b.scheduledStart) - parseDate(a.scheduledStart));
+}
+
+function frontlineJobOptionLabel(job) {
+  return `${job.jobNumber} · ${job.jobName}`;
+}
+
+// formatDuration() (shared, used for job-estimate displays) treats 0/blank as "no estimate given",
+// which misreads a genuine zero-length logged entry. Time Sheet totals need "0h 0m" to read as a
+// real, counted value.
+function formatMinutesTotal(minutes) {
+  const value = Math.max(0, Math.round(Number(minutes || 0)));
+  const hours = Math.floor(value / 60);
+  const remainder = value % 60;
+  return `${hours}h ${remainder}m`;
+}
+
+function renderFrontlineTimesheet() {
+  const employeeId = state.frontlineSession?.employeeId;
+  const openEntry = openTimeEntryForEmployee(employeeId);
+  const entries = timeEntriesForEmployee(employeeId);
+  const periodStart = currentTimesheetPeriodStart();
+  const periodMinutes = entries
+    .filter((entry) => entry.durationMinutes != null && new Date(entry.startedAt) >= periodStart)
+    .reduce((sum, entry) => sum + Number(entry.durationMinutes || 0), 0);
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body">
+          <h2>Time Sheet</h2>
+          <div class="frontline-record-card">
+            <div class="inline-actions"><strong>This week</strong><span>${formatMinutesTotal(periodMinutes)}</span></div>
+            <span>Since ${formatDate(localIsoDate(periodStart))}</span>
+          </div>
+          ${
+            openEntry
+              ? `
+            <article class="frontline-record-card">
+              <div class="inline-actions"><span class="job-number">Clocked in — ${escapeHtml(formatDispatchStatus(openEntry.entryType))}</span></div>
+              <strong>${openEntry.dispatchJobId ? escapeHtml(frontlineJobOptionLabel(findDispatchJob(openEntry.dispatchJobId) || { jobNumber: "Job", jobName: "removed" })) : "No job linked — admin/other time"}</strong>
+              <span>Since ${formatDateTime(openEntry.startedAt)}</span>
+              <form class="frontline-action-form" data-form="frontline-clock-out">
+                <input type="hidden" name="entryId" value="${escapeAttribute(openEntry.id)}" />
+                <label>Notes<textarea name="notes" placeholder="Optional notes"></textarea></label>
+                <button class="primary-button" type="submit">Clock out</button>
+              </form>
+            </article>
+          `
+              : `
+            <form class="frontline-action-form frontline-record-card" data-form="frontline-clock-in">
+              <label>Time type
+                <select name="entryType">
+                  <option value="work">Work</option>
+                  <option value="travel">Travel</option>
+                  <option value="break">Break</option>
+                  <option value="standby">Standby</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label>Job (optional)
+                <select name="dispatchJobId">
+                  <option value="">No job — admin/other time</option>
+                  ${myJobs.map((job) => `<option value="${escapeAttribute(job.id)}">${escapeHtml(frontlineJobOptionLabel(job))}</option>`).join("")}
+                </select>
+              </label>
+              <button class="primary-button" type="submit">Clock in</button>
+            </form>
+          `
+          }
+          <h3>Recent entries</h3>
+          <div class="frontline-job-list">
+            ${entries.slice(0, 20).map(renderFrontlineTimeEntryRow).join("") || `<div class="empty-state">No time entries yet.</div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFrontlineTimeEntryRow(entry) {
+  const job = entry.dispatchJobId ? findDispatchJob(entry.dispatchJobId) : null;
+  return `
+    <article class="frontline-record-card">
+      <div class="inline-actions"><span class="job-number">${escapeHtml(formatDispatchStatus(entry.entryType))}</span><span>${entry.endedAt ? escapeHtml(formatMinutesTotal(entry.durationMinutes)) : "In progress"}</span></div>
+      <strong>${job ? escapeHtml(frontlineJobOptionLabel(job)) : "No job linked"}</strong>
+      <span>${formatDateTime(entry.startedAt)}${entry.endedAt ? ` – ${formatDateTime(entry.endedAt)}` : ""}</span>
+      ${entry.notes ? `<span>${escapeHtml(entry.notes)}</span>` : ""}
+    </article>
+  `;
+}
+
+async function frontlineClockIn(form) {
+  const employeeId = state.frontlineSession?.employeeId;
+  if (!employeeId) return;
+  if (openTimeEntryForEmployee(employeeId)) {
+    showToast("Already clocked in.");
+    return;
+  }
+  const data = new FormData(form);
+  const record = {
+    id: makeId("time-entry"),
+    employeeId,
+    dispatchJobId: data.get("dispatchJobId")?.toString() || null,
+    entryType: data.get("entryType")?.toString() || "work",
+    startedAt: new Date().toISOString(),
+    endedAt: null,
+    durationMinutes: null,
+    notes: "",
+    source: "frontline-timesheet",
+  };
+  await saveBackendRecord("timeEntries", record);
+  showToast("Clocked in.");
+  render();
+}
+
+async function frontlineClockOut(form) {
+  const data = new FormData(form);
+  const entryId = data.get("entryId")?.toString();
+  const entry = getTimeEntries().find((item) => item.id === entryId);
+  if (!entry) return;
+  const endedAt = new Date().toISOString();
+  const durationMinutes = Math.max(0, Math.round((new Date(endedAt) - new Date(entry.startedAt)) / 60000));
+  await saveBackendRecord("timeEntries", {
+    ...entry,
+    endedAt,
+    durationMinutes,
+    notes: data.get("notes")?.toString() || "",
+  });
+  showToast(`Clocked out — ${formatDuration(durationMinutes)} logged.`);
+  render();
+}
+
+// ---- Phase 10, Part 1: Trips tile ----
+//
+// Maps to the designed job_mileage_entries table (crm-schema/023_job_execution_events.sql):
+// beginning/ending odometer and a calculated distance, optionally linked to a dispatch job.
+// General-purpose trip logging -- the sampling-specific "odometer per site relocation" gap stays
+// a Job Book task-type concern for a future pass, not this tile.
+function getJobMileageEntries() {
+  return state.backend.jobMileageEntries || [];
+}
+
+function mileageEntriesForEmployee(employeeId) {
+  return getJobMileageEntries()
+    .filter((entry) => entry.employeeId === employeeId)
+    .sort((a, b) => new Date(b.capturedAt) - new Date(a.capturedAt));
+}
+
+function renderFrontlineTrips() {
+  const employeeId = state.frontlineSession?.employeeId;
+  const entries = mileageEntriesForEmployee(employeeId);
+  const periodStart = currentTimesheetPeriodStart();
+  const periodMiles = entries
+    .filter((entry) => entry.calculatedDistance != null && new Date(entry.capturedAt) >= periodStart)
+    .reduce((sum, entry) => sum + Number(entry.calculatedDistance || 0), 0);
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body">
+          <h2>Trips</h2>
+          <div class="frontline-record-card">
+            <div class="inline-actions"><strong>This week</strong><span>${periodMiles ? `${periodMiles.toFixed(1)} mi` : "0 mi"}</span></div>
+            <span>Since ${formatDate(localIsoDate(periodStart))}</span>
+          </div>
+          <form class="frontline-action-form frontline-record-card" data-form="frontline-log-trip">
+            <label>Job (optional)
+              <select name="dispatchJobId">
+                <option value="">No job linked</option>
+                ${myJobs.map((job) => `<option value="${escapeAttribute(job.id)}">${escapeHtml(frontlineJobOptionLabel(job))}</option>`).join("")}
+              </select>
+            </label>
+            <label>Trip type
+              <select name="mileageType">
+                <option value="travel_to">Travel to site</option>
+                <option value="job">On-site / job travel</option>
+                <option value="travel_from">Travel from site</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <div class="form-grid">
+              <label>Starting odometer<input type="number" step="0.1" min="0" name="beginningOdometer" /></label>
+              <label>Ending odometer<input type="number" step="0.1" min="0" name="endingOdometer" /></label>
+            </div>
+            <label>Notes / purpose<textarea name="notes" placeholder="Purpose of trip"></textarea></label>
+            <button class="primary-button" type="submit">Log trip</button>
+          </form>
+          <h3>Recent trips</h3>
+          <div class="frontline-job-list">
+            ${entries.slice(0, 20).map(renderFrontlineTripRow).join("") || `<div class="empty-state">No trips logged yet.</div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFrontlineTripRow(entry) {
+  const job = entry.dispatchJobId ? findDispatchJob(entry.dispatchJobId) : null;
+  return `
+    <article class="frontline-record-card">
+      <div class="inline-actions"><span class="job-number">${escapeHtml(formatDispatchStatus(entry.mileageType))}</span><span>${entry.calculatedDistance != null ? `${Number(entry.calculatedDistance).toFixed(1)} mi` : "Distance not captured"}</span></div>
+      <strong>${job ? escapeHtml(frontlineJobOptionLabel(job)) : "No job linked"}</strong>
+      <span>${formatDateTime(entry.capturedAt)}${entry.beginningOdometer != null && entry.endingOdometer != null ? ` · ${entry.beginningOdometer} → ${entry.endingOdometer}` : ""}</span>
+      ${entry.notes ? `<span>${escapeHtml(entry.notes)}</span>` : ""}
+    </article>
+  `;
+}
+
+async function frontlineLogTrip(form) {
+  const employeeId = state.frontlineSession?.employeeId;
+  if (!employeeId) return;
+  const data = new FormData(form);
+  const beginningRaw = data.get("beginningOdometer")?.toString().trim();
+  const endingRaw = data.get("endingOdometer")?.toString().trim();
+  const beginningOdometer = beginningRaw ? Number(beginningRaw) : null;
+  const endingOdometer = endingRaw ? Number(endingRaw) : null;
+  if (beginningOdometer != null && endingOdometer != null && endingOdometer < beginningOdometer) {
+    showToast("Ending odometer must be at or above the starting odometer.");
+    return;
+  }
+  const calculatedDistance = beginningOdometer != null && endingOdometer != null ? Number((endingOdometer - beginningOdometer).toFixed(2)) : null;
+  const record = {
+    id: makeId("mileage"),
+    employeeId,
+    dispatchJobId: data.get("dispatchJobId")?.toString() || null,
+    mileageType: data.get("mileageType")?.toString() || "job",
+    beginningOdometer,
+    endingOdometer,
+    calculatedDistance,
+    capturedAt: new Date().toISOString(),
+    notes: data.get("notes")?.toString() || "",
+  };
+  await saveBackendRecord("jobMileageEntries", record);
+  showToast(calculatedDistance != null ? `Trip logged — ${calculatedDistance} mi.` : "Trip logged.");
+  render();
+}
+
+// ---- Phase 10, Part 1: Settings tile ----
+//
+// Grounded in real session state -- the field-lead/device profile the fake login already
+// established, the real employee record, real registered Front Line devices, and the real
+// online/offline signal (navigator.onLine, already wired app-wide). Notification preferences are
+// the one genuinely new piece of state, persisted through the same IndexedDB settings store as
+// desktop platform settings.
+function renderFrontlineSettings() {
+  const employee = findEmployee(state.frontlineSession?.employeeId);
+  const devices = devicesForEmployee(state.frontlineSession?.employeeId);
+  const prefs = { ...defaultFrontlineNotificationPrefs, ...state.frontlineNotificationPrefs };
+  const pendingSyncCount = (state.syncQueue || []).filter((item) => item.status !== "Synced").length;
+
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body">
+          <h2>Settings</h2>
+
+          <h3>Field lead profile</h3>
+          <div class="frontline-record-card">
+            <strong>${escapeHtml(employee?.displayName || "Unknown")}</strong>
+            <span>${escapeHtml(employee?.jobTitle || "Not set")} · ${escapeHtml(employee?.employeeNumber || "")}</span>
+            <span>${escapeHtml(employee?.mobilePhone || "No mobile on file")}</span>
+            <span>${escapeHtml(employee?.primaryEmail || "No email on file")}</span>
+            <span>Session started ${formatDateTime(state.frontlineSession?.loginAt)}</span>
+          </div>
+
+          <h3>Connection</h3>
+          <div class="frontline-record-card">
+            <div class="inline-actions"><span class="status-pill ${state.online ? "" : "offline"}">${state.online ? "Online" : "Offline"}</span><span>${pendingSyncCount} pending sync item${pendingSyncCount === 1 ? "" : "s"}</span></div>
+            <span>Front Line writes directly to the shared backend API in this simulator — there is no offline queue yet (see phase-10-frontline.md).</span>
+          </div>
+
+          <h3>Registered devices</h3>
+          <div class="record-list">
+            ${devices.map(renderFrontlineDeviceCard).join("") || `<div class="empty-state compact">No device registered for this field lead.</div>`}
+          </div>
+
+          <h3>Notifications</h3>
+          <form class="frontline-action-form frontline-record-card" data-form="frontline-notification-prefs">
+            <label class="frontline-checkbox-row"><input type="checkbox" name="jobAssignedAlerts" ${prefs.jobAssignedAlerts ? "checked" : ""} /> Notify me when a new job is assigned</label>
+            <label class="frontline-checkbox-row"><input type="checkbox" name="messageAlerts" ${prefs.messageAlerts ? "checked" : ""} /> Notify me on new dispatch messages</label>
+            <label class="frontline-checkbox-row"><input type="checkbox" name="endOfDayReminder" ${prefs.endOfDayReminder ? "checked" : ""} /> Remind me to clock out at end of day</label>
+            <button class="primary-button" type="submit">Save preferences</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function frontlineSaveNotificationPrefs(form) {
+  const prefs = {
+    jobAssignedAlerts: form.elements.jobAssignedAlerts.checked,
+    messageAlerts: form.elements.messageAlerts.checked,
+    endOfDayReminder: form.elements.endOfDayReminder.checked,
+  };
+  state.frontlineNotificationPrefs = await putSetting("frontlineNotificationPrefs", prefs);
+  showToast("Notification preferences saved.");
+  render();
+}
+
 function renderFrontlineStub(title) {
   app.innerHTML = `
     <div class="frontline-shell">
@@ -12657,7 +13019,7 @@ async function frontlineLogin() {
     showToast("Choose a field lead first.");
     return;
   }
-  state.frontlineSession = { employeeId };
+  state.frontlineSession = { employeeId, loginAt: new Date().toISOString() };
   state.view = "frontline-home";
   render();
 }
