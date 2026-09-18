@@ -245,6 +245,73 @@ records unless noted.
    schema anywhere yet (`opportunityAssignments.type` only distinguishes Internal/External/Vendor, not
    Equipment) — flagged for a future session rather than fabricated.
 
+## Live bug report follow-up — 2026-09-17 (third session, workforce credentials/teams/crews)
+
+**Home note:** this is a structural workforce request, not a dispatch-operations bug. There is no
+dedicated workforce phase doc in `docs/roadmap/`, and the Credentials tab and dispatch-eligibility
+logic this touches both live in code that this phase (item 10, above) already owns, so this section
+was added here as the closest fit rather than to `docs/database-handoff-map.md` — see that doc's
+"Workforce follow-up" note for the full collection/field inventory.
+
+The owner described three structural gaps from live usage of the Workforce applet, verified against
+running code (not assumed) before building:
+
+1. **Certification TYPES were free text typed per employee-assignment.** Confirmed by reading the
+   `#credentialDialog` form (`index.html`) and `saveEmployeeCredential()` (`app.js`) — `code` and
+   `name` were plain `<input>` fields with no catalog behind them, and the seed/live data already
+   showed the predicted drift ("HAZWOPER-40" / "haz 40 cred" / "40 hour hazwoper training" / "credential"
+   all meaning the same thing). Built a real `certificationTypes` catalog collection (name, category,
+   issuing body, renewal interval, active/inactive) with its own create/edit dialog on the Credentials
+   tab, and changed the credential-assignment dialog to a required `certTypeId` select — `name`/`code`
+   are now derived from the selected type at save time, never typed. All 17 pre-existing
+   `employeeCertifications` rows were migrated in place (fuzzy-matched to one of 10 initial catalog
+   types by name/code, e.g. "40-hour HAZWOPER" + "40 hour hazwoper training" + "haz 40 cred" all mapped
+   to one `certtype-hazwoper-40`) rather than dropped or blanket-reset.
+2. **Credentials tab was employee-first, one flat table, one status field.** Rebuilt
+   `renderWorkforceCredentials()` as type-first: the catalog table, then a card per cert type showing
+   live counts (holds it / in progress / held previously), each linking to a new
+   `renderWorkforceCredentialTypeDetail()` drill-down with three real grouped tables. Added a genuine
+   lifecycle field, `assignmentStatus` (Not Started → In Progress → Completed → Expired / Held
+   Previously), plus `trainingStartedOn`/`trainingCompletedOn` for training BioRemedy itself
+   administers — deliberately kept independent of the pre-existing `status` field (Valid/Expiring/
+   Pending verification/Expired/Suspended/Revoked), which is the dispatch-eligibility axis read by
+   `computeAssignmentEligibility()` and had to keep working unmodified.
+3. **Teams vs. crews.** Checked the GLOSSARY.md correction that `crewMemberships` was found frozen at
+   4 seed rows and never a live join table — **still true, and still the right design**: `workforceTeams`
+   and `crewProfiles` are already two real, distinct backend collections, with membership derived live
+   from `employees.teamId`/`employees.crewId` on every render, not from a join table. What was actually
+   missing was create/edit UI for the team/crew records themselves — there was no way to add a team or
+   crew, only to view seeded ones. Added `openTeamDialog`/`saveWorkforceTeam` and
+   `openCrewDialog`/`saveCrewProfile` (new `#teamDialog`/`#crewDialog` in `index.html`). Per the owner's
+   definition (Crew = cert-gated field-deployment group; Team = location/department-based, looser),
+   crews gained `requiredCertTypeIds`, and `crewCertGapsForEmployee()` flags — warns, does not
+   block, per instruction — any crew member missing a required cert: a red-outlined avatar on the crew
+   roster card, and a toast at the moment an employee is assigned into a cert-gated crew missing a cert.
+
+**Verified live (Playwright/Chromium, `C:\Users\Braden\.cache\codex-runtimes\...\node`, against the
+running server on port 4173, all against real `data/backend.json` data):** cert-type catalog add
+("Confined Space Attendant") appeared immediately in the assignment dropdown; drilling into
+"HAZWOPER 40-Hour" showed the correct 4 migrated holders with real dates and zero console errors;
+assigning a new credential end-to-end (type select, In Progress status, training-started date) saved
+and rendered on the employee detail page; adding a new team ("Test Region Team") and a new
+cert-gated crew ("Confined Space Test Crew", requiring Confined Space Entry) both appeared on the
+Teams & Crews page immediately; assigning Trey Foster (who lacks HAZWOPER 40-Hour and Confined Space
+Entry) into the existing cert-gated Emergency Response Alpha crew produced the exact expected toast
+("Trey Foster is missing required certification(s) for Emergency Response Alpha: HAZWOPER 40-Hour,
+Confined Space Entry.") and the crew card showed red-outlined warning avatars for all 4 affected
+members (Logan, Trey, Tristan, John Jacob — none of whom hold Confined Space Entry, which is new and
+correctly has zero holders). All test-created records (one cert type, one credential assignment, one
+team, one crew) were identified by their generated ids and removed from `data/backend.json` by exact
+id after testing — the file's pre-existing real data (including owner-entered records with generated
+ids like `emp-msw86anj-p233rs`/"John Jacob" and `cert-msw87lo0-hi7k0a`) was left untouched.
+
+**Not done / open:** no hard block on cert-gated crew assignment (explicitly out of scope per the
+owner — warning only). No UI yet to bulk-review "who's missing what" across all crews at once (today
+you see gaps per-crew-card or per-employee-save); would be a reasonable follow-up if crews multiply.
+No migration of `crewCertGapsForEmployee`'s check into the dispatch-eligibility engine
+(`computeAssignmentEligibility`) — a crew cert gap is currently a workforce-page-only signal, not
+something that blocks or warns on the Dispatch Board itself.
+
 ## Corrections found during implementation
 
 - **2026-09-17 — item 5 ("Yeady") was a transcription artifact of a real bug, not a literal string anywhere in the app.** The phase doc's own instruction to "trace to source before assuming it's a simple string fix" was correct: grepping the entire repo for `Yeady` (or near variants) turned up nothing. The real bug was `getJobReadiness()` having no terminal-status branch, so closed jobs fell through to a default "Ready" badge — and "Yeady" is best explained as the notes author phonetically mishearing/mis-transcribing "Ready" while dictating (the words are near-homophones), not a garbled version of "Completed." Worth remembering for future notes-derived phase docs: a strange literal string that doesn't exist in code may describe a real status-value bug whose *correct* output the note-taker simply misheard.

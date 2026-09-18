@@ -3631,7 +3631,7 @@
         "Storm drain protection"
       ],
       "createdAt": "2026-07-28T04:29:41.643Z",
-      "updatedAt": "2026-09-17T22:32:51.713Z"
+      "updatedAt": "2026-09-18T04:27:36.945Z"
     },
     {
       "id": "emp-trey",
@@ -3663,7 +3663,7 @@
         "Absorbent deployment"
       ],
       "createdAt": "2026-09-17T23:01:24.035Z",
-      "updatedAt": "2026-09-18T00:55:59.304Z"
+      "updatedAt": "2026-09-18T04:28:26.989Z"
     },
     {
       "id": "emp-tristan",
@@ -3960,6 +3960,96 @@
       "updatedAt": "2026-09-18T03:22:22.472Z"
     }
   ],
+  "certificationTypes": [
+    {
+      "id": "certtype-hazwoper-40",
+      "name": "HAZWOPER 40-Hour",
+      "category": "Safety",
+      "issuingBody": "OSHA",
+      "renewalIntervalMonths": null,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-hazwoper-refresher",
+      "name": "HAZWOPER 8-Hour Refresher",
+      "category": "Safety",
+      "issuingBody": "OSHA",
+      "renewalIntervalMonths": 12,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-hazwoper-supervisor",
+      "name": "HAZWOPER Supervisor",
+      "category": "Safety",
+      "issuingBody": "OSHA",
+      "renewalIntervalMonths": 12,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-cdl-b",
+      "name": "Commercial Driver's License (Class B)",
+      "category": "Driving",
+      "issuingBody": "State DMV",
+      "renewalIntervalMonths": 48,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-vactron",
+      "name": "Vactron Operator Qualification",
+      "category": "Equipment",
+      "issuingBody": "BioRemedy internal",
+      "renewalIntervalMonths": 24,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-drivers-license",
+      "name": "Driver's License",
+      "category": "Driving",
+      "issuingBody": "State DMV",
+      "renewalIntervalMonths": 48,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-respirator-fit",
+      "name": "Respirator Fit Test",
+      "category": "Safety",
+      "issuingBody": "BioRemedy internal",
+      "renewalIntervalMonths": 12,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-soil-sampling",
+      "name": "Soil Sampling & Chain-of-Custody",
+      "category": "Technical",
+      "issuingBody": "BioRemedy internal",
+      "renewalIntervalMonths": 12,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-asbestos-worker",
+      "name": "Asbestos Worker Certification",
+      "category": "Compliance",
+      "issuingBody": "State Asbestos Program",
+      "renewalIntervalMonths": 12,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-dot-awareness",
+      "name": "DOT Hazmat Awareness",
+      "category": "Compliance",
+      "issuingBody": "DOT",
+      "renewalIntervalMonths": 12,
+      "status": "Active"
+    },
+    {
+      "id": "certtype-confined-space",
+      "name": "Confined Space Entry",
+      "category": "Safety",
+      "issuingBody": "OSHA",
+      "renewalIntervalMonths": 12,
+      "status": "Active"
+    }
+  ],
   "employeeCertifications": [
     {
       "id": "cert-logan-hazwoper",
@@ -3973,7 +4063,11 @@
       "status": "Valid",
       "verified": true,
       "createdAt": "2026-09-17T05:29:25.238Z",
-      "updatedAt": "2026-09-17T05:29:25.238Z"
+      "updatedAt": "2026-09-17T05:29:25.238Z",
+      "certTypeId": "certtype-hazwoper-40",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2025-10-02",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-logan-cdl",
@@ -3985,7 +4079,11 @@
       "issuedOn": "2024-04-12",
       "expiresOn": "2028-04-12",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-cdl-b",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2024-04-12",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-logan-vactron",
@@ -3996,7 +4094,11 @@
       "issuedOn": "2025-02-11",
       "expiresOn": "2027-02-11",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-vactron",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2025-02-11",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-trey-hazwoper",
@@ -4010,7 +4112,11 @@
       "status": "Valid",
       "verified": true,
       "createdAt": "2026-09-18T00:55:59.265Z",
-      "updatedAt": "2026-09-18T00:55:59.265Z"
+      "updatedAt": "2026-09-18T00:55:59.265Z",
+      "certTypeId": "certtype-hazwoper-refresher",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2025-08-15",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-trey-driver",
@@ -4022,7 +4128,11 @@
       "issuedOn": "2024-01-18",
       "expiresOn": "2029-01-18",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-drivers-license",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2024-01-18",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-tristan-hazwoper",
@@ -4033,7 +4143,11 @@
       "issuedOn": "2026-02-03",
       "expiresOn": "2027-02-03",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-hazwoper-40",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-02-03",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-tristan-respirator",
@@ -4044,7 +4158,11 @@
       "issuedOn": "2026-03-10",
       "expiresOn": "2027-03-10",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-respirator-fit",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-03-10",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-priya-hazwoper",
@@ -4055,7 +4173,11 @@
       "issuedOn": "2026-01-09",
       "expiresOn": "2027-01-09",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-hazwoper-supervisor",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-01-09",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-noah-sampling",
@@ -4066,7 +4188,11 @@
       "issuedOn": "2026-04-21",
       "expiresOn": "2027-04-21",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-soil-sampling",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-04-21",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-samira-asbestos",
@@ -4080,7 +4206,11 @@
       "status": "Valid",
       "verified": true,
       "createdAt": "2026-09-17T22:37:17.849Z",
-      "updatedAt": "2026-09-17T22:37:17.849Z"
+      "updatedAt": "2026-09-17T22:37:17.849Z",
+      "certTypeId": "certtype-asbestos-worker",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-09-17",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-samira-respirator",
@@ -4091,7 +4221,11 @@
       "issuedOn": "2026-02-14",
       "expiresOn": "2027-02-14",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-respirator-fit",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-02-14",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-renee-dot",
@@ -4102,7 +4236,11 @@
       "issuedOn": "2026-01-11",
       "expiresOn": "2027-01-11",
       "status": "Valid",
-      "verified": true
+      "verified": true,
+      "certTypeId": "certtype-dot-awareness",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-01-11",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-ms4r3074-9iy77w",
@@ -4116,7 +4254,11 @@
       "status": "Valid",
       "verified": true,
       "createdAt": "2026-07-28T14:27:46.394Z",
-      "updatedAt": "2026-07-28T14:27:46.394Z"
+      "updatedAt": "2026-07-28T14:27:46.394Z",
+      "certTypeId": "certtype-asbestos-worker",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-07-28",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-msw87lo0-hi7k0a",
@@ -4130,7 +4272,11 @@
       "status": "Valid",
       "verified": true,
       "createdAt": "2026-08-16T19:57:05.069Z",
-      "updatedAt": "2026-08-16T19:57:05.069Z"
+      "updatedAt": "2026-08-16T19:57:05.069Z",
+      "certTypeId": "certtype-hazwoper-40",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-08-16",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-msw87z8l-yuc468",
@@ -4144,7 +4290,11 @@
       "status": "Valid",
       "verified": true,
       "createdAt": "2026-08-16T19:57:22.345Z",
-      "updatedAt": "2026-08-16T19:57:22.345Z"
+      "updatedAt": "2026-08-16T19:57:22.345Z",
+      "certTypeId": "certtype-hazwoper-40",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-08-16",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-msw97bok-k6r7r1",
@@ -4158,7 +4308,11 @@
       "status": "Valid",
       "verified": true,
       "createdAt": "2026-08-16T20:24:51.433Z",
-      "updatedAt": "2026-08-16T20:24:51.433Z"
+      "updatedAt": "2026-08-16T20:24:51.433Z",
+      "certTypeId": "certtype-soil-sampling",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-08-16",
+      "trainingStartedOn": ""
     },
     {
       "id": "cert-mu4j1bsx-olgs8m",
@@ -4172,7 +4326,11 @@
       "status": "Valid",
       "verified": true,
       "createdAt": "2026-09-16T20:01:59.706Z",
-      "updatedAt": "2026-09-16T20:01:59.706Z"
+      "updatedAt": "2026-09-16T20:01:59.706Z",
+      "certTypeId": "certtype-asbestos-worker",
+      "assignmentStatus": "Completed",
+      "trainingCompletedOn": "2026-09-16",
+      "trainingStartedOn": ""
     }
   ],
   "workforceTeams": [
@@ -4267,7 +4425,11 @@
       "supervisorEmployeeId": "emp-logan",
       "type": "Emergency response",
       "status": "Active",
-      "timezone": "America/Chicago"
+      "timezone": "America/Chicago",
+      "requiredCertTypeIds": [
+        "certtype-hazwoper-40",
+        "certtype-confined-space"
+      ]
     },
     {
       "id": "crew-sampling-one",
@@ -4276,7 +4438,10 @@
       "supervisorEmployeeId": "emp-noah",
       "type": "Sampling",
       "status": "Active",
-      "timezone": "America/Chicago"
+      "timezone": "America/Chicago",
+      "requiredCertTypeIds": [
+        "certtype-soil-sampling"
+      ]
     }
   ],
   "availabilityBlocks": [

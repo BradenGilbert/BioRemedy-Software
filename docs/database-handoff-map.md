@@ -452,7 +452,7 @@ gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
 was retired the same way, same day: removed from `server.mjs` entirely and
 deleted from `data/backend.json`.
 
-### Node JSON Backend - 85 collections
+### Node JSON Backend - 86 collections
 
 > The count was previously documented as 72, then 76, then 82, then 83, then 84.
 > Recounted directly from both `data/backend.json`'s top-level keys and
@@ -463,8 +463,49 @@ deleted from `data/backend.json`.
 > new Facility detail page, mirrors `accountComments`): 84, then again
 > September 17, 2026 after Phase 04 (Vendor & Subcontractor) added
 > `accountApprovedSubcontractors` (Layer 2: which vendors a specific customer
-> account has approved): **85**. Recount from source when it matters, don't
-> trust the running tally.
+> account has approved): 85, then again the same day after the Workforce
+> Credentials/Teams/Crews follow-up (see below) added `certificationTypes`:
+> **86**. Recount from source when it matters, don't trust the running tally.
+
+> **Workforce follow-up, September 17, 2026 (third live-bug/design session):**
+> owner asked for (1) a managed certification-TYPE catalog instead of free
+> text typed per employee-assignment, (2) a type-first Credentials tab with a
+> three-state drill-down (holds it / in progress / held previously) plus
+> BioRemedy-issued-training tracking, and (3) real create/edit UI for the
+> already-distinct `workforceTeams`/`crewProfiles` collections plus
+> cert-gating on crews. New collection `certificationTypes` (`id`, `name`,
+> `category`, `issuingBody`, `renewalIntervalMonths` (null = one-time),
+> `status` Active/Inactive), gated `workforce`, seeded with 11 types.
+> `employeeCertifications` gained `certTypeId` (FK, required on new records --
+> `name`/`code` are now derived from the type at save time, not typed),
+> `assignmentStatus` (Not Started / In Progress / Completed / Expired / Held
+> Previously -- the item-2 lifecycle, kept independent from the pre-existing
+> `status` field which is the dispatch-eligibility axis: Valid/Expiring/
+> Pending verification/Expired/Suspended/Revoked and must keep working
+> unmodified), `trainingStartedOn`, `trainingCompletedOn`. All 17 pre-existing
+> `employeeCertifications` rows (including real owner-entered test rows such
+> as `cert-msw87lo0-hi7k0a`/"40 hour hazwoper training" and
+> `cert-mu4j1bsx-olgs8m`/"Asbestos Worker name") were migrated in place: fuzzy
+> -matched to a catalog type by name/code (documented mapping in the migration
+> script, not preserved as a file in the repo), `assignmentStatus` backfilled
+> to "Completed" (or "Expired" if `status` was Expired/Suspended/Revoked), and
+> `trainingCompletedOn` backfilled from `issuedOn`. `crewProfiles` gained
+> `requiredCertTypeIds` (array of `certificationTypes.id`) -- seeded
+> `crew-er-alpha` to require HAZWOPER 40-Hour + a new `certtype-confined-space`
+> type (the owner's own confined-space-crew example) and `crew-sampling-one`
+> to require Soil Sampling & Chain-of-Custody. Confirmed still true per
+> `GLOSSARY.md`: `teams` and `crews` were already two real, distinct
+> collections (`workforceTeams`, `crewProfiles`) with membership derived live
+> from `employees.teamId`/`crewId` -- `crewMemberships` stays retired/dead.
+> What was actually missing was create/edit UI for the team/crew records
+> themselves (`openTeamDialog`/`saveWorkforceTeam`,
+> `openCrewDialog`/`saveCrewProfile`, `app.js`) and the cert-gating warning
+> (`crewCertGapsForEmployee`, `app.js`) -- a non-blocking toast + a red-outlined
+> avatar on the crew roster card when a member is missing a required cert,
+> checked both on the Teams & Crews page and at the moment an employee's
+> `crewId` is saved. See `docs/roadmap/phase-07-dispatch-operations.md`'s
+> "Live bug report follow-up" section (added there as the closest existing
+> phase home -- there is no dedicated workforce phase doc) for full detail.
 
 > **Phase 02 rename, September 16, 2026:** the old `locations` collection
 > (Account Facilities) is now `facilities`, and the old `mapLocations`
@@ -536,7 +577,8 @@ deleted from `data/backend.json`.
   `onHandAtRequest`, `resultingBalance`, `requestedBy`, `status` (`Open`),
   `createdAt`. No alerts-inbox UI built yet -- this is the record such an
   inbox would query. Gated `dispatch` (also readable under `inventory`).
-- Workforce: `employees`, `employeeCertifications`, `workforceTeams`,
+- Workforce: `employees`, `employeeCertifications`, `certificationTypes`
+  (new September 17, 2026, see follow-up note above), `workforceTeams`,
   `workforceTeamMemberships`, `crewProfiles`,
   `availabilityBlocks`, `frontlineDevices`
 - Jobs/dispatch: `jobRequests`, `jobRequestDocuments`, `dispatchJobs`,

@@ -2688,6 +2688,11 @@
           Employee
           <select name="employeeId" required></select>
         </label>
+        <label>
+          Certification type
+          <select name="certTypeId" required></select>
+        </label>
+        <p class="field-hint">Cert types come from the managed catalog on the Credentials tab — don't see the right one? Add it there first instead of typing a new name.</p>
         <div class="form-grid">
           <label>
             Record type
@@ -2700,31 +2705,43 @@
             </select>
           </label>
           <label>
-            Code
-            <input name="code" required maxlength="50" placeholder="HAZWOPER-40" />
+            Assignment status
+            <select name="assignmentStatus">
+              <option>Not Started</option>
+              <option>In Progress</option>
+              <option>Completed</option>
+              <option>Expired</option>
+              <option>Held Previously</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Training started on (if issued by BioRemedy)
+            <input name="trainingStartedOn" type="date" />
+          </label>
+          <label>
+            Training completed on
+            <input name="trainingCompletedOn" type="date" />
           </label>
         </div>
         <label>
-          Name
-          <input name="name" required maxlength="140" placeholder="40-hour HAZWOPER" />
-        </label>
-        <label>
-          Certificate or license number
+          License or certificate code (once issued)
           <input name="number" maxlength="100" />
         </label>
         <div class="form-grid">
           <label>
             Issued on
-            <input name="issuedOn" type="date" required />
+            <input name="issuedOn" type="date" />
           </label>
           <label>
             Expires on
-            <input name="expiresOn" type="date" required />
+            <input name="expiresOn" type="date" />
           </label>
         </div>
         <div class="form-grid">
           <label>
-            Status
+            Dispatch validity status
             <select name="status">
               <option>Valid</option>
               <option>Expiring</option>
@@ -2742,6 +2759,148 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save credential</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="certTypeDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="cert-type">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Workforce</p>
+            <h2 data-cert-type-dialog-title>Add certification type</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Name
+          <input name="name" required maxlength="140" placeholder="HAZWOPER 40-Hour" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Category
+            <select name="category">
+              <option>Safety</option>
+              <option>Compliance</option>
+              <option>Driving</option>
+              <option>Equipment</option>
+              <option>Technical</option>
+            </select>
+          </label>
+          <label>
+            Issuing body
+            <input name="issuingBody" maxlength="120" placeholder="OSHA" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Renewal interval (months, blank = one-time)
+            <input name="renewalIntervalMonths" type="number" min="0" />
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save certification type</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="teamDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="workforce-team">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Workforce</p>
+            <h2 data-team-dialog-title>Add team</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Code
+            <input name="code" maxlength="20" placeholder="OPS-ER" />
+          </label>
+          <label>
+            Name
+            <input name="name" required maxlength="120" placeholder="Emergency Response" />
+          </label>
+        </div>
+        <label>
+          Business unit / region
+          <input name="businessUnit" maxlength="120" placeholder="Central Texas Operations" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Manager
+            <select name="managerEmployeeId"></select>
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save team</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="crewDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="crew-profile">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Workforce</p>
+            <h2 data-crew-dialog-title>Add crew</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Code
+            <input name="code" maxlength="20" placeholder="ER-A" />
+          </label>
+          <label>
+            Name
+            <input name="name" required maxlength="120" placeholder="Emergency Response Alpha" />
+          </label>
+        </div>
+        <label>
+          Type
+          <input name="type" maxlength="80" placeholder="Emergency response" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Supervisor
+            <select name="supervisorEmployeeId"></select>
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option>Active</option>
+              <option>Inactive</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Required certifications (members must hold all of these; missing certs are flagged, not blocked)
+          <select name="requiredCertTypeIds" multiple size="6"></select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save crew</button>
         </menu>
       </form>
     </dialog>

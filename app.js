@@ -349,6 +349,7 @@ const viewWorkspace = {
   "dispatch-template-editor": "dispatch",
   "workforce-directory": "workforce",
   "workforce-credentials": "workforce",
+  "workforce-credential-type": "workforce",
   "workforce-teams": "workforce",
   "workforce-availability": "workforce",
   "workforce-schedule": "workforce",
@@ -1507,6 +1508,7 @@ const state = {
   selectedProjectId: "",
   selectedSampleId: "",
   selectedEmployeeId: "",
+  selectedCertTypeId: "",
   selectedDispatchJobId: "",
   selectedConsumableId: "",
   selectedEquipmentAssetTag: "",
@@ -1547,6 +1549,7 @@ const state = {
     sampleLabReports: [],
     employees: [],
     employeeCertifications: [],
+    certificationTypes: [],
     workforceTeams: [],
     workforceTeamMemberships: [],
     crewProfiles: [],
@@ -2237,7 +2240,20 @@ async function handleClick(event) {
   if (action === "acknowledge-job-conflict") await acknowledgeJobConflict(actionButton.dataset.id);
   if (action === "regenerate-cost-report") await regenerateProjectCloseReport(actionButton.dataset.id);
   if (action === "open-employee") openEmployeeDialog(id);
-  if (action === "open-credential") openCredentialDialog(actionButton.dataset.employeeId, actionButton.dataset.credentialId);
+  if (action === "open-credential") openCredentialDialog(actionButton.dataset.employeeId, actionButton.dataset.credentialId, actionButton.dataset.certTypeId);
+  if (action === "open-cert-type") openCertTypeDialog(actionButton.dataset.id);
+  if (action === "view-cert-type") {
+    state.selectedCertTypeId = actionButton.dataset.id;
+    state.view = "workforce-credential-type";
+    render();
+  }
+  if (action === "back-to-credentials") {
+    state.view = "workforce-credentials";
+    state.selectedCertTypeId = "";
+    render();
+  }
+  if (action === "open-team") openTeamDialog(actionButton.dataset.id);
+  if (action === "open-crew") openCrewDialog(actionButton.dataset.id);
   if (action === "open-sample-lab") openSampleLabDialog(actionButton.dataset.id);
   if (action === "open-job-request") openJobRequestDialog(actionButton.dataset.accountId, "", actionButton.dataset.projectId);
   if (action === "open-job-schedule") openDispatchScheduleDialog(actionButton.dataset.jobId);
@@ -2477,6 +2493,9 @@ async function handleSubmit(event) {
   if (form.dataset.form === "invoice") await saveInvoice(form);
   if (form.dataset.form === "employee") await saveEmployee(form);
   if (form.dataset.form === "credential") await saveEmployeeCredential(form);
+  if (form.dataset.form === "cert-type") await saveCertificationType(form);
+  if (form.dataset.form === "workforce-team") await saveWorkforceTeam(form);
+  if (form.dataset.form === "crew-profile") await saveCrewProfile(form);
   if (form.dataset.form === "sample-lab") await saveSampleLabInfo(form);
   if (form.dataset.form === "job-request") await saveJobRequest(form);
   if (form.dataset.form === "dispatch-schedule") await saveDispatchSchedule(form);
@@ -2787,6 +2806,7 @@ function render() {
   if (state.view === "dispatch-template-editor") renderTemplateEditor();
   if (state.view === "workforce-directory") renderWorkforceDirectory();
   if (state.view === "workforce-credentials") renderWorkforceCredentials();
+  if (state.view === "workforce-credential-type") renderWorkforceCredentialTypeDetail();
   if (state.view === "workforce-teams") renderWorkforceTeams();
   if (state.view === "workforce-availability") renderWorkforceAvailability();
   if (state.view === "workforce-schedule") renderWorkforceSchedule();
@@ -9210,12 +9230,15 @@ function renderEmployeeJobAssignment(assignment) {
   `;
 }
 
+// Item 1 + 2 (2026-09-17 follow-up): the Credentials tab is now type-first. It shows the managed
+// certification-TYPE catalog (create/edit/deactivate here, once, centrally) up top, then one card
+// per type showing how many employees currently hold it / are in progress / held it previously.
+// Clicking a type card drills into renderWorkforceCredentialTypeDetail. The old flat
+// employee-first table is gone — see "Corrections found during implementation" in
+// docs/roadmap/phase-07-dispatch-operations.md for why this replaced it.
 function renderWorkforceCredentials() {
-  const employees = getEmployees();
-  const records = getEmployeeCertifications()
-    .map((record) => ({ ...record, employee: findEmployee(record.employeeId) }))
-    .sort((a, b) => credentialPriority(a.status) - credentialPriority(b.status) || parseDate(a.expiresOn) - parseDate(b.expiresOn));
-  const expiring = records.filter((record) => record.status === "Expiring");
+  const types = getCertificationTypes();
+  const records = getEmployeeCertifications();
   const blocked = records.filter((record) => ["Expired", "Suspended", "Revoked"].includes(record.status));
 
   app.innerHTML = `
@@ -9223,44 +9246,133 @@ function renderWorkforceCredentials() {
       ${renderWorkspaceHeader(
         "workforce",
         "Credentials and Certifications",
-        "Expiration, verification, and evidence status used by dispatch eligibility checks.",
-        `<button class="primary-button" type="button" data-action="open-credential">Add credential</button>`,
+        "Certification types are managed centrally here. Employee assignments select a type instead of typing one in.",
+        `<button class="secondary-button" type="button" data-action="open-cert-type">Add certification type</button>
+         <button class="primary-button" type="button" data-action="open-credential">Assign credential</button>`,
       )}
       <section class="metric-strip">
-        <div class="metric"><p class="eyebrow">Records</p><strong>${records.length}</strong><span>Across ${employees.length} employees</span></div>
-        <div class="metric"><p class="eyebrow">Expiring</p><strong>${expiring.length}</strong><span>Renewal attention</span></div>
+        <div class="metric"><p class="eyebrow">Cert types</p><strong>${types.length}</strong><span>${activeCertificationTypes().length} active</span></div>
+        <div class="metric"><p class="eyebrow">Assignments</p><strong>${records.length}</strong><span>Across ${getEmployees().length} employees</span></div>
         <div class="metric"><p class="eyebrow">Blocked</p><strong>${blocked.length}</strong><span>Cannot support new work</span></div>
         <div class="metric"><p class="eyebrow">Verified</p><strong>${records.filter((record) => record.verified).length}</strong><span>Evidence reviewed</span></div>
       </section>
       <article class="panel">
-        <div class="panel-header"><div><h3>Credential register</h3><span>Issues appear first</span></div></div>
+        <div class="panel-header"><div><h3>Certification type catalog</h3><span>Create once, assign to employees from this list</span></div></div>
         <div class="panel-body">
-          <table class="data-table credential-table">
-            <thead><tr><th>Employee</th><th>Record</th><th>Type</th><th>Issued</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+          <table class="data-table">
+            <thead><tr><th>Type</th><th>Category</th><th>Issuing body</th><th>Renewal</th><th>Status</th><th></th></tr></thead>
             <tbody>
-              ${records
+              ${types
                 .map(
-                  (record) => `
+                  (type) => `
                     <tr>
-                      <td data-label="Employee"><strong>${escapeHtml(record.employee?.displayName || "Unknown")}</strong><span class="table-subtext">${escapeHtml(record.employee?.employeeNumber || "")}</span></td>
-                      <td data-label="Record"><strong>${escapeHtml(record.name)}</strong><span class="table-subtext">${escapeHtml(record.code)}</span></td>
-                      <td data-label="Type">${escapeHtml(record.recordType)}</td>
-                      <td data-label="Issued">${formatDate(record.issuedOn)}</td>
-                      <td data-label="Expires">${formatDate(record.expiresOn)}</td>
-                      <td data-label="Status"><span class="risk-badge ${getReadinessTone(record.status)}">${escapeHtml(record.status)}</span></td>
-                      <td data-label="Action"><button class="mini-button" type="button" data-action="view-employee" data-id="${record.employeeId}">Employee</button></td>
+                      <td data-label="Type"><strong>${escapeHtml(type.name)}</strong></td>
+                      <td data-label="Category">${escapeHtml(type.category || "")}</td>
+                      <td data-label="Issuing body">${escapeHtml(type.issuingBody || "")}</td>
+                      <td data-label="Renewal">${type.renewalIntervalMonths ? `${type.renewalIntervalMonths} months` : "One-time"}</td>
+                      <td data-label="Status"><span class="source-badge">${escapeHtml(type.status || "Active")}</span></td>
+                      <td data-label="Action"><button class="mini-button" type="button" data-action="open-cert-type" data-id="${escapeAttribute(type.id)}">Edit</button></td>
                     </tr>
                   `,
                 )
-                .join("")}
+                .join("") || `<tr><td colspan="6"><div class="empty-state">No certification types yet.</div></td></tr>`}
             </tbody>
           </table>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><div><h3>By certification type</h3><span>Click a type to see who holds it, is in progress, or held it previously</span></div></div>
+        <div class="panel-body workforce-group-list">
+          ${types.map(renderCertificationTypeCard).join("") || `<div class="empty-state">Add a certification type to get started.</div>`}
         </div>
       </article>
     </section>
   `;
 }
 
+function renderCertificationTypeCard(type) {
+  const assignments = assignmentsForCertType(type.id);
+  const completed = assignments.filter((a) => assignmentLifecycleStatus(a) === "Completed" && !["Expired", "Suspended", "Revoked"].includes(a.status));
+  const inProgress = assignments.filter((a) => ["Not Started", "In Progress"].includes(assignmentLifecycleStatus(a)));
+  const held = assignments.filter((a) => assignmentLifecycleStatus(a) === "Held Previously" || ["Expired", "Suspended", "Revoked"].includes(a.status));
+  return `
+    <button class="workforce-group-card cert-type-card" type="button" data-action="view-cert-type" data-id="${escapeAttribute(type.id)}">
+      <div class="group-card-head"><span class="group-code">${escapeHtml(type.category || "Certification")}</span><span class="source-badge">${escapeHtml(type.status || "Active")}</span></div>
+      <h4>${escapeHtml(type.name)}</h4>
+      <p>${escapeHtml(type.issuingBody || "")}</p>
+      <div class="cert-type-counts">
+        <span class="risk-badge low">${completed.length} hold it</span>
+        <span class="risk-badge medium">${inProgress.length} in progress</span>
+        <span class="risk-badge high">${held.length} held previously</span>
+      </div>
+    </button>
+  `;
+}
+
+// Item 2: type-first drill-down. Three real states (currently holds it / in progress / held it
+// previously), plus per-employee training start/completion and license code for training BioRemedy
+// itself administered. Ongoing third-party training tracking is explicitly out of scope.
+function renderWorkforceCredentialTypeDetail() {
+  const type = findCertificationType(state.selectedCertTypeId);
+  if (!type) {
+    state.view = "workforce-credentials";
+    return renderWorkforceCredentials();
+  }
+  const assignments = assignmentsForCertType(type.id);
+  const completed = assignments.filter((a) => assignmentLifecycleStatus(a) === "Completed" && !["Expired", "Suspended", "Revoked"].includes(a.status));
+  const inProgress = assignments.filter((a) => ["Not Started", "In Progress"].includes(assignmentLifecycleStatus(a)));
+  const held = assignments.filter((a) => assignmentLifecycleStatus(a) === "Held Previously" || ["Expired", "Suspended", "Revoked"].includes(a.status));
+
+  const renderGroup = (title, list, emptyText) => `
+    <article class="panel">
+      <div class="panel-header"><div><h3>${escapeHtml(title)}</h3><span>${list.length}</span></div></div>
+      <div class="panel-body">
+        <table class="data-table">
+          <thead><tr><th>Employee</th><th>Training started</th><th>Training completed</th><th>License / cert code</th><th>Expires</th><th></th></tr></thead>
+          <tbody>
+            ${list
+              .map(
+                (record) => `
+                  <tr>
+                    <td data-label="Employee"><strong>${escapeHtml(record.employee?.displayName || "Unknown")}</strong></td>
+                    <td data-label="Training started">${record.trainingStartedOn ? formatDate(record.trainingStartedOn) : "—"}</td>
+                    <td data-label="Training completed">${record.trainingCompletedOn ? formatDate(record.trainingCompletedOn) : "—"}</td>
+                    <td data-label="License code">${escapeHtml(record.number || "—")}</td>
+                    <td data-label="Expires">${record.expiresOn ? formatDate(record.expiresOn) : "—"}</td>
+                    <td data-label="Action"><button class="mini-button" type="button" data-action="open-credential" data-employee-id="${escapeAttribute(record.employeeId)}" data-credential-id="${escapeAttribute(record.id)}">Update</button></td>
+                  </tr>
+                `,
+              )
+              .join("") || `<tr><td colspan="6"><div class="empty-state">${escapeHtml(emptyText)}</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  `;
+
+  app.innerHTML = `
+    <section class="view">
+      ${renderWorkspaceHeader(
+        "workforce",
+        type.name,
+        `${escapeHtml(type.category || "")} · ${escapeHtml(type.issuingBody || "")} · ${type.renewalIntervalMonths ? `renews every ${type.renewalIntervalMonths} months` : "one-time"}`,
+        `<button class="secondary-button" type="button" data-action="back-to-credentials">Back to credentials</button>
+         <button class="primary-button" type="button" data-action="open-credential" data-cert-type-id="${escapeAttribute(type.id)}">Assign to employee</button>`,
+      )}
+      ${renderGroup("Currently holds it", completed, "No one currently holds this certification.")}
+      ${renderGroup("In progress (training issued by BioRemedy)", inProgress, "No one is currently working toward this certification.")}
+      ${renderGroup("Held previously / expired", held, "No historical holders.")}
+    </section>
+  `;
+}
+
+// Item 3 (2026-09-17 follow-up): Teams (organizational, location/department-based) and Crews
+// (operational, cert-gated field-deployment groups) are two real, distinct collections
+// (`workforceTeams`, `crewProfiles`) with membership derived live from `employees.teamId` /
+// `employees.crewId` — confirmed still true that `crewMemberships` stays retired/dead (see
+// GLOSSARY.md). What was missing was create/edit UI for the team/crew records themselves; that's
+// added here. Crews additionally carry `requiredCertTypeIds` (from the item 1 catalog); a member
+// missing a required cert is flagged with a warning badge, not hard-blocked, per the owner's ask.
 function renderWorkforceTeams() {
   const teams = getWorkforceTeams();
   const crews = getCrewProfiles();
@@ -9269,15 +9381,15 @@ function renderWorkforceTeams() {
       ${renderWorkspaceHeader(
         "workforce",
         "Teams and Crews",
-        "Teams define reporting structure. Crews define the reusable field groups dispatch can assign.",
+        "Teams are location/region-based groups organized around department or function. Crews are field-deployment groups gated by shared safety/certification requirements.",
       )}
       <section class="workforce-groups-layout">
         <article class="panel">
-          <div class="panel-header"><div><h3>Organizational teams</h3><span>${teams.length} active groups</span></div></div>
+          <div class="panel-header"><div><h3>Organizational teams</h3><span>${teams.length} active groups</span></div><button class="secondary-button" type="button" data-action="open-team">Add team</button></div>
           <div class="panel-body workforce-group-list">${teams.map(renderWorkforceTeamCard).join("")}</div>
         </article>
         <article class="panel">
-          <div class="panel-header"><div><h3>Dispatchable crews</h3><span>${crews.length} reusable crew profiles</span></div></div>
+          <div class="panel-header"><div><h3>Dispatchable crews</h3><span>${crews.length} reusable crew profiles</span></div><button class="secondary-button" type="button" data-action="open-crew">Add crew</button></div>
           <div class="panel-body workforce-group-list">${crews.map(renderCrewProfileCard).join("")}</div>
         </article>
       </section>
@@ -9295,7 +9407,7 @@ function renderWorkforceTeamCard(team) {
       <p>${escapeHtml(team.businessUnit)}</p>
       <div class="group-manager"><span>Manager</span><strong>${escapeHtml(manager?.displayName || "Not assigned")}</strong></div>
       <div class="avatar-stack">${members.map((member) => `<button type="button" data-action="view-employee" data-id="${member.id}" title="${escapeAttribute(member.displayName)}">${escapeHtml(getInitials(member.displayName, "BR"))}</button>`).join("")}</div>
-      <span class="table-subtext">${members.length} members</span>
+      <div class="inline-actions"><span class="table-subtext">${members.length} members</span><button class="mini-button" type="button" data-action="open-team" data-id="${escapeAttribute(team.id)}">Edit</button></div>
     </article>
   `;
 }
@@ -9303,15 +9415,23 @@ function renderWorkforceTeamCard(team) {
 function renderCrewProfileCard(crew) {
   const supervisor = findEmployee(crew.supervisorEmployeeId);
   const members = getEmployees().filter((employee) => employee.crewId === crew.id);
+  const requiredNames = (crew.requiredCertTypeIds || []).map((typeId) => findCertificationType(typeId)?.name).filter(Boolean);
   return `
     <article class="workforce-group-card">
       <div class="group-card-head"><span class="group-code">${escapeHtml(crew.code)}</span><span class="source-badge">${escapeHtml(crew.status)}</span></div>
       <h4>${escapeHtml(crew.name)}</h4>
       <p>${escapeHtml(crew.type)}</p>
+      ${requiredNames.length ? `<div class="cert-requirement-tags">${requiredNames.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join("")}</div>` : `<p class="table-subtext">No cert requirements set</p>`}
       <div class="group-manager"><span>Supervisor</span><strong>${escapeHtml(supervisor?.displayName || "Not assigned")}</strong></div>
       <div class="crew-roster">
-        ${members.map((member) => `<button type="button" data-action="view-employee" data-id="${member.id}"><span>${escapeHtml(getInitials(member.displayName, "BR"))}</span><strong>${escapeHtml(member.displayName)}</strong><small>${escapeHtml(member.jobTitle)}</small></button>`).join("")}
+        ${members
+          .map((member) => {
+            const gaps = crewCertGapsForEmployee(crew, member.id);
+            return `<button type="button" data-action="view-employee" data-id="${member.id}" class="${gaps.length ? "cert-gap-warning" : ""}" title="${gaps.length ? escapeAttribute(`Missing: ${gaps.join(", ")}`) : escapeAttribute(member.displayName)}"><span>${escapeHtml(getInitials(member.displayName, "BR"))}${gaps.length ? " ⚠" : ""}</span><strong>${escapeHtml(member.displayName)}</strong><small>${escapeHtml(member.jobTitle)}</small></button>`;
+          })
+          .join("")}
       </div>
+      <div class="inline-actions"><button class="mini-button" type="button" data-action="open-crew" data-id="${escapeAttribute(crew.id)}">Edit</button></div>
     </article>
   `;
 }
@@ -15247,7 +15367,16 @@ async function saveEmployee(form) {
     state.selectedEmployeeId = saved.id;
     state.view = "employee-detail";
     render();
-    showToast(existing ? "Employee updated." : "Employee added to the workforce directory.");
+    // Item 3: crews are cert-gated. Adding/keeping someone on a crew whose required certs they
+    // don't hold isn't blocked (per the owner's ask — a warning is enough), but it's flagged here
+    // right when the assignment happens, not just discovered later on the crew card.
+    const crew = employee.crewId ? findCrewProfile(employee.crewId) : null;
+    const gaps = crew ? crewCertGapsForEmployee(crew, saved.id) : [];
+    if (gaps.length) {
+      showToast(`${employee.displayName} is missing required certification(s) for ${crew.name}: ${gaps.join(", ")}.`);
+    } else {
+      showToast(existing ? "Employee updated." : "Employee added to the workforce directory.");
+    }
   } catch (error) {
     showToast(error.message || "Employee could not be saved.");
   }
@@ -15261,17 +15390,29 @@ async function saveEmployeeCredential(form) {
     showToast("Select a valid employee.");
     return;
   }
+  const certTypeId = data.get("certTypeId")?.toString().trim();
+  const certType = certTypeId ? findCertificationType(certTypeId) : null;
+  if (!certTypeId || !certType) {
+    showToast("Select a certification type from the catalog — add one first if it doesn't exist yet.");
+    return;
+  }
   const existingId = data.get("id")?.toString().trim();
+  const assignmentStatus = data.get("assignmentStatus").toString();
   const record = {
     id: existingId || makeId("cert"),
     employeeId,
+    certTypeId,
+    // Derived from the catalog, not typed — keeps existing table/eligibility copy working.
     recordType: data.get("recordType").toString(),
-    code: data.get("code").toString().trim(),
-    name: data.get("name").toString().trim(),
+    code: certType.code || certType.name,
+    name: certType.name,
     number: data.get("number").toString().trim(),
     issuedOn: data.get("issuedOn").toString(),
     expiresOn: data.get("expiresOn").toString(),
     status: data.get("status").toString(),
+    assignmentStatus,
+    trainingStartedOn: data.get("trainingStartedOn").toString(),
+    trainingCompletedOn: data.get("trainingCompletedOn").toString(),
     verified: form.elements.verified.checked,
   };
 
@@ -15293,6 +15434,168 @@ async function saveEmployeeCredential(form) {
     showToast("Credential saved and dispatch readiness recalculated.");
   } catch (error) {
     showToast(error.message || "Credential could not be saved.");
+  }
+}
+
+function openCertTypeDialog(certTypeId = "") {
+  const dialog = document.querySelector("#certTypeDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  const type = certTypeId ? findCertificationType(certTypeId) : null;
+  const title = dialog.querySelector("[data-cert-type-dialog-title]");
+  if (type) {
+    title.textContent = "Edit certification type";
+    form.elements.id.value = type.id;
+    form.elements.name.value = type.name || "";
+    form.elements.category.value = type.category || "Safety";
+    form.elements.issuingBody.value = type.issuingBody || "";
+    form.elements.renewalIntervalMonths.value = type.renewalIntervalMonths || "";
+    form.elements.status.value = type.status || "Active";
+  } else {
+    title.textContent = "Add certification type";
+    form.elements.id.value = "";
+    form.elements.status.value = "Active";
+  }
+  dialog.showModal();
+}
+
+async function saveCertificationType(form) {
+  const data = new FormData(form);
+  const existingId = data.get("id")?.toString().trim();
+  const name = data.get("name").toString().trim();
+  if (!name) {
+    showToast("Certification type name is required.");
+    return;
+  }
+  const renewal = data.get("renewalIntervalMonths").toString().trim();
+  const record = {
+    id: existingId || makeId("certtype"),
+    name,
+    category: data.get("category").toString(),
+    issuingBody: data.get("issuingBody").toString().trim(),
+    renewalIntervalMonths: renewal ? Number(renewal) : null,
+    status: data.get("status").toString(),
+  };
+  try {
+    await saveBackendRecord("certificationTypes", record);
+    closeDialogs();
+    render();
+    showToast(existingId ? "Certification type updated." : "Certification type added to the catalog.");
+  } catch (error) {
+    showToast(error.message || "Certification type could not be saved.");
+  }
+}
+
+function openTeamDialog(teamId = "") {
+  const dialog = document.querySelector("#teamDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populateEmployeeSelect(dialog, "managerEmployeeId", "No manager");
+  const team = teamId ? findWorkforceTeam(teamId) : null;
+  const title = dialog.querySelector("[data-team-dialog-title]");
+  if (team) {
+    title.textContent = "Edit team";
+    form.elements.id.value = team.id;
+    form.elements.code.value = team.code || "";
+    form.elements.name.value = team.name || "";
+    form.elements.businessUnit.value = team.businessUnit || "";
+    form.elements.managerEmployeeId.value = team.managerEmployeeId || "";
+    form.elements.status.value = team.status || "Active";
+  } else {
+    title.textContent = "Add team";
+    form.elements.id.value = "";
+    form.elements.status.value = "Active";
+  }
+  dialog.showModal();
+}
+
+async function saveWorkforceTeam(form) {
+  const data = new FormData(form);
+  const existingId = data.get("id")?.toString().trim();
+  const name = data.get("name").toString().trim();
+  if (!name) {
+    showToast("Team name is required.");
+    return;
+  }
+  const record = {
+    id: existingId || makeId("wf-team"),
+    code: data.get("code").toString().trim(),
+    name,
+    businessUnit: data.get("businessUnit").toString().trim(),
+    managerEmployeeId: data.get("managerEmployeeId").toString(),
+    status: data.get("status").toString(),
+  };
+  try {
+    await saveBackendRecord("workforceTeams", record);
+    closeDialogs();
+    render();
+    showToast(existingId ? "Team updated." : "Team created.");
+  } catch (error) {
+    showToast(error.message || "Team could not be saved.");
+  }
+}
+
+function openCrewDialog(crewId = "") {
+  const dialog = document.querySelector("#crewDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populateEmployeeSelect(dialog, "supervisorEmployeeId", "No supervisor");
+  const certSelect = form.querySelector("select[name='requiredCertTypeIds']");
+  if (certSelect) {
+    certSelect.innerHTML = getCertificationTypes()
+      .map((type) => `<option value="${escapeAttribute(type.id)}">${escapeHtml(type.name)}</option>`)
+      .join("");
+  }
+  const crew = crewId ? findCrewProfile(crewId) : null;
+  const title = dialog.querySelector("[data-crew-dialog-title]");
+  if (crew) {
+    title.textContent = "Edit crew";
+    form.elements.id.value = crew.id;
+    form.elements.code.value = crew.code || "";
+    form.elements.name.value = crew.name || "";
+    form.elements.type.value = crew.type || "";
+    form.elements.supervisorEmployeeId.value = crew.supervisorEmployeeId || "";
+    form.elements.status.value = crew.status || "Active";
+    const requiredIds = new Set(crew.requiredCertTypeIds || []);
+    if (certSelect) {
+      [...certSelect.options].forEach((option) => {
+        option.selected = requiredIds.has(option.value);
+      });
+    }
+  } else {
+    title.textContent = "Add crew";
+    form.elements.id.value = "";
+    form.elements.status.value = "Active";
+  }
+  dialog.showModal();
+}
+
+async function saveCrewProfile(form) {
+  const data = new FormData(form);
+  const existingId = data.get("id")?.toString().trim();
+  const name = data.get("name").toString().trim();
+  if (!name) {
+    showToast("Crew name is required.");
+    return;
+  }
+  const requiredCertTypeIds = Array.from(form.querySelector("select[name='requiredCertTypeIds']")?.selectedOptions || []).map((option) => option.value);
+  const record = {
+    id: existingId || makeId("crew"),
+    code: data.get("code").toString().trim(),
+    name,
+    type: data.get("type").toString().trim(),
+    supervisorEmployeeId: data.get("supervisorEmployeeId").toString(),
+    status: data.get("status").toString(),
+    timezone: "America/Chicago",
+    requiredCertTypeIds,
+  };
+  try {
+    await saveBackendRecord("crewProfiles", record);
+    closeDialogs();
+    render();
+    showToast(existingId ? "Crew updated." : "Crew created.");
+  } catch (error) {
+    showToast(error.message || "Crew could not be saved.");
   }
 }
 
@@ -20117,31 +20420,44 @@ function openEmployeeDialog(employeeId = "") {
   dialog.showModal();
 }
 
-function openCredentialDialog(employeeId = "", credentialId = "") {
+function populateCertTypeSelect(root, selectedId = "") {
+  const select = root.querySelector("select[name='certTypeId']");
+  if (!select) return;
+  const types = activeCertificationTypes();
+  // If editing a record whose type was deactivated since assignment, still show it so the value isn't lost.
+  const extra = selectedId && !types.find((type) => type.id === selectedId) ? [findCertificationType(selectedId)].filter(Boolean) : [];
+  select.innerHTML =
+    `<option value="">Select a certification type…</option>` +
+    [...types, ...extra].map((type) => `<option value="${escapeAttribute(type.id)}">${escapeHtml(type.name)}${type.status === "Inactive" ? " (inactive)" : ""}</option>`).join("");
+  select.value = selectedId || "";
+}
+
+function openCredentialDialog(employeeId = "", credentialId = "", certTypeId = "") {
   const dialog = document.querySelector("#credentialDialog");
   const form = dialog.querySelector("form");
   form.reset();
   populateEmployeeSelect(dialog, "employeeId");
   const record = credentialId ? getEmployeeCertifications().find((item) => item.id === credentialId) : null;
+  populateCertTypeSelect(dialog, record?.certTypeId || certTypeId || "");
   const title = dialog.querySelector("[data-credential-dialog-title]");
   if (record) {
     title.textContent = "Update credential";
     form.elements.id.value = record.id;
     form.elements.employeeId.value = record.employeeId;
     form.elements.recordType.value = record.recordType || "Certification";
-    form.elements.code.value = record.code || "";
-    form.elements.name.value = record.name || "";
     form.elements.number.value = record.number || "";
-    form.elements.issuedOn.value = record.issuedOn || todayIso();
-    form.elements.expiresOn.value = record.expiresOn || addDays(365);
+    form.elements.issuedOn.value = record.issuedOn || "";
+    form.elements.expiresOn.value = record.expiresOn || "";
     form.elements.status.value = record.status || "Valid";
+    form.elements.assignmentStatus.value = assignmentLifecycleStatus(record);
+    form.elements.trainingStartedOn.value = record.trainingStartedOn || "";
+    form.elements.trainingCompletedOn.value = record.trainingCompletedOn || "";
     form.elements.verified.checked = Boolean(record.verified);
   } else {
-    title.textContent = "Add credential";
+    title.textContent = "Assign credential";
     form.elements.id.value = "";
     form.elements.employeeId.value = employeeId || state.selectedEmployeeId || getEmployees()[0]?.id || "";
-    form.elements.issuedOn.value = todayIso();
-    form.elements.expiresOn.value = addDays(365);
+    form.elements.assignmentStatus.value = "Not Started";
   }
   dialog.showModal();
 }
@@ -22098,6 +22414,50 @@ function certificationsForEmployee(employeeId) {
   return getEmployeeCertifications()
     .filter((record) => record.employeeId === employeeId)
     .sort((a, b) => credentialPriority(a.status) - credentialPriority(b.status) || parseDate(a.expiresOn) - parseDate(b.expiresOn));
+}
+
+// Item 1 (2026-09-17 follow-up): certification TYPES are now a managed catalog instead of free text
+// typed per employee-assignment. `employeeCertifications.certTypeId` looks up into this table; the
+// `name`/`code` fields on the assignment record are still populated (derived from the type at save
+// time) for back-compat with dispatch eligibility copy and older records that predate the catalog.
+function getCertificationTypes() {
+  return state.backend.certificationTypes || [];
+}
+
+function findCertificationType(certTypeId) {
+  return getCertificationTypes().find((type) => type.id === certTypeId);
+}
+
+function activeCertificationTypes() {
+  return getCertificationTypes().filter((type) => type.status !== "Inactive");
+}
+
+function assignmentsForCertType(certTypeId) {
+  return getEmployeeCertifications()
+    .filter((record) => record.certTypeId === certTypeId)
+    .map((record) => ({ ...record, employee: findEmployee(record.employeeId) }));
+}
+
+// Item 2: the employee-to-cert-type assignment now carries a real lifecycle instead of a single
+// status field. "Not Started" / "In Progress" apply to training BioRemedy itself issues; "Completed"
+// means a license/certificate code is on file; "Expired" / "Held Previously" cover certs that used
+// to be current. This is independent of `status` (Valid/Expiring/Expired/Suspended/Revoked), which
+// is the dispatch-eligibility axis and must keep working unmodified for existing eligibility checks.
+function assignmentLifecycleStatus(record) {
+  return record.assignmentStatus || (record.issuedOn ? "Completed" : "Not Started");
+}
+
+// Item 3: cert-gating for crews. Returns the list of required certification types an employee does
+// NOT currently hold as "Completed" and not expired/held-previously. Used to warn (not hard-block,
+// per the owner's instruction) when someone without a required cert is on/added to a cert-gated crew.
+function crewCertGapsForEmployee(crew, employeeId) {
+  const requiredIds = crew?.requiredCertTypeIds || [];
+  if (!requiredIds.length) return [];
+  const held = certificationsForEmployee(employeeId).filter(
+    (record) => assignmentLifecycleStatus(record) === "Completed" && record.status !== "Expired" && record.status !== "Suspended" && record.status !== "Revoked",
+  );
+  const heldTypeIds = new Set(held.map((record) => record.certTypeId).filter(Boolean));
+  return requiredIds.filter((typeId) => !heldTypeIds.has(typeId)).map((typeId) => findCertificationType(typeId)?.name || typeId);
 }
 
 // Gap items "dispatch eligibility warning has no context" and "fixing the cert doesn't clear the

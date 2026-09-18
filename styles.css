@@ -3323,6 +3323,39 @@ textarea {
   padding-bottom: 0;
 }
 
+.cert-type-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+
+.cert-type-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cert-requirement-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.crew-roster button.cert-gap-warning {
+  outline: 2px solid var(--danger, #c0392b);
+  outline-offset: 2px;
+}
+
+.field-hint {
+  margin: -6px 0 4px;
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
 .workforce-group-card h4,
 .workforce-group-card p {
   margin: 0;
