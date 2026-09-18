@@ -356,6 +356,32 @@ gain its own `quoteId`/`estimateId` -- the opportunity->document link is transit
 from whichever document was current then, not a live pointer that would need its own FK. See
 `docs/roadmap/phase-08-quotes-estimates.md` for the full writeup.
 
+**Phase 07 live-bug-report follow-up (2026-09-17, second session)** added a handful of small fields
+while fixing 8 owner-reported live bugs in the Dispatch/Operations area; no new collections. `projectAlerts`
+and `jobConflicts` both gained `resolvedAt` / `resolvedBy` (both records previously had a `status` field
+that nothing ever set to anything but "Open" -- there was no resolve/acknowledge write path in the app
+at all). `dispatchJobs` gained `equipmentNotes` / `laborNotes` / `vendorNotes`, copied forward from
+`jobRequests` at conversion time (`convertJobRequest()`) so what was noted as needed at intake survives
+on the job record itself instead of being stranded on a request that may later be archived; the Dispatch
+Job Detail "Details" tab now renders them (falling back to the source `jobRequests` fields for jobs
+created before this field existed) under a new "Ordered at intake / planning" panel, alongside any
+`opportunityAssignments` (Labor/Vendor) carried from the project's originating opportunity. `jobConflicts`
+of type "Expired certification" now also get an `assignmentId` set at creation time (`saveDispatchScheduleWork`)
+so `conflictsForDispatchJob()` can auto-clear them live -- see below. No SQL schema changes.
+
+**Root-cause note (2026-09-17):** `jobAssignments.eligibilityStatus` / `eligibilityNote` used to be
+computed once (from the assigned employee's `readinessStatus`) at the moment a worker was scheduled or
+assigned, then frozen on the assignment record. If the employee's certification was later renewed or
+expired, nothing recomputed it -- the only way to refresh the badge was to unassign and reassign the
+worker (exactly the owner's reported workaround for JOB-2026-0726-07 / Trey Foster). Same root cause
+produced the "Asbestos worker renewal expired" `jobConflicts` row that never cleared after the underlying
+cert was fixed. Fixed by adding `computeAssignmentEligibility(employeeId)` (`app.js`), which re-derives
+eligibility live from `employeeCertifications` on every render instead of trusting the stored snapshot,
+and is now used by `renderJobAssignment()` and `getJobReadiness()` in place of the stale field. The stored
+`jobAssignments.eligibilityStatus` field itself was left in place (still written at assignment time for
+audit/history) but is no longer read for display or gating -- it's dead weight for a future cleanup pass,
+not removed this session to avoid touching more call sites than necessary.
+
 **Phase 07 (2026-09-17)** did not add or rename any fields, but wired real UI onto several fields
 that already existed and were write-only or read-only stubs before: `sampleRecords.labName` /
 `labStatus` / `labResults` / `chainOfCustody` / `labReceivedAt` / `reviewedBy` / `labReportUri` now

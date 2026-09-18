@@ -1833,7 +1833,7 @@
       "name": "Tall Tree Test stage jump op",
       "jobClass": "Multi-Stage Remediation",
       "status": "Pre-mobilization",
-      "activePhase": "Intake",
+      "activePhase": "Closeout",
       "projectManagerEmployeeId": "emp-logan",
       "projectManager": "Logan Gallman",
       "salesLead": "Trey Foster",
@@ -1842,7 +1842,7 @@
       "budget": 85000,
       "notToExceed": "",
       "marginWatch": "New project created from a won opportunity.",
-      "projectStage": "Intake",
+      "projectStage": "Closeout",
       "siteWalkStatus": "Complete",
       "sitePhotoRefs": [
         {
@@ -1867,9 +1867,63 @@
       "claimNumber": "123456789",
       "serviceProfile": "Asbestos Abatement",
       "createdAt": "2026-09-16T18:32:50.353Z",
-      "updatedAt": "2026-09-16T18:36:01.470Z",
+      "updatedAt": "2026-09-17T23:21:34.748Z",
       "generatorContactName": "Jeff Gordon maybe?",
-      "generatorContactPhone": "0000000000"
+      "generatorContactPhone": "0000000000",
+      "closedAt": "2026-09-17T22:47:37.064Z",
+      "closeReport": {
+        "priceLevelId": "price-standard-2026",
+        "costs": {
+          "materials": {
+            "unitCost": 42,
+            "rateSource": "rate-card",
+            "items": [],
+            "total": 0
+          },
+          "equipment": {
+            "unitCost": 650,
+            "rateSource": "rate-card",
+            "items": [],
+            "total": 0
+          },
+          "labor": {
+            "unitCost": 95,
+            "rateSource": "rate-card",
+            "hours": 0.75,
+            "entries": [
+              {
+                "employee": "sammy desampler",
+                "hours": 0.25,
+                "submittedAt": "2026-09-16T19:52:29.951Z",
+                "dispatchJobId": "dispatch-job-mu4i02xc-289a4q"
+              },
+              {
+                "employee": "sammy desampler",
+                "hours": 0.25,
+                "submittedAt": "2026-09-16T20:27:53.601Z",
+                "dispatchJobId": "dispatch-job-mu4jx0fo-2jl9uq"
+              },
+              {
+                "employee": "sammy desampler",
+                "hours": 0.25,
+                "submittedAt": "2026-09-16T19:39:47.610Z",
+                "dispatchJobId": "dispatch-job-mu4i04tj-600wk8"
+              }
+            ],
+            "total": 71.25
+          },
+          "total": 71.25
+        },
+        "revenue": {
+          "quoted": 7,
+          "quotedSource": "quote",
+          "invoiced": 400
+        },
+        "margin": 328.75,
+        "marginPercent": 82.1875,
+        "generatedAt": "2026-09-17T22:47:37.064Z",
+        "regeneratedAt": "2026-09-17T23:21:34.735Z"
+      }
     }
   ],
   "tasks": [
@@ -2750,6 +2804,26 @@
       ],
       "createdAt": "2026-09-16T05:18:19.545Z",
       "updatedAt": "2026-09-16T05:18:19.545Z"
+    },
+    {
+      "id": "alert-mu64cj2y-7qetch",
+      "projectId": "proj-mu4fuo8r-d0srbr",
+      "accountId": "acct-city-georgetown",
+      "facilityId": "loc-mu4av359-7uct5i",
+      "alertType": "Customer Approval Needed",
+      "severity": "High",
+      "description": "ready for signoff",
+      "reportedBy": "Admin User",
+      "reportedAt": "2026-09-17T22:46:20.314Z",
+      "status": "Resolved",
+      "notified": [
+        "Project Manager",
+        "Sales Lead"
+      ],
+      "createdAt": "2026-09-17T22:46:20.340Z",
+      "updatedAt": "2026-09-18T00:58:34.511Z",
+      "resolvedAt": "2026-09-18T00:58:34.505Z",
+      "resolvedBy": "Olivia Grant"
     }
   ],
   "materialUsage": [
@@ -2945,6 +3019,22 @@
       "requiredCertifications": [],
       "status": "Scheduled",
       "blockedReason": ""
+    },
+    {
+      "id": "schedule-events-mu65l3it-avni7q",
+      "projectId": "proj-mu4fuo8r-d0srbr",
+      "title": "test",
+      "date": "2026-09-17",
+      "crew": "test crew",
+      "equipmentAssetTags": [
+        "soy Leche"
+      ],
+      "laborResourceIds": [
+        "emp-trey"
+      ],
+      "requiredCertifications": [],
+      "status": "Scheduled",
+      "blockedReason": ""
     }
   ],
   "locations": [
@@ -3018,7 +3108,7 @@
       "id": "inv-absorbents",
       "materialType": "Absorbents",
       "unit": "bags",
-      "onHand": 16,
+      "onHand": 40,
       "reorderAt": 30,
       "targetStock": 80,
       "buyer": "Operations buyer",
@@ -3055,7 +3145,7 @@
       "id": "inventory-items-mrbaue1b-x2619v",
       "materialType": "Flaming underwear",
       "unit": "unit",
-      "onHand": -8,
+      "onHand": 16,
       "reorderAt": 10,
       "targetStock": 50,
       "buyer": "Operations Buyer"
@@ -3117,12 +3207,12 @@
       "materialType": "Flaming underwear",
       "quantity": 24,
       "vendor": "your mom",
-      "status": "Ordered",
+      "status": "Received",
       "requestedBy": "Priya Patel",
       "createdAt": "2026-07-27T22:57:23.406Z",
-      "receivedAt": "",
-      "receivedBy": "",
-      "receivedQuantity": 0
+      "receivedAt": "2026-09-17T23:16:34.835Z",
+      "receivedBy": "Admin User",
+      "receivedQuantity": 24
     },
     {
       "id": "purchase-orders-ms4r6sh7-cb0cjr",
@@ -3147,6 +3237,19 @@
       "requestedBy": "Admin User",
       "createdAt": "2026-07-29T16:14:03.072Z",
       "receivedAt": "2026-07-29T16:14:26.653Z",
+      "receivedBy": "Admin User",
+      "receivedQuantity": 24
+    },
+    {
+      "id": "purchase-orders-mu65g8lo-m2chcd",
+      "itemId": "inv-absorbents",
+      "materialType": "Absorbents",
+      "quantity": 24,
+      "vendor": "zeke supplies",
+      "status": "Received",
+      "requestedBy": "Admin User",
+      "createdAt": "2026-09-17T23:17:12.972Z",
+      "receivedAt": "2026-09-17T23:17:23.972Z",
       "receivedBy": "Admin User",
       "receivedQuantity": 24
     }
@@ -3202,11 +3305,11 @@
       "assetTag": "soy Leche",
       "equipment": "f150 truck",
       "category": "Vehicle",
-      "status": "In service",
+      "status": "Ready",
       "maintenanceDue": "2026-11-14",
       "lastUsed": "2026-01-01",
       "assignedJobId": "",
-      "issue": "nonw",
+      "issue": "",
       "specs": {
         "vin": "1vin123456789",
         "licensePlate": "TX-rng123",
@@ -3409,7 +3512,7 @@
         "Storm drain protection"
       ],
       "createdAt": "2026-07-28T04:29:41.643Z",
-      "updatedAt": "2026-09-17T05:29:25.274Z"
+      "updatedAt": "2026-09-17T22:32:51.713Z"
     },
     {
       "id": "emp-trey",
@@ -3433,13 +3536,15 @@
       "capacity": 45,
       "dispatchEligible": true,
       "frontlineEnabled": true,
-      "readinessStatus": "Expiring",
+      "readinessStatus": "Ready",
       "hireDate": "2023-08-07",
       "skills": [
         "Emergency response",
         "Truck operation",
         "Absorbent deployment"
-      ]
+      ],
+      "createdAt": "2026-09-17T23:01:24.035Z",
+      "updatedAt": "2026-09-18T00:55:59.304Z"
     },
     {
       "id": "emp-tristan",
@@ -3583,7 +3688,7 @@
       "capacity": 40,
       "dispatchEligible": true,
       "frontlineEnabled": true,
-      "readinessStatus": "Blocked",
+      "readinessStatus": "Ready",
       "hireDate": "2022-10-17",
       "skills": [
         "Asbestos abatement",
@@ -3591,7 +3696,7 @@
         "Negative air"
       ],
       "createdAt": "2026-07-28T14:27:46.675Z",
-      "updatedAt": "2026-09-16T20:01:59.949Z"
+      "updatedAt": "2026-09-17T22:37:17.896Z"
     },
     {
       "id": "emp-msw86anj-p233rs",
@@ -3752,10 +3857,13 @@
       "recordType": "Certification",
       "code": "HAZWOPER-8",
       "name": "HAZWOPER annual refresher",
+      "number": "",
       "issuedOn": "2025-08-15",
       "expiresOn": "2026-08-15",
-      "status": "Expiring",
-      "verified": true
+      "status": "Valid",
+      "verified": true,
+      "createdAt": "2026-09-18T00:55:59.265Z",
+      "updatedAt": "2026-09-18T00:55:59.265Z"
     },
     {
       "id": "cert-trey-driver",
@@ -3819,10 +3927,13 @@
       "recordType": "Certification",
       "code": "ASBESTOS-W",
       "name": "Asbestos worker",
-      "issuedOn": "2025-06-30",
-      "expiresOn": "2026-06-30",
-      "status": "Expired",
-      "verified": true
+      "number": "",
+      "issuedOn": "2026-09-17",
+      "expiresOn": "2027-06-30",
+      "status": "Valid",
+      "verified": true,
+      "createdAt": "2026-09-17T22:37:17.849Z",
+      "updatedAt": "2026-09-17T22:37:17.849Z"
     },
     {
       "id": "cert-samira-respirator",
@@ -4097,6 +4208,134 @@
       "pendingCommands": 0
     }
   ],
+  "timeEntries": [
+    {
+      "id": "time-entry-logan-georgetown",
+      "employeeId": "emp-logan",
+      "dispatchJobId": "dispatch-job-georgetown",
+      "entryType": "work",
+      "startedAt": "2026-07-24T13:20:00-05:00",
+      "endedAt": "2026-07-24T16:05:00-05:00",
+      "durationMinutes": 165,
+      "notes": "Georgetown emergency response.",
+      "source": "frontline-timesheet",
+      "createdAt": "2026-07-24T16:05:00-05:00",
+      "updatedAt": "2026-07-24T16:05:00-05:00"
+    },
+    {
+      "id": "time-entry-mu63xd18-n23udn",
+      "employeeId": "emp-logan",
+      "dispatchJobId": null,
+      "entryType": "work",
+      "startedAt": "2026-09-17T22:34:32.636Z",
+      "endedAt": "2026-09-17T22:34:36.636Z",
+      "durationMinutes": 0,
+      "notes": "",
+      "source": "frontline-timesheet",
+      "createdAt": "2026-09-17T22:34:32.645Z",
+      "updatedAt": "2026-09-17T22:34:36.642Z"
+    }
+  ],
+  "jobMileageEntries": [
+    {
+      "id": "mileage-logan-georgetown",
+      "employeeId": "emp-logan",
+      "dispatchJobId": "dispatch-job-georgetown",
+      "mileageType": "travel_to",
+      "beginningOdometer": 58210,
+      "endingOdometer": 58234,
+      "calculatedDistance": 24,
+      "capturedAt": "2026-07-24T13:05:00-05:00",
+      "notes": "Shop to Georgetown site.",
+      "createdAt": "2026-07-24T13:05:00-05:00",
+      "updatedAt": "2026-07-24T13:05:00-05:00"
+    },
+    {
+      "id": "mileage-mu642pu7-1tbmpa",
+      "employeeId": "emp-logan",
+      "dispatchJobId": "dispatch-job-mu4jwyzh-wim95k",
+      "mileageType": "job",
+      "beginningOdometer": 14000,
+      "endingOdometer": 14065,
+      "calculatedDistance": 65,
+      "capturedAt": "2026-09-17T22:38:42.511Z",
+      "notes": "office - site — traffic sucks",
+      "createdAt": "2026-09-17T22:38:42.523Z",
+      "updatedAt": "2026-09-17T22:38:42.523Z"
+    },
+    {
+      "id": "mileage-mu645yxh-nklb2v",
+      "employeeId": "emp-logan",
+      "dispatchJobId": "dispatch-job-mu4jwyzh-wim95k",
+      "mileageType": "job",
+      "beginningOdometer": 14060,
+      "endingOdometer": 14070,
+      "calculatedDistance": 10,
+      "capturedAt": "2026-09-17T22:41:14.261Z",
+      "notes": "site to lab — yep",
+      "createdAt": "2026-09-17T22:41:14.274Z",
+      "updatedAt": "2026-09-17T22:41:14.274Z"
+    },
+    {
+      "id": "mileage-mu646c17-6jahdb",
+      "employeeId": "emp-logan",
+      "dispatchJobId": "dispatch-job-mu4jwyzh-wim95k",
+      "mileageType": "job",
+      "beginningOdometer": 14070,
+      "endingOdometer": 14080,
+      "calculatedDistance": 10,
+      "capturedAt": "2026-09-17T22:41:31.243Z",
+      "notes": "lab - office",
+      "createdAt": "2026-09-17T22:41:31.257Z",
+      "updatedAt": "2026-09-17T22:41:31.257Z"
+    }
+  ],
+  "messages": [
+    {
+      "id": "message-georgetown-seed",
+      "threadKey": "dispatch-job-georgetown",
+      "dispatchJobId": "dispatch-job-georgetown",
+      "senderId": "office",
+      "senderName": "Dispatch",
+      "senderRole": "office",
+      "recipientId": "emp-logan",
+      "recipientName": "Logan",
+      "body": "Customer confirmed site access for 1pm -- gate code is unchanged.",
+      "sentAt": "2026-07-24T12:40:00-05:00",
+      "readAt": null
+    },
+    {
+      "id": "message-mu63wjrl-jvi143",
+      "threadKey": "dispatch-job-mswfkuvy-iofwhy",
+      "dispatchJobId": "dispatch-job-mswfkuvy-iofwhy",
+      "senderId": "emp-logan",
+      "senderName": "Logan Gallman",
+      "senderRole": "field",
+      "recipientId": "office",
+      "recipientName": "Dispatch (JOB-2026-0819-33)",
+      "body": "moo",
+      "sentAt": "2026-09-17T22:33:54.705Z",
+      "readAt": null,
+      "createdAt": "2026-09-17T22:33:54.725Z",
+      "updatedAt": "2026-09-17T22:33:54.725Z"
+    },
+    {
+      "id": "message-mu63wpxo-gc8329",
+      "threadKey": "general",
+      "dispatchJobId": "",
+      "senderId": "emp-logan",
+      "senderName": "Logan Gallman",
+      "senderRole": "field",
+      "recipientId": "office",
+      "recipientName": "Dispatch",
+      "body": "send help i ate a cow",
+      "sentAt": "2026-09-17T22:34:02.700Z",
+      "readAt": null,
+      "createdAt": "2026-09-17T22:34:02.708Z",
+      "updatedAt": "2026-09-17T22:34:02.708Z"
+    }
+  ],
+  "inventoryAlerts": [],
   "jobRequests": [
     {
       "id": "req-georgetown-072426",
@@ -4994,6 +5233,40 @@
       "receivedBy": "Olivia Grant",
       "createdAt": "2026-09-16T20:26:20.308Z",
       "updatedAt": "2026-09-16T20:26:38.222Z"
+    },
+    {
+      "id": "req-mu65qxbs-1ofnxb",
+      "requestNumber": "REQ-2026-0917-28",
+      "projectId": "proj-mu4fuo8r-d0srbr",
+      "receivedAt": "2026-09-17T23:25:31.576Z",
+      "requestedServiceAt": "2026-09-17T23:22:00.000Z",
+      "requestedTimeText": "ASAP",
+      "status": "Converted",
+      "priority": "Emergency",
+      "serviceCategory": "Remediation",
+      "accountId": "acct-city-georgetown",
+      "customerName": "City of Georgetown",
+      "customerPoNumber": "GT-23424B37s",
+      "bioremedyPoNumber": "br-290348",
+      "generatorResponsibleParty": "City of Georgetown",
+      "calledInByName": "Admin User",
+      "onsiteContactName": "Jesus",
+      "onsiteContactPhone": "prayer",
+      "addressText": "123 clown, austin, texas, 78681",
+      "estimatedDurationMinutes": 240,
+      "requestedEmployeeId": "emp-logan",
+      "requestedAssignee": "Logan Gallman",
+      "equipmentNotes": "cows, f150\nhouse\ntruck",
+      "laborNotes": "tristan",
+      "vendorNotes": "",
+      "pricingNotes": "unsure",
+      "description": "Tall Tree Test stage jump op — Closeout",
+      "customerPacketStatus": "Missing",
+      "quoteStatus": "Missing",
+      "convertedJobId": "dispatch-job-mu65r3d3-5ssvas",
+      "receivedBy": "Admin User",
+      "createdAt": "2026-09-17T23:25:31.604Z",
+      "updatedAt": "2026-09-17T23:25:39.447Z"
     }
   ],
   "jobRequestDocuments": [
@@ -5258,9 +5531,9 @@
       "jobType": "Emergency Response",
       "jobTypeCode": "ER",
       "jobTypeVersion": 1,
-      "status": "office_review",
-      "dispatchStatus": "Returned",
-      "officeReviewStatus": "In review",
+      "status": "closed",
+      "dispatchStatus": "Closed",
+      "officeReviewStatus": "Closed",
       "priority": "Emergency",
       "requestedServiceAt": "2026-07-26T23:54:00.000Z",
       "scheduledStart": "2026-07-30T01:54:00.000Z",
@@ -5278,7 +5551,7 @@
       "description": "Im going hell for this.",
       "readinessStatus": "Blocked",
       "completionPercent": 100,
-      "updatedAt": "2026-07-27T23:23:13.989Z",
+      "updatedAt": "2026-09-17T22:59:41.953Z",
       "createdAt": "2026-07-26T23:58:47.444Z"
     },
     {
@@ -5616,9 +5889,9 @@
       "jobType": "Scheduled Environmental Service",
       "jobTypeCode": "SVC",
       "jobTypeVersion": 1,
-      "status": "field_complete",
-      "dispatchStatus": "Returned",
-      "officeReviewStatus": "Not ready",
+      "status": "closed",
+      "dispatchStatus": "Closed",
+      "officeReviewStatus": "Closed",
       "priority": "Normal",
       "requestedServiceAt": "2026-07-28T14:49:00.000Z",
       "scheduledStart": "2026-07-28T14:49:00.000Z",
@@ -5636,7 +5909,7 @@
       "description": "Stormwater and diesel cleanup program — Walk fleet yard and loading bay with operations — Diesel staining and stormwater compliance review",
       "readinessStatus": "Blocked",
       "completionPercent": 100,
-      "updatedAt": "2026-07-28T14:51:41.480Z",
+      "updatedAt": "2026-09-17T23:03:17.427Z",
       "createdAt": "2026-07-28T14:50:03.942Z"
     },
     {
@@ -6408,9 +6681,9 @@
       "jobType": "Environmental Sampling",
       "jobTypeCode": "SAMPLE",
       "jobTypeVersion": 1,
-      "status": "draft",
-      "dispatchStatus": "Unassigned",
-      "officeReviewStatus": "Not ready",
+      "status": "closed",
+      "dispatchStatus": "Closed",
+      "officeReviewStatus": "Closed",
       "priority": "Normal",
       "requestedServiceAt": "2026-09-16T20:25:00.000Z",
       "scheduledStart": "2026-09-16T20:25:00.000Z",
@@ -6427,8 +6700,8 @@
       "pricingSource": "$7 quoted (Tall Tree Test stage jump op quote).",
       "description": "Tall Tree Test stage jump op — Intake",
       "readinessStatus": "Blocked",
-      "completionPercent": 0,
-      "updatedAt": "2026-09-16T20:26:35.988Z",
+      "completionPercent": 100,
+      "updatedAt": "2026-09-17T22:42:56.521Z",
       "createdAt": "2026-09-16T20:26:35.988Z"
     },
     {
@@ -6502,6 +6775,42 @@
       "completionPercent": 0,
       "updatedAt": "2026-09-17T05:29:57.123Z",
       "createdAt": "2026-09-17T05:29:57.123Z"
+    },
+    {
+      "id": "dispatch-job-mu65r3d3-5ssvas",
+      "jobNumber": "JOB-2026-0917-42",
+      "jobRequestId": "req-mu65qxbs-1ofnxb",
+      "jobTypeTemplateId": "jobtype-remediation",
+      "accountId": "acct-city-georgetown",
+      "projectId": "proj-mu4fuo8r-d0srbr",
+      "projectName": "Tall Tree Test stage jump op",
+      "customerName": "City of Georgetown",
+      "jobName": "Tall Tree Test stage jump op — Closeout",
+      "jobType": "Remediation Field Work",
+      "jobTypeCode": "REMED",
+      "jobTypeVersion": 1,
+      "status": "draft",
+      "dispatchStatus": "Unassigned",
+      "officeReviewStatus": "Not ready",
+      "priority": "Emergency",
+      "requestedServiceAt": "2026-09-17T23:22:00.000Z",
+      "scheduledStart": "2026-09-17T23:22:00.000Z",
+      "scheduledEnd": "2026-09-18T03:22:00.000Z",
+      "timezone": "America/Chicago",
+      "fieldLeadEmployeeId": "emp-logan",
+      "locationName": "123 clown, austin, texas, 78681",
+      "addressText": "123 clown, austin, texas, 78681",
+      "onsiteContactName": "Jesus",
+      "onsiteContactPhone": "prayer",
+      "generatorResponsibleParty": "City of Georgetown",
+      "customerPoNumber": "GT-23424B37s",
+      "bioremedyPoNumber": "br-290348",
+      "pricingSource": "unsure",
+      "description": "Tall Tree Test stage jump op — Closeout",
+      "readinessStatus": "Blocked",
+      "completionPercent": 0,
+      "updatedAt": "2026-09-17T23:25:39.406Z",
+      "createdAt": "2026-09-17T23:25:39.406Z"
     }
   ],
   "jobAssignments": [
@@ -6594,11 +6903,13 @@
       "crewId": "",
       "role": "Abatement Technician",
       "isFieldLead": false,
-      "status": "Complete",
-      "eligibilityStatus": "Overridden",
-      "eligibilityNote": "Certification was valid at assignment; renewal hold now active",
+      "status": "Assigned",
+      "eligibilityStatus": "Eligible",
+      "eligibilityNote": "",
       "plannedStart": "2026-07-25T18:00:00-05:00",
-      "plannedEnd": "2026-07-26T02:00:00-05:00"
+      "plannedEnd": "2026-07-26T02:00:00-05:00",
+      "createdAt": "2026-09-17T22:57:26.603Z",
+      "updatedAt": "2026-09-17T22:57:33.002Z"
     },
     {
       "id": "assignment-ms2go5hu-zsvu6p",
@@ -6623,12 +6934,12 @@
       "role": "Response Technician",
       "isFieldLead": false,
       "status": "Assigned",
-      "eligibilityStatus": "Warning",
+      "eligibilityStatus": "Eligible",
       "eligibilityNote": "",
       "plannedStart": "2026-07-30T01:54:00.000Z",
       "plannedEnd": "2026-07-30T02:54:00.000Z",
       "createdAt": "2026-07-27T00:00:48.614Z",
-      "updatedAt": "2026-07-27T00:04:31.885Z"
+      "updatedAt": "2026-09-17T23:01:37.295Z"
     },
     {
       "id": "assignment-ms2go5it-dgh062",
@@ -6740,15 +7051,15 @@
       "jobId": "dispatch-job-ms474t64-wc0xuf",
       "employeeId": "emp-samira",
       "crewId": "crew-sampling-one",
-      "role": "Field Lead",
-      "isFieldLead": true,
+      "role": "Abatement Technician",
+      "isFieldLead": false,
       "status": "Assigned",
-      "eligibilityStatus": "Blocked",
-      "eligibilityNote": "Employee has a blocking credential record",
+      "eligibilityStatus": "Eligible",
+      "eligibilityNote": "",
       "plannedStart": "2026-07-31T16:45:00.000Z",
       "plannedEnd": "2026-07-31T20:45:00.000Z",
       "createdAt": "2026-07-28T14:55:02.740Z",
-      "updatedAt": "2026-07-28T14:55:02.740Z"
+      "updatedAt": "2026-09-17T23:03:42.065Z"
     },
     {
       "id": "assignment-ms4s239k-q7bl2c",
@@ -7109,6 +7420,21 @@
       "plannedEnd": "",
       "createdAt": "2026-09-16T20:26:51.158Z",
       "updatedAt": "2026-09-16T20:26:51.158Z"
+    },
+    {
+      "id": "assignment-mu63ymz8-hs8m0v",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "employeeId": "emp-logan",
+      "crewId": "",
+      "role": "sampler steve",
+      "isFieldLead": false,
+      "status": "Assigned",
+      "eligibilityStatus": "Eligible",
+      "eligibilityNote": "",
+      "plannedStart": "2026-09-17T22:35:32.180Z",
+      "plannedEnd": "",
+      "createdAt": "2026-09-17T22:35:32.207Z",
+      "updatedAt": "2026-09-17T22:35:32.207Z"
     }
   ],
   "jobScheduleSegments": [
@@ -7935,6 +8261,84 @@
       "status": "Reserved",
       "createdAt": "2026-09-17T05:32:28.547Z",
       "updatedAt": "2026-09-17T05:32:28.547Z"
+    },
+    {
+      "id": "resource-mu63yro8-x3dyv7",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "type": "Equipment",
+      "name": "Response truck",
+      "assetTag": "TRK-18",
+      "inventoryItemId": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Reserved",
+      "createdAt": "2026-09-17T22:35:38.271Z",
+      "updatedAt": "2026-09-17T22:35:38.271Z"
+    },
+    {
+      "id": "resource-mu63yxyq-9szonz",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "type": "Material",
+      "name": "Sampling containers",
+      "assetTag": "",
+      "inventoryItemId": "inv-sampling-jars",
+      "quantity": 3,
+      "unit": "jars",
+      "status": "Reserved",
+      "createdAt": "2026-09-17T22:35:46.426Z",
+      "updatedAt": "2026-09-17T22:35:46.426Z"
+    },
+    {
+      "id": "resource-mu63z1jf-fld31g",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "type": "Material",
+      "name": "PPE kits",
+      "assetTag": "",
+      "inventoryItemId": "inv-ppe-kits",
+      "quantity": 1,
+      "unit": "kits",
+      "status": "Reserved",
+      "createdAt": "2026-09-17T22:35:51.057Z",
+      "updatedAt": "2026-09-17T22:35:51.057Z"
+    },
+    {
+      "id": "resource-mu63z4xg-u5b6wp",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "type": "Material",
+      "name": "Flaming underwear",
+      "assetTag": "",
+      "inventoryItemId": "inventory-items-mrbaue1b-x2619v",
+      "quantity": 1,
+      "unit": "unit",
+      "status": "Reserved",
+      "createdAt": "2026-09-17T22:35:55.450Z",
+      "updatedAt": "2026-09-17T22:35:55.450Z"
+    },
+    {
+      "id": "resource-mu64y6c9-ct2rr7",
+      "jobId": "dispatch-job-ms4rvoh2-ra6h2f",
+      "type": "Equipment",
+      "name": "Response truck",
+      "assetTag": "TRK-18",
+      "inventoryItemId": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Reserved",
+      "createdAt": "2026-09-17T23:03:10.246Z",
+      "updatedAt": "2026-09-17T23:03:10.246Z"
+    },
+    {
+      "id": "resource-mu65hxpc-zvc0qk",
+      "jobId": "dispatch-job-mu4jx0fo-2jl9uq",
+      "type": "Equipment",
+      "name": "f150 truck",
+      "assetTag": "soy Leche",
+      "inventoryItemId": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Reserved",
+      "createdAt": "2026-09-17T23:18:32.167Z",
+      "updatedAt": "2026-09-17T23:18:32.167Z"
     }
   ],
   "jobConflicts": [
@@ -7944,9 +8348,13 @@
       "assignmentId": "ja-riverbend-noah",
       "type": "Crew coverage",
       "severity": "Warning",
-      "status": "Open",
+      "status": "Resolved",
       "title": "Second sampling technician not assigned",
-      "detail": "Job type requires a lead sampler plus one technician."
+      "detail": "Job type requires a lead sampler plus one technician.",
+      "resolvedAt": "2026-09-18T00:57:45.842Z",
+      "resolvedBy": "Olivia Grant",
+      "createdAt": "2026-09-18T00:57:45.850Z",
+      "updatedAt": "2026-09-18T00:57:45.850Z"
     },
     {
       "id": "jc-clearwater-cert",
@@ -9435,10 +9843,10 @@
       "key": "mobilize",
       "name": "Mobilize",
       "sequence": 1,
-      "status": "Available",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-09-16T20:26:36.546Z",
-      "updatedAt": "2026-09-16T20:26:36.546Z"
+      "updatedAt": "2026-09-17T22:38:56.375Z"
     },
     {
       "id": "step-mu4jx02k-jfi92u",
@@ -9446,10 +9854,10 @@
       "key": "collect_samples",
       "name": "Collect Samples",
       "sequence": 2,
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-09-16T20:26:37.378Z",
-      "updatedAt": "2026-09-16T20:26:37.378Z"
+      "updatedAt": "2026-09-17T22:40:38.737Z"
     },
     {
       "id": "step-mu4jx0rr-mvbe7x",
@@ -9457,10 +9865,10 @@
       "key": "closeout",
       "name": "Field Closeout",
       "sequence": 3,
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-09-16T20:26:38.283Z",
-      "updatedAt": "2026-09-16T20:26:38.283Z"
+      "updatedAt": "2026-09-17T22:40:56.432Z"
     },
     {
       "id": "step-mu4jx17j-c5onz9",
@@ -9538,6 +9946,71 @@
       "required": true,
       "createdAt": "2026-09-17T05:29:57.455Z",
       "updatedAt": "2026-09-17T05:29:57.455Z"
+    },
+    {
+      "id": "job-step-mu642psg-mn9y0v",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "name": "Additional field activity",
+      "sequence": 1003,
+      "status": "Complete",
+      "adHoc": true,
+      "createdAt": "2026-09-17T22:38:42.476Z",
+      "updatedAt": "2026-09-17T22:38:42.476Z"
+    },
+    {
+      "id": "step-mu65r3f9-6n8l27",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "key": "mobilize",
+      "name": "Mobilize",
+      "sequence": 1,
+      "status": "Available",
+      "required": true,
+      "createdAt": "2026-09-17T23:25:39.483Z",
+      "updatedAt": "2026-09-17T23:25:39.483Z"
+    },
+    {
+      "id": "step-mu65r3nq-n87f0z",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "key": "site_setup",
+      "name": "Site Setup",
+      "sequence": 2,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-17T23:25:39.794Z",
+      "updatedAt": "2026-09-17T23:25:39.794Z"
+    },
+    {
+      "id": "step-mu65r3qq-cansbp",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "key": "perform_work",
+      "name": "Perform Work",
+      "sequence": 3,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-17T23:25:39.896Z",
+      "updatedAt": "2026-09-17T23:25:39.896Z"
+    },
+    {
+      "id": "step-mu65r3uq-b7ifbv",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "key": "document",
+      "name": "Document Work",
+      "sequence": 4,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-17T23:25:40.040Z",
+      "updatedAt": "2026-09-17T23:25:40.040Z"
+    },
+    {
+      "id": "step-mu65r3wp-amyw1q",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "key": "closeout",
+      "name": "Field Closeout",
+      "sequence": 5,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-17T23:25:40.112Z",
+      "updatedAt": "2026-09-17T23:25:40.112Z"
     }
   ],
   "jobActions": [
@@ -13751,13 +14224,13 @@
       "name": "Acknowledge dispatch",
       "sequence": 1,
       "type": "Status transition",
-      "status": "Available",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "All assigned workers",
       "formName": "",
       "config": {},
       "createdAt": "2026-09-16T20:26:36.819Z",
-      "updatedAt": "2026-09-16T20:26:36.819Z"
+      "updatedAt": "2026-09-17T22:38:11.055Z"
     },
     {
       "id": "action-mu4jwzv1-lsl056",
@@ -13767,7 +14240,7 @@
       "name": "Capture travel and truck time",
       "sequence": 2,
       "type": "Timer",
-      "status": "Blocked",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Each worker",
       "formName": "Capture travel and truck time",
@@ -13775,7 +14248,7 @@
         "anchor": "en_route"
       },
       "createdAt": "2026-09-16T20:26:37.109Z",
-      "updatedAt": "2026-09-16T20:26:37.109Z"
+      "updatedAt": "2026-09-17T22:38:56.352Z"
     },
     {
       "id": "action-mu4jx0an-j8kzj1",
@@ -13785,7 +14258,7 @@
       "name": "Collect samples at planned locations",
       "sequence": 1,
       "type": "Sample",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Collect samples at planned locations",
@@ -13795,7 +14268,7 @@
         "defaultAnalyses": []
       },
       "createdAt": "2026-09-16T20:26:37.663Z",
-      "updatedAt": "2026-09-16T20:26:37.663Z"
+      "updatedAt": "2026-09-17T22:40:25.767Z"
     },
     {
       "id": "action-mu4jx0hp-uc7z1d",
@@ -13805,13 +14278,13 @@
       "name": "Complete chain of custody",
       "sequence": 2,
       "type": "Form",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Complete chain of custody",
       "config": {},
       "createdAt": "2026-09-16T20:26:37.921Z",
-      "updatedAt": "2026-09-16T20:26:37.921Z"
+      "updatedAt": "2026-09-17T22:40:38.717Z"
     },
     {
       "id": "action-mu4jx1an-lpauq2",
@@ -13821,13 +14294,13 @@
       "name": "Complete shift recap",
       "sequence": 1,
       "type": "Form",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Complete shift recap",
       "config": {},
       "createdAt": "2026-09-16T20:26:38.964Z",
-      "updatedAt": "2026-09-16T20:26:38.964Z"
+      "updatedAt": "2026-09-17T22:40:45.869Z"
     },
     {
       "id": "action-mu4jx1lh-e9p5hw",
@@ -13853,7 +14326,7 @@
       "name": "Log lab courier or delivery",
       "sequence": 2,
       "type": "Checklist",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "Log lab courier or delivery",
@@ -13861,7 +14334,7 @@
         "options": []
       },
       "createdAt": "2026-09-16T20:26:39.439Z",
-      "updatedAt": "2026-09-16T20:26:39.439Z"
+      "updatedAt": "2026-09-17T22:40:56.410Z"
     },
     {
       "id": "action-mu4jx1v9-r2dzjl",
@@ -14010,6 +14483,313 @@
       "formName": "Scheduled Environmental Service Field Closeout",
       "createdAt": "2026-09-17T05:29:57.492Z",
       "updatedAt": "2026-09-17T05:29:57.492Z"
+    },
+    {
+      "id": "job-action-mu642pth-8vapnj",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "stepId": "job-step-mu642psg-mn9y0v",
+      "sequence": 1,
+      "name": "Ad hoc: Odometer",
+      "formName": "Ad hoc: Odometer",
+      "type": "Odometer",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-17T22:38:42.501Z",
+      "updatedAt": "2026-09-17T22:38:42.501Z"
+    },
+    {
+      "id": "job-action-mu645ywx-u30070",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "stepId": "job-step-mu642psg-mn9y0v",
+      "sequence": 2,
+      "name": "Ad hoc: Odometer",
+      "formName": "Ad hoc: Odometer",
+      "type": "Odometer",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-17T22:41:14.249Z",
+      "updatedAt": "2026-09-17T22:41:14.249Z"
+    },
+    {
+      "id": "job-action-mu646c0r-zgfxyg",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "stepId": "job-step-mu642psg-mn9y0v",
+      "sequence": 3,
+      "name": "Ad hoc: Odometer",
+      "formName": "Ad hoc: Odometer",
+      "type": "Odometer",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-17T22:41:31.234Z",
+      "updatedAt": "2026-09-17T22:41:31.234Z"
+    },
+    {
+      "id": "action-mu65r3ga-lb0wqy",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3f9-6n8l27",
+      "key": "accept_dispatch",
+      "name": "Acknowledge dispatch",
+      "sequence": 1,
+      "type": "Status transition",
+      "status": "Available",
+      "required": true,
+      "assigneeScope": "All assigned workers",
+      "formName": "",
+      "config": {},
+      "createdAt": "2026-09-17T23:25:39.520Z",
+      "updatedAt": "2026-09-17T23:25:39.520Z"
+    },
+    {
+      "id": "action-mu65r3hl-io3gl4",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3f9-6n8l27",
+      "key": "travel",
+      "name": "Capture travel and truck time",
+      "sequence": 2,
+      "type": "Timer",
+      "status": "Blocked",
+      "required": true,
+      "assigneeScope": "Each worker",
+      "formName": "Capture travel and truck time",
+      "config": {
+        "anchor": "en_route"
+      },
+      "createdAt": "2026-09-17T23:25:39.570Z",
+      "updatedAt": "2026-09-17T23:25:39.570Z"
+    },
+    {
+      "id": "action-mu65r3ip-4xsnqj",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3f9-6n8l27",
+      "key": "arrival",
+      "name": "Arrive and verify site contact",
+      "sequence": 3,
+      "type": "Form",
+      "status": "Blocked",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Arrive and verify site contact",
+      "config": {},
+      "createdAt": "2026-09-17T23:25:39.606Z",
+      "updatedAt": "2026-09-17T23:25:39.606Z"
+    },
+    {
+      "id": "action-mu65r3jo-kij7qq",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3f9-6n8l27",
+      "key": "task-0-3",
+      "name": "test martials edit",
+      "sequence": 4,
+      "type": "Material",
+      "status": "Blocked",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "test martials edit",
+      "config": {
+        "suggestedItemIds": []
+      },
+      "createdAt": "2026-09-17T23:25:39.642Z",
+      "updatedAt": "2026-09-17T23:25:39.642Z"
+    },
+    {
+      "id": "action-mu65r3kr-79bc60",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3f9-6n8l27",
+      "key": "task-0-4",
+      "name": "test sig",
+      "sequence": 5,
+      "type": "Signature",
+      "status": "Blocked",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "test sig",
+      "config": {
+        "signerRole": "Customer"
+      },
+      "createdAt": "2026-09-17T23:25:39.683Z",
+      "updatedAt": "2026-09-17T23:25:39.683Z"
+    },
+    {
+      "id": "action-mu65r3ls-lsselo",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3f9-6n8l27",
+      "key": "task-0-5",
+      "name": "test photo",
+      "sequence": 6,
+      "type": "Photo",
+      "status": "Blocked",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "test photo",
+      "config": {
+        "minPhotos": 1
+      },
+      "createdAt": "2026-09-17T23:25:39.718Z",
+      "updatedAt": "2026-09-17T23:25:39.718Z"
+    },
+    {
+      "id": "action-mu65r3mq-ig4243",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3f9-6n8l27",
+      "key": "task-0-6",
+      "name": "test sample",
+      "sequence": 7,
+      "type": "Sample",
+      "status": "Blocked",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "test sample",
+      "config": {
+        "defaultMatrix": "",
+        "defaultContainer": "",
+        "defaultAnalyses": []
+      },
+      "createdAt": "2026-09-17T23:25:39.753Z",
+      "updatedAt": "2026-09-17T23:25:39.753Z"
+    },
+    {
+      "id": "action-mu65r3ot-btjcvt",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3nq-n87f0z",
+      "key": "site_safety",
+      "name": "Complete site safety assessment",
+      "sequence": 1,
+      "type": "Form",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Complete site safety assessment",
+      "config": {},
+      "createdAt": "2026-09-17T23:25:39.827Z",
+      "updatedAt": "2026-09-17T23:25:39.827Z"
+    },
+    {
+      "id": "action-mu65r3pt-d0src9",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3nq-n87f0z",
+      "key": "exclusion_zone",
+      "name": "Deploy containment and exclusion zones",
+      "sequence": 2,
+      "type": "Checklist",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "Deploy containment and exclusion zones",
+      "config": {
+        "options": []
+      },
+      "createdAt": "2026-09-17T23:25:39.862Z",
+      "updatedAt": "2026-09-17T23:25:39.862Z"
+    },
+    {
+      "id": "action-mu65r3ro-fja6eh",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3qq-cansbp",
+      "key": "material_use",
+      "name": "Log material and equipment use",
+      "sequence": 1,
+      "type": "Material",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "Log material and equipment use",
+      "config": {
+        "suggestedItemIds": []
+      },
+      "createdAt": "2026-09-17T23:25:39.930Z",
+      "updatedAt": "2026-09-17T23:25:39.930Z"
+    },
+    {
+      "id": "action-mu65r3sl-kkowy8",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3qq-cansbp",
+      "key": "photos",
+      "name": "Capture before, progress, and after photos",
+      "sequence": 2,
+      "type": "Photo",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "Capture before, progress, and after photos",
+      "config": {
+        "minPhotos": 1
+      },
+      "createdAt": "2026-09-17T23:25:39.964Z",
+      "updatedAt": "2026-09-17T23:25:39.964Z"
+    },
+    {
+      "id": "action-mu65r3to-ke65mu",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3qq-cansbp",
+      "key": "waste_tracking",
+      "name": "Track recovered material and waste generated",
+      "sequence": 3,
+      "type": "Material",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Track recovered material and waste generated",
+      "config": {
+        "suggestedItemIds": []
+      },
+      "createdAt": "2026-09-17T23:25:40.001Z",
+      "updatedAt": "2026-09-17T23:25:40.001Z"
+    },
+    {
+      "id": "action-mu65r3vo-43sz3m",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3uq-b7ifbv",
+      "key": "impact_findings",
+      "name": "Document soil or groundwater impact findings",
+      "sequence": 1,
+      "type": "Form",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Document soil or groundwater impact findings",
+      "config": {},
+      "createdAt": "2026-09-17T23:25:40.074Z",
+      "updatedAt": "2026-09-17T23:25:40.074Z"
+    },
+    {
+      "id": "action-mu65r3xq-fgj6vn",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3wp-amyw1q",
+      "key": "recap",
+      "name": "Complete job recap",
+      "sequence": 1,
+      "type": "Form",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Complete job recap",
+      "config": {},
+      "createdAt": "2026-09-17T23:25:40.150Z",
+      "updatedAt": "2026-09-17T23:25:40.150Z"
+    },
+    {
+      "id": "action-mu65r3ys-bxwnsr",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "stepId": "step-mu65r3wp-amyw1q",
+      "key": "signature",
+      "name": "Capture customer completion signature",
+      "sequence": 2,
+      "type": "Signature",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Capture customer completion signature",
+      "config": {
+        "signerRole": "Customer"
+      },
+      "createdAt": "2026-09-17T23:25:40.186Z",
+      "updatedAt": "2026-09-17T23:25:40.186Z"
     }
   ],
   "jobFormSubmissions": [
@@ -15009,6 +15789,138 @@
       },
       "createdAt": "2026-09-16T20:28:55.726Z",
       "updatedAt": "2026-09-16T20:28:55.726Z"
+    },
+    {
+      "id": "form-sub-mu642pus-xvifhu",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "job-action-mu642pth-8vapnj",
+      "formName": "Ad hoc: Odometer",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-17T22:38:42.532Z",
+      "summary": "traffic sucks",
+      "payload": {
+        "siteLabel": "office - site",
+        "startOdometer": 14000,
+        "arrivalOdometer": 14065,
+        "calculatedDistance": 65
+      },
+      "adHoc": true,
+      "createdAt": "2026-09-17T22:38:42.543Z",
+      "updatedAt": "2026-09-17T22:38:42.543Z"
+    },
+    {
+      "id": "form-sub-mu6430ho-87ohjk",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jwzv1-lsl056",
+      "formName": "Capture travel and truck time",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-17T22:38:56.316Z",
+      "summary": "0 hours logged.",
+      "payload": {
+        "hours": 0,
+        "computedHours": 0,
+        "anchor": "en_route"
+      },
+      "createdAt": "2026-09-17T22:38:56.325Z",
+      "updatedAt": "2026-09-17T22:38:56.325Z"
+    },
+    {
+      "id": "form-sub-mu644xhj-n0kxqc",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx0an-j8kzj1",
+      "formName": "Collect samples at planned locations",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-17T22:40:25.735Z",
+      "summary": "yep",
+      "payload": {
+        "sampleId": "JOB-2026-0916-39-01"
+      },
+      "createdAt": "2026-09-17T22:40:25.747Z",
+      "updatedAt": "2026-09-17T22:40:25.747Z"
+    },
+    {
+      "id": "form-sub-mu6457ha-71orv9",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx0hp-uc7z1d",
+      "formName": "Complete chain of custody",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-17T22:40:38.686Z",
+      "summary": "yep",
+      "payload": {},
+      "createdAt": "2026-09-17T22:40:38.694Z",
+      "updatedAt": "2026-09-17T22:40:38.694Z"
+    },
+    {
+      "id": "form-sub-mu645czz-fa8uuj",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx1an-lpauq2",
+      "formName": "Complete shift recap",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-17T22:40:45.839Z",
+      "summary": "back at office",
+      "payload": {},
+      "createdAt": "2026-09-17T22:40:45.847Z",
+      "updatedAt": "2026-09-17T22:40:45.847Z"
+    },
+    {
+      "id": "form-sub-mu645l4t-y6ee1p",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx1nt-5t4nna",
+      "formName": "Log lab courier or delivery",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-17T22:40:56.381Z",
+      "summary": "dropped off at 4:25",
+      "payload": {
+        "options": [],
+        "checked": [],
+        "unchecked": []
+      },
+      "createdAt": "2026-09-17T22:40:56.388Z",
+      "updatedAt": "2026-09-17T22:40:56.388Z"
+    },
+    {
+      "id": "form-sub-mu645yy5-zbta04",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "job-action-mu645ywx-u30070",
+      "formName": "Ad hoc: Odometer",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-17T22:41:14.285Z",
+      "summary": "yep",
+      "payload": {
+        "siteLabel": "site to lab",
+        "startOdometer": 14060,
+        "arrivalOdometer": 14070,
+        "calculatedDistance": 10
+      },
+      "adHoc": true,
+      "createdAt": "2026-09-17T22:41:14.300Z",
+      "updatedAt": "2026-09-17T22:41:14.300Z"
+    },
+    {
+      "id": "form-sub-mu646c1u-h5k51q",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "job-action-mu646c0r-zgfxyg",
+      "formName": "Ad hoc: Odometer",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-17T22:41:31.266Z",
+      "summary": "lab - office: 10 mi (14070 to 14080).",
+      "payload": {
+        "siteLabel": "lab - office",
+        "startOdometer": 14070,
+        "arrivalOdometer": 14080,
+        "calculatedDistance": 10
+      },
+      "adHoc": true,
+      "createdAt": "2026-09-17T22:41:31.280Z",
+      "updatedAt": "2026-09-17T22:41:31.280Z"
     }
   ],
   "jobTypeTemplates": [
@@ -16260,6 +17172,136 @@
       "by": "Olivia Grant",
       "createdAt": "2026-09-17T05:28:13.792Z",
       "updatedAt": "2026-09-17T05:28:13.792Z"
+    },
+    {
+      "id": "job-status-event-mu641mrs-tgz7n1",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "draft",
+      "toStatus": "ready",
+      "occurredAt": "2026-09-17T22:37:51.864Z",
+      "by": "Admin User",
+      "createdAt": "2026-09-17T22:37:51.895Z",
+      "updatedAt": "2026-09-17T22:37:51.895Z"
+    },
+    {
+      "id": "job-status-event-mu641o3g-l1v30k",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "ready",
+      "toStatus": "scheduled",
+      "occurredAt": "2026-09-17T22:37:53.582Z",
+      "by": "Admin User",
+      "createdAt": "2026-09-17T22:37:53.608Z",
+      "updatedAt": "2026-09-17T22:37:53.608Z"
+    },
+    {
+      "id": "job-status-event-mu641oz8-wnrjnm",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "scheduled",
+      "toStatus": "dispatched",
+      "occurredAt": "2026-09-17T22:37:54.726Z",
+      "by": "Admin User",
+      "createdAt": "2026-09-17T22:37:54.756Z",
+      "updatedAt": "2026-09-17T22:37:54.756Z"
+    },
+    {
+      "id": "job-status-event-mu6421mm-g5aj4m",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "dispatched",
+      "toStatus": "acknowledged",
+      "occurredAt": "2026-09-17T22:38:11.120Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-17T22:38:11.150Z",
+      "updatedAt": "2026-09-17T22:38:11.150Z"
+    },
+    {
+      "id": "job-status-event-mu642y85-oaoya4",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "acknowledged",
+      "toStatus": "en_route",
+      "occurredAt": "2026-09-17T22:38:53.365Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-17T22:38:53.398Z",
+      "updatedAt": "2026-09-17T22:38:53.398Z"
+    },
+    {
+      "id": "job-status-event-mu6432by-0gw07n",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "en_route",
+      "toStatus": "on_site",
+      "occurredAt": "2026-09-17T22:38:58.688Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-17T22:38:58.715Z",
+      "updatedAt": "2026-09-17T22:38:58.715Z"
+    },
+    {
+      "id": "job-status-event-mu6433n2-3hpd92",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "on_site",
+      "toStatus": "in_progress",
+      "occurredAt": "2026-09-17T22:39:00.382Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-17T22:39:00.411Z",
+      "updatedAt": "2026-09-17T22:39:00.411Z"
+    },
+    {
+      "id": "job-status-event-mu646dxg-h9s92n",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "in_progress",
+      "toStatus": "field_complete",
+      "occurredAt": "2026-09-17T22:41:33.683Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-17T22:41:33.713Z",
+      "updatedAt": "2026-09-17T22:41:33.713Z"
+    },
+    {
+      "id": "job-status-event-mu6484ar-pzylyl",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "field_complete",
+      "toStatus": "office_review",
+      "occurredAt": "2026-09-17T22:42:54.515Z",
+      "by": "Admin User",
+      "createdAt": "2026-09-17T22:42:54.544Z",
+      "updatedAt": "2026-09-17T22:42:54.544Z"
+    },
+    {
+      "id": "job-status-event-mu6485ua-pfc8lb",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "fromStatus": "office_review",
+      "toStatus": "closed",
+      "occurredAt": "2026-09-17T22:42:56.514Z",
+      "by": "Admin User",
+      "createdAt": "2026-09-17T22:42:56.542Z",
+      "updatedAt": "2026-09-17T22:42:56.542Z"
+    },
+    {
+      "id": "job-status-event-mu64tpmy-jnxpt2",
+      "jobId": "dispatch-job-ms2glk0e-pgbjm5",
+      "fromStatus": "office_review",
+      "toStatus": "closed",
+      "occurredAt": "2026-09-17T22:59:41.939Z",
+      "by": "Admin User",
+      "createdAt": "2026-09-17T22:59:41.978Z",
+      "updatedAt": "2026-09-17T22:59:41.978Z"
+    },
+    {
+      "id": "job-status-event-mu64yagj-u4cs9u",
+      "jobId": "dispatch-job-ms4rvoh2-ra6h2f",
+      "fromStatus": "field_complete",
+      "toStatus": "office_review",
+      "occurredAt": "2026-09-17T23:03:15.554Z",
+      "by": "Admin User",
+      "createdAt": "2026-09-17T23:03:15.583Z",
+      "updatedAt": "2026-09-17T23:03:15.583Z"
+    },
+    {
+      "id": "job-status-event-mu64ybwc-diok1z",
+      "jobId": "dispatch-job-ms4rvoh2-ra6h2f",
+      "fromStatus": "office_review",
+      "toStatus": "closed",
+      "occurredAt": "2026-09-17T23:03:17.421Z",
+      "by": "Admin User",
+      "createdAt": "2026-09-17T23:03:17.449Z",
+      "updatedAt": "2026-09-17T23:03:17.449Z"
     }
   ],
   "jobTaskAttachments": [
@@ -16405,6 +17447,58 @@
       "caption": ";lkjbhdfagkl;hjdfrha",
       "uploadedAt": "2026-09-16T20:28:45.558Z",
       "uploadedBy": "Olivia Grant"
+    },
+    {
+      "id": "job-task-attachment-mu644xcu-smzanw",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx0an-j8kzj1",
+      "kind": "photo",
+      "fileName": "Group 2.png",
+      "storageName": "job-task-attachment-mu644xcu-smzanw.png",
+      "mimeType": "image/png",
+      "sizeBytes": 10867309,
+      "caption": "yep",
+      "uploadedAt": "2026-09-17T22:40:25.566Z",
+      "uploadedBy": "Admin User"
+    },
+    {
+      "id": "job-task-attachment-mu644xdr-ks5zdb",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx0an-j8kzj1",
+      "kind": "photo",
+      "fileName": "FEBRERO 063.jpg",
+      "storageName": "job-task-attachment-mu644xdr-ks5zdb.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 478577,
+      "caption": "North view",
+      "uploadedAt": "2026-09-17T22:40:25.599Z",
+      "uploadedBy": "Admin User"
+    },
+    {
+      "id": "job-task-attachment-mu644xfo-k2uuzl",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx0an-j8kzj1",
+      "kind": "photo",
+      "fileName": "Picture29-cloud-redefine-realistic-6x.png",
+      "storageName": "job-task-attachment-mu644xfo-k2uuzl.png",
+      "mimeType": "image/png",
+      "sizeBytes": 17823530,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-17T22:40:25.668Z",
+      "uploadedBy": "Admin User"
+    },
+    {
+      "id": "job-task-attachment-mu644xgo-c5s4z5",
+      "jobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx0an-j8kzj1",
+      "kind": "photo",
+      "fileName": "DSCF0017.JPG",
+      "storageName": "job-task-attachment-mu644xgo-c5s4z5.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 863963,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-17T22:40:25.704Z",
+      "uploadedBy": "Admin User"
     }
   ],
   "laborAssignments": [],
@@ -16679,12 +17773,15 @@
       ],
       "fieldNotes": "site is rank bro",
       "chainOfCustody": "01201",
-      "labName": "",
+      "labName": "eurofins",
       "labStatus": "Logged in field",
-      "labResults": "",
+      "labResults": "23425.25 Mg/K",
       "photos": [],
       "createdAt": "2026-09-16T19:41:07.426Z",
-      "updatedAt": "2026-09-16T19:41:07.426Z"
+      "updatedAt": "2026-09-17T22:45:39.219Z",
+      "labReceivedAt": "2026-09-17T00:00:00.000Z",
+      "reviewedBy": "Logan",
+      "labReportUri": ""
     },
     {
       "id": "sample-mu4iqo2k-8sw7et",
@@ -16753,6 +17850,43 @@
       "photos": [],
       "createdAt": "2026-09-16T20:28:45.625Z",
       "updatedAt": "2026-09-16T20:28:45.625Z"
+    },
+    {
+      "id": "sample-mu644xgz-7j7cs3",
+      "sampleId": "JOB-2026-0916-39-01",
+      "samplingSessionId": "",
+      "samplingSessionName": "Tall Tree Test stage jump op — Intake",
+      "projectId": "proj-mu4fuo8r-d0srbr",
+      "dispatchJobId": "dispatch-job-mu4jwyzh-wim95k",
+      "actionId": "action-mu4jx0an-j8kzj1",
+      "accountId": "acct-city-georgetown",
+      "facilityId": "loc-mu4av359-7uct5i",
+      "sampleLocation": "central floor",
+      "sampleType": "field sample",
+      "sampleMatrix": "insulation",
+      "collectionMethod": "grab",
+      "depthInterval": "na",
+      "collectionTime": "2026-09-17T22:39:00.000Z",
+      "collector": "Logan Gallman",
+      "gpsAccuracyMeters": 90,
+      "latitude": 30.660775466679954,
+      "longitude": -97.68529021012573,
+      "containerSummary": "jar",
+      "preservation": "helium",
+      "requestedAnalyses": [
+        "mooo analysis"
+      ],
+      "fieldNotes": "yep",
+      "chainOfCustody": "12313",
+      "labName": "eurofins",
+      "labStatus": "Logged in field",
+      "labResults": "0.012",
+      "photos": [],
+      "createdAt": "2026-09-17T22:40:25.727Z",
+      "updatedAt": "2026-09-17T22:45:19.719Z",
+      "labReceivedAt": "",
+      "reviewedBy": "linda",
+      "labReportUri": "https://www.google.com"
     }
   ],
   "invoices": [
@@ -16778,6 +17912,18 @@
       "status": "Past due",
       "dueDate": "2026-07-01",
       "notes": "Needs payment follow-up with district AP.",
+      "qboStatus": "Not exported"
+    },
+    {
+      "id": "invoices-mu64fayl-u1k6cv",
+      "projectId": "proj-mu4fuo8r-d0srbr",
+      "customer": "City of Georgetown",
+      "quotedAmount": 700,
+      "fieldExpenses": 0,
+      "invoiceAmount": 400,
+      "status": "Draft",
+      "dueDate": "2026-10-17",
+      "notes": "Needs scope review before invoice",
       "qboStatus": "Not exported"
     }
   ],
@@ -17050,7 +18196,7 @@
       "stage": "Proposal",
       "serviceType": "Scheduled Environmental Service",
       "nextStep": "Price alternate disposal option after lab report",
-      "updatedAt": "2026-09-16T15:21:11.928Z",
+      "updatedAt": "2026-09-17T23:14:02.115Z",
       "createdAt": "2026-08-10T21:17:28.877Z",
       "facilityId": "",
       "industry": "",
@@ -17103,10 +18249,11 @@
       "decisionMaker": "Alicia Moreno",
       "purchaseProcess": "",
       "purchaseTimeframe": "",
-      "quoteId": "quote-riverbend-revision",
+      "quoteId": "quote-mu65c5a9-s1sunr",
       "priceList": "",
       "recordSource": "Local CRM",
-      "closeQuarter": "2026-Q3"
+      "closeQuarter": "2026-Q3",
+      "estimateId": ""
     },
     {
       "id": "opp-north-river-stormwater",
@@ -17913,30 +19060,19 @@
   "quotes": [
     {
       "id": "quote-riverbend-revision",
-      "ownerId": "user-maya",
-      "ownerLogicalName": "systemuser",
+      "opportunityId": "opp-riverbend-ust",
       "customerId": "acct-riverbend",
       "customerLogicalName": "account",
-      "opportunityId": "opp-riverbend-ust",
       "priceLevelId": "price-standard-2026",
-      "transactionCurrencyId": "currency-usd",
-      "quoteNumber": "Q-2026-1042",
       "name": "Riverbend UST removal revised disposal alternate",
-      "description": "Revision separates excavation, transport, and disposal alternates for buyer approval.",
-      "totalAmount": 185000,
-      "totalAmountBase": 185000,
+      "totalAmount": 171500,
+      "totalAmountBase": 171500,
+      "statusCode": "Won",
+      "stateCode": "Closed",
       "effectiveFrom": "2026-07-01",
       "effectiveTo": "2026-07-31",
-      "stateCode": "Active",
-      "statusCode": "In revision",
-      "billToName": "Riverbend Manufacturing",
-      "billToCity": "St. Louis",
-      "billToStateOrProvince": "MO",
-      "billToCountry": "US",
-      "shipToName": "South yard tank farm",
-      "shipToCity": "St. Louis",
-      "shipToStateOrProvince": "MO",
-      "shipToCountry": "US"
+      "createdAt": "2026-09-17T23:13:32.460Z",
+      "updatedAt": "2026-09-17T23:13:32.460Z"
     },
     {
       "id": "quote-clearwater-night-shift",
@@ -17994,6 +19130,38 @@
       "effectiveTo": "2026-09-19",
       "createdAt": "2026-09-16T18:19:18.028Z",
       "updatedAt": "2026-09-16T18:19:18.028Z"
+    },
+    {
+      "id": "quote-mu65b4uw-l47xhi",
+      "opportunityId": "opp-riverbend-ust",
+      "customerId": "acct-riverbend",
+      "customerLogicalName": "account",
+      "priceLevelId": "price-standard-2026",
+      "name": "UST removal and soil remediation quote",
+      "totalAmount": 100000,
+      "totalAmountBase": 100000,
+      "statusCode": "Draft",
+      "stateCode": "Active",
+      "effectiveFrom": "2026-09-17",
+      "effectiveTo": "",
+      "createdAt": "2026-09-17T23:13:14.879Z",
+      "updatedAt": "2026-09-17T23:13:14.879Z"
+    },
+    {
+      "id": "quote-mu65c5a9-s1sunr",
+      "opportunityId": "opp-riverbend-ust",
+      "customerId": "acct-riverbend",
+      "customerLogicalName": "account",
+      "priceLevelId": "price-standard-2026",
+      "name": "UST removal and soil remediation quote",
+      "totalAmount": 11800,
+      "totalAmountBase": 11800,
+      "statusCode": "Draft",
+      "stateCode": "Active",
+      "effectiveFrom": "2026-09-17",
+      "effectiveTo": "",
+      "createdAt": "2026-09-17T23:14:02.065Z",
+      "updatedAt": "2026-09-17T23:14:02.065Z"
     }
   ],
   "quoteLines": [
@@ -18011,7 +19179,10 @@
       "pricePerUnit": 14500,
       "extendedAmount": 116000,
       "manualDiscountAmount": 0,
-      "tax": 0
+      "tax": 0,
+      "deletedAt": "2026-09-17T23:13:32.469Z",
+      "createdAt": "2026-09-17T23:13:32.485Z",
+      "updatedAt": "2026-09-17T23:13:32.485Z"
     },
     {
       "id": "quote-line-riverbend-disposal",
@@ -18027,7 +19198,10 @@
       "pricePerUnit": 185,
       "extendedAmount": 55500,
       "manualDiscountAmount": 0,
-      "tax": 0
+      "tax": 0,
+      "deletedAt": "2026-09-17T23:13:32.496Z",
+      "createdAt": "2026-09-17T23:13:32.512Z",
+      "updatedAt": "2026-09-17T23:13:32.512Z"
     },
     {
       "id": "quote-line-clearwater-containment",
@@ -18044,6 +19218,86 @@
       "extendedAmount": 118000,
       "manualDiscountAmount": 0,
       "tax": 0
+    },
+    {
+      "id": "quote-line-mu65b4w9-zyw7vd",
+      "quoteId": "quote-mu65b4uw-l47xhi",
+      "productId": "prod-field-labor-standard",
+      "productName": "Field labor (standard hourly cost basis)",
+      "productDescription": "Generic per-hour labor cost basis used by the project close-report generator when no role-specific rate exists yet.",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 900,
+      "pricePerUnit": 95,
+      "extendedAmount": 85500,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "createdAt": "2026-09-17T23:13:14.901Z",
+      "updatedAt": "2026-09-17T23:13:14.901Z"
+    },
+    {
+      "id": "quote-line-mu65b4wu-5sv06c",
+      "quoteId": "quote-mu65b4uw-l47xhi",
+      "productId": "prod-ust-remediation",
+      "productName": "UST removal and soil remediation",
+      "productDescription": "Tank removal, excavation, characterization, hauling coordination, and restoration planning.",
+      "isProductOverridden": false,
+      "uomId": "uom-day",
+      "quantity": 1,
+      "pricePerUnit": 14500,
+      "extendedAmount": 14500,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "createdAt": "2026-09-17T23:13:14.923Z",
+      "updatedAt": "2026-09-17T23:13:14.923Z"
+    },
+    {
+      "id": "quote-line-mu65bihz-lhr4jf",
+      "quoteId": "quote-riverbend-revision",
+      "productId": "prod-ust-remediation",
+      "productName": "UST removal and soil remediation",
+      "productDescription": "Mobilization, tank pull, excavation support, backfill coordination, and closeout.",
+      "isProductOverridden": false,
+      "uomId": "uom-day",
+      "quantity": 8,
+      "pricePerUnit": 14500,
+      "extendedAmount": 116000,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "createdAt": "2026-09-17T23:13:32.533Z",
+      "updatedAt": "2026-09-17T23:13:32.533Z"
+    },
+    {
+      "id": "quote-line-mu65biil-zdvk9w",
+      "quoteId": "quote-riverbend-revision",
+      "productId": "prod-disposal-impacted-soil",
+      "productName": "Impacted soil disposal",
+      "productDescription": "Profiled soil disposal allowance pending lab report.",
+      "isProductOverridden": false,
+      "uomId": "uom-ton",
+      "quantity": 300,
+      "pricePerUnit": 185,
+      "extendedAmount": 55500,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "createdAt": "2026-09-17T23:13:32.554Z",
+      "updatedAt": "2026-09-17T23:13:32.554Z"
+    },
+    {
+      "id": "quote-line-mu65c5az-qjy7s7",
+      "quoteId": "quote-mu65c5a9-s1sunr",
+      "productId": "prod-asbestos-containment",
+      "productName": "Asbestos containment and abatement",
+      "productDescription": "Containment setup, negative air controls, abatement labor, clearance coordination, and closeout package.",
+      "isProductOverridden": false,
+      "uomId": "uom-day",
+      "quantity": 1,
+      "pricePerUnit": 11800,
+      "extendedAmount": 11800,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "createdAt": "2026-09-17T23:14:02.094Z",
+      "updatedAt": "2026-09-17T23:14:02.094Z"
     }
   ],
   "estimates": [

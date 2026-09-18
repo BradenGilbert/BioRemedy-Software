@@ -1,6 +1,6 @@
 # Phase 07 — Dispatch & Operations Correctness
 
-**Status:** 🟢 **Verification pass + fixes shipped 2026-09-17.** Items 1, 2, 3, 5, 6, 9, 10, 11, 12, 13 confirmed against code and fixed; all verified live via Playwright. Items 4, 7, 8 deliberately deferred (owner decision / cross-phase coordination — see below). Item 9 was added to this session's scope after the owner decided "warn, don't block" while work was already underway.
+**Status:** 🟢 **Verification pass + fixes shipped 2026-09-17.** Items 1, 2, 3, 5, 6, 9, 10, 11, 12, 13 confirmed against code and fixed; all verified live via Playwright. Items 4, 7, 8 deliberately deferred (owner decision / cross-phase coordination — see below). Item 9 was added to this session's scope after the owner decided "warn, don't block" while work was already underway. **A second live-bug-report session (2026-09-17, same day) shipped 8 more fixes — alert resolve/dismiss, closed-project feed filtering, live (not cached) certification eligibility on dispatch assignments, exception acknowledge/recheck, a certifications multi-select instead of a single forced text field, and surfacing intake-stage equipment/labor/vendor notes on the dispatch job — see "Live bug report follow-up" below.**
 **Depends on:** Phase 01 (shared data layer — dispatch and projects are already server-side, this phase fixes behavior, not data location)
 **Estimated sessions:** 3
 **Source:** `bioremedy crm notes 9.16.2026.docx`
@@ -157,6 +157,93 @@ None. Every fix in this phase wired new or corrected UI/logic onto fields that a
 - ~~**Over-reservation: block or warn?**~~ (item 9) — ✅ resolved 2026-09-17: warn but allow, implemented
 
 ---
+
+## Live bug report follow-up — 2026-09-17 (second session)
+
+The owner reported 8 fresh live bugs after using the app past this phase's original fix pass. All 8
+were reproduced against running code before fixing, per this phase doc's own rule. Several shared one
+root cause (noted below). All fixes verified live via Playwright against `data/backend.json`'s real
+records unless noted.
+
+1. **Alerts had no resolve/dismiss action.** `saveProjectAlert()` only ever created alerts; nothing in
+   the app ever wrote `status: "Resolved"`. Added `resolveProjectAlert()`, a "Resolve alert" button on
+   `renderAlertCard`, and a "Field alerts" panel on the Project Detail page (previously alerts only
+   showed as a bare count, with no way to see or act on them from the project itself). Verified live on
+   the "Tall Tree Test stage jump op" project's real open alert.
+
+2. **Project stage advancement:** re-verified the Phase 07 item 11 fix (`advanceProjectStageFromDispatchStatus`)
+   is intact and working — no regression found. The actual friction reported this session was item 4
+   below (closed projects not leaving the active feed), not stage advancement itself.
+
+3. **Planning-stage projects can already have multiple independent dispatches.** Verified live: the
+   Project Detail page's "New job request" button has no stage gate and already supports creating
+   additional job requests at any point (confirmed by pushing a second request against the
+   "I-130 incident response" project, already mid-dispatch — it created a third, independently
+   `Draft`/`Unassigned` dispatch job alongside the existing `Scheduled` and `Closed` ones). Added a
+   `renderPendingJobRequestCard` fallback so a not-yet-converted request also shows an explicit "Needs
+   scheduling" badge with a direct "Create job" action, rather than only a one-line count, for the path
+   where conversion isn't automatic.
+
+4. **CONFIRMED and fixed — closed projects never left the active feed.** Root cause: every "active
+   projects" filter across the Operations applet (12+ call sites) checked `job.status !== "Complete"`,
+   but `closeProject()` (Phase 09) never sets `status` to `"Complete"` — it only stamps `closedAt`. A
+   fully closed project (confirmed live: "Tall Tree Test stage jump op", closed 2026-09-17) passed every
+   one of those filters and kept showing in the Multi-Stage Remediation active list. Added
+   `isActiveProject(project)` (`!project.closedAt`) and replaced all of those filters with it; added a
+   "Show closed projects" / "Hide closed projects" toggle to the Operations "All Projects" view (closed
+   projects hidden by default, a banner states how many are hidden) and a "Closed <date>" badge on the
+   project card when shown. Verified live: the closed project disappeared from the default view and
+   reappeared correctly when the toggle was used.
+
+5. **CONFIRMED and fixed — stale "blocked" exceptions never cleared after the underlying cert was fixed,
+   and there was no manual override.** Root cause shared with item 6 (below): conflict/eligibility state
+   was computed once and cached, never recomputed. Two-part fix: (a) `conflictsForDispatchJob()` now
+   auto-drops an "Expired certification" conflict the moment the linked assignment's *live* eligibility
+   is no longer Blocked — verified live against the actual pre-existing seeded conflict
+   (`jc-clearwater-cert`, "Asbestos worker renewal expired" on the Clearwater job), which disappeared on
+   its own once Samira Holt's cert was confirmed valid, with no manual action; (b) added a manual
+   "Acknowledge / Recheck" action (`acknowledgeJobConflict`) on every open exception for cases that don't
+   self-clear (non-cert conflict types, or a conflict whose assignment was since removed) — verified live
+   on the real "Second sampling technician not assigned" warning on the Riverbend job, which flipped to
+   "Resolved" and cleared the job's "Open conflicts" readiness check on click.
+
+6. **CONFIRMED and fixed — worker warning badges were snapshotted at assignment time, not live, and had
+   no context.** This was the same root cause as item 5. `jobAssignments.eligibilityStatus`/`eligibilityNote`
+   were computed once (from `employee.readinessStatus`) when a worker was assigned or scheduled and then
+   frozen on the record — the only way to refresh it was to unassign and reassign, exactly the workaround
+   the owner described for Trey Foster on JOB-2026-0726-07. Added `computeAssignmentEligibility(employeeId)`,
+   which re-derives Eligible/Warning/Blocked live from the employee's current `employeeCertifications`
+   on every render and names the specific certification and its status/expiry date. `renderJobAssignment()`
+   and `getJobReadiness()` now both use it instead of the stored fields. **Verified live end-to-end**: on
+   the real JOB-2026-0726-07 / Trey Foster case, expired his HAZWOPER credential via "Renew / update" —
+   the assignment badge flipped to "Blocked" with the note "HAZWOPER annual refresher is expired
+   (expired Aug 15, 2026)" with no touch to the assignment itself; then renewed the credential back to
+   "Valid" — the badge cleared back to "Eligible" automatically, with no remove/re-add. This is the exact
+   scenario the owner reported as broken.
+
+7. **CONFIRMED and fixed — the Schedule dialog's "Required certification" field was a single free-text
+   input, not a lookup.** It had no relationship to any certification actually on file and only accepted
+   one value. Replaced with a multi-select (`<select multiple>`) populated from every distinct
+   certification name/code found in `employeeCertifications` (plus a small curated fallback list so it's
+   never empty), so scheduling can flag several potentially-relevant certifications as a lookup rather
+   than forcing one typed value through as a pass/fail gate. `saveScheduleEvent()` now reads the full
+   list of selected options into `requiredCertifications` (the field already supported an array; only one
+   value was ever being put in it). Verified live: dialog now lists 20+ real certification names as
+   multi-selectable options.
+
+8. **CONFIRMED and fixed — equipment/labor/vendor information from intake or planning was invisible on
+   the dispatch side.** `jobRequests.equipmentNotes` / `laborNotes` / `vendorNotes` were captured at
+   intake and shown on the request card, but `convertJobRequest()` never copied them onto the resulting
+   `dispatchJobs` record, and nothing on the Dispatch Job Detail page ever rendered them (or the parent
+   project's `opportunityAssignments` Labor/Vendor entries from the sales stage) at all. Added the same
+   three fields to `dispatchJobs` (copied at conversion; falls back to the source request's fields for
+   jobs created before this session) and a new "Ordered at intake / planning" panel on the Details tab
+   showing them plus any linked opportunity's Labor/Vendor assignments. Verified live on the real
+   JOB-2026-0726-07 record (predates the field, exercised the fallback path): equipment "bible and f250",
+   labor "all yo brothers in christ", vendor "who ever sells those fish john 316 braclets" now render.
+   **Not modeled:** equipment specifically ordered/reserved during the sales stage has no dedicated
+   schema anywhere yet (`opportunityAssignments.type` only distinguishes Internal/External/Vendor, not
+   Equipment) — flagged for a future session rather than fabricated.
 
 ## Corrections found during implementation
 

@@ -2227,6 +2227,9 @@ async function handleClick(event) {
   if (action === "open-map-location") openLocationDialog(actionButton.dataset.id);
   if (action === "open-invoice") openInvoiceDialog(actionButton.dataset.jobId);
   if (action === "close-project") await closeProject(actionButton.dataset.id);
+  if (action === "toggle-show-closed-projects") { state.showClosedProjects = !state.showClosedProjects; render(); }
+  if (action === "resolve-alert") await resolveProjectAlert(actionButton.dataset.id);
+  if (action === "acknowledge-job-conflict") await acknowledgeJobConflict(actionButton.dataset.id);
   if (action === "regenerate-cost-report") await regenerateProjectCloseReport(actionButton.dataset.id);
   if (action === "open-employee") openEmployeeDialog(id);
   if (action === "open-credential") openCredentialDialog(actionButton.dataset.employeeId, actionButton.dataset.credentialId);
@@ -3096,7 +3099,7 @@ function getWorkspaceInitials(label) {
 
 function getHomeLauncherMetrics(workspaceId) {
   if (workspaceId === "sales") return `${state.opportunities.length} opportunities`;
-  if (workspaceId === "operations") return `${state.projects.filter((job) => job.status !== "Complete").length} active jobs`;
+  if (workspaceId === "operations") return `${state.projects.filter((job) => isActiveProject(job)).length} active jobs`;
   if (workspaceId === "dispatch") return `${getDispatchJobs().filter((job) => !isTerminalDispatchStatus(job.status)).length} open jobs`;
   if (workspaceId === "workforce") return `${getEmployees().filter((employee) => employee.employmentStatus === "Active").length} active employees`;
   if (workspaceId === "inventory") return `${getConsumableStatus().filter((item) => item.status !== "Healthy").length} stock alerts`;
@@ -4074,7 +4077,7 @@ function renderSalesRaceTrack() {
 }
 
 function renderRaceTrackBoard(context = "operations") {
-  const activeJobs = state.projects.filter((job) => job.status !== "Complete");
+  const activeJobs = state.projects.filter((job) => isActiveProject(job));
   const highAlertCount = state.projectAlerts.filter((alert) => alert.status !== "Resolved" && alert.severity === "High").length;
   const atRiskCount = activeJobs.filter((job) => getJobProgress(job).tone !== "low").length;
   const scheduledCount = getScheduleEvents().filter((work) => work.status !== "Complete").length;
@@ -4123,6 +4126,7 @@ function renderRaceTrackCard(job) {
             <span>${escapeHtml(account?.name ?? "Unknown account")}</span>
             <span>${escapeHtml(job.jobClass)}</span>
             <span>${escapeHtml(job.status)}</span>
+            ${job.closedAt ? `<span class="tag">Closed ${formatDate(job.closedAt)}</span>` : ""}
           </div>
         </div>
         <span class="risk-badge ${progress.tone}">${progress.percent}%</span>
@@ -7214,15 +7218,18 @@ function renderOperations() {
 
 function renderOperationsAllProjects() {
   const filterAccount = state.projectsAccountFilter ? findAccount(state.projectsAccountFilter) : null;
-  const activeProjects = state.projects.filter((job) => job.status !== "Complete");
-  const jobs = filterAccount ? activeProjects.filter((job) => job.accountId === filterAccount.id) : activeProjects;
+  const showClosed = Boolean(state.showClosedProjects);
+  const activeProjects = state.projects.filter((job) => isActiveProject(job));
+  const closedProjects = state.projects.filter((job) => !isActiveProject(job));
+  const baseProjects = showClosed ? state.projects : activeProjects;
+  const jobs = filterAccount ? baseProjects.filter((job) => job.accountId === filterAccount.id) : baseProjects;
   const grouped = ["Emergency Response", "Multi-Stage Remediation", "Scheduled Work"].map((jobClass) => ({
     jobClass,
     jobs: jobs.filter((job) => job.jobClass === jobClass),
   }));
   const allDispatchJobs = filterAccount ? getDispatchJobs().filter((dispatchJob) => dispatchJob.accountId === filterAccount.id) : getDispatchJobs();
   const completedDispatchJobs = allDispatchJobs.filter((dispatchJob) => isTerminalDispatchStatus(dispatchJob.status));
-  const nonDispatchedProjects = jobs.filter((job) => dispatchJobsForProject(job.id).length === 0);
+  const nonDispatchedProjects = jobs.filter((job) => isActiveProject(job) && dispatchJobsForProject(job.id).length === 0);
 
   app.innerHTML = `
     <section class="view">
@@ -7251,6 +7258,15 @@ function renderOperationsAllProjects() {
           `
           : ""
       }
+      <section class="core-table-notice" aria-label="Closed project filter">
+        <div>
+          <strong>${showClosed ? "Showing closed projects" : `${closedProjects.length} closed project${closedProjects.length === 1 ? "" : "s"} hidden`}</strong>
+          <span>Closed projects are hidden from the active feed by default.</span>
+        </div>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="toggle-show-closed-projects">${showClosed ? "Hide closed projects" : "Show closed projects"}</button>
+        </div>
+      </section>
       ${renderOperationsMetrics()}
       <section class="metric-strip" aria-label="Dispatch connection metrics">
         <div class="metric">
@@ -7362,6 +7378,7 @@ function renderProjectOverviewCard(job) {
             <span>${escapeHtml(account?.name ?? "Unknown account")}</span>
             <span>${escapeHtml(job.jobClass)}</span>
             <span>${escapeHtml(job.status)}</span>
+            ${job.closedAt ? `<span class="tag">Closed ${formatDate(job.closedAt)}</span>` : ""}
           </div>
         </div>
         <span class="risk-badge ${progress.tone}">${progress.percent}%</span>
@@ -7467,6 +7484,17 @@ function renderProjectDetail() {
 
       ${renderProjectIntakeBanner(job)}
 
+      ${
+        alerts.length
+          ? `<article class="panel">
+              <div class="panel-header"><div><h3>Field alerts</h3><span>${alerts.length} open</span></div></div>
+              <div class="panel-body record-list">
+                ${alerts.map(renderAlertCard).join("")}
+              </div>
+            </article>`
+          : ""
+      }
+
       <section class="metric-strip" aria-label="Project detail metrics">
         <div class="metric">
           <p class="eyebrow">Site events</p>
@@ -7539,11 +7567,21 @@ function renderProjectDetail() {
             </div>
             <div class="panel-body">
               ${projectTypeNote ? `<p class="help-text">${escapeHtml(projectTypeNote)}</p>` : ""}
-              ${pendingRequests.length ? `<p class="help-text">${pendingRequests.length} job request${pendingRequests.length === 1 ? "" : "s"} waiting in dispatch intake for review.</p>` : ""}
+              ${
+                // Gap item "Planning-stage projects should support multiple independently-schedulable
+                // dispatches" — creating another job request here already worked at any project stage
+                // (the "New job request" button above has no stage gate), but a pending request that
+                // hadn't been converted into a dispatch job yet had no visible "needs scheduling" state
+                // of its own — only a one-line count. Each pending request now renders as its own card
+                // with an explicit "Needs scheduling" badge and a direct path to create its job.
+                pendingRequests.length
+                  ? `<div class="record-list">${pendingRequests.map(renderPendingJobRequestCard).join("")}</div>`
+                  : ""
+              }
               <div class="record-list">
                 ${activeDispatchJobs.map(renderProjectDispatchJobCard).join("")}
                 ${completedDispatchJobs.map(renderProjectDispatchJobCard).join("")}
-                ${projectDispatchJobs.length ? "" : `<div class="empty-state">No dispatch jobs yet. Push a job request to send this project's work to dispatch.</div>`}
+                ${projectDispatchJobs.length || pendingRequests.length ? "" : `<div class="empty-state">No dispatch jobs yet. Push a job request to send this project's work to dispatch.</div>`}
               </div>
             </div>
           </article>
@@ -7647,6 +7685,24 @@ function renderProjectBillingPanel(job) {
         </dl>
         ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
         <p class="help-text">Waste-disposal cost tracking (permits, disposal manifests) is not included — that's Phase 11/Field Ops Depth scope, not yet built.</p>
+      </div>
+    </article>
+  `;
+}
+
+function renderPendingJobRequestCard(request) {
+  const canConvert = !request.convertedJobId && !["Converted", "Needs information", "Declined", "Cancelled"].includes(request.status);
+  return `
+    <article class="dispatch-board-card project-dispatch-card">
+      <div class="dispatch-card-head">
+        <span class="job-number">${escapeHtml(request.requestNumber || "Job request")}</span>
+        <span class="risk-badge medium">Needs scheduling</span>
+      </div>
+      <strong>${escapeHtml(request.description || request.serviceCategory || "Untitled request")}</strong>
+      <span>${escapeHtml(request.serviceCategory || "")} · ${escapeHtml(request.requestedTimeText || "No preferred time set")}</span>
+      <div class="dispatch-card-time">
+        <span>${escapeHtml(request.status)}</span>
+        ${canConvert ? `<button class="mini-button" type="button" data-action="convert-job-request" data-id="${escapeAttribute(request.id)}">Create job</button>` : ""}
       </div>
     </article>
   `;
@@ -7863,7 +7919,7 @@ function renderSampleDetail() {
 }
 
 function renderOperationsScheduled() {
-  const scheduledJobs = state.projects.filter((job) => job.jobClass === "Scheduled Work" && job.status !== "Complete");
+  const scheduledJobs = state.projects.filter((job) => job.jobClass === "Scheduled Work" && isActiveProject(job));
   const scheduledOpen = getScheduleEvents().filter((work) => work.status !== "Complete");
 
   app.innerHTML = `
@@ -7899,7 +7955,7 @@ function renderOperationsScheduled() {
 }
 
 function renderOperationsEmergency() {
-  const emergencyJobs = state.projects.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete");
+  const emergencyJobs = state.projects.filter((job) => job.jobClass === "Emergency Response" && isActiveProject(job));
   const emergencyAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved" && emergencyJobs.some((job) => job.id === alert.projectId));
 
   app.innerHTML = `
@@ -7930,7 +7986,7 @@ function renderOperationsEmergency() {
 }
 
 function renderOperationsRemediation() {
-  const remediationJobs = state.projects.filter((job) => job.jobClass === "Multi-Stage Remediation" && job.status !== "Complete");
+  const remediationJobs = state.projects.filter((job) => job.jobClass === "Multi-Stage Remediation" && isActiveProject(job));
 
   app.innerHTML = `
     <section class="view">
@@ -7992,10 +8048,10 @@ function renderOperationsRaceTrack() {
 
 function renderOperationsMetrics() {
   const activeAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved");
-  const activeEmergency = state.projects.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete").length;
+  const activeEmergency = state.projects.filter((job) => job.jobClass === "Emergency Response" && isActiveProject(job)).length;
   const maintenanceHolds = equipmentAssets.filter((asset) => asset.status === "Maintenance hold").length;
   const lowConsumables = getConsumableStatus().filter((item) => item.status !== "Healthy").length;
-  const activeProjectCount = state.projects.filter((job) => job.status !== "Complete").length;
+  const activeProjectCount = state.projects.filter((job) => isActiveProject(job)).length;
 
   return `
     <section class="metric-strip" aria-label="Operations metrics">
@@ -8653,13 +8709,13 @@ function renderMapPopup(marker) {
 
 function renderOperationsLegacy() {
   const jobClasses = ["Scheduled Work", "Emergency Response", "Multi-Stage Remediation"];
-  const activeProjects = state.projects.filter((job) => job.status !== "Complete");
+  const activeProjects = state.projects.filter((job) => isActiveProject(job));
   const jobs =
     state.operationsFilter === "All"
       ? activeProjects
       : activeProjects.filter((job) => job.jobClass === state.operationsFilter);
   const activeAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved");
-  const activeEmergency = state.projects.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete").length;
+  const activeEmergency = state.projects.filter((job) => job.jobClass === "Emergency Response" && isActiveProject(job)).length;
   const loggedMaterialCount = state.materialUsage.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
   app.innerHTML = `
@@ -8827,6 +8883,11 @@ function renderAlertCard(alert) {
         <span>${escapeHtml(alert.reportedBy)}</span>
         <span>${formatDate(alert.reportedAt)}</span>
       </div>
+      ${
+        alert.status !== "Resolved"
+          ? `<menu class="modal-actions compact"><button class="mini-button" type="button" data-action="resolve-alert" data-id="${escapeAttribute(alert.id)}">Resolve alert</button></menu>`
+          : ""
+      }
     </article>
   `;
 }
@@ -10275,6 +10336,16 @@ function renderDispatchJobSummaryTab(job, readiness) {
 
 function renderDispatchJobDetailsTab(job) {
   const request = getJobRequests().find((item) => item.id === job.jobRequestId);
+  // Gap item "equipment/labor/vendor ordered on the sales side are hidden from dispatch" — the job
+  // request already captures equipmentNotes/laborNotes/vendorNotes at intake, and a project (when one
+  // exists) can carry opportunity-era labor/vendor assignments (projectAssignmentsForJob), but neither
+  // ever surfaced anywhere past request intake. convertJobRequest() now copies the notes onto the
+  // dispatchJobs record itself so they survive even if the source request is later archived.
+  const project = job.projectId ? findProject(job.projectId) : null;
+  const salesAssignments = project?.opportunityId ? assignmentsForOpportunity(project.opportunityId) : [];
+  const equipmentNotes = job.equipmentNotes || request?.equipmentNotes || "";
+  const laborNotes = job.laborNotes || request?.laborNotes || "";
+  const vendorNotes = job.vendorNotes || request?.vendorNotes || "";
   return `
     <section class="crm-profile-grid">
       <article class="panel">
@@ -10289,6 +10360,35 @@ function renderDispatchJobDetailsTab(job) {
             <div><dt>Customer PO</dt><dd>${escapeHtml(job.customerPoNumber || "Not provided")}</dd></div>
             <div><dt>Request</dt><dd>${escapeHtml(request?.requestNumber || "Direct job")} · ${escapeHtml(request?.receivedBy || "Internal")}</dd></div>
           </dl>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-header"><h3>Ordered at intake / planning</h3><span>What sales or planning already lined up for this job</span></div>
+        <div class="panel-body">
+          <dl class="detail-list job-overview-list">
+            <div><dt>Equipment</dt><dd>${escapeHtml(equipmentNotes || "None noted")}</dd></div>
+            <div><dt>Labor</dt><dd>${escapeHtml(laborNotes || "None noted")}</dd></div>
+            <div><dt>Vendor</dt><dd>${escapeHtml(vendorNotes || "None noted")}</dd></div>
+          </dl>
+          ${
+            salesAssignments.length
+              ? `<div class="record-list">${salesAssignments
+                  .map(
+                    (entry) => `
+                      <article class="detail-card">
+                        <strong>${escapeHtml(entry.name)}</strong>
+                        <div class="row-meta">
+                          <span>${escapeHtml(entry.type)}</span>
+                          <span>${escapeHtml(entry.assignedRole || "No role set")}</span>
+                          <span>${escapeHtml(entry.status)}</span>
+                        </div>
+                      </article>
+                    `,
+                  )
+                  .join("")}</div>`
+              : `<p class="help-text">No labor or vendor resources assigned during the sales/opportunity stage.</p>`
+          }
         </div>
       </article>
     </section>
@@ -10479,13 +10579,18 @@ function renderReadinessCheck(check) {
 
 function renderJobAssignment(assignment) {
   const employee = findEmployee(assignment.employeeId);
+  // Eligibility is recomputed live from the employee's current certifications on every render
+  // (see computeAssignmentEligibility) rather than trusted from the stale snapshot stored on the
+  // assignment record at assign time — see phase doc corrections for why.
+  const eligibility = computeAssignmentEligibility(assignment.employeeId);
   return `
     <article class="job-assignment-row">
       <button type="button" data-action="view-employee" data-id="${assignment.employeeId}">
         <span class="person-avatar">${escapeHtml(getInitials(employee?.displayName, "BR"))}</span>
         <span><strong>${escapeHtml(employee?.displayName || "Unknown")}</strong><small>${escapeHtml(assignment.role)} · ${escapeHtml(assignment.status)}</small></span>
-        <span class="risk-badge ${getReadinessTone(assignment.eligibilityStatus)}">${escapeHtml(assignment.eligibilityStatus)}</span>
+        <span class="risk-badge ${getReadinessTone(eligibility.status)}" title="${escapeAttribute(eligibility.note || "No eligibility issues")}">${escapeHtml(eligibility.status)}</span>
       </button>
+      ${eligibility.note ? `<p class="help-text assignment-eligibility-note">${escapeHtml(eligibility.note)}</p>` : ""}
       <button class="mini-button" type="button" data-action="unassign-job-employee" data-id="${escapeAttribute(assignment.id)}">Unassign</button>
     </article>
   `;
@@ -10526,6 +10631,11 @@ function renderCompactJobConflict(conflict) {
       <div class="inline-actions"><span class="risk-badge ${getReadinessTone(conflict.severity)}">${escapeHtml(conflict.severity)}</span><span>${escapeHtml(conflict.status)}</span></div>
       <strong>${escapeHtml(conflict.title)}</strong>
       <span>${escapeHtml(conflict.detail)}</span>
+      ${
+        conflict.status === "Open"
+          ? `<button class="mini-button" type="button" data-action="acknowledge-job-conflict" data-id="${escapeAttribute(conflict.id)}">Acknowledge / Recheck</button>`
+          : ""
+      }
     </article>
   `;
 }
@@ -11184,7 +11294,7 @@ function renderOfficeManager() {
           <div class="panel-header"><h3>Workspace status</h3></div>
           <div class="panel-body status-grid">
             ${renderWorkspaceStatusCard("Sales", `${state.opportunities.length} opportunities`, "Pipeline and accounts active")}
-            ${renderWorkspaceStatusCard("Operations", `${state.projects.filter((job) => job.status !== "Complete").length} jobs`, "Schedule, map, and race track active")}
+            ${renderWorkspaceStatusCard("Operations", `${state.projects.filter((job) => isActiveProject(job)).length} jobs`, "Schedule, map, and race track active")}
             ${renderWorkspaceStatusCard("Inventory", `${consumables.length} consumables`, "Stock, equipment, labor active")}
             ${renderWorkspaceStatusCard("Finance", money(financeSummary.quoted), "Quotes and invoice prep active")}
           </div>
@@ -11401,7 +11511,7 @@ function renderClientDashboard() {
   cleanupProjectDetailVisuals();
   const account = getClientAccount();
   const jobs = getClientVisibleJobs();
-  const activeJobs = jobs.filter((job) => job.status !== "Complete");
+  const activeJobs = jobs.filter((job) => isActiveProject(job));
   const alerts = getClientVisibleAlerts();
   const samples = getClientVisibleSamples();
   const schedule = getClientVisibleSchedule().slice(0, 4);
@@ -11741,8 +11851,8 @@ function renderClientSpillDetail() {
 }
 
 function renderClientMetrics(jobs, alerts, samples) {
-  const active = jobs.filter((job) => job.status !== "Complete").length;
-  const emergency = jobs.filter((job) => job.jobClass === "Emergency Response" && job.status !== "Complete").length;
+  const active = jobs.filter((job) => isActiveProject(job)).length;
+  const emergency = jobs.filter((job) => job.jobClass === "Emergency Response" && isActiveProject(job)).length;
   const documents = getClientVisibleSpatialData().length;
 
   return `
@@ -14777,7 +14887,7 @@ async function saveScheduleEvent(form) {
   const data = new FormData(form);
   const equipmentAssetTag = data.get("equipmentAssetTag").toString();
   const laborResourceId = data.get("laborResourceId").toString();
-  const requiredCertification = data.get("requiredCertification").toString().trim();
+  const requiredCertifications = Array.from(form.querySelector("select[name='requiredCertifications']")?.selectedOptions || []).map((option) => option.value);
   const record = {
     projectId: data.get("projectId").toString(),
     title: data.get("title").toString().trim(),
@@ -14785,7 +14895,7 @@ async function saveScheduleEvent(form) {
     crew: data.get("crew").toString().trim(),
     equipmentAssetTags: equipmentAssetTag ? [equipmentAssetTag] : [],
     laborResourceIds: laborResourceId ? [laborResourceId] : [],
-    requiredCertifications: requiredCertification ? [requiredCertification] : [],
+    requiredCertifications,
     status: "Scheduled",
   };
 
@@ -15335,6 +15445,11 @@ async function convertJobRequest(requestId, templateId = "") {
     bioremedyPoNumber: request.bioremedyPoNumber,
     pricingSource: request.pricingNotes,
     description: request.description,
+    // Carried forward so dispatch can see what was already ordered/planned at intake instead of it
+    // being stranded on the request record (item 8 fix — see renderDispatchJobDetailsTab).
+    equipmentNotes: request.equipmentNotes || "",
+    laborNotes: request.laborNotes || "",
+    vendorNotes: request.vendorNotes || "",
     readinessStatus: "Blocked",
     completionPercent: 0,
     updatedAt: new Date().toISOString(),
@@ -15515,15 +15630,27 @@ async function saveDispatchSchedule(form) {
     }
 
     if (eligibilityStatus === "Blocked") {
-      await saveBackendRecord("jobConflicts", {
-        id: makeId("conflict"),
-        jobId: job.id,
-        type: "Expired certification",
-        severity: "Blocking",
-        status: "Open",
-        title: `${fieldLead.displayName} is not dispatch eligible`,
-        detail: "Resolve the worker credential block or assign a different field lead.",
-      });
+      // Linking assignmentId lets conflictsForDispatchJob() auto-clear this the moment the field
+      // lead's certification is actually renewed (see item 5/6 fix), instead of it sitting "Open"
+      // forever until someone finds the manual Acknowledge button. Also dedupe against an
+      // already-open conflict for the same assignment so re-saving the schedule dialog while still
+      // blocked doesn't pile up duplicate conflict rows.
+      const fieldLeadAssignment = getJobAssignments().find((assignment) => assignment.jobId === job.id && assignment.employeeId === fieldLead.id);
+      const alreadyOpen = getJobConflicts().some(
+        (conflict) => conflict.jobId === job.id && conflict.assignmentId === fieldLeadAssignment?.id && conflict.status === "Open" && conflict.type === "Expired certification",
+      );
+      if (!alreadyOpen) {
+        await saveBackendRecord("jobConflicts", {
+          id: makeId("conflict"),
+          jobId: job.id,
+          assignmentId: fieldLeadAssignment?.id || "",
+          type: "Expired certification",
+          severity: "Blocking",
+          status: "Open",
+          title: `${fieldLead.displayName} is not dispatch eligible`,
+          detail: "Resolve the worker credential block or assign a different field lead.",
+        });
+      }
     }
 
     closeDialogs();
@@ -15575,6 +15702,23 @@ async function saveDispatchAssignEmployee(form) {
     showToast("Employee assigned to job.");
   } catch (error) {
     showToast(error.message || "Employee could not be assigned.");
+  }
+}
+
+// Gap item "Projects with alerts have no way to resolve them" — project/account alert cards
+// (renderAlertCard) previously only ever displayed status, with no write path anywhere in the app
+// to move an alert out of "Open". saveProjectAlert() only ever created new alerts. This is the one
+// function that flips status to "Resolved" so the alert stops counting against active-alert badges
+// and drops off every `alert.status !== "Resolved"` filtered list across the app.
+async function resolveProjectAlert(alertId) {
+  const alert = (state.backend.projectAlerts || []).find((item) => item.id === alertId);
+  if (!alert) return;
+  try {
+    await saveBackendRecord("projectAlerts", { ...alert, status: "Resolved", resolvedAt: new Date().toISOString(), resolvedBy: state.currentUser?.name || "Local user" });
+    render();
+    showToast("Alert resolved.");
+  } catch (error) {
+    showToast(error.message || "Alert could not be resolved.");
   }
 }
 
@@ -19298,11 +19442,34 @@ function openEquipmentDialog(jobId = "") {
   dialog.showModal();
 }
 
+// Gap item "Required Certifications forces a single check instead of a lookup" — the schedule
+// dialog used to have one free-text "Required certification" input, which read as a hard pass/fail
+// gate on a single typed value with no relationship to what certifications actually exist in the
+// system. Replaced with a multi-select lookup of every distinct certification name/code on record
+// (from employeeCertifications, falling back to a curated list so the field isn't empty before any
+// credentials exist) so scheduling can flag several potentially-relevant certs without forcing a
+// single hard check.
+const FALLBACK_CERTIFICATION_OPTIONS = ["HAZWOPER", "OSHA 10", "OSHA 30", "Asbestos Abatement", "Confined Space Entry", "CDL", "First Aid/CPR", "Respirator Fit Test"];
+
+function populateCertificationMultiSelect(root, selected = []) {
+  const select = root.querySelector("select[name='requiredCertifications']");
+  if (!select) return;
+  const known = new Set(FALLBACK_CERTIFICATION_OPTIONS);
+  getEmployeeCertifications().forEach((record) => {
+    const label = (record.name || record.code || "").trim();
+    if (label) known.add(label);
+  });
+  selected.forEach((value) => known.add(value));
+  const options = [...known].sort((a, b) => a.localeCompare(b));
+  select.innerHTML = options.map((value) => `<option value="${escapeAttribute(value)}" ${selected.includes(value) ? "selected" : ""}>${escapeHtml(value)}</option>`).join("");
+}
+
 function openScheduleDialog(jobId = "") {
   const dialog = document.querySelector("#scheduleDialog");
   populateProjectSelect(dialog);
   populateEquipmentAssetSelect(dialog);
   populateLaborResourceSelect(dialog);
+  populateCertificationMultiSelect(dialog);
   dialog.querySelector("input[name='date']").value = todayIso();
   if (jobId) dialog.querySelector("select[name='projectId']").value = jobId;
   dialog.showModal();
@@ -21503,6 +21670,38 @@ function certificationsForEmployee(employeeId) {
     .sort((a, b) => credentialPriority(a.status) - credentialPriority(b.status) || parseDate(a.expiresOn) - parseDate(b.expiresOn));
 }
 
+// Gap items "dispatch eligibility warning has no context" and "fixing the cert doesn't clear the
+// warning without remove/re-add" — `jobAssignments.eligibilityStatus`/`eligibilityNote` used to be
+// computed once (from `employee.readinessStatus`) at the moment a worker was scheduled or assigned,
+// then frozen on the assignment record forever. If the underlying certification was later renewed
+// (or later expired), nothing ever recomputed it — the only way to refresh it was to unassign and
+// reassign the worker, regenerating the snapshot. This is the one place eligibility should be asked
+// from: it re-derives live off the employee's *current* certifications every time it's called (from
+// render, not from a cached field), and names the specific certification and status causing it.
+function computeAssignmentEligibility(employeeId) {
+  const employee = findEmployee(employeeId);
+  if (!employee) return { status: "Blocked", note: "Employee record not found." };
+  const credentials = certificationsForEmployee(employeeId);
+  const blocking = credentials.find((item) => ["Expired", "Suspended", "Revoked"].includes(item.status));
+  if (blocking) {
+    return {
+      status: "Blocked",
+      note: `${blocking.name || blocking.code || "Credential"} is ${blocking.status.toLowerCase()}${blocking.expiresOn ? ` (expired ${formatDate(blocking.expiresOn)})` : ""}.`,
+    };
+  }
+  const expiring = credentials.find((item) => item.status === "Expiring");
+  if (expiring) {
+    return {
+      status: "Warning",
+      note: `${expiring.name || expiring.code || "Credential"} is expiring${expiring.expiresOn ? ` on ${formatDate(expiring.expiresOn)}` : ""}.`,
+    };
+  }
+  if (!employee.dispatchEligible) {
+    return { status: "Warning", note: "Employee is not marked dispatch-eligible." };
+  }
+  return { status: "Eligible", note: "" };
+}
+
 function getWorkforceTeams() {
   return state.backend.workforceTeams || [];
 }
@@ -21701,7 +21900,38 @@ function getJobConflicts() {
 }
 
 function conflictsForDispatchJob(jobId) {
-  return getJobConflicts().filter((conflict) => conflict.jobId === jobId);
+  // Gap item "exceptions panel keeps listing a cert block after the cert was fixed" — an "Expired
+  // certification" conflict was written once (saveDispatchScheduleWork) when a worker's credential was
+  // blocking, then never re-evaluated. If that worker's credential was later renewed, the conflict
+  // record just sat there forever with status "Open", still showing "blocked" in the UI. Rather than
+  // wait for someone to notice and manually acknowledge it, auto-clear it here the moment the
+  // underlying cause (the assignment's live eligibility) is no longer Blocked — this is the "ideally
+  // recompute live" half of the fix. The explicit "Acknowledge / Recheck" action (below) remains as
+  // the fallback for conflict types that don't derive from a single assignment's cert status.
+  return getJobConflicts()
+    .filter((conflict) => conflict.jobId === jobId)
+    .filter((conflict) => {
+      if (conflict.status !== "Open" || conflict.type !== "Expired certification" || !conflict.assignmentId) return true;
+      const assignment = getJobAssignments().find((item) => item.id === conflict.assignmentId);
+      if (!assignment) return true;
+      return computeAssignmentEligibility(assignment.employeeId).status === "Blocked";
+    });
+}
+
+// Manual fallback for exceptions that don't self-clear from conflictsForDispatchJob's live recheck
+// (e.g. the underlying assignment was removed, or the conflict isn't cert-derived at all) — lets
+// ops explicitly acknowledge a stale exception and unblock the job rather than being stuck with no
+// path forward.
+async function acknowledgeJobConflict(conflictId) {
+  const conflict = getJobConflicts().find((item) => item.id === conflictId);
+  if (!conflict) return;
+  try {
+    await saveBackendRecord("jobConflicts", { ...conflict, status: "Resolved", resolvedAt: new Date().toISOString(), resolvedBy: state.currentUser?.name || "Local user" });
+    render();
+    showToast("Exception acknowledged and cleared.");
+  } catch (error) {
+    showToast(error.message || "Exception could not be acknowledged.");
+  }
 }
 
 function stepsForDispatchJob(jobId) {
@@ -21739,6 +21969,15 @@ function getFilteredDispatchJobs() {
 
 function isTerminalDispatchStatus(status) {
   return ["closed", "cancelled"].includes(status);
+}
+
+// Gap item "Closed projects should drop out of the active feed" — every "active jobs" filter across
+// the Operations applet checked `job.status !== "Complete"`, but closeProject() (Phase 09) never sets
+// `status` to "Complete" at all — it only stamps `closedAt`. That mismatch meant a fully closed project
+// (closedAt set, cost report generated) still passed every one of those filters and kept showing up in
+// the active feed forever. This is the one place "is this project still active" should be asked from.
+function isActiveProject(project) {
+  return !project?.closedAt;
 }
 
 function frontlineJobRegion(job) {
@@ -21810,7 +22049,11 @@ function getJobReadiness(job) {
   const resources = resourcesForDispatchJob(job.id);
   const conflicts = conflictsForDispatchJob(job.id).filter((conflict) => conflict.status === "Open");
   const blocking = conflicts.filter((conflict) => conflict.severity === "Blocking");
-  const workersBlocked = assignments.filter((assignment) => ["Blocked"].includes(assignment.eligibilityStatus));
+  // Live eligibility per assignment (computeAssignmentEligibility), not the stale stored
+  // `assignment.eligibilityStatus` snapshot — see item 5/6 corrections: a worker whose expired
+  // credential gets renewed after being assigned must unblock the job without a remove/re-add.
+  const liveEligibility = assignments.map((assignment) => computeAssignmentEligibility(assignment.employeeId));
+  const workersBlocked = liveEligibility.filter((eligibility) => eligibility.status === "Blocked");
   const checks = [
     {
       label: "Job type version",
@@ -21824,8 +22067,12 @@ function getJobReadiness(job) {
     },
     {
       label: "Worker assignments",
-      status: assignments.length ? (workersBlocked.length ? "Block" : assignments.some((assignment) => assignment.eligibilityStatus === "Warning") ? "Warning" : "Pass") : "Block",
-      detail: assignments.length ? `${assignments.length} workers assigned` : "No employees assigned",
+      status: assignments.length ? (workersBlocked.length ? "Block" : liveEligibility.some((eligibility) => eligibility.status === "Warning") ? "Warning" : "Pass") : "Block",
+      detail: assignments.length
+        ? workersBlocked.length
+          ? workersBlocked.map((eligibility) => eligibility.note).join(" ")
+          : `${assignments.length} workers assigned`
+        : "No employees assigned",
     },
     {
       label: "Resources",

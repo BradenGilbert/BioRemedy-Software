@@ -1745,8 +1745,9 @@
           </label>
         </div>
         <label>
-          Required certification
-          <input name="requiredCertification" maxlength="80" placeholder="HAZWOPER" />
+          Required certifications
+          <select name="requiredCertifications" multiple size="4"></select>
+          <small class="help-text">Select every certification that could be relevant — this is a lookup of what's available, not a hard pass/fail gate on the crew.</small>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>

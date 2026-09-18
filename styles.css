@@ -4105,11 +4105,19 @@ textarea {
 
 .job-assignment-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 9px;
   border: 0;
   border-bottom: 1px solid var(--border);
   padding: 0 0 9px;
+}
+
+/* Live eligibility context note (item 6) — always takes its own full-width row under the
+   assignment/unassign buttons rather than squeezing into the flex row as a third inline item. */
+.job-assignment-row > .assignment-eligibility-note {
+  flex-basis: 100%;
+  margin: -4px 0 0 47px;
 }
 
 .job-assignment-row:last-child {
