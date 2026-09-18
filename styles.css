@@ -2879,11 +2879,19 @@ textarea {
   margin-bottom: 10px;
 }
 
-.doc-line-row {
+.doc-line-row,
+.doc-line-items-header {
   display: grid;
-  grid-template-columns: 1.6fr 1.6fr 0.7fr 0.9fr 0.9fr 0.9fr auto;
+  grid-template-columns: 1.6fr 1.6fr 0.7fr 0.9fr 0.9fr 0.9fr 0.6fr auto;
   gap: 8px;
   align-items: center;
+}
+
+.doc-line-items-header {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted-text, #6b7684);
+  padding: 0 2px;
 }
 
 .doc-line-row .doc-line-total {
@@ -2891,8 +2899,12 @@ textarea {
   text-align: right;
 }
 
+.doc-line-row .doc-line-optional {
+  justify-self: center;
+}
+
 .doc-total-field {
-  max-width: 260px;
+  max-width: 320px;
   margin-left: auto;
 }
 
@@ -2901,10 +2913,19 @@ textarea {
 }
 
 @media (max-width: 720px) {
-  .doc-line-row {
+  .doc-line-row,
+  .doc-line-items-header {
     grid-template-columns: 1fr 1fr;
   }
+
+  .doc-line-items-header {
+    display: none;
+  }
 }
+
+/* Print-friendly quote/estimate view (Phase 08 follow-up): styled inline in the generated print
+   window's own <style> tag in renderPrintableDocHtml() (app.js) rather than here, so that window
+   is self-contained and doesn't inherit the app shell's background/theme. */
 
 .check-grid {
   display: grid;

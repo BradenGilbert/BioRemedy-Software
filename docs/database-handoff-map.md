@@ -356,6 +356,24 @@ gain its own `quoteId`/`estimateId` -- the opportunity->document link is transit
 from whichever document was current then, not a live pointer that would need its own FK. See
 `docs/roadmap/phase-08-quotes-estimates.md` for the full writeup.
 
+**Phase 08 live-bug-report follow-up (2026-09-17)** added fields to `quotes` and `estimates`
+(same shape on both): `notes` (free text, internal/customer notes shown on the print view),
+`billingAddressId` and `shippingAddressId` (FKs into the existing `addresses` collection, same
+`populateAddressSelect()` pattern already used by service agreements/subcontractor assignments --
+no new address types were invented). `quoteLines`/`estimateLines` gained `isOptional` (boolean) --
+a write-in line the customer can accept or decline, excluded from `totalAmount` until picked, shown
+separately on the print view under "Optional / write-in options." No new collections. Also fixed:
+`opportunities.quoteId`/`estimateId` ("Current") could previously only be set automatically by
+saving a quote/estimate (new record, or first one ever attached) -- there was no way to switch
+"Current" back to an older document once a newer one existed. Added `markQuoteCurrent()`/
+`markEstimateCurrent()` in `app.js` plus a "Mark current" button on any non-current quote/estimate
+in the opportunity's Proposal & Documents tab. Also added print/export: `printOpportunityQuote()`/
+`printOpportunityEstimate()` open a new browser tab with a print-formatted view (account, site,
+billing/shipping address, required line items + total, optional/write-in lines, notes) and a
+"Print / Save as PDF" button -- browser print-to-PDF, no new PDF library. See
+`docs/roadmap/phase-08-quotes-estimates.md`'s "Live bug report follow-up" section for the full
+writeup.
+
 **Phase 07 live-bug-report follow-up (2026-09-17, second session)** added a handful of small fields
 while fixing 8 owner-reported live bugs in the Dispatch/Operations area; no new collections. `projectAlerts`
 and `jobConflicts` both gained `resolvedAt` / `resolvedBy` (both records previously had a `status` field

@@ -640,14 +640,39 @@
             <select name="priceLevelId" data-doc-price-level></select>
           </label>
         </div>
+        <div class="form-grid">
+          <label>
+            Billing address
+            <select name="billingAddressId"></select>
+          </label>
+          <label>
+            Shipping address
+            <select name="shippingAddressId"></select>
+          </label>
+        </div>
         <fieldset class="doc-line-items-fieldset">
           <legend>Line items</legend>
+          <div class="doc-line-items doc-line-items-header">
+            <span>Product</span>
+            <span>Description</span>
+            <span>Qty</span>
+            <span>Unit</span>
+            <span>Rate</span>
+            <span>Line total</span>
+            <span>Option</span>
+            <span></span>
+          </div>
           <div class="doc-line-items" data-line-container></div>
           <button class="mini-button" type="button" data-action="add-doc-line">Add line</button>
+          <p class="help-text">Check "Option" for a write-in choice the customer can accept or decline — it prints separately and is not included in the total.</p>
         </fieldset>
         <label class="doc-total-field">
-          Total amount (computed)
+          Total amount (computed, required lines only)
           <input name="totalAmount" type="number" readonly data-doc-total />
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="3" placeholder="Internal or customer-facing notes for this quote"></textarea>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
@@ -694,14 +719,39 @@
             <select name="priceLevelId" data-doc-price-level></select>
           </label>
         </div>
+        <div class="form-grid">
+          <label>
+            Billing address
+            <select name="billingAddressId"></select>
+          </label>
+          <label>
+            Shipping address
+            <select name="shippingAddressId"></select>
+          </label>
+        </div>
         <fieldset class="doc-line-items-fieldset">
           <legend>Line items</legend>
+          <div class="doc-line-items doc-line-items-header">
+            <span>Product</span>
+            <span>Description</span>
+            <span>Qty</span>
+            <span>Unit</span>
+            <span>Rate</span>
+            <span>Line total</span>
+            <span>Option</span>
+            <span></span>
+          </div>
           <div class="doc-line-items" data-line-container></div>
           <button class="mini-button" type="button" data-action="add-doc-line">Add line</button>
+          <p class="help-text">Check "Option" for a write-in choice the customer can accept or decline — it prints separately and is not included in the total.</p>
         </fieldset>
         <label class="doc-total-field">
-          Total amount (computed)
+          Total amount (computed, required lines only)
           <input name="totalAmount" type="number" readonly data-doc-total />
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="3" placeholder="Internal or customer-facing notes for this estimate"></textarea>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>

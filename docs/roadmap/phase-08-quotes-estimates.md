@@ -1,6 +1,6 @@
 # Phase 08 — Quotes & Estimates
 
-**Status:** 🟢 **Shipped 2026-09-17.** Real line-item builder built and reconnected for both Quote and Estimate (now two genuinely separate documents/collections, per owner decision). Rate-card admin screen built (products, units of measure, price levels) and confirmed to be the same data Phase 04's vendor-compliance and service-agreement panels already read via `populatePriceLevelSelect`. Item 3 (project value defaults from quote/estimate) implemented and verified live for all three cases: quote-present, estimate-only, and neither. Item 4 (reusable "+Create" wiring) intentionally skipped — see below. All verified live via Playwright except the Phase 04 vendor-compliance/service-agreement read-path, which was confirmed by code trace (both dialogs already call `populatePriceLevelSelect(dialog, "priceLevelId")` against `state.backend.priceLevels`, the same collection the new admin screen edits) rather than a fresh UI click-through, since Phase 04 built no new UI this session.
+**Status:** 🟢 **Shipped 2026-09-17. Live bug report follow-up shipped 2026-09-17 (second session)** — explicit "Mark current" override, print/export, notes, billing/shipping address, and write-in options. See "Live bug report follow-up" below. Real line-item builder built and reconnected for both Quote and Estimate (now two genuinely separate documents/collections, per owner decision). Rate-card admin screen built (products, units of measure, price levels) and confirmed to be the same data Phase 04's vendor-compliance and service-agreement panels already read via `populatePriceLevelSelect`. Item 3 (project value defaults from quote/estimate) implemented and verified live for all three cases: quote-present, estimate-only, and neither. Item 4 (reusable "+Create" wiring) intentionally skipped — see below. All verified live via Playwright except the Phase 04 vendor-compliance/service-agreement read-path, which was confirmed by code trace (both dialogs already call `populatePriceLevelSelect(dialog, "priceLevelId")` against `state.backend.priceLevels`, the same collection the new admin screen edits) rather than a fresh UI click-through, since Phase 04 built no new UI this session.
 **Depends on:** Phase 06 (Proposal & Documents tab already has the stub this phase replaces)
 **Note:** this phase builds the rate/pricing foundation — Phase 04's own rate-card items (7, 13, 14) depend on *this* phase, not the other way around. Sequence Phase 08 before those specific Phase 04 items.
 **Estimated sessions:** 3–4
@@ -89,6 +89,110 @@ Update `docs/database-handoff-map.md` once the line-item shape is finalized.
 - **Does `projects` need its own `quoteId`/`estimateId`?** **No — traceable transitively through `opportunityId`.** A project already carries `opportunityId`; the opportunity carries `quoteId`/`estimateId` for whichever document is "current." Adding a second FK on `projects` would just duplicate that pointer and risk drifting from it if the opportunity's current document changes after the project is created. The project's `budget` is still set once, at creation time, from whichever document's total was current then (see item 3) — that's a value snapshot, not a live link, which is consistent with how `budget` already behaved before this phase (a manually-typed snapshot of `opportunity.amount`).
 
 ---
+
+## Live bug report follow-up — 2026-09-17 (second session)
+
+The owner reported two live issues after using the quote/estimate builder this phase shipped.
+Both were reproduced against running code before fixing, per this phase doc's own rule.
+
+1. **"When pushing a sales quote, the current badge is just awarded to the most recent quote on a
+   quote. There is no way to print or export the quote."** Confirmed both halves:
+   - **(a) "Current" was purely automatic, no override.** Traced `saveOpportunityQuote()`/
+     `saveOpportunityEstimate()`: the only place `opportunities.quoteId`/`estimateId` was ever
+     written was inside the save function itself, gated on `isNewQuote || !opportunity.quoteId`
+     (added earlier this same phase — see "Corrections" below). That condition is true for *every*
+     brand-new quote/estimate, meaning creating a new one always stole "Current" from whatever was
+     there before, with zero way to switch it back to an older document without re-saving that
+     older one (which would just make it the "newest" write and flip it right back). There was no
+     button, action, or code path anywhere that set `quoteId`/`estimateId` to an explicit user
+     choice independent of the create/edit flow. Fixed by adding `markQuoteCurrent(opportunityId,
+     quoteId)` / `markEstimateCurrent(opportunityId, estimateId)` (`app.js`) — both just call
+     `buildCoreOpportunityRecord` with the chosen id and save, no other side effects — wired to a
+     new "Mark current" button that renders on every non-current quote/estimate card in the
+     opportunity's Proposal & Documents tab (`renderOpportunityProposalDocumentsTab`). The existing
+     "Current" `<span class="tag">` still renders in place of the button once a document is current.
+   - **(b) No print/export existed anywhere.** Confirmed by grep — there was no `print`,
+     `window.print`, or PDF-related code path touching quotes/estimates before this session. Built
+     `renderPrintableDocHtml()` + `printOpportunityQuote()`/`printOpportunityEstimate()` (`app.js`):
+     a "Print" button on every quote/estimate card opens a new browser tab with a clean,
+     self-contained (inline `<style>`, no dependency on the app's own `styles.css` or its
+     background/theme) customer-presentable layout — account, site/facility, billing/shipping
+     address, effective dates, status, required line items with the document total, a separate
+     "Optional / write-in options" table for anything not included in that total, and notes — plus
+     a "Print / Save as PDF" button that calls `window.print()`. No PDF library was added; browser
+     print-to-PDF covers a prototype's needs and nothing lightweight enough was worth pulling in for
+     this.
+
+2. **"No way to add notes, billing or shipping address, or write in options."** Investigated each
+   of the three separately rather than assuming they were one gap:
+   - **Notes** — genuinely missing. Added `notes` (single free-text field, not split
+     internal/customer — the dialog doesn't yet have a concept of "customer-facing" vs. "internal"
+     anywhere else, and splitting it would be speculative scope for a field the owner described in
+     one breath) to both `quotes` and `estimates`, a `<textarea name="notes">` in both dialogs, and
+     rendered on the print view under "Notes:".
+   - **Billing/shipping address** — genuinely missing, and confirmed the right fix was a *link*, not
+     a new free-text address, per the Phase 02 Places Model (`docs/roadmap/GLOSSARY.md`): the
+     `addresses` collection already exists with an `address_type` enum including `Bill To`/`Ship
+     To`, and `populateAddressSelect(root, fieldName, accountId)` already exists and is already used
+     identically by the service-agreement and subcontractor-assignment dialogs for `billingAddressId`
+     (`app.js` — same field name reused here on purpose for consistency). Added `billingAddressId`
+     and `shippingAddressId` FKs to `quotes`/`estimates`, two `<select>`s in both dialogs populated
+     from the opportunity's account's addresses, and both render on the print view (falling back to
+     "Not set" in italics when empty, not hidden, so a customer-facing print doesn't look broken).
+     No new address types or a parallel address system were invented.
+   - **Write-in options — investigated before assuming it duplicated existing scope.** Confirmed via
+     this phase's own "What's built" section that free-text/custom *line items* already existed and
+     worked (the product `<select>` defaults to "Custom / free text" and takes a typed description).
+     So the owner's complaint could not be about that. Re-read in context, "write in options" reads
+     as the standard quoting-industry meaning: an optional add-on the customer can accept or
+     decline, distinct from the required/base line items and *excluded* from the total until picked
+     — not a duplicate of free-text lines, a genuinely different line *behavior*. Added `isOptional`
+     (boolean) to `quoteLines`/`estimateLines`, an "Option" checkbox on every line row, and changed
+     `computeDocLinesTotal()` to exclude optional lines from `totalAmount`. The print view lists
+     optional lines in their own "Optional / write-in options (not included in total above)" table
+     rather than mixing them into the priced total silently. This is additive on top of the
+     pre-existing free-text capability, not a replacement for it — a line can be both free-text
+     *and* optional at the same time.
+
+**Verified live (Playwright, `chromium.launch()` via the bundled `playwright` package under the
+Codex Node runtime, against the running dev server on port 4173):**
+
+- Opened the "UST removal and soil remediation" opportunity (`opp-riverbend-ust`, 3 seeded quotes).
+  Confirmed only one had the "Current" tag and the other two showed a "Mark current" button.
+  Clicked "Mark current" on a different quote — the tag moved to that quote and the previously
+  current one's button reappeared. Reverted this test mutation from `data/backend.json` afterward
+  (server stopped first, per the hand-edit lesson below) so the seed's original "current" pointer
+  (`quote-mu65c5a9-s1sunr`) is unchanged in committed data.
+- Clicked "Print" on a quote (`opp-mu4d3fc2-ix14uk` / "Tall Tree Test stage jump op quote") — a new
+  tab opened with the clean print layout: account (City of Georgetown), site (Old Fire Office),
+  status, effective dates, and total, with no console errors.
+- Opened that same quote's Edit dialog, confirmed the billing/shipping address `<select>`s
+  populated with all 4 of that account's real seeded addresses (Primary local, ship too testtt,
+  remit address test jeff, billy office) plus "Not set", filled in notes, selected a billing and a
+  shipping address, added a line and checked it as "Option" with a $15,000 rate — confirmed the
+  computed total field did **not** include that $15,000 while the line's own total still showed
+  "$15,000 (option)". Saved, reopened the dialog, and confirmed notes/addresses/optional-line state
+  all persisted correctly. Printed it again and confirmed the billing/shipping address text and the
+  separate "Optional / write-in options" table with the $15,000 line rendered correctly, excluded
+  from the $0 required-lines total. Reverted this test mutation from `data/backend.json` afterward
+  (this quote's real seed shape — `totalAmount: 7`, no lines/notes/addresses — was restored exactly
+  via `git diff`/`git checkout` against `HEAD`, not by hand-guessing the original values).
+- Created a brand-new, temporary second estimate on the Prairie Foods Phase II opportunity
+  (`opp-prairie-phase2`, the seeded estimate-only case) with notes, a $1,000 required line, and
+  confirmed the total computed correctly live before saving. Confirmed it became "Current"
+  automatically (pre-existing create-time behavior, unchanged by this session) and printed it,
+  confirming notes and the line rendered correctly. This test estimate and its lines were entirely
+  new records, so cleanup was a straight `git checkout HEAD -- data/backend.json` rather than a
+  field-by-field revert.
+- Confirmed zero console/page errors across all of the above, and confirmed `data/backend.json` is
+  byte-identical to `HEAD` (via `git diff HEAD -- data/backend.json`, empty) before committing — no
+  test-session data pollution shipped.
+
+**Not built:** a real PDF export library — out of scope per the task's own framing ("a real PDF
+export library is not required unless something lightweight is trivially available"); nothing
+lightweight enough was found bundled in this environment, and browser print-to-PDF meets the need.
+Customer-facing vs. internal notes were not split into two fields — investigated and judged to be
+speculative scope beyond what was reported (see above).
 
 ## Corrections found during implementation
 

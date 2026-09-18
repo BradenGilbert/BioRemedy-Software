@@ -2105,6 +2105,10 @@ async function handleClick(event) {
   if (action === "open-opportunity-negotiation") openOpportunityNegotiationDialog(id);
   if (action === "open-opportunity-quote") openOpportunityQuoteDialog(actionButton.dataset.opportunityId, id);
   if (action === "open-opportunity-estimate") openOpportunityEstimateDialog(actionButton.dataset.opportunityId, id);
+  if (action === "mark-quote-current") await markQuoteCurrent(actionButton.dataset.opportunityId, id);
+  if (action === "mark-estimate-current") await markEstimateCurrent(actionButton.dataset.opportunityId, id);
+  if (action === "print-opportunity-quote") printOpportunityQuote(actionButton.dataset.opportunityId, id);
+  if (action === "print-opportunity-estimate") printOpportunityEstimate(actionButton.dataset.opportunityId, id);
   if (action === "add-doc-line") {
     const dialog = actionButton.closest("dialog");
     const container = dialog?.querySelector("[data-line-container]");
@@ -2532,7 +2536,10 @@ function handleInputInner(event) {
     applyPriceLevelToAllLines(event.target.closest("dialog"));
     return;
   }
-  if (event.target.closest(".doc-line-row") && (event.target.matches("[data-line-quantity]") || event.target.matches("[data-line-rate]"))) {
+  if (
+    event.target.closest(".doc-line-row") &&
+    (event.target.matches("[data-line-quantity]") || event.target.matches("[data-line-rate]") || event.target.matches("[data-line-optional]"))
+  ) {
     recomputeDocTotal(event.target.closest("dialog"));
     return;
   }
@@ -3869,7 +3876,8 @@ function renderOpportunityProposalDocumentsTab(opportunity) {
                         <span>${money(Number(quote.totalAmount || 0))} &middot; ${escapeHtml(quote.statusCode || "Draft")}</span>
                       </div>
                       <div class="inline-actions">
-                        ${quote.id === opportunity.quoteId ? `<span class="tag">Current</span>` : ""}
+                        ${quote.id === opportunity.quoteId ? `<span class="tag">Current</span>` : `<button class="mini-button" type="button" data-action="mark-quote-current" data-opportunity-id="${opportunity.id}" data-id="${quote.id}">Mark current</button>`}
+                        <button class="mini-button" type="button" data-action="print-opportunity-quote" data-opportunity-id="${opportunity.id}" data-id="${quote.id}">Print</button>
                         <button class="mini-button" type="button" data-action="open-opportunity-quote" data-opportunity-id="${opportunity.id}" data-id="${quote.id}">Edit</button>
                       </div>
                     </div>
@@ -3898,7 +3906,8 @@ function renderOpportunityProposalDocumentsTab(opportunity) {
                         <span>${money(Number(estimate.totalAmount || 0))} &middot; ${escapeHtml(estimate.statusCode || "Draft")}</span>
                       </div>
                       <div class="inline-actions">
-                        ${estimate.id === opportunity.estimateId ? `<span class="tag">Current</span>` : ""}
+                        ${estimate.id === opportunity.estimateId ? `<span class="tag">Current</span>` : `<button class="mini-button" type="button" data-action="mark-estimate-current" data-opportunity-id="${opportunity.id}" data-id="${estimate.id}">Mark current</button>`}
+                        <button class="mini-button" type="button" data-action="print-opportunity-estimate" data-opportunity-id="${opportunity.id}" data-id="${estimate.id}">Print</button>
                         <button class="mini-button" type="button" data-action="open-opportunity-estimate" data-opportunity-id="${opportunity.id}" data-id="${estimate.id}">Edit</button>
                       </div>
                     </div>
@@ -17358,7 +17367,11 @@ function estimateLinesForEstimate(estimateId) {
 }
 
 function computeDocLinesTotal(lines) {
-  return lines.reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.pricePerUnit || 0), 0);
+  // Optional ("write-in option") lines are choices the customer can accept or decline — they do
+  // not count toward the document total until/unless the customer picks them.
+  return lines
+    .filter((line) => !line.isOptional)
+    .reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.pricePerUnit || 0), 0);
 }
 
 function renderDocLineRowHtml(line = {}) {
@@ -17388,6 +17401,7 @@ function renderDocLineRowHtml(line = {}) {
       </select>
       <input type="number" min="0" step="0.01" data-line-rate value="${escapeAttribute(rate)}" />
       <span class="doc-line-total" data-line-total>${money(total)}</span>
+      <input type="checkbox" class="doc-line-optional" data-line-optional title="Write-in option — customer can accept or decline; excluded from the total" ${line.isOptional ? "checked" : ""} />
       <button type="button" class="icon-button" data-action="remove-doc-line" aria-label="Remove line">&times;</button>
     </div>
   `;
@@ -17407,10 +17421,11 @@ function recomputeDocTotal(dialog) {
   rows.forEach((row) => {
     const qty = Number(row.querySelector("[data-line-quantity]")?.value || 0);
     const rate = Number(row.querySelector("[data-line-rate]")?.value || 0);
+    const isOptional = Boolean(row.querySelector("[data-line-optional]")?.checked);
     const lineTotal = qty * rate;
-    total += lineTotal;
+    if (!isOptional) total += lineTotal;
     const totalEl = row.querySelector("[data-line-total]");
-    if (totalEl) totalEl.textContent = money(lineTotal);
+    if (totalEl) totalEl.textContent = `${money(lineTotal)}${isOptional ? " (option)" : ""}`;
   });
   const totalField = dialog.querySelector("[data-doc-total]");
   if (totalField) totalField.value = total.toFixed(2);
@@ -17452,6 +17467,7 @@ function collectDocLines(dialog) {
       const pricePerUnit = Number(row.querySelector("[data-line-rate]")?.value || 0);
       const uomId = row.querySelector("[data-line-uom]")?.value || "";
       const description = row.querySelector("[data-line-description]")?.value.trim() || "";
+      const isOptional = Boolean(row.querySelector("[data-line-optional]")?.checked);
       return {
         productId,
         productName: product ? product.name : description || "Custom line",
@@ -17463,6 +17479,7 @@ function collectDocLines(dialog) {
         extendedAmount: quantity * pricePerUnit,
         manualDiscountAmount: 0,
         tax: 0,
+        isOptional,
       };
     })
     .filter((line) => line.quantity > 0 || line.pricePerUnit > 0 || line.productDescription);
@@ -17476,6 +17493,8 @@ function openOpportunityQuoteDialog(opportunityId, quoteId = "") {
   form.reset();
   form.elements.opportunityId.value = opportunityId;
   populatePriceLevelSelect(dialog, "priceLevelId");
+  populateAddressSelect(dialog, "billingAddressId", opportunity.accountId);
+  populateAddressSelect(dialog, "shippingAddressId", opportunity.accountId);
   const quote = quoteId ? quotesForOpportunity(opportunityId).find((item) => item.id === quoteId) : null;
   if (quote) {
     form.elements.id.value = quote.id;
@@ -17484,6 +17503,9 @@ function openOpportunityQuoteDialog(opportunityId, quoteId = "") {
     form.elements.effectiveFrom.value = quote.effectiveFrom || "";
     form.elements.effectiveTo.value = quote.effectiveTo || "";
     form.elements.priceLevelId.value = quote.priceLevelId || defaultPriceLevelId();
+    form.elements.billingAddressId.value = quote.billingAddressId || "";
+    form.elements.shippingAddressId.value = quote.shippingAddressId || "";
+    form.elements.notes.value = quote.notes || "";
     populateDocLineContainer(dialog, quoteLinesForQuote(quote.id));
   } else {
     form.elements.id.value = "";
@@ -17518,6 +17540,9 @@ async function saveOpportunityQuote(form) {
     stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
     effectiveFrom: data.get("effectiveFrom").toString(),
     effectiveTo: data.get("effectiveTo").toString(),
+    billingAddressId: data.get("billingAddressId")?.toString() || "",
+    shippingAddressId: data.get("shippingAddressId")?.toString() || "",
+    notes: data.get("notes")?.toString().trim() || "",
   };
 
   try {
@@ -17555,6 +17580,8 @@ function openOpportunityEstimateDialog(opportunityId, estimateId = "") {
   form.reset();
   form.elements.opportunityId.value = opportunityId;
   populatePriceLevelSelect(dialog, "priceLevelId");
+  populateAddressSelect(dialog, "billingAddressId", opportunity.accountId);
+  populateAddressSelect(dialog, "shippingAddressId", opportunity.accountId);
   const estimate = estimateId ? estimatesForOpportunity(opportunityId).find((item) => item.id === estimateId) : null;
   if (estimate) {
     form.elements.id.value = estimate.id;
@@ -17563,6 +17590,9 @@ function openOpportunityEstimateDialog(opportunityId, estimateId = "") {
     form.elements.effectiveFrom.value = estimate.effectiveFrom || "";
     form.elements.effectiveTo.value = estimate.effectiveTo || "";
     form.elements.priceLevelId.value = estimate.priceLevelId || defaultPriceLevelId();
+    form.elements.billingAddressId.value = estimate.billingAddressId || "";
+    form.elements.shippingAddressId.value = estimate.shippingAddressId || "";
+    form.elements.notes.value = estimate.notes || "";
     populateDocLineContainer(dialog, estimateLinesForEstimate(estimate.id));
   } else {
     form.elements.id.value = "";
@@ -17597,6 +17627,9 @@ async function saveOpportunityEstimate(form) {
     stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
     effectiveFrom: data.get("effectiveFrom").toString(),
     effectiveTo: data.get("effectiveTo").toString(),
+    billingAddressId: data.get("billingAddressId")?.toString() || "",
+    shippingAddressId: data.get("shippingAddressId")?.toString() || "",
+    notes: data.get("notes")?.toString().trim() || "",
   };
 
   try {
@@ -17619,6 +17652,231 @@ async function saveOpportunityEstimate(form) {
   await refreshState();
   render();
   showToast("Estimate saved.");
+}
+
+// --- Explicit "Current" override (Phase 08 live bug follow-up) -----------------------------
+//
+// Owner report: "the current badge is just awarded to the most recent quote on a quote. There is
+// no way to print or export the quote." Confirmed: opportunity.quoteId/estimateId was only ever
+// set automatically by saveOpportunityQuote/saveOpportunityEstimate (see isNewQuote/isNewEstimate
+// branches above) — there was no user-facing way to switch "Current" to an older quote/estimate
+// after a newer one was saved. These two functions are that missing manual override.
+
+async function markQuoteCurrent(opportunityId, quoteId) {
+  const opportunity = findOpportunity(opportunityId);
+  if (!opportunity) return;
+  try {
+    const updated = buildCoreOpportunityRecord({ ...opportunity, quoteId, updatedAt: new Date().toISOString() });
+    await saveBackendRecord("opportunities", updated, { refresh: false });
+    await refreshState();
+    render();
+    showToast("Marked as the current quote.");
+  } catch (error) {
+    showToast(error.message || "Could not update the current quote.");
+  }
+}
+
+async function markEstimateCurrent(opportunityId, estimateId) {
+  const opportunity = findOpportunity(opportunityId);
+  if (!opportunity) return;
+  try {
+    const updated = buildCoreOpportunityRecord({ ...opportunity, estimateId, updatedAt: new Date().toISOString() });
+    await saveBackendRecord("opportunities", updated, { refresh: false });
+    await refreshState();
+    render();
+    showToast("Marked as the current estimate.");
+  } catch (error) {
+    showToast(error.message || "Could not update the current estimate.");
+  }
+}
+
+// --- Print / export (Phase 08 live bug follow-up) -------------------------------------------
+//
+// Owner report: no way to print or export a quote/estimate. This opens a dedicated print window
+// with a clean, customer-presentable layout (header info, billing/shipping address, line items —
+// required and optional/write-in — totals, and notes) and calls window.print() on load. A real
+// PDF export library isn't available in this environment; browser print-to-PDF covers the same
+// need for a prototype.
+
+function renderPrintableDocHtml({ docType, doc, lines, opportunity, account, isCurrent }) {
+  const facility = findFacility(opportunity?.facilityId);
+  const billingAddress = doc.billingAddressId ? getAddresses().find((item) => item.id === doc.billingAddressId) : null;
+  const shippingAddress = doc.shippingAddressId ? getAddresses().find((item) => item.id === doc.shippingAddressId) : null;
+  const formatAddress = (address) =>
+    address
+      ? [address.addressName, [address.street1, address.street2].filter(Boolean).join(" "), [address.city, address.stateOrProvince, address.postalCode].filter(Boolean).join(", ")]
+          .filter(Boolean)
+          .map((line) => escapeHtml(line))
+          .join("<br />")
+      : "<em>Not set</em>";
+
+  const requiredLines = lines.filter((line) => !line.isOptional);
+  const optionalLines = lines.filter((line) => line.isOptional);
+
+  const lineRow = (line) => `
+    <tr>
+      <td>${escapeHtml(line.productName || "")}</td>
+      <td>${escapeHtml(line.productDescription || "")}</td>
+      <td class="num">${escapeHtml(line.quantity)}</td>
+      <td class="num">${money(Number(line.pricePerUnit || 0))}</td>
+      <td class="num">${money(Number(line.quantity || 0) * Number(line.pricePerUnit || 0))}</td>
+    </tr>
+  `;
+
+  const docNumber = docType === "Quote" ? doc.quoteNumber : doc.estimateNumber;
+
+  // Self-contained print stylesheet — deliberately not linking the full app styles.css, so this
+  // window renders a clean customer-presentable document instead of inheriting the app shell's
+  // background pattern/theme and depending on the app's stylesheet path being reachable.
+  const printStyles = `
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; }
+    .print-doc { max-width: 780px; margin: 32px auto; padding: 0 24px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a1f26; }
+    .print-doc h1 { font-size: 1.5rem; margin-bottom: 2px; }
+    .print-doc h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; margin-bottom: 4px; }
+    .print-doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1f26; padding-bottom: 12px; margin-bottom: 16px; }
+    .print-doc-meta { text-align: right; font-size: 0.85rem; }
+    .print-doc-parties { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .print-doc table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    .print-doc th, .print-doc td { border-bottom: 1px solid #d8dee6; padding: 6px 8px; text-align: left; font-size: 0.88rem; }
+    .print-doc th { background: #f4f6f8; }
+    .print-doc td.num, .print-doc th.num { text-align: right; }
+    .print-doc-total-row td { font-weight: 700; border-top: 2px solid #1a1f26; border-bottom: none; }
+    .print-doc-notes { margin-top: 20px; padding-top: 12px; border-top: 1px solid #d8dee6; white-space: pre-wrap; font-size: 0.88rem; }
+    .print-doc-actions { margin-bottom: 20px; }
+    .print-doc-actions button { font: inherit; padding: 6px 14px; cursor: pointer; }
+    @media print { .print-doc-actions { display: none; } }
+  `;
+
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(doc.name || docType)}</title>
+        <style>${printStyles}</style>
+      </head>
+      <body>
+        <div class="print-doc">
+          <div class="print-doc-actions">
+            <button type="button" onclick="window.print()">Print / Save as PDF</button>
+          </div>
+          <div class="print-doc-header">
+            <div>
+              <h1>${escapeHtml(doc.name || docType)}</h1>
+              <div>${escapeHtml(docType)}${docNumber ? ` &middot; ${escapeHtml(docNumber)}` : ""}${isCurrent ? " &middot; Current" : ""}</div>
+              <div>Status: ${escapeHtml(doc.statusCode || "Draft")}</div>
+            </div>
+            <div class="print-doc-meta">
+              <div>Effective: ${escapeHtml(doc.effectiveFrom || "—")} to ${escapeHtml(doc.effectiveTo || "—")}</div>
+              <div>Prepared: ${escapeHtml(todayIso())}</div>
+            </div>
+          </div>
+          <div class="print-doc-parties">
+            <div>
+              <h3>Account</h3>
+              ${escapeHtml(account?.name || "Unknown account")}
+              ${facility ? `<br />Site: ${escapeHtml(facility.name)}` : ""}
+            </div>
+            <div>
+              <h3>Billing address</h3>
+              ${formatAddress(billingAddress)}
+            </div>
+            <div>
+              <h3>Shipping address</h3>
+              ${formatAddress(shippingAddress)}
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Description</th>
+                <th class="num">Qty</th>
+                <th class="num">Rate</th>
+                <th class="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${requiredLines.map(lineRow).join("") || `<tr><td colspan="5">No line items.</td></tr>`}
+              <tr class="print-doc-total-row">
+                <td colspan="4">Total</td>
+                <td class="num">${money(Number(doc.totalAmount || 0))}</td>
+              </tr>
+            </tbody>
+          </table>
+          ${
+            optionalLines.length
+              ? `
+            <h3>Optional / write-in options (not included in total above)</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Description</th>
+                  <th class="num">Qty</th>
+                  <th class="num">Rate</th>
+                  <th class="num">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${optionalLines.map(lineRow).join("")}
+              </tbody>
+            </table>
+          `
+              : ""
+          }
+          ${doc.notes ? `<div class="print-doc-notes"><strong>Notes:</strong><br />${escapeHtml(doc.notes)}</div>` : ""}
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function printOpportunityQuote(opportunityId, quoteId) {
+  const opportunity = findOpportunity(opportunityId);
+  const quote = quotesForOpportunity(opportunityId).find((item) => item.id === quoteId);
+  if (!opportunity || !quote) return;
+  const account = findAccount(opportunity.accountId);
+  const lines = quoteLinesForQuote(quoteId);
+  const html = renderPrintableDocHtml({
+    docType: "Quote",
+    doc: quote,
+    lines,
+    opportunity,
+    account,
+    isCurrent: quote.id === opportunity.quoteId,
+  });
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    showToast("Pop-up blocked — allow pop-ups to print this quote.");
+    return;
+  }
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
+function printOpportunityEstimate(opportunityId, estimateId) {
+  const opportunity = findOpportunity(opportunityId);
+  const estimate = estimatesForOpportunity(opportunityId).find((item) => item.id === estimateId);
+  if (!opportunity || !estimate) return;
+  const account = findAccount(opportunity.accountId);
+  const lines = estimateLinesForEstimate(estimateId);
+  const html = renderPrintableDocHtml({
+    docType: "Estimate",
+    doc: estimate,
+    lines,
+    opportunity,
+    account,
+    isCurrent: estimate.id === opportunity.estimateId,
+  });
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    showToast("Pop-up blocked — allow pop-ups to print this estimate.");
+    return;
+  }
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
 
 // --- Rate card admin ------------------------------------------------------------------------
