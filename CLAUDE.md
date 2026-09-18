@@ -37,7 +37,7 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 **Three data layers exist right now:**
 
 - **IndexedDB** (browser-local, per-user, NOT shared) — accounts, contacts, projects, tasks, activities, alerts, and more
-- **JSON backend** (server, shared) — 72 collections: opportunities, facilities, dispatch jobs, employees, inventory, quotes
+- **JSON backend** (server, shared) — 73 collections: opportunities, facilities, dispatch jobs, employees, inventory, quotes
 - **PostgreSQL** — designed, never deployed
 
 Phase 01 collapses the first into the second. Until it ships, **assume any core CRM record you touch is invisible to other users.**

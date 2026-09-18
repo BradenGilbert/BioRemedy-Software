@@ -351,3 +351,92 @@ what was built and why. Kept here as the original source record.
   twice with two different mechanisms. Building the general "+ Activity" ad hoc path first and letting
   repeat samples (and repeat Odometer legs) use it resolved both gap items with one piece of work and
   kept the work-plan/task-gating model change to a single, well-reasoned place instead of two.
+
+---
+
+## Live bug report follow-up — 2026-09-17 (third session)
+
+The owner reported three live issues about sample photos and lab reports after using the platform.
+All three were reproduced against real code before fixing, per this phase doc's own rule.
+
+1. **"On samples it says point overview, point closeup and point label look like they should be
+   photos or clickable, but it just is a big box with labels."** The owner's field names didn't match
+   any code string exactly (a `grep` for "Point Overview"/"Point Closeup"/"Point Label" found nothing)
+   — they're a paraphrase of the real fields this same phase's Part 2 pass added: "North view,"
+   "Sample interval," and "Container label." This is the desktop **Sample Record** view
+   (`renderProjectSampleRecord` and the sample detail page, `app.js`), a completely different surface
+   from the Front Line capture form the owner filled out to create the sample. Root cause:
+   `renderProjectSampleRecord`/the sample detail page rendered `sample.photos` — a field
+   `saveSampleFromTask` hardcoded to `photos: []` and nothing ever wrote to — falling back to three
+   bare `<span>` labels styled by `.sample-photo-grid span` (`styles.css`) with a decorative gradient
+   background and bold text, exactly the "big box with labels" the owner described: no `<img>`, no
+   click handler, no `cursor: pointer`. The actual Sample-task photos **were** being uploaded
+   correctly the whole time, to `jobTaskAttachments` keyed by `actionId` (the same pipeline the
+   dispatch job detail's task-submission view already renders as real thumbnails from) — they were
+   just never read back for this view. **Fix:** both render functions now call
+   `attachmentsForAction(sample.actionId)` filtered to `kind === "photo"` and render real `<img>`
+   thumbnails inside a clickable `<a href=".../view" target="_blank">` (`renderSamplePhotoThumb`,
+   `app.js`), matching the working pattern already used elsewhere. `sample.photos` itself is now dead
+   (nothing reads it) — left as-is rather than removed, since removing a field from in-flight seed
+   records is out of scope for a bug-fix pass.
+2. **"Sample photos don't appear anywhere... if its not connected it will [need fixing]."** Same root
+   cause as item 1, confirmed by direct evidence, not by inference: this is a wiring bug, not a
+   storage-limit issue. The known-open item in `docs/roadmap/README.md` ("Attachment inline-view route
+   is not role-gated") pointed at a real, working attachment system —
+   `handleJobTaskAttachmentUpload`/`handleJobTaskAttachmentView` (`server.mjs`), storing files under
+   `data/uploads/` and serving them from `/api/job-task-attachments/:id/view`. Verified live: created a
+   real ad hoc Sample activity via Front Line with three real PNG files, confirmed all three uploaded
+   successfully to that pipeline, then confirmed the Sample Record detail page rendered all three as
+   real `<img>` tags with `naturalWidth > 0` (the browser actually decoded them) once the item 1 fix
+   was in place. No storage limit, no missing upload path — the photos were always being persisted
+   correctly; only the read-back was missing.
+3. **"Lab report reference is a link or text file name. We should have an option to upload test
+   results which could be excel, or pdf. If a link is used it should detect it and make it
+   clickable."** Confirmed: `sampleRecords.labReportUri` (set via the `#sampleLabDialog` "Lab report
+   reference" field, `openSampleLabDialog`/`saveSampleLabInfo`, `app.js`) was free text only, rendered
+   as inert `<code class="file-ref">` regardless of content. **Fix, two parts:**
+   - **Real file upload.** New `sampleLabReports` collection (`server.mjs`: `collectionAccess`,
+     `defaultBackend`, backend-load normalization, `filterBackendForRole`, all gated `operations`,
+     following this phase's own "three places, not two" lesson above) with a dedicated
+     `handleSampleLabReportUpload`/`handleSampleLabReportDownload` pair
+     (`/api/samples/:sampleId/lab-reports` POST, `/api/sample-lab-reports/:id/download` GET) — cloned
+     from the existing `jobRequestDocuments` upload/download pattern rather than the photo-only
+     `jobTaskAttachment` pipeline, since a lab result is a PDF/Excel/Word/CSV document meant to be
+     downloaded, not loaded from a bare `<img src>`. `id`, `sampleId`, `fileName`, `storageName`,
+     `mimeType`, `sizeBytes`, `uploadedAt`, `uploadedBy`. The sample detail page's "Laboratory and
+     results" panel now lists uploaded reports (`renderSampleLabReport`) and has a real
+     `<input type="file">` (`data-action="upload-sample-lab-report"`, wired through the existing
+     `handleInputInner` delegated-input dispatcher) that uploads immediately on file selection. The
+     `labReportUri` text field is kept, not replaced — a lab may still just hand over a portal link
+     rather than a file, and both should be supported.
+   - **Auto-linkify.** `looksLikeUrl()`/`normalizeUrlHref()` (`app.js`) detect an `http(s)://` or
+     `www.`-prefixed value and render it as a real `<a class="file-ref" target="_blank">` instead of
+     `<code>`; anything else (a typed filename) still renders as plain text, since there's no real
+     file behind a typed-in filename to link to.
+   - **Verified live (Playwright, chromium via the bundled runtime, against the running dev server on
+     port 4173):** logged into Front Line as a real field lead, opened an in-progress dispatch job
+     whose `projectId` actually resolves (`dispatch-job-clearwater` — `dispatch-job-georgetown`'s
+     `projectId` turned out to be a dangling reference to a project record that doesn't exist in the
+     `projects` collection, a pre-existing seed-data gap unrelated to this fix, noted here rather than
+     silently worked around), submitted a real "+ Activity" → Sample with three real PNG files,
+     confirmed the sample detail page rendered three real, loading `<img>` thumbnails; uploaded a real
+     PDF through the new lab-report upload input and confirmed it appeared as a downloadable
+     "lab-report.pdf" entry; opened "Assign lab / report results," set the lab report reference to a
+     real URL, saved, and confirmed it rendered as a clickable `<a class="file-ref">` pointing at that
+     URL. Zero console/page errors across the run. All test-session writes (3 sample records, 3 job
+     actions, 2 ad hoc job steps, 9 photo attachments, 1 lab report file, 3 form submissions) were
+     identified precisely by id and removed from `data/backend.json` afterward (not a blanket
+     `git checkout`, since the file already had real, pre-existing uncommitted owner data from before
+     this session that had to be preserved) and their uploaded files deleted from `data/uploads/`.
+
+### Corrections found during this pass
+
+- **`dispatch-job-georgetown.projectId` ("project-georgetown-er") does not exist in the `projects`
+  collection.** Discovered while picking a job to click-test against: `viewSample()` requires both the
+  sample and `findProject(sample.projectId)` to resolve, and Georgetown's dangling reference made the
+  desktop sample detail page unreachable for any sample logged against that job (silent
+  "That sample record is not available." toast, not a crash). This is a pre-existing seed-data gap,
+  not something introduced by this pass — flagged here rather than fixed, since correcting seed data
+  under a live-bug-fix pass risks masking whether it's an isolated seed typo or a symptom of a real
+  Georgetown-job data issue elsewhere; whoever picks it up should check whether other Georgetown-linked
+  records have the same dangling `projectId` before just repointing it.

@@ -1744,21 +1744,68 @@ h3 {
   gap: 8px;
 }
 
-.sample-photo-grid span {
+.sample-photo-grid span.help-text {
   min-height: 68px;
   display: grid;
-  place-items: end start;
+  place-items: center;
+  border: 1px dashed rgba(31, 100, 168, 0.25);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  padding: 8px;
+  font-size: 0.8rem;
+  grid-column: 1 / -1;
+}
+
+.sample-photo-thumb {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 68px;
   border: 1px solid rgba(31, 100, 168, 0.2);
   border-radius: 8px;
-  background:
-    linear-gradient(150deg, rgba(31, 100, 168, 0.18), transparent 42%),
-    linear-gradient(22deg, rgba(167, 97, 22, 0.18), transparent 50%),
-    var(--surface-alt);
+  background: var(--surface-alt);
+  padding: 6px;
   color: var(--blue);
-  padding: 8px;
-  font-size: 0.75rem;
-  font-weight: 850;
+  font-size: 0.72rem;
+  font-weight: 700;
   overflow-wrap: anywhere;
+  text-decoration: none;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.sample-photo-thumb:hover,
+.sample-photo-thumb:focus-visible {
+  box-shadow: 0 0 0 2px rgba(31, 100, 168, 0.35);
+  transform: translateY(-1px);
+}
+
+.sample-photo-thumb img {
+  width: 100%;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+
+.sample-lab-reports {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.upload-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-muted, var(--ink));
+}
+
+.upload-label input[type="file"] {
+  font-size: 0.8rem;
 }
 
 .sample-detail-map {
@@ -4529,7 +4576,8 @@ body[data-theme="dark"] .sample-map-link,
 body[data-theme="dark"] .sample-related-link,
 body[data-theme="dark"] .sample-result-callout,
 body[data-theme="dark"] .compact-detail-list div,
-body[data-theme="dark"] .sample-photo-grid span,
+body[data-theme="dark"] .sample-photo-grid span.help-text,
+body[data-theme="dark"] .sample-photo-thumb,
 body[data-theme="dark"] .project-model-viewer,
 body[data-theme="dark"] .project-sample-map,
 body[data-theme="dark"] .race-stage-list span,

@@ -1867,7 +1867,7 @@
       "claimNumber": "123456789",
       "serviceProfile": "Asbestos Abatement",
       "createdAt": "2026-09-16T18:32:50.353Z",
-      "updatedAt": "2026-09-17T23:21:34.748Z",
+      "updatedAt": "2026-09-18T02:13:38.115Z",
       "generatorContactName": "Jeff Gordon maybe?",
       "generatorContactPhone": "0000000000",
       "closedAt": "2026-09-17T22:47:37.064Z",
@@ -1877,14 +1877,133 @@
           "materials": {
             "unitCost": 42,
             "rateSource": "rate-card",
-            "items": [],
-            "total": 0
+            "items": [
+              {
+                "id": "job-resource-mu4j68y8-7j8tfu",
+                "materialType": "PPE kits",
+                "quantity": 8,
+                "unit": "kits",
+                "unitCost": 42,
+                "lineCost": 336,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-mu4j68y8-xkvnnp",
+                "materialType": "Flaming underwear",
+                "quantity": 8,
+                "unit": "unit",
+                "unitCost": 42,
+                "lineCost": 336,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-mu4j68y8-cuwyyg",
+                "materialType": "Flaming underwear",
+                "quantity": 8,
+                "unit": "unit",
+                "unitCost": 42,
+                "lineCost": 336,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-mu4j68y8-emnnsw",
+                "materialType": "Disposal drums",
+                "quantity": 2,
+                "unit": "drums",
+                "unitCost": 42,
+                "lineCost": 84,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-mu4jazmw-n2ykow",
+                "materialType": "Disposal drums",
+                "quantity": 1,
+                "unit": "drums",
+                "unitCost": 42,
+                "lineCost": 42,
+                "source": "field-dispatch"
+              }
+            ],
+            "total": 1134
           },
           "equipment": {
             "unitCost": 650,
             "rateSource": "rate-card",
-            "items": [],
-            "total": 0
+            "items": [
+              {
+                "id": "resource-mu4i1ydx-m2ymyt",
+                "assetTag": "soy Leche",
+                "equipment": "f150 truck",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-mu4iiira-su3p0a",
+                "assetTag": "soy Leche",
+                "equipment": "f150 truck",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-mu4ikd9t-pi3vhf",
+                "assetTag": "",
+                "equipment": "truck boi",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-mu4ixyrr-pjpsof",
+                "assetTag": "soy Leche",
+                "equipment": "f150 truck",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-mu4iy1ik-tribh5",
+                "assetTag": "AIR-112",
+                "equipment": "Negative air machine",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-mu4iy42k-mxh4da",
+                "assetTag": "PMP-077",
+                "equipment": "Transfer pump",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-mu4jxi4v-iy4h6o",
+                "assetTag": "TRK-18",
+                "equipment": "Response truck",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-mu63yro8-x3dyv7",
+                "assetTag": "TRK-18",
+                "equipment": "Response truck",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-mu65hxpc-zvc0qk",
+                "assetTag": "soy Leche",
+                "equipment": "f150 truck",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              }
+            ],
+            "total": 5850
           },
           "labor": {
             "unitCost": 95,
@@ -1912,17 +2031,17 @@
             ],
             "total": 71.25
           },
-          "total": 71.25
+          "total": 7055.25
         },
         "revenue": {
           "quoted": 7,
           "quotedSource": "quote",
-          "invoiced": 400
+          "invoiced": 12000
         },
-        "margin": 328.75,
-        "marginPercent": 82.1875,
+        "margin": 4944.75,
+        "marginPercent": 41.20625,
         "generatedAt": "2026-09-17T22:47:37.064Z",
-        "regeneratedAt": "2026-09-17T23:21:34.735Z"
+        "regeneratedAt": "2026-09-18T02:13:38.098Z"
       }
     }
   ],
@@ -3811,6 +3930,34 @@
       "skills": [],
       "createdAt": "2026-09-16T00:00:00.000Z",
       "updatedAt": "2026-09-16T00:00:00.000Z"
+    },
+    {
+      "id": "emp-mu6e7iib-4oz5uk",
+      "employeeNumber": "BR-123",
+      "systemUserId": "",
+      "firstName": "Zeke",
+      "lastName": "bowser",
+      "displayName": "Zeke bowser",
+      "jobTitle": "tech",
+      "employmentStatus": "Active",
+      "employmentType": "Full time",
+      "primaryEmail": "zeke@bioremedy.com",
+      "mobilePhone": "254-258-2925",
+      "managerEmployeeId": "emp-logan",
+      "businessUnit": "Central Texas Operations",
+      "teamId": "",
+      "crewId": "",
+      "homeBase": "Temple",
+      "availabilitySummary": "Standard calendar not assigned",
+      "hoursWorked": 0,
+      "capacity": 40,
+      "dispatchEligible": true,
+      "frontlineEnabled": true,
+      "readinessStatus": "Ready",
+      "hireDate": "2026-09-17",
+      "skills": [],
+      "createdAt": "2026-09-18T03:22:22.472Z",
+      "updatedAt": "2026-09-18T03:22:22.472Z"
     }
   ],
   "employeeCertifications": [
@@ -7435,6 +7582,21 @@
       "plannedEnd": "",
       "createdAt": "2026-09-17T22:35:32.207Z",
       "updatedAt": "2026-09-17T22:35:32.207Z"
+    },
+    {
+      "id": "assignment-mu6bkh4g-7evmgf",
+      "jobId": "dispatch-job-mu65r3d3-5ssvas",
+      "employeeId": "emp-tristan",
+      "crewId": "",
+      "role": "Environmental Technician",
+      "isFieldLead": false,
+      "status": "Assigned",
+      "eligibilityStatus": "Eligible",
+      "eligibilityNote": "",
+      "plannedStart": "2026-09-18T02:08:28.336Z",
+      "plannedEnd": "",
+      "createdAt": "2026-09-18T02:08:28.365Z",
+      "updatedAt": "2026-09-18T02:08:28.365Z"
     }
   ],
   "jobScheduleSegments": [
@@ -17502,6 +17664,7 @@
     }
   ],
   "laborAssignments": [],
+  "sampleLabReports": [],
   "sampleRecords": [
     {
       "id": "sample-riverbend-b1",
@@ -17539,9 +17702,9 @@
       ],
       "labReceivedAt": "",
       "reviewedBy": "Priya Patel",
-      "labReportUri": "",
+      "labReportUri": "www.google.com",
       "createdAt": "2026-09-17T05:27:35.743Z",
-      "updatedAt": "2026-09-17T05:27:35.743Z"
+      "updatedAt": "2026-09-18T03:13:53.035Z"
     },
     {
       "id": "sample-riverbend-b2",
@@ -17920,8 +18083,8 @@
       "customer": "City of Georgetown",
       "quotedAmount": 700,
       "fieldExpenses": 0,
-      "invoiceAmount": 400,
-      "status": "Draft",
+      "invoiceAmount": 12000,
+      "status": "Ready",
       "dueDate": "2026-10-17",
       "notes": "Needs scope review before invoice",
       "qboStatus": "Not exported"

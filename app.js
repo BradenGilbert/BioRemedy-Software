@@ -1544,6 +1544,7 @@ const state = {
     equipmentRestockItems: [],
     laborAssignments: [],
     sampleRecords: [],
+    sampleLabReports: [],
     employees: [],
     employeeCertifications: [],
     workforceTeams: [],
@@ -2250,6 +2251,7 @@ async function handleClick(event) {
   if (action === "view-employee") viewEmployee(id);
   if (action === "view-dispatch-job") viewDispatchJob(id);
   if (action === "download-job-request-document") await downloadJobRequestDocument(id);
+  if (action === "download-sample-lab-report") await downloadSampleLabReport(id);
   if (action === "convert-job-request") openJobTemplateSelectDialog(id);
   if (action === "select-job-template") await convertJobRequest(actionButton.dataset.requestId, actionButton.dataset.templateId);
   if (action === "advance-dispatch-job") await advanceDispatchJob(id);
@@ -2525,6 +2527,25 @@ function handleInput(event) {
 }
 
 function handleInputInner(event) {
+  if (event.target.matches('[data-action="upload-sample-lab-report"]')) {
+    const input = event.target;
+    const file = input.files?.[0];
+    const sampleId = input.dataset.id;
+    if (file && sampleId) {
+      (async () => {
+        try {
+          await uploadSampleLabReport(sampleId, file);
+          await refreshBackendState();
+          render();
+          showToast("Lab report uploaded.");
+        } catch (error) {
+          showToast(error.message || "Lab report could not be uploaded.");
+        }
+      })();
+    }
+    return;
+  }
+
   // Quote/Estimate line-item builder: product pick fills in default description/unit/rate from
   // the rate card, quantity/rate edits recompute the line and document totals live, and switching
   // the document's price level re-prices every already-picked product line against it.
@@ -6455,9 +6476,21 @@ function renderProjectMapPoint(sample) {
   `;
 }
 
+// Real photo thumbnails, matching the working pattern already used for job-task submission
+// attachments (renderTaskSubmissionSummary): a real <img> against the same role-agnostic
+// /api/job-task-attachments/:id/view route, not an inert text label.
+function renderSamplePhotoThumb(attachment) {
+  return `
+    <a href="/api/job-task-attachments/${encodeURIComponent(attachment.id)}/view" target="_blank" rel="noopener" class="sample-photo-thumb" title="${escapeAttribute(attachment.caption || attachment.fileName)}">
+      <img src="/api/job-task-attachments/${encodeURIComponent(attachment.id)}/view" alt="${escapeAttribute(attachment.caption || attachment.fileName)}" />
+      <span>${escapeHtml(attachment.caption || attachment.fileName)}</span>
+    </a>
+  `;
+}
+
 function renderProjectSampleRecord(sample) {
   const coordinates = getSampleCoordinates(sample);
-  const photos = sample.photos?.length ? sample.photos : ["North view", "Sample interval", "Container label"];
+  const photos = attachmentsForAction(sample.actionId).filter((attachment) => attachment.kind === "photo");
   const results = sample.results || sample.labResults || "Pending lab result.";
   return `
     <article class="sample-record-card">
@@ -6479,7 +6512,7 @@ function renderProjectSampleRecord(sample) {
         <div><dt>Results</dt><dd>${escapeHtml(results)}</dd></div>
       </dl>
       <div class="sample-photo-grid">
-        ${photos.map((photo) => `<span>${escapeHtml(typeof photo === "string" ? photo : photo.label || "Photo")}</span>`).join("")}
+        ${photos.map(renderSamplePhotoThumb).join("") || `<span class="help-text">No sample photos linked.</span>`}
       </div>
       <div class="inline-actions">
         <button class="mini-button" type="button" data-action="view-sample" data-id="${escapeAttribute(sample.id)}">Open sample record</button>
@@ -7752,7 +7785,8 @@ function renderSampleDetail() {
   const account = findAccount(sample.accountId || job.accountId);
   const location = findFacility(sample.facilityId || job.facilityId);
   const session = groupSamplesIntoSessions(samplesForJob(job.id)).find((item) => item.id === (sample.samplingSessionId || sample.chainOfCustody || sample.projectId));
-  const photos = sample.photos?.length ? sample.photos : [];
+  const photos = attachmentsForAction(sample.actionId).filter((attachment) => attachment.kind === "photo");
+  const labReports = sampleLabReportsForSample(sample.id);
   const results = sample.results || sample.labResults || "No result summary has been entered.";
   const analyses = Array.isArray(sample.requestedAnalyses)
     ? sample.requestedAnalyses.join(", ")
@@ -7855,7 +7889,20 @@ function renderSampleDetail() {
                 <span>Result summary</span>
                 <strong>${escapeHtml(results)}</strong>
               </div>
-              ${sample.labReportUri ? `<code class="file-ref">${escapeHtml(sample.labReportUri)}</code>` : ""}
+              ${
+                sample.labReportUri
+                  ? looksLikeUrl(sample.labReportUri)
+                    ? `<a class="file-ref" href="${escapeAttribute(normalizeUrlHref(sample.labReportUri))}" target="_blank" rel="noopener">${escapeHtml(sample.labReportUri)}</a>`
+                    : `<code class="file-ref">${escapeHtml(sample.labReportUri)}</code>`
+                  : ""
+              }
+              <div class="sample-lab-reports">
+                ${labReports.map(renderSampleLabReport).join("") || `<p class="help-text">No lab report file uploaded yet.</p>`}
+                <label class="upload-label">
+                  Upload lab report (PDF, Word, Excel, or CSV)
+                  <input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg" data-action="upload-sample-lab-report" data-id="${escapeAttribute(sample.id)}" />
+                </label>
+              </div>
             </div>
           </article>
 
@@ -7869,7 +7916,7 @@ function renderSampleDetail() {
             <div class="panel-body detail-stack">
               <p class="sample-field-notes">${escapeHtml(sample.fieldNotes || sample.collectionNotes || "No field notes captured.")}</p>
               <div class="sample-photo-grid sample-detail-photos">
-                ${photos.map((photo) => `<span>${escapeHtml(typeof photo === "string" ? photo : photo.label || "Sample photo")}</span>`).join("") || `<div class="empty-state">No sample photos linked.</div>`}
+                ${photos.map(renderSamplePhotoThumb).join("") || `<div class="empty-state">No sample photos linked.</div>`}
               </div>
             </div>
           </article>
@@ -9524,6 +9571,19 @@ function renderJobRequestDocument(document) {
       <span>
         <strong>${escapeHtml(document.fileName)}</strong>
         <small>${escapeHtml(formatDocumentRole(document.documentRole))} · ${formatFileSize(document.sizeBytes)}</small>
+      </span>
+      <span class="document-download-label">Download</span>
+    </button>
+  `;
+}
+
+function renderSampleLabReport(report) {
+  return `
+    <button class="request-document-link" type="button" data-action="download-sample-lab-report" data-id="${escapeAttribute(report.id)}">
+      <span class="document-type-mark" aria-hidden="true">${escapeHtml(getFileExtension(report.fileName))}</span>
+      <span>
+        <strong>${escapeHtml(report.fileName)}</strong>
+        <small>${formatFileSize(report.sizeBytes)} · ${formatDate(report.uploadedAt)}</small>
       </span>
       <span class="document-download-label">Download</span>
     </button>
@@ -15333,6 +15393,37 @@ async function downloadJobRequestDocument(documentId) {
     URL.revokeObjectURL(objectUrl);
   } catch (error) {
     showToast(error.message || "Document download failed.");
+  }
+}
+
+async function uploadSampleLabReport(sampleId, file) {
+  return uploadRawFile(`/api/samples/${encodeURIComponent(sampleId)}/lab-reports`, file);
+}
+
+async function downloadSampleLabReport(reportId) {
+  const report = (state.backend.sampleLabReports || []).find((item) => item.id === reportId);
+  if (!report) {
+    showToast("That lab report is not available.");
+    return;
+  }
+  try {
+    const response = await fetch(`/api/sample-lab-reports/${encodeURIComponent(reportId)}/download`, {
+      headers: {
+        "X-CRM-Role": state.currentUser?.role || "Local",
+      },
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || "Lab report download failed.");
+    }
+    const objectUrl = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = report.fileName;
+    link.click();
+    URL.revokeObjectURL(objectUrl);
+  } catch (error) {
+    showToast(error.message || "Lab report download failed.");
   }
 }
 
@@ -22085,6 +22176,24 @@ function documentsForJobRequest(jobRequestId) {
   return getJobRequestDocuments()
     .filter((document) => document.jobRequestId === jobRequestId)
     .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+}
+
+function sampleLabReportsForSample(sampleId) {
+  return (state.backend.sampleLabReports || [])
+    .filter((report) => report.sampleId === sampleId)
+    .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+}
+
+// A lab report reference is free text historically -- it may hold a real URL (a lab portal link) or
+// just a filename someone typed. Detect the URL case so it renders as a real clickable link instead
+// of inert text; anything else stays as plain text (there is no file behind a typed-in filename).
+function looksLikeUrl(value) {
+  return /^(https?:\/\/|www\.)\S+$/i.test(String(value || "").trim());
+}
+
+function normalizeUrlHref(value) {
+  const trimmed = String(value || "").trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 function accountForJobRequest(request) {

@@ -79,6 +79,7 @@ const collectionAccess = {
   equipmentRestockItems: "inventory",
   laborAssignments: "operations",
   sampleRecords: "operations",
+  sampleLabReports: "operations",
   employees: "workforce",
   employeeCertifications: "workforce",
   workforceTeams: "workforce",
@@ -1128,6 +1129,7 @@ const defaultBackend = {
   jobStatusEvents: [],
   jobTaskAttachments: [],
   laborAssignments: [],
+  sampleLabReports: [],
   sampleRecords: [
     {
       id: "sample-riverbend-b1",
@@ -2188,6 +2190,7 @@ async function loadBackend() {
     ["clearwater schools", "acct-clearwater"],
   ]);
   data.jobRequestDocuments = Array.isArray(data.jobRequestDocuments) ? data.jobRequestDocuments : [];
+  data.sampleLabReports = Array.isArray(data.sampleLabReports) ? data.sampleLabReports : [];
   data.jobRequests = data.jobRequests.map((request) => ({
     ...request,
     accountId: request.accountId || accountIdsByCustomer.get(request.customerName?.trim().toLowerCase()) || "",
@@ -2231,6 +2234,7 @@ function filterBackendForRole(data, role) {
     equipmentRestockItems: canAccess(role, "inventory") || canAccess(role, "operations") ? data.equipmentRestockItems : [],
     laborAssignments: canAccess(role, "operations") ? data.laborAssignments : [],
     sampleRecords: canAccess(role, "operations") || canAccess(role, "sales") ? data.sampleRecords : [],
+    sampleLabReports: canAccess(role, "operations") || canAccess(role, "sales") ? data.sampleLabReports : [],
     employees: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.employees : [],
     employeeCertifications: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.employeeCertifications : [],
     workforceTeams: canAccess(role, "workforce") ? data.workforceTeams : [],
@@ -2646,6 +2650,73 @@ async function handleJobRequestDocumentDownload(request, response, documentId) {
   response.end(body);
 }
 
+// Lab results come back from third-party labs as PDFs or spreadsheets, never images, so this reuses
+// the job-request-document upload/download pattern (role-gated download, since -- unlike a photo --
+// a lab result is not meant to be loadable from a bare <img src>) rather than the photo-only
+// jobTaskAttachment pipeline below.
+async function handleSampleLabReportUpload(request, response, sampleId) {
+  const role = getRole(request);
+  if (!canAccess(role, "operations")) return json(response, 403, { error: "Operations role required." });
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+
+  const data = await loadBackend();
+  const sample = data.sampleRecords.find((item) => item.id === sampleId);
+  if (!sample) return json(response, 404, { error: "Sample record not found." });
+
+  const fileName = normalizeUploadFileName(request.headers["x-file-name"]?.toString());
+  const extension = path.extname(fileName).toLowerCase();
+  const mimeType = jobRequestDocumentMimeTypes.get(extension);
+  if (!fileName || !mimeType) {
+    return json(response, 415, { error: "Upload a PDF, Word document, spreadsheet, CSV, PNG, or JPEG file." });
+  }
+
+  const body = await readRequestBody(request, maxJobRequestDocumentBytes);
+  if (!body.length) return json(response, 400, { error: "The selected file is empty." });
+
+  const report = {
+    id: makeId("sample-lab-report"),
+    sampleId,
+    fileName,
+    storageName: "",
+    mimeType,
+    sizeBytes: body.length,
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: request.headers["x-crm-user"]?.toString() || role,
+  };
+  report.storageName = `${report.id}${extension}`;
+
+  await mkdir(uploadsDir, { recursive: true });
+  await writeFile(path.join(uploadsDir, report.storageName), body);
+  data.sampleLabReports.push(report);
+  await saveBackend(data);
+
+  return json(response, 201, report);
+}
+
+async function handleSampleLabReportDownload(request, response, reportId) {
+  const role = getRole(request);
+  if (!canAccess(role, "operations")) return json(response, 403, { error: "Operations role required." });
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+
+  const data = await loadBackend();
+  const report = data.sampleLabReports.find((item) => item.id === reportId);
+  if (!report) return json(response, 404, { error: "Lab report not found." });
+
+  const filePath = path.resolve(uploadsDir, report.storageName);
+  if (path.dirname(filePath) !== path.resolve(uploadsDir) || !existsSync(filePath)) {
+    return json(response, 404, { error: "Stored file is unavailable." });
+  }
+
+  const body = await readFile(filePath);
+  response.writeHead(200, {
+    "Content-Type": report.mimeType || "application/octet-stream",
+    "Content-Length": body.length,
+    "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(report.fileName)}`,
+    "Cache-Control": "private, no-store",
+  });
+  response.end(body);
+}
+
 function decodeHeaderText(value) {
   if (!value) return "";
   try {
@@ -2876,6 +2947,16 @@ async function handleApi(request, response, pathname) {
   const jobRequestDocumentDownloadMatch = pathname.match(/^\/api\/job-request-documents\/([^/]+)\/download$/);
   if (jobRequestDocumentDownloadMatch) {
     return handleJobRequestDocumentDownload(request, response, jobRequestDocumentDownloadMatch[1]);
+  }
+
+  const sampleLabReportUploadMatch = pathname.match(/^\/api\/samples\/([^/]+)\/lab-reports$/);
+  if (sampleLabReportUploadMatch) {
+    return handleSampleLabReportUpload(request, response, sampleLabReportUploadMatch[1]);
+  }
+
+  const sampleLabReportDownloadMatch = pathname.match(/^\/api\/sample-lab-reports\/([^/]+)\/download$/);
+  if (sampleLabReportDownloadMatch) {
+    return handleSampleLabReportDownload(request, response, sampleLabReportDownloadMatch[1]);
   }
 
   const jobTaskAttachmentUploadMatch = pathname.match(/^\/api\/job-actions\/([^/]+)\/attachments$/);

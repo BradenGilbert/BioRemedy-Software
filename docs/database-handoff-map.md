@@ -544,6 +544,28 @@ deleted from `data/backend.json`.
   `jobSteps`, `jobActions`, `jobFormSubmissions`, `jobTypeTemplates`,
   `jobStatusEvents`, `jobTaskAttachments`
 - Field sampling: `sampleRecords`
+- Operations, new September 17, 2026 (Phase 10 live bug fix pass): `sampleLabReports`
+  -- role-gated file storage for lab result documents (PDF/Word/Excel/CSV/image),
+  keyed by `sampleId`, reusing the `jobRequestDocuments` upload/download pattern
+  (`handleSampleLabReportUpload`/`handleSampleLabReportDownload`, `server.mjs`;
+  `/api/samples/:sampleId/lab-reports` POST, `/api/sample-lab-reports/:id/download`
+  GET, both gated `operations`). `id`, `sampleId`, `fileName`, `storageName`,
+  `mimeType`, `sizeBytes`, `uploadedAt`, `uploadedBy`. Added because the prior
+  `sampleRecords.labReportUri` field was free text only (a typed filename or link,
+  never a real upload) -- that field is kept as a supplementary reference/link
+  field (auto-linkified when it looks like a URL), not replaced, since a lab may
+  still just be given a portal link rather than a file. Gated `operations`.
+  Also fixed in this pass: the Sample Record card/detail views
+  (`renderProjectSampleRecord`, sample detail page, `app.js`) previously rendered
+  `sample.photos` -- a field nothing ever wrote to (`saveSampleFromTask` hardcoded
+  `photos: []`) -- and fell back to three inert text-label spans
+  ("North view"/"Sample interval"/"Container label") styled to look like photo
+  tiles. The actual Sample-task photos were already being uploaded correctly to
+  `jobTaskAttachments` (keyed by `actionId`, same pipeline the Job Book submission
+  view already displays real thumbnails from), just never read back for the
+  Sample Record UI. Fixed by rendering `attachmentsForAction(sample.actionId)`
+  filtered to `kind === "photo"` as real `<img>` thumbnails
+  (`renderSamplePhotoThumb`) instead of introducing a second photo field.
 - Sales/reference: `businessUnits`, `systemUsers`, `teams`,
   `transactionCurrencies`, `unitGroups`, `unitsOfMeasure`, `priceLevels`,
   `products`, `productPriceLevels`, `leads`, `opportunityContacts`,
