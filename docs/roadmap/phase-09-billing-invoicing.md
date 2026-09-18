@@ -1,6 +1,6 @@
 # Phase 09 — Billing & Invoicing
 
-**Status:** 🟢 **Shipped 2026-09-17.** A real "close project" action gated on the `PROJECT_STAGES` ladder reaching Closeout; closing generates a stored cost-report/P&L snapshot from real equipment/labor/material usage, priced from Phase 08's rate card; a "Regenerate" action re-runs the same generator after post-close usage posts; the generated numbers now feed (not bypass) the existing manual invoice dialog. Verified live via Playwright: closed a real project with real logged usage, confirmed the report's numbers, confirmed the invoice dialog pre-filled from it, posted a new usage entry after close and confirmed the stale snapshot only updated on explicit Regenerate (with a new `regeneratedAt`, original `generatedAt` preserved), and confirmed a project with zero usage and no quote/estimate still closes cleanly to an all-zero report with no console errors.
+**Status:** 🟢 **Shipped 2026-09-17. Live bug report follow-up shipped 2026-09-18** — the cost report now aggregates dispatch-side equipment/material resources across every deployment on a project, not just office-manual logs. See "Live bug report follow-up" below. A real "close project" action gated on the `PROJECT_STAGES` ladder reaching Closeout; closing generates a stored cost-report/P&L snapshot from real equipment/labor/material usage, priced from Phase 08's rate card; a "Regenerate" action re-runs the same generator after post-close usage posts; the generated numbers now feed (not bypass) the existing manual invoice dialog. Verified live via Playwright: closed a real project with real logged usage, confirmed the report's numbers, confirmed the invoice dialog pre-filled from it, posted a new usage entry after close and confirmed the stale snapshot only updated on explicit Regenerate (with a new `regeneratedAt`, original `generatedAt` preserved), and confirmed a project with zero usage and no quote/estimate still closes cleanly to an all-zero report with no console errors.
 **Depends on:** Phase 08 (rate data) — shipped 2026-09-17. Phase 07 item 11 (project stage must actually advance before "project close" means anything) — shipped 2026-09-17.
 **Estimated sessions:** 3
 **Source:** `bioremedy crm notes 9.16.2026.docx`
@@ -132,3 +132,103 @@ See `docs/database-handoff-map.md`'s Phase 09 note for the full inventory.
 - **2026-09-17 — Phase 08's rate card had no per-unit cost basis for equipment/labor/materials, only whole-engagement day-rate services.** All three pre-existing seed products (`prod-ust-remediation`, `prod-asbestos-containment`, `prod-disposal-impacted-soil`) price a multi-day service engagement as a lump sum (e.g. $14,500/day), which isn't a resolvable per-log or per-hour cost input. Rather than fabricate false per-asset or per-employee-role granularity that doesn't exist in this prototype, three generic cost-basis products were added to the rate card so the report generator still resolves real rate-card data (not a re-hardcoded constant) for the common case: `prod-field-labor-standard` ($95/hr, `uom-hour`), `prod-equipment-standard-daily` ($650/day, `uom-day`), `prod-material-standard-unit` ($42/unit, a new `uom-unit`/`unit-group-consumables` pair — `materialUsage.unit` is free text with no UoM FK, so there was no existing per-unit measure to hang a rate off of). `resolveCostBasisRate()` falls back to the same flat numbers only if even this generic product has no rate configured for the resolved price level — a defensive fallback, not the primary path, and it's flagged in the UI (`rateSource: "fallback"` renders as "- fallback rate" next to the number) so it's visibly distinguishable from a genuine rate-card hit. This is a deliberate, documented interim design, not a claim that granular per-equipment-type or per-employee-role rates exist yet.
 - **2026-09-17 — hand-edited `data/backend.json` only with the server stopped, per the exact lesson recorded in Phase 08's corrections section.** The dev server (`server.mjs`) was stopped before every direct edit to the rate-card seed data and before reverting test-session mutations (a temporarily-forced `projectStage: "Closeout"` on `job-north-river-stormwater` for the empty-state test, and a test material-usage row logged post-close on `job-riverbend-ust`), then restarted afterward. No duplicate-key issue this time — confirmed by parsing the file with `JSON.parse` after every edit.
 - **2026-09-17 — one real bug caught by the JSON edit itself, not code:** a stray extra `}` was introduced while removing the test material-usage record from `data/backend.json` by hand, caught immediately by running `JSON.parse` against the file before restarting the server (rather than assuming the edit was clean) — fixed before restart, no corrupted state ever hit the running app.
+
+---
+
+## Live bug report follow-up — 2026-09-18
+
+The owner reported two live issues after using the platform this phase's work touched. Both were
+reproduced against real seed data before fixing, per this phase doc's own rule.
+
+1. **"Billing and costing report is not calculating off of all utilized work on the project. One
+   project had 6 deployments but didn't have any equipment or material calculations added in."**
+   Confirmed and reproduced exactly against `proj-mu4fuo8r-d0srbr` ("Tall Tree Test stage jump op")
+   — the same project Phase 07's corrections section identifies as having 6 near-duplicate dispatch
+   jobs from the double-submit bug, plus a 7th legitimate one, so this is almost certainly the exact
+   project the owner meant. That project's stored `closeReport` (generated at close, then
+   regenerated once already this phase) showed **0 materials and 0 equipment**, despite 27
+   `jobResources` rows spread across its 7 dispatch jobs (9 equipment assignments, 5 confirmed-
+   consumed material lines, plus 13 merely-reserved material lines).
+   - **Root cause:** `buildProjectCostReport()` only ever read `materialUsageForJob(project.id)` and
+     `equipmentLogsForJob(project.id)` — the office-side "Log material"/"Log equipment" dialogs,
+     which write directly to the `materialUsage`/`equipmentLogs` collections keyed by `projectId`.
+     Equipment and materials assigned or consumed at the **dispatch-job** level — via the dispatch
+     board's "Assign equipment"/"Assign material" actions, or a Front Line "Material" task
+     submission's `/api/job-actions/:id/consume` call — land in a completely different collection,
+     `jobResources`, keyed by `jobId` = a `dispatchJobs` id, not a project id. Nothing in
+     `buildProjectCostReport()` ever walked a project's dispatch jobs to pull those rows in. A
+     project whose real usage was tracked entirely through dispatch/field assignment (the realistic
+     case for a multi-deployment project) produced an all-zero materials/equipment report even
+     though 27 real resource rows existed for it.
+   - **Fix:** added `jobResourcesForProject(projectId)` (`app.js`), which walks every
+     `dispatchJobsForProject(projectId)` result and returns their non-`Removed` `jobResources` rows.
+     `buildProjectCostReport()` now merges these into both cost buckets: all non-removed `Equipment`
+     resources (there is no separate "checked out"/"returned" lifecycle for dispatch equipment, so
+     assignment is the closest available signal to "used on this deployment"), and only `Material`
+     resources with `status === "Consumed"` (a confirmed Front Line consumption event — `Reserved`
+     materials are a field assignment/plan, not a confirmed usage, and counting them would risk
+     charging for materials that were allocated but never actually used). Each item in
+     `closeReport.costs.materials.items[]`/`.equipment.items[]` now carries a
+     `source: "office-log"|"field-dispatch"` tag so the two origins stay distinguishable in the
+     stored data.
+   - **Verified live (Playwright, chromium via the bundled runtime, against the running dev server
+     on port 4173):** opened `proj-mu4fuo8r-d0srbr`'s project detail page (via Operations View →
+     show closed projects, since this project was already closed), clicked "Regenerate" on the
+     Billing & cost report panel, and confirmed the report changed from **0 materials / 0 equipment
+     / $71 total cost** to **5 materials ($1,134) / 9 equipment ($5,850) / $7,055.25 total cost** —
+     matching the raw `jobResources` counts (9 Equipment, 5 Consumed Material) exactly. No
+     console/page errors. The test regenerate was reverted from `data/backend.json` afterward (the
+     server was stopped first, then `git checkout -- data/backend.json`, then `JSON.parse`-verified
+     and the server restarted) so the committed seed's original report is unchanged.
+
+2. **"Each new job request asks for same customer packet and quote info as well as reuses
+   opportunity priced amount."** Investigated as two distinct issues, per the task framing:
+   - **(a) Customer packet / quote re-ask.** Confirmed: `openJobRequestDialog()` always
+     `form.reset()`s and defaulted `customerPacketStatus`/`quoteStatus` to `"Missing"` with empty
+     file inputs, regardless of whether an earlier job request against the **same project** already
+     had a customer packet/quote on file. A browser `<input type="file">` cannot be pre-populated
+     with a prior upload (a hard platform limitation, not a fixable app bug), so the fix isn't
+     carrying the file itself forward — it's not presenting an already-satisfied intake step as
+     "Missing" and pointing staff at where the existing document already lives instead of a
+     redundant re-upload prompt. Added logic in `openJobRequestDialog()` that looks up the most
+     recent `jobRequestsForProject(projectId)` row and, if its packet/quote was on file/approved
+     (or it has actual uploaded `jobRequestDocuments`), defaults the new dialog's status selects to
+     match and shows a small note ("Already marked on file on REQ-#### — re-upload only if it
+     changed.") next to each upload field (`.prior-packet-note`/`.prior-quote-note` in
+     `index.html`'s `#jobRequestDialog`).
+   - **(b) "Reuses opportunity priced amount."** Confirmed: the `pricingNotes` field was
+     unconditionally pre-filled from `pricingSourceForOpportunity(project.opportunityId)` — the
+     ORIGINAL opportunity's won/latest quote total — on **every** job request against a project,
+     including a 2nd/3rd/4th dispatch request for a project already deep into field work. Nothing
+     distinguished this as a stale reference to the whole original scope of work; it just silently
+     looked like real pricing for that specific new request. Fixed by keeping the prefill behavior
+     only for a project's **first** job request (the only case where the original figure is a
+     correct, if approximate, pricing reference); for any later request on the same project, the
+     field is left blank and the original figure is offered only as a non-authoritative placeholder
+     (e.g. "Original opportunity: $171,500 quoted (...) — enter pricing for this specific
+     request."), so nothing false-looking can be submitted by accident.
+   - **Verified live (Playwright):** on `job-riverbend-ust` (0 prior job requests, opportunity
+     `opp-riverbend-ust` has a Won quote at $171,500), opened "New job request" and confirmed the
+     pricing field pre-filled with `"$171,500 quoted (Riverbend UST removal revised disposal
+     alternate)."` and both status selects defaulted to `"Missing"` with no prior-document notes
+     (correct — no prior request exists yet). Submitted that request with customer packet "On
+     file" and quote "Approved". Reopened "New job request" for the same project and confirmed: the
+     pricing field was now **blank** with placeholder text `"Original opportunity: $171,500 quoted
+     (...) — enter pricing for this specific request."`, `customerPacketStatus` defaulted to `"On
+     file"` and `quoteStatus` to `"Approved"`, and both upload fields showed `"Already marked on
+     file/approved on REQ-2026-0917-29 — re-upload only if it changed."` No console/page errors
+     across either dialog open. The test job request was reverted from `data/backend.json`
+     afterward (server stopped, `git checkout -- data/backend.json`, `JSON.parse`-verified, server
+     restarted).
+   - **Not touched:** the actual file-upload mechanics, or any change to what gets submitted when a
+     packet/quote genuinely does change between requests — the fix only changes *defaults and
+     framing*, the underlying fields remain fully editable per request.
+
+**Ambiguity note:** the owner's phrase "might be worth looking into fixing the priced amount" was
+read as "the pre-filled pricing text is presented as more authoritative than it is for follow-on
+requests," which is what got fixed. If the owner instead meant something more specific (e.g. a
+different bug in how `project.budget` or the Billing & cost report's own revenue figure is
+computed), that's outside what was reproducible from the code and seed data available this session
+— `buildProjectCostReport()`'s own revenue resolution (`currentQuoteOrEstimateForOpportunity()`,
+item 1 above) was re-checked and found to correctly prefer the CURRENT quote/estimate, not a stale
+one, so no second bug was found there.

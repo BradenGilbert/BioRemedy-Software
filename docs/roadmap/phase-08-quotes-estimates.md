@@ -194,6 +194,18 @@ lightweight enough was found bundled in this environment, and browser print-to-P
 Customer-facing vs. internal notes were not split into two fields — investigated and judged to be
 speculative scope beyond what was reported (see above).
 
+## Live bug report follow-up — 2026-09-18 (cross-reference)
+
+The owner's report that "each new job request... reuses opportunity priced amount" touches this
+phase's quote/estimate data (`pricingSourceForOpportunity()` reads the opportunity's current
+quote/estimate total, which this phase built). The actual bug and fix are in the job-request
+dialog (`openJobRequestDialog()`, Phase 07 territory), not in the quote/estimate data itself — the
+quote/estimate total resolution this phase built (`currentQuoteOrEstimateForOpportunity()`, also
+used by Phase 09's cost report) was re-verified and is correct, always resolving the CURRENT
+document, not a stale one. Full writeup and live verification in
+`docs/roadmap/phase-09-billing-invoicing.md`'s "Live bug report follow-up — 2026-09-18" section,
+item 2.
+
 ## Corrections found during implementation
 
 - **2026-09-17 — the phase doc's "verified 2026-09-16" section undercounted the seed data:** there are 2 seeded quotes (`quote-riverbend-revision`, `quote-clearwater-night-shift`), not 1, and `quoteLines` has 4 rows across them, not 1. Otherwise the doc's diagnosis was accurate: the line-item builder genuinely did not exist, and `quoteLines` had zero UI reads/writes before this session.

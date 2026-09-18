@@ -16011,27 +16011,61 @@ function buildProjectCostReport(project) {
   const docRef = currentQuoteOrEstimateForOpportunity(opportunity);
   const priceLevelId = docRef.priceLevelId || defaultPriceLevelId();
 
+  // Dispatch-side resources for every dispatch job ("deployment") tied to this project — see
+  // jobResourcesForProject() for why this is a separate, necessary source from the office-side
+  // materialUsage/equipmentLogs tables below.
+  const dispatchResources = jobResourcesForProject(project.id);
+  const fieldEquipmentResources = dispatchResources.filter((resource) => resource.type === "Equipment");
+  // Materials: only "Consumed" dispatch resources represent confirmed real usage (a Front Line
+  // Material-task submission that actually drew down inventory or logged a write-in). "Reserved"
+  // dispatch resources are a field assignment/plan, not a confirmed consumption event, so counting
+  // them here would risk charging for materials that were assigned but never actually used.
+  const fieldMaterialResources = dispatchResources.filter((resource) => resource.type === "Material" && resource.status === "Consumed");
+
   const materials = materialUsageForJob(project.id);
   const materialRate = resolveCostBasisRate("prod-material-standard-unit", priceLevelId, 42);
-  const materialItems = materials.map((item) => ({
-    id: item.id,
-    materialType: item.materialType,
-    quantity: Number(item.quantity || 0),
-    unit: item.unit,
-    unitCost: materialRate.amount,
-    lineCost: Number(item.quantity || 0) * materialRate.amount,
-  }));
+  const materialItems = [
+    ...materials.map((item) => ({
+      id: item.id,
+      materialType: item.materialType,
+      quantity: Number(item.quantity || 0),
+      unit: item.unit,
+      unitCost: materialRate.amount,
+      lineCost: Number(item.quantity || 0) * materialRate.amount,
+      source: "office-log",
+    })),
+    ...fieldMaterialResources.map((item) => ({
+      id: item.id,
+      materialType: item.name,
+      quantity: Number(item.quantity || 0),
+      unit: item.unit,
+      unitCost: materialRate.amount,
+      lineCost: Number(item.quantity || 0) * materialRate.amount,
+      source: "field-dispatch",
+    })),
+  ];
   const materialsTotal = materialItems.reduce((sum, item) => sum + item.lineCost, 0);
 
   const equipment = equipmentLogsForJob(project.id);
   const equipmentRate = resolveCostBasisRate("prod-equipment-standard-daily", priceLevelId, 650);
-  const equipmentItems = equipment.map((item) => ({
-    id: item.id,
-    assetTag: item.assetTag,
-    equipment: item.equipment,
-    unitCost: equipmentRate.amount,
-    lineCost: equipmentRate.amount,
-  }));
+  const equipmentItems = [
+    ...equipment.map((item) => ({
+      id: item.id,
+      assetTag: item.assetTag,
+      equipment: item.equipment,
+      unitCost: equipmentRate.amount,
+      lineCost: equipmentRate.amount,
+      source: "office-log",
+    })),
+    ...fieldEquipmentResources.map((item) => ({
+      id: item.id,
+      assetTag: item.assetTag || "",
+      equipment: item.name,
+      unitCost: equipmentRate.amount,
+      lineCost: equipmentRate.amount,
+      source: "field-dispatch",
+    })),
+  ];
   const equipmentTotal = equipmentItems.reduce((sum, item) => sum + item.lineCost, 0);
 
   const labor = laborHoursForProject(project.id);
@@ -20101,6 +20135,36 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
   const project = projectId ? findProject(projectId) : null;
   const opportunity = opportunityId ? findOpportunity(opportunityId) : project?.opportunityId ? findOpportunity(project.opportunityId) : null;
 
+  // Live bug report follow-up (2026-09-17): "each new job request asks for the same customer packet
+  // and quote info" — every job request dialog defaulted customerPacketStatus/quoteStatus to
+  // "Missing" and blank file inputs regardless of whether an earlier job request on the SAME project
+  // already had a customer packet/quote on file. A browser <input type="file"> can't be pre-populated
+  // with a prior upload for security reasons, so the fix isn't to carry the file itself forward — it's
+  // to stop presenting already-satisfied intake steps as "Missing" and to point staff at where the
+  // existing document already lives instead of prompting a redundant re-upload.
+  const priorPacketNote = dialog.querySelector(".prior-packet-note");
+  const priorQuoteNote = dialog.querySelector(".prior-quote-note");
+  priorPacketNote.hidden = true;
+  priorQuoteNote.hidden = true;
+  const priorRequests = projectId ? jobRequestsForProject(projectId).filter((request) => request.receivedAt) : [];
+  if (priorRequests.length) {
+    const mostRecent = [...priorRequests].sort((a, b) => new Date(b.receivedAt) - new Date(a.receivedAt))[0];
+    const priorPacketDocs = documentsForJobRequest(mostRecent.id).filter((document) => document.documentRole === "customer_packet");
+    const priorQuoteDocs = documentsForJobRequest(mostRecent.id).filter((document) => document.documentRole === "quote");
+    const packetOnFile = priorPacketDocs.length > 0 || mostRecent.customerPacketStatus === "On file" || mostRecent.customerPacketStatus === "Not required";
+    const quoteOnFile = priorQuoteDocs.length > 0 || mostRecent.quoteStatus === "Approved";
+    if (packetOnFile) {
+      form.elements.customerPacketStatus.value = mostRecent.customerPacketStatus === "Not required" ? "Not required" : "On file";
+      priorPacketNote.textContent = `Already ${priorPacketDocs.length ? "uploaded" : "marked on file"} on ${mostRecent.requestNumber} — re-upload only if it changed.`;
+      priorPacketNote.hidden = false;
+    }
+    if (quoteOnFile) {
+      form.elements.quoteStatus.value = "Approved";
+      priorQuoteNote.textContent = `Already ${priorQuoteDocs.length ? "uploaded" : "marked approved"} on ${mostRecent.requestNumber} — re-upload only if it changed.`;
+      priorQuoteNote.hidden = false;
+    }
+  }
+
   if (project) {
     const account = findAccount(project.accountId);
     const location = findFacility(project.facilityId);
@@ -20110,7 +20174,24 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
     form.elements.generatorResponsibleParty.value = project.generatorName || account?.name || "";
     form.elements.calledInByName.value = state.currentUser?.name || "";
     form.elements.addressText.value = formatFacilityAddressLine(location) || project.generatorSiteName || [account?.siteName, account?.city].filter(Boolean).join(", ");
-    form.elements.pricingNotes.value = (project.opportunityId && pricingSourceForOpportunity(project.opportunityId)) || (project.budget ? `${money(project.budget)} project budget.` : "");
+    // Live bug report follow-up (2026-09-17): "reuses opportunity priced amount" — this field was
+    // unconditionally pre-filled with the ORIGINAL opportunity's quoted total (or the project budget)
+    // on every job request, including a 2nd/3rd dispatch request against a project already in the
+    // field. That reused figure prices the whole original scope of work, not whatever this specific
+    // follow-on request covers, but nothing distinguished it from a real per-request price — it just
+    // silently looked like this request's pricing. For the project's first job request that reused
+    // figure is the right and only pricing reference available, so it still prefills the value. For
+    // any later request on the same project, the value is left blank (so nothing false-looking gets
+    // submitted) and the original figure is offered only as a placeholder/reference via `title`.
+    const originalPricingReference = (project.opportunityId && pricingSourceForOpportunity(project.opportunityId)) || (project.budget ? `${money(project.budget)} project budget.` : "");
+    if (priorRequests.length) {
+      form.elements.pricingNotes.value = "";
+      form.elements.pricingNotes.placeholder = originalPricingReference
+        ? `Original opportunity: ${originalPricingReference} — enter pricing for this specific request.`
+        : "Enter pricing for this specific request.";
+    } else {
+      form.elements.pricingNotes.value = originalPricingReference;
+    }
     form.elements.description.value = [project.name, project.activePhase].filter(Boolean).join(" — ");
     if (project.jobClass === "Scheduled Work") {
       form.elements.requestedServiceAt.value = toLocalDateTimeInput(new Date(Date.now() + 3 * 86400000));
@@ -22027,6 +22108,20 @@ function dispatchJobsForProject(projectId) {
   return getDispatchJobs()
     .filter((job) => job.projectId === projectId)
     .sort((a, b) => parseDate(b.scheduledStart) - parseDate(a.scheduledStart));
+}
+
+// Real gap found in Phase 09's cost report (2026-09-17 follow-up): equipment/material usage recorded
+// against a DISPATCH JOB (via "Assign equipment"/"Assign material" on the dispatch board, or a Front
+// Line "Material" task's /consume post) lands in `jobResources`, keyed by `jobId` = a dispatchJobs id.
+// That is a completely separate collection from the office-side `materialUsage`/`equipmentLogs`
+// tables (keyed directly by `projectId`) that `buildProjectCostReport()` originally read exclusively.
+// A project with multiple dispatch jobs ("deployments") and real field-assigned/consumed resources
+// but no office-side manual material/equipment log entries produced an all-zero cost report even
+// though real usage existed. This walks every dispatch job tied to the project and returns their
+// non-removed jobResources so the cost report can fold them in.
+function jobResourcesForProject(projectId) {
+  const jobIds = new Set(dispatchJobsForProject(projectId).map((job) => job.id));
+  return (state.backend.jobResources || []).filter((resource) => jobIds.has(resource.jobId) && resource.status !== "Removed");
 }
 
 function jobRequestsForProject(projectId) {

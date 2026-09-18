@@ -31,7 +31,14 @@ read-only against existing Phase 09 finance data, new `"Odometer"` job-action ty
 `jobMileageEntries`, new ad hoc "+ Activity" job-action/jobFormSubmissions path (`adHoc: true`) for
 untemplated notes/samples/signatures/photos/odometer legs, Sample task gained three required photo
 fields (north view / interval / container label) and Material task gained free-text write-in items
-(`jobResources.writeIn`) -- updated September 17, 2026)
+(`jobResources.writeIn`) -- updated September 17, 2026; Phase 09 live bug follow-up -- 
+`buildProjectCostReport()` now also aggregates dispatch-side `jobResources` (equipment
+assignments and Consumed materials, keyed by `dispatchJobs.id`) across every dispatch job tied to
+a project, not just the office-side `materialUsage`/`equipmentLogs` tables keyed directly by
+`projects.id` -- a project with real field-assigned/consumed resources but no manual office log
+entries was producing an all-zero cost report. `closeReport.costs.materials.items[]` and
+`.equipment.items[]` gained a `source: "office-log"|"field-dispatch"` field to distinguish the two
+origins; no new top-level collection -- updated September 18, 2026)
 
 ## Executive Summary
 
