@@ -2680,6 +2680,17 @@ body[data-theme="dark"] .map-popup span {
   padding: 13px;
 }
 
+.timeline-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.timeline-load-more {
+  width: 100%;
+  margin-top: 8px;
+}
+
 .detail-card {
   display: grid;
   gap: 9px;

@@ -1494,6 +1494,7 @@ const state = {
   accountDetailTab: "",
   contactDetailTab: "",
   accountTimelineSearch: "",
+  timelineVisibleCounts: {},
   contactSearch: "",
   contactTableView: "sales",
   opportunitySearch: "",
@@ -2210,6 +2211,11 @@ async function handleClick(event) {
   if (action === "open-service-agreement") openServiceAgreementDialog(actionButton.dataset.accountId, id);
   if (action === "open-subcontractor-assignment") openSubcontractorAssignmentDialog(actionButton.dataset.vendorProfileId, id);
   if (action === "open-contact-preferences") openContactPreferencesDialog(actionButton.dataset.accountId);
+  if (action === "load-more-timeline") {
+    const contextKey = actionButton.dataset.context;
+    state.timelineVisibleCounts[contextKey] = (state.timelineVisibleCounts[contextKey] || TIMELINE_PAGE_SIZE) + TIMELINE_PAGE_SIZE;
+    render();
+  }
   if (action === "open-note") openActivityDialog(actionButton.dataset.accountId, actionButton.dataset.contactId, actionButton.dataset.opportunityId);
   if (action === "open-quick-note") openQuickNoteDialog(actionButton.dataset.accountId, actionButton.dataset.contactId, actionButton.dataset.opportunityId);
   if (action === "open-activity-meeting") openActivityMeetingDialog(actionButton.dataset.accountId, actionButton.dataset.contactId, actionButton.dataset.opportunityId);
@@ -2957,6 +2963,16 @@ function renderQuickActions() {
         </div>
       </details>
     `);
+  } else if (state.view === "opportunity-detail" && state.selectedOpportunityId && canAccessView("pipeline")) {
+    const opportunity = findOpportunity(state.selectedOpportunityId);
+    actions.push(`
+      <details class="create-menu">
+        <summary class="primary-button">+ Create</summary>
+        <div class="create-menu-list">
+          <button type="button" data-action="open-note" data-account-id="${escapeAttribute(opportunity?.accountId || "")}" data-opportunity-id="${escapeAttribute(state.selectedOpportunityId)}">Activity</button>
+        </div>
+      </details>
+    `);
   } else if (state.view === "contact-detail" && state.selectedContactId && canAccessView("pipeline")) {
     const contact = findContact(state.selectedContactId);
     actions.push(`
@@ -3347,7 +3363,6 @@ function renderPipeline() {
         </div>
         <div class="list-toolbar">
           ${renderCompactSearch("opportunitySearch", "Search opportunities or accounts", state.opportunitySearch)}
-          <button class="secondary-button" type="button" data-action="open-note">Add activity</button>
           <button class="primary-button" type="button" data-action="open-opportunity">New opportunity</button>
           ${renderCompactSelect(
             "opportunityTableView",
@@ -3593,7 +3608,6 @@ function renderOpportunityDetailHeader(opportunity) {
       </div>
       <div class="toolbar">
         ${account ? `<button class="secondary-button" type="button" data-action="view-account" data-id="${account.id}">Open account</button>` : ""}
-        <button class="secondary-button" type="button" data-action="open-note" data-account-id="${opportunity.accountId}" data-opportunity-id="${opportunity.id}">Add activity</button>
         <button class="secondary-button" type="button" data-action="open-opportunity" data-id="${opportunity.id}" data-account-id="${opportunity.accountId}">Edit opportunity</button>
         ${resultingProject ? `<button class="secondary-button" type="button" data-action="view-project" data-id="${escapeAttribute(resultingProject.id)}">Open project</button>` : ""}
         ${
@@ -3704,8 +3718,8 @@ function renderOpportunitySummaryTab(opportunity) {
               <h3>Timeline</h3>
               ${renderActivityPicker(opportunity.accountId, "", opportunity.id)}
             </div>
-            <div class="panel-body record-list">
-              ${activities.map(renderTimelineItem).join("") || `<div class="empty-state">No activities for this opportunity yet.</div>`}
+            <div class="panel-body">
+              ${renderTimelinePanel(activities, `opportunity-summary-${opportunity.id}`, "No activities for this opportunity yet.")}
             </div>
           </article>
         </div>
@@ -3990,8 +4004,8 @@ function renderOpportunityFilesActivityTab(opportunity) {
       </article>
       <article class="panel">
         <div class="panel-header"><h3>Activity timeline</h3></div>
-        <div class="panel-body record-list">
-          ${activities.map(renderTimelineItem).join("") || `<div class="empty-state">No activities for this opportunity yet.</div>`}
+        <div class="panel-body">
+          ${renderTimelinePanel(activities, `opportunity-files-activity-${opportunity.id}`, "No activities for this opportunity yet.")}
         </div>
       </article>
       <article class="panel">
@@ -4998,6 +5012,13 @@ function renderAccountDetailHeader(account) {
   const relationshipExtension = relationshipExtensionForAccount(account.id);
   const statusLabel = relationshipExtension?.relationshipStatus || "Not set";
   const statusTone = statusLabel === "Active" ? "low" : statusLabel === "Suspended" || statusLabel === "Inactive" ? "high" : "medium";
+  const statusTooltips = {
+    Target: "A prospect being pursued that hasn't become an active customer yet.",
+    Active: "A current customer with an active relationship.",
+    Inactive: "Was a customer before, but there's no active relationship right now.",
+    Suspended: "Relationship is on hold, typically due to a compliance or billing issue.",
+  };
+  const statusTooltip = statusTooltips[statusLabel] || "";
   const isPaused = Boolean(relationshipExtension?.isPaused);
   const expiryWarning = accountVendorExpiryWarning(account);
   return `
@@ -5017,7 +5038,7 @@ function renderAccountDetailHeader(account) {
       <div class="account-hero-stats">
         ${isPaused ? `<span class="risk-badge high">Paused</span>` : ""}
         ${expiryWarning ? `<span class="risk-badge ${expiryWarning === "expired" ? "high" : "medium"}" title="Vendor insurance or a subcontractor approval is expired or expiring within 30 days — see the Vendor & Subcontractor tab">${expiryWarning === "expired" ? "Compliance expired" : "Compliance expiring soon"}</span>` : ""}
-        <span class="risk-badge ${statusTone}">Account ${escapeHtml(statusLabel)}</span>
+        <span class="risk-badge ${statusTone}"${statusTooltip ? ` title="${escapeAttribute(statusTooltip)}"` : ""}>Account ${escapeHtml(statusLabel)}</span>
         <div class="metric account-hero-metric">
           <p class="eyebrow">Annual Revenue</p>
           <strong>${money(Number(account.annualRevenue) || 0)}</strong>
@@ -5178,8 +5199,8 @@ function renderAccountSummaryTab(account) {
           </div>
           <div class="panel-body">
             <input type="search" id="accountTimelineSearch" placeholder="Search this account's timeline" value="${escapeAttribute(state.accountTimelineSearch || "")}" />
-            <div class="record-list" style="margin-top: 10px;">
-              ${activities.map(renderTimelineItem).join("") || `<div class="empty-state">No activity yet.</div>`}
+            <div style="margin-top: 10px;">
+              ${renderTimelinePanel(activities, `account-summary-${account.id}`, "No activity yet.")}
             </div>
           </div>
         </article>
@@ -12395,6 +12416,28 @@ function renderTimelineItemDetail(activity) {
     return activity.emailAddress ? `<span>${escapeHtml(activity.emailAddress)}</span>` : "";
   }
   return "";
+}
+
+const TIMELINE_PAGE_SIZE = 15;
+
+// A long activity history rendered in full inside a `.detail-stack` column pushes every panel
+// below it down the page (the Georgetown-account bug: sales activities end up "slammed at the
+// bottom"). This renders a bounded, internally-scrolling timeline with incremental "Load more"
+// paging instead of dumping the whole list into the flow.
+function renderTimelinePanel(activities, contextKey, emptyMessage) {
+  const visibleCount = state.timelineVisibleCounts[contextKey] || TIMELINE_PAGE_SIZE;
+  const visible = activities.slice(0, visibleCount);
+  const remaining = activities.length - visible.length;
+  return `
+    <div class="record-list timeline-scroll">
+      ${visible.map(renderTimelineItem).join("") || `<div class="empty-state">${escapeHtml(emptyMessage)}</div>`}
+    </div>
+    ${
+      remaining > 0
+        ? `<button class="mini-button timeline-load-more" type="button" data-action="load-more-timeline" data-context="${escapeAttribute(contextKey)}">Load ${Math.min(remaining, TIMELINE_PAGE_SIZE)} more (${remaining} left)</button>`
+        : ""
+    }
+  `;
 }
 
 function renderTimelineItem(activity) {
