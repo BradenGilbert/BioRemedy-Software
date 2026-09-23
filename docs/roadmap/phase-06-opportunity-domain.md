@@ -162,7 +162,7 @@ This is really a Contact-page item (Phase 05 owns the Contact detail page) but i
 
 > *"Develop and planning section of opportunities, under Resource needs it lists vendor/subcontractor needs... having it be open text free for any entry makes sense but later we will want the sub/vendor entries to be selected from the approved vendor/sub list."*
 
-No action this phase — the owner explicitly says free text is fine *for now*. **Dependency to track:** once Phase 04's Layer 2 (`account_approved_subcontractors`) ships, come back and convert this field from free text to a picker scoped to subs approved for *this* customer account. Do not build the picker before Phase 04 ships the approval list it would read from.
+**✅ Done 2026-09-23 (sprint Wave 4), now that Phase 04's Layer 2 exists.** Both needs dialogs (the vendor list, and "Edit all") show **"Approved for {customer}:"** quick-pick chips from `accountApprovedSubcontractors` (status Approved), which add the vendor as an entry. Free text is still allowed (the owner's "free text is fine *for now*", and the approved list can be empty), but a vendor need that isn't on the customer's approved list is **flagged "(not approved)"** in the Resource needs panel rather than silently accepted. No action this phase — the owner explicitly says free text is fine *for now*. **Dependency to track:** once Phase 04's Layer 2 (`account_approved_subcontractors`) ships, come back and convert this field from free text to a picker scoped to subs approved for *this* customer account. Do not build the picker before Phase 04 ships the approval list it would read from.
 
 ### 14. Primary stakeholder checkbox — CSS layout bug
 

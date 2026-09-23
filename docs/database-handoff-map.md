@@ -540,6 +540,11 @@ writeup.
 - No new collections.
 - The Phase 04 approved-subcontractor picker now stores the same `subcontractorAccountId`, picked through a lookup instead of a `<select>`.
 
+**Sprint Wave 4 (2026-09-23):**
+- **`jobResources`** (type Vendor) gained `vendorAccountId`, `subcontractorAssignmentId` and `scopeNote` (Phase 04 item 5). At cutover, `job_resource_allocations` should gain `subcontractor_assignment_id` and keep `vendor_account_id` alongside it, since the approval check needs the vendor and a job-only vendor may have no standing assignment.
+- **`subcontractorAssignments`** gained `pricingBasis` (`fixed` | `rate-sheet`; Phase 04 item 14). Only the matching fields are saved: `rateAmount`/`rateType` for fixed, `priceLevelId` for rate sheet.
+- No new collections.
+
 Also in this session: `server.mjs` now serializes API requests and writes `backend.json`
 atomically (temp file + rename), after a live concurrent-save collision. See
 `docs/roadmap/phase-08-quotes-estimates.md`, "Rate-card rework: design" and its 2026-09-23

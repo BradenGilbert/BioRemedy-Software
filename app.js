@@ -2117,6 +2117,16 @@ function bindEvents() {
   document.addEventListener("input", handleInput);
   document.addEventListener("change", handleInput);
   document.addEventListener("keydown", handleRecordLookupKeydown);
+  // form.reset() doesn't clear <input type="hidden"> (setting .value rewrites its default), so a
+  // reopened dialog kept the previous pick. The reset event fires inside form.reset(), before the
+  // open function sets new values, so clear every lookup there.
+  document.addEventListener("reset", (event) => {
+    event.target.querySelectorAll?.(".record-lookup").forEach((container) => {
+      const { hidden, multiple } = lookupParts(container);
+      hidden.value = multiple ? "[]" : "";
+      syncRecordLookup(container);
+    });
+  });
   document.addEventListener("focusin", (event) => {
     if (event.target.matches?.(".record-lookup-input")) searchRecordLookup(event.target.closest(".record-lookup"));
   });
@@ -2541,6 +2551,16 @@ async function handleClick(event) {
   if (action === "open-dispatch-assign-equipment") openDispatchAssignEquipmentDialog(actionButton.dataset.jobId);
   if (action === "open-dispatch-assign-material") openDispatchAssignMaterialDialog(actionButton.dataset.jobId);
   if (action === "remove-job-resource") await removeJobResource(id);
+  if (action === "add-approved-sub-need") {
+    const textarea = actionButton.closest("form")?.elements[actionButton.dataset.target];
+    if (textarea) {
+      const lines = textarea.value.split(/\n/).map((line) => line.trim()).filter(Boolean);
+      if (!lines.some((line) => line.split("|")[0].trim().toLowerCase() === actionButton.dataset.name.toLowerCase())) {
+        textarea.value = [...lines, actionButton.dataset.name].join("\n");
+      }
+    }
+  }
+  if (action === "open-dispatch-assign-vendor") openDispatchAssignVendorDialog(actionButton.dataset.jobId);
   if (action === "open-template-editor") openTemplateEditor(id);
   if (action === "add-template-stage") addTemplateStage();
   if (action === "remove-template-stage") removeTemplateStage(Number(actionButton.dataset.stageIndex));
@@ -2722,6 +2742,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "rate-card-uom") await saveRateCardUom(form);
   if (form.dataset.form === "rate-card-product") await saveRateCardProduct(form);
   if (form.dataset.form === "pricing-settings") await savePricingSettings(form);
+  if (form.dataset.form === "dispatch-assign-vendor") await saveDispatchAssignVendor(form);
   if (form.dataset.form === "project-from-opportunity") await saveProjectFromOpportunity(form);
   if (form.dataset.form === "project-intake") await saveProjectIntake(form);
   if (form.dataset.form === "account") await saveAccount(form);
@@ -2905,6 +2926,14 @@ function handleInputInner(event) {
   if (event.target.id === "rateCardCategoryFilter") {
     state.rateCardCategoryFilter = event.target.value;
     renderRateCard();
+    return;
+  }
+  if (event.type === "change" && event.target.matches?.("#dispatchAssignVendorDialog .record-lookup")) {
+    refreshDispatchVendorDialog(event.target.closest("dialog"));
+    return;
+  }
+  if (event.target.closest?.("#subcontractorAssignmentDialog") && event.target.name === "pricingBasis") {
+    syncSubcontractorPricingBasis(event.target.closest("form"));
     return;
   }
   if (event.target.matches("[data-link-rate-line]")) {
@@ -4291,10 +4320,38 @@ function renderOpportunityLeadQualificationTab(opportunity, missingFields = []) 
   `;
 }
 
-function renderOpportunityNeedsChips(items) {
+// `approvedNames` (vendor needs only): entries that aren't a subcontractor this customer has approved
+// are flagged, not blocked. Phase 06 item 13 keeps free text, and the approved list may still be
+// empty.
+function renderOpportunityNeedsChips(items, approvedNames = null) {
+  const approved = approvedNames ? new Set(approvedNames.map((name) => name.toLowerCase())) : null;
   return (items || [])
-    .map((item) => `<span class="tag">${escapeHtml(item.name)}${item.note ? ` &mdash; ${escapeHtml(item.note)}` : ""}</span>`)
+    .map((item) => {
+      const unapproved = approved && !approved.has(item.name.trim().toLowerCase());
+      return `<span class="tag${unapproved ? " tag-unapproved" : ""}"${unapproved ? ' title="Not on this customer\'s approved subcontractor list"' : ""}>${escapeHtml(item.name)}${item.note ? ` &mdash; ${escapeHtml(item.note)}` : ""}${unapproved ? " (not approved)" : ""}</span>`;
+    })
     .join("");
+}
+
+// Phase 06 item 13: now that Phase 04's Layer 2 exists, vendor needs can be picked from the
+// subcontractors this customer has approved.
+function approvedSubcontractorNamesForAccount(accountId) {
+  return approvedSubcontractorsForAccount(accountId)
+    .filter((link) => link.status === "Approved")
+    .map((link) => findAccount(link.subcontractorAccountId)?.name)
+    .filter(Boolean);
+}
+
+function renderApprovedSubPicks(root, accountId) {
+  const customer = findAccount(accountId)?.name || "this customer";
+  const names = approvedSubcontractorNamesForAccount(accountId);
+  root.querySelectorAll("[data-approved-sub-picks]").forEach((container) => {
+    container.innerHTML = names.length
+      ? `<span class="muted-text">Approved for ${escapeHtml(customer)}:</span> ${names
+          .map((name) => `<button type="button" class="timeline-filter-chip" data-action="add-approved-sub-need" data-name="${escapeAttribute(name)}" data-target="${escapeAttribute(container.dataset.target)}">+ ${escapeHtml(name)}</button>`)
+          .join("")}`
+      : `<span class="muted-text">No subcontractors approved for ${escapeHtml(customer)} yet; approve them on the account's Vendor &amp; Subcontractor tab. Free text is fine meanwhile.</span>`;
+  });
 }
 
 function renderOpportunityAssignmentRow(entry) {
@@ -4398,7 +4455,7 @@ function renderOpportunityDevelopPlanningTab(opportunity, missingFields = []) {
                 <strong>Vendor / subcontractor needed</strong>
                 <button class="mini-button" type="button" data-action="open-opportunity-needs-list" data-opportunity-id="${opportunity.id}" data-kind="vendor">Edit</button>
               </div>
-              <div class="chip-list">${renderOpportunityNeedsChips(opportunity.vendorNeeds) || `<span class="tag">Nothing listed</span>`}</div>
+              <div class="chip-list">${renderOpportunityNeedsChips(opportunity.vendorNeeds, approvedSubcontractorNamesForAccount(opportunity.accountId)) || `<span class="tag">Nothing listed</span>`}</div>
             </div>
             <div>
               <div class="row-meta">
@@ -12133,7 +12190,7 @@ async function toggleTemplateActive(templateId) {
 const dispatchJobDetailTabs = [
   { id: "summary", label: "Summary" },
   { id: "details", label: "Details" },
-  { id: "assignment", label: "Assignment" },
+  { id: "assignment", label: "Plan & resources" },
   { id: "files-activity", label: "Files & Activity" },
 ];
 
@@ -12322,15 +12379,199 @@ function renderDispatchJobDetailsTab(job) {
   `;
 }
 
+// --- Subcontractors on dispatch jobs (Phase 04 item 5) ------------------------------------------
+//
+// A vendor on a job used to be a free-text name. It now carries real links: `vendorAccountId` (who)
+// and, optionally, `subcontractorAssignmentId` (the standing Layer 3 terms with that vendor). The
+// payoff Phase 04 described is the Layer 2 check: is this vendor approved by *this job's customer*?
+// An unapproved subcontractor blocks dispatch readiness.
+function vendorApprovalForJob(job, vendorAccountId) {
+  const link = getApprovedSubcontractors().find(
+    (item) => item.accountId === job.accountId && item.subcontractorAccountId === vendorAccountId && !item.deletedAt,
+  );
+  return { approved: link?.status === "Approved", status: link?.status || "Not approved", link };
+}
+
+function subcontractorAssignmentsForVendorAccount(vendorAccountId) {
+  const profile = vendorProfileForAccount(vendorAccountId);
+  return profile ? subcontractorAssignmentsForVendorProfile(profile.id) : [];
+}
+
+function vendorResourcesForJob(jobId) {
+  return resourcesForDispatchJob(jobId).filter((resource) => resource.type === "Vendor");
+}
+
+function vendorReadinessCheck(job) {
+  const vendors = vendorResourcesForJob(job.id);
+  if (!vendors.length) return null;
+  const customer = findAccount(job.accountId)?.name || "this customer";
+  const nameOf = (resource) => findAccount(resource.vendorAccountId)?.name || resource.name;
+  const names = (list) => [...new Set(list.map(nameOf))].join(", ");
+  const unapproved = vendors.filter((resource) => resource.vendorAccountId && !vendorApprovalForJob(job, resource.vendorAccountId).approved);
+  const uninsured = vendors.filter(
+    (resource) => resource.vendorAccountId && isExpiringOrExpired(vendorProfileForAccount(resource.vendorAccountId)?.insuranceExpiration) === "expired",
+  );
+  const unlinked = vendors.filter((resource) => !resource.vendorAccountId);
+  if (unapproved.length) {
+    return { label: "Subcontractor approvals", status: "Block", detail: `${names(unapproved)} not approved by ${customer}` };
+  }
+  if (uninsured.length || unlinked.length) {
+    const notes = [
+      uninsured.length ? `insurance expired: ${names(uninsured)}` : "",
+      unlinked.length ? `not linked to a vendor account, so approval can't be checked: ${names(unlinked)}` : "",
+    ].filter(Boolean);
+    return { label: "Subcontractor approvals", status: "Warning", detail: notes.join("; ") };
+  }
+  return { label: "Subcontractor approvals", status: "Pass", detail: `${vendors.length} subcontractor${vendors.length === 1 ? "" : "s"} approved for ${customer}` };
+}
+
+// Assigned equipment that's on maintenance hold can't go out; an open issue is worth a look.
+function equipmentReadinessCheck(job) {
+  const assets = resourcesForDispatchJob(job.id)
+    .filter((resource) => resource.type === "Equipment" && resource.assetTag)
+    .map((resource) => findEquipmentAssetByTag(resource.assetTag))
+    .filter(Boolean);
+  if (!assets.length) return null;
+  const held = assets.filter((asset) => asset.status === "Maintenance hold");
+  const flagged = assets.filter((asset) => asset.issue && asset.status !== "Maintenance hold");
+  if (held.length) return { label: "Equipment condition", status: "Block", detail: `On maintenance hold: ${held.map((asset) => asset.assetTag).join(", ")}` };
+  if (flagged.length) return { label: "Equipment condition", status: "Warning", detail: `Open issue: ${flagged.map((asset) => `${asset.assetTag} (${asset.issue})`).join(", ")}` };
+  return { label: "Equipment condition", status: "Pass", detail: `${assets.length} asset${assets.length === 1 ? "" : "s"} ready` };
+}
+
+function openDispatchAssignVendorDialog(jobId) {
+  const dialog = document.querySelector("#dispatchAssignVendorDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.jobId.value = jobId;
+  const job = findDispatchJob(jobId);
+  dialog.querySelector(".record-lookup").dataset.lookupExclude = job?.accountId || "";
+  syncRecordLookups(dialog);
+  refreshDispatchVendorDialog(dialog);
+  dialog.showModal();
+}
+
+// After a vendor is picked: list its standing assignments and say up front whether this customer
+// has approved it, before anyone presses Assign.
+function refreshDispatchVendorDialog(dialog) {
+  const form = dialog.querySelector("form");
+  const vendorAccountId = form.elements.vendorAccountId.value;
+  const job = findDispatchJob(form.elements.jobId.value);
+  const assignments = vendorAccountId ? subcontractorAssignmentsForVendorAccount(vendorAccountId) : [];
+  form.elements.subcontractorAssignmentId.innerHTML = [
+    `<option value="">${vendorAccountId ? "No standing assignment (job-only terms)" : "Pick a vendor first"}</option>`,
+    ...assignments.map((item) => `<option value="${escapeAttribute(item.id)}">${escapeHtml(item.assignmentName || "Assignment")} · ${escapeHtml(item.assignmentStatus || "")}</option>`),
+  ].join("");
+  const note = dialog.querySelector("[data-vendor-approval-note]");
+  if (!note) return;
+  if (!vendorAccountId || !job) {
+    note.textContent = "";
+    note.className = "help-text";
+    return;
+  }
+  const approval = vendorApprovalForJob(job, vendorAccountId);
+  const customer = findAccount(job.accountId)?.name || "this customer";
+  note.textContent = approval.approved
+    ? `Approved by ${customer}.`
+    : `Not approved by ${customer} (status: ${approval.status}). You can still assign it, but the job stays blocked from dispatch until the customer's approval is recorded on its Vendor & Subcontractor tab.`;
+  note.className = approval.approved ? "help-text" : "help-text vendor-approval-warning";
+}
+
+async function saveDispatchAssignVendor(form) {
+  const data = new FormData(form);
+  const job = findDispatchJob(data.get("jobId").toString());
+  const vendorAccountId = data.get("vendorAccountId").toString();
+  const vendor = findAccount(vendorAccountId);
+  if (!job || !vendor) {
+    showToast("Pick the vendor or subcontractor to assign.");
+    return;
+  }
+  const approval = vendorApprovalForJob(job, vendorAccountId);
+  const customer = findAccount(job.accountId)?.name || "this customer";
+  if (!approval.approved && !window.confirm(`${vendor.name} isn't approved to work for ${customer}. Assign anyway? The job will show as blocked until the approval is recorded.`)) {
+    return;
+  }
+  try {
+    await saveBackendRecord("jobResources", {
+      id: makeId("resource"),
+      jobId: job.id,
+      type: "Vendor",
+      name: vendor.name,
+      vendorAccountId,
+      subcontractorAssignmentId: data.get("subcontractorAssignmentId").toString(),
+      scopeNote: data.get("scopeNote").toString().trim(),
+      assetTag: "",
+      quantity: 1,
+      unit: "",
+      status: "Reserved",
+    });
+    closeDialogs();
+    render();
+    showToast(approval.approved ? `${vendor.name} assigned.` : `${vendor.name} assigned. The job is blocked until ${customer} approves them.`);
+  } catch (error) {
+    showToast(error.message || "Subcontractor could not be assigned.");
+  }
+}
+
+function renderJobVendorResource(job, resource) {
+  const vendor = resource.vendorAccountId ? findAccount(resource.vendorAccountId) : null;
+  const assignment = resource.subcontractorAssignmentId ? getSubcontractorAssignments().find((item) => item.id === resource.subcontractorAssignmentId) : null;
+  const approval = vendor ? vendorApprovalForJob(job, vendor.id) : null;
+  const badge = !vendor
+    ? `<span class="risk-badge medium" title="Free-text entry from the old Schedule quick-add; approval can't be checked">Not linked</span>`
+    : approval.approved
+      ? `<span class="risk-badge low">Approved by customer</span>`
+      : `<span class="risk-badge high">${escapeHtml(approval.status)}</span>`;
+  return `
+    <article class="job-resource-row">
+      <span class="resource-type-mark">SB</span>
+      <div>
+        <strong>${vendor ? `<button class="link-button compact-link" type="button" data-action="view-account" data-id="${escapeAttribute(vendor.id)}">${approval && !approval.approved ? withTrailingAlertDot(vendor.name, "Not approved by this job's customer") : escapeHtml(vendor.name)}</button>` : escapeHtml(resource.name)}</strong>
+        <span>${escapeHtml([assignment?.assignmentName, resource.scopeNote].filter(Boolean).join(" · ") || "No terms linked")}</span>
+      </div>
+      ${badge}
+      <button class="mini-button" type="button" data-action="remove-job-resource" data-id="${escapeAttribute(resource.id)}">Remove</button>
+    </article>
+  `;
+}
+
+function renderDispatchPlanSummary(job, readiness) {
+  const lead = findEmployee(job.fieldLeadEmployeeId);
+  const resources = resourcesForDispatchJob(job.id);
+  const count = (type) => resources.filter((resource) => resource.type === type).length;
+  const planLabels = ["Schedule window", "Worker assignments", "Resources", "Equipment condition", "Subcontractor approvals"];
+  const checks = readiness.checks.filter((check) => planLabels.includes(check.label));
+  const blocked = !isTerminalDispatchStatus(job.status) && job.status !== "draft" && checks.some((check) => check.status === "Block");
+  return `
+    <article class="panel crm-profile-grid-full ${blocked ? "panel-needs-attention" : ""}">
+      <div class="panel-header">
+        <div><h3>Plan</h3><span>Everything this job needs, planned from here: when, who leads, crew, equipment, materials, subcontractors</span></div>
+        <button class="mini-button" type="button" data-action="open-job-schedule" data-job-id="${escapeAttribute(job.id)}">Edit schedule &amp; lead</button>
+      </div>
+      <div class="panel-body dispatch-plan-summary">
+        <dl class="detail-list">
+          <div><dt>When</dt><dd>${job.scheduledStart ? `${formatDateTime(job.scheduledStart)} to ${formatShortTime(job.scheduledEnd)}` : "Not scheduled yet"}</dd></div>
+          <div><dt>Field lead</dt><dd>${escapeHtml(lead?.displayName || "Not set")}</dd></div>
+          <div><dt>Crew</dt><dd>${dispatchAssignmentsForJob(job.id).length}</dd></div>
+          <div><dt>Equipment · Materials · Subcontractors</dt><dd>${count("Equipment")} · ${count("Material")} · ${count("Vendor")}</dd></div>
+        </dl>
+        <div class="readiness-check-list">${checks.map(renderReadinessCheck).join("")}</div>
+      </div>
+    </article>
+  `;
+}
+
 function renderDispatchJobAssignmentTab(job) {
   const assignments = dispatchAssignmentsForJob(job.id);
   const resources = resourcesForDispatchJob(job.id);
   const equipmentResources = resources.filter((resource) => resource.type === "Equipment");
   const materialResources = resources.filter((resource) => resource.type === "Material");
-  const otherResources = resources.filter((resource) => !["Equipment", "Material"].includes(resource.type));
+  const vendorResources = resources.filter((resource) => resource.type === "Vendor");
+  const otherResources = resources.filter((resource) => !["Equipment", "Material", "Vendor"].includes(resource.type));
 
   return `
     <section class="crm-profile-grid">
+      ${renderDispatchPlanSummary(job, getJobReadiness(job))}
       <article class="panel">
         <div class="panel-header">
           <div><h3>Workers</h3><span>${assignments.length} assigned</span></div>
@@ -12361,10 +12602,20 @@ function renderDispatchJobAssignmentTab(job) {
         </div>
       </article>
 
+      <article class="panel ${vendorResources.some((resource) => resource.vendorAccountId && !vendorApprovalForJob(job, resource.vendorAccountId).approved) ? "panel-needs-attention" : ""}">
+        <div class="panel-header">
+          <div><h3>Subcontractors</h3><span>${vendorResources.length} assigned · must be approved by this customer</span></div>
+          <button class="mini-button" type="button" data-action="open-dispatch-assign-vendor" data-job-id="${escapeAttribute(job.id)}">Assign subcontractor</button>
+        </div>
+        <div class="panel-body resource-list">
+          ${vendorResources.map((resource) => renderJobVendorResource(job, resource)).join("") || `<div class="empty-state compact">No subcontractors on this job.</div>`}
+        </div>
+      </article>
+
       ${
         otherResources.length
           ? `<article class="panel">
-              <div class="panel-header"><div><h3>Other resources</h3><span>${otherResources.length} from the Schedule dialog's quick-add</span></div></div>
+              <div class="panel-header"><div><h3>Vehicles &amp; other</h3><span>${otherResources.length} added through the old Schedule quick-add</span></div></div>
               <div class="panel-body resource-list">
                 ${otherResources.map(renderJobResource).join("")}
               </div>
@@ -18332,7 +18583,9 @@ async function saveDispatchSchedule(form) {
     return;
   }
   const crewId = data.get("crewId").toString();
-  const resourceName = data.get("resourceName").toString().trim();
+  // The Schedule dialog lost its free-text resource quick-add on 2026-09-23 (resources are planned
+  // on the job's Plan & resources tab, Q33); older rows it created still render there.
+  const resourceName = data.get("resourceName")?.toString().trim() || "";
   const eligibilityStatus = fieldLead.readinessStatus === "Blocked" ? "Blocked" : fieldLead.readinessStatus === "Expiring" ? "Warning" : "Eligible";
 
   try {
@@ -20118,6 +20371,9 @@ function openOpportunityNeedsListDialog(opportunityId, kind) {
   if (titleField) titleField.textContent = config.title;
   const items = opportunity[config.field] || [];
   form.elements.items.value = items.map((item) => (item.note ? `${item.name} | ${item.note}` : item.name)).join("\n");
+  const picks = dialog.querySelector("[data-approved-sub-picks]");
+  if (picks) picks.hidden = kind !== "vendor";
+  if (kind === "vendor") renderApprovedSubPicks(dialog, opportunity.accountId);
   dialog.showModal();
 }
 
@@ -20134,6 +20390,7 @@ function openOpportunityNeedsCombinedDialog(opportunityId) {
     const items = opportunity[config.field] || [];
     form.elements[config.field].value = items.map((item) => (item.note ? `${item.name} | ${item.note}` : item.name)).join("\n");
   });
+  renderApprovedSubPicks(dialog, opportunity.accountId);
   dialog.showModal();
 }
 
@@ -23355,6 +23612,8 @@ function openSubcontractorAssignmentDialog(vendorProfileId = "", assignmentId = 
     form.elements.rateType.value = assignment.rateType || "";
     form.elements.rateAmount.value = assignment.rateAmount ?? "";
     form.elements.priceLevelId.value = assignment.priceLevelId || "";
+    // Records saved before 2026-09-23 had no basis; infer it from what they hold.
+    form.elements.pricingBasis.value = assignment.pricingBasis || (assignment.rateAmount ? "fixed" : assignment.priceLevelId ? "rate-sheet" : "fixed");
     form.elements.startDate.value = assignment.startDate || "";
     form.elements.endDate.value = assignment.endDate || "";
     form.elements.relatedJobReference.value = assignment.relatedJobReference || "";
@@ -23363,7 +23622,18 @@ function openSubcontractorAssignmentDialog(vendorProfileId = "", assignmentId = 
   } else {
     form.elements.id.value = "";
   }
+  syncSubcontractorPricingBasis(form);
   dialog.showModal();
+}
+
+// Phase 04 item 14: a rate sheet and a single rate amount/type were three contradictory inputs.
+// Now it's one choice: a fixed rate (amount + unit) or the vendor's rate sheet, with only the
+// relevant fields shown and saved.
+function syncSubcontractorPricingBasis(form) {
+  const basis = form.elements.pricingBasis.value;
+  form.querySelectorAll("[data-pricing-basis]").forEach((element) => {
+    element.hidden = element.dataset.pricingBasis !== basis;
+  });
 }
 
 async function saveSubcontractorAssignment(form) {
@@ -23373,9 +23643,10 @@ async function saveSubcontractorAssignment(form) {
     vendorProfileId: data.get("vendorProfileId").toString(),
     assignmentName: data.get("assignmentName").toString().trim(),
     assignmentStatus: data.get("assignmentStatus").toString(),
-    rateType: data.get("rateType").toString(),
-    rateAmount: data.get("rateAmount") ? Number(data.get("rateAmount")) : null,
-    priceLevelId: data.get("priceLevelId").toString(),
+    pricingBasis: data.get("pricingBasis").toString(),
+    rateType: data.get("pricingBasis") === "fixed" ? data.get("rateType").toString() : "",
+    rateAmount: data.get("pricingBasis") === "fixed" && data.get("rateAmount") ? Number(data.get("rateAmount")) : null,
+    priceLevelId: data.get("pricingBasis") === "rate-sheet" ? data.get("priceLevelId").toString() : "",
     startDate: data.get("startDate").toString(),
     endDate: data.get("endDate").toString(),
     relatedJobReference: data.get("relatedJobReference").toString().trim(),
@@ -26791,6 +27062,9 @@ function getJobReadiness(job) {
       status: blocking.length ? "Block" : conflicts.length ? "Warning" : "Pass",
       detail: conflicts.length ? `${conflicts.length} open conflict${conflicts.length === 1 ? "" : "s"}` : "No open conflicts",
     },
+    // Phase 04 item 5 / Phase 07 item 4 (2026-09-23): added only when the job has subcontractors /
+    // equipment, so an unapproved vendor or an asset on maintenance hold blocks dispatch.
+    ...[vendorReadinessCheck(job), equipmentReadinessCheck(job)].filter(Boolean),
   ];
   const hasBlock = checks.some((check) => check.status === "Block");
   const hasWarning = checks.some((check) => check.status === "Warning");

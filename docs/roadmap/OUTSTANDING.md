@@ -59,11 +59,9 @@ Two answers from that second round changed earlier entries and are already corre
 *2026-09-23 (Wave 2): industries added (plus DOT under Government, and a NAICS code per industry), `accountIndustries` confirmed authoritative, opportunity industry is now a curated picker, and facility-level environmental risk (Q55) built. "Remove the Account Table" was dropped (Q30).*
 - ~~List-filter cleanup (item 6)~~: quick-filter chips shipped 2026-09-23 (Wave 3) on Accounts, Contacts and Opportunities.
 
-### Phase 04 — Vendor & Subcontractor · *2 unblocked, 3 blocked*
-*2026-09-23: Office → Compliance expiry list shipped (item 4); item 7 resolved by Phase 08's rate sheets.*
-- Dispatch-time subcontractor approval check + real vendor FK on job resources (Wave 4)
-- Subcontractor assignment rate fields: pick a rate sheet, then derive the rate (item 14, unblocked by Phase 08; Wave 4)
-- W-9/COI upload → review workflow; agreement templates by type (blocked on Phase 13)
+### Phase 04 — Vendor & Subcontractor · *3 items, all blocked on Phase 13*
+*2026-09-23: Compliance list (4), rate sheets (7), dispatch-time approval check + vendor links on jobs (5) and the subcontractor pricing basis (14) all shipped.*
+- W-9/COI upload → review workflow; agreement templates by type (items 8, 9, 12; blocked on Phase 13)
 
 ### Phase 05 — Contacts & Timeline · ✅ complete 2026-09-23
 Phone formatter (Wave 2); shared record lookup, timeline "Related" filter and Connected-via links (Wave 3).
@@ -71,11 +69,12 @@ Phone formatter (Wave 2); shared record lookup, timeline "Related" filter and Co
 ### Phase 06 — Opportunity Domain · ✅ substantially complete 2026-09-23 (two sessions)
 **Shipped:** account-context hint relabel + "Use this text"; stage badges no longer look like buttons; `proposedSolution`/`customerNeed`/`description` write-through fallbacks removed, 12 contaminated `proposedSolution` records blanked; needs lists renamed + comma splitting + combined dialog; industry inherits for display only; close forecast replaced with relative bands (`closeBand`/`closeBandSetAt`, all existing data migrated, reverses the earlier `closeQuarter` decision); new `opportunityLocations` junction + Sites & Locations / Associated Locations panels with inline facility creation; red-dot tab/panel validation highlighting + tab contrast; site-walk quick-schedule; `customerNeed` moved to Lead & Qualification. List search (item 3) was already working.
 **Sprint (2026-09-23):** Proposed Solution scope summary (Wave 1), Connected-via panel finished and the "Regarding" cross-entity field with a new Facility timeline (Wave 3).
-**Still open:** item 13 (after Phase 04 item 5, Wave 4), item 16 (blocked on Phase 13).
+Wave 4: vendor needs pick from the approved list (13).
+**Still open:** item 16 (blocked on Phase 13).
 
 ### Phase 07 — Dispatch & Operations · ✅ 4 new items shipped 2026-09-23; 1 old item remains
 **Shipped 2026-09-23:** intake feed now empties (open-only by default, toggle for converted/closed); Job Register gained search + sortable columns (adopted Phase 17's shared `renderDataTable()`); dispatch schedule is a real 7-day window, no skip-ahead; conflicts gained a "Go to blocker" button (employee-credential conflicts only — no equipment/material reference field exists yet to jump to) with a transient red-outline highlight (`state.highlightPanel`, shared mechanism Phase 06 item 32 can reuse).
-**Verified live 2026-09-23:** Front Line Timer hours reach the employee's tracked hours (22 → 24.5 after a 2.5 h submission). **Still open:** item 4 (job-centric resource-planning UI per Q33), item 7 (photo capture, which may already be covered by Phase 10's typed capture), and item 8 (template rebuild, deferred per Q34). All three are sprint Wave 4.
+**Verified live 2026-09-23:** Front Line Timer hours reach the employee's tracked hours (22 → 24.5 after a 2.5 h submission). **Wave 4:** job-centric Plan & resources tab built (4); sample photos found already done by Phase 10 (7). **Still open:** item 8, template rebuild (deferred by the owner, Q34).
 
 ### Phase 08 — Quotes & Estimates · ✅ round two shipped 2026-09-23 (sprint Wave 1)
 **Shipped:** the rate-card rework. Both tabs of `2026 RATES.xlsx` were imported as rate sheets (owner: both, "Rate Sheet" default) with three tier prices, cost-plus rows, 4-hour emergency minimums and fuel-surcharge flags. The 18% Energy/Security/Insurance fee (owner: automatic, removable) and the fuel surcharge are generated as real lines. A per-line tier, section-grouped pickers filtered to the document's sheet, a rebuilt Rate Card screen with catalog alignment, equipment and consumables linked to their rate line, and the Estimation Tool drafting lines from Resource Needs. All five round-one boxes are ticked. Also fixed app-wide: whole-dollar rounding of every amount.
@@ -143,7 +142,7 @@ Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enfo
 
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
-**Now (2026-09-23 sprint):** Waves 1–3 shipped. Next is Wave 4, dispatch depth: Phase 04 item 5 (dispatch-time subcontractor approval check + vendor FK on job resources) and item 14 (subcontractor rate fields), Phase 07 item 4 (job-centric resource planning, Q33) and item 7 (photo capture: check Phase 10 first), then Phase 06 item 13.
+**Now (2026-09-23 sprint):** Waves 1–4 shipped; Stage B's correctness work is done apart from items blocked on Phase 13 and the owner-deferred template rebuild. Next is Wave 5: Phase 11 field-ops depth (planning pass first, then the post-work report generator, case narrative, weather snapshots, permit registry / waste tracking and the rest of its outline).
 **Before real users:** Phase 12, then Phase 13.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 

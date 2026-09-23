@@ -533,6 +533,7 @@
           One per line or comma-separated, as <code>Name | Note</code> (note is optional)
           <textarea name="items" rows="5" placeholder="Vacuum trailer | Needed for tank pull&#10;Roll-off container | 20 yard"></textarea>
         </label>
+        <div class="approved-sub-picks" data-approved-sub-picks data-target="items" hidden></div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save list</button>
@@ -556,6 +557,7 @@
           Vendor / subcontractor needed
           <textarea name="vendorNeeds" rows="3" placeholder="Roll-off container hauler"></textarea>
         </label>
+        <div class="approved-sub-picks" data-approved-sub-picks data-target="vendorNeeds"></div>
         <label>
           Resources needed
           <textarea name="resourceNeeds" rows="3" placeholder="Two-person confined-space crew"></textarea>
@@ -3889,21 +3891,7 @@
           Field lead
           <select name="fieldLeadEmployeeId" required></select>
         </label>
-        <div class="form-grid">
-          <label>
-            Resource type
-            <select name="resourceType">
-              <option>Equipment</option>
-              <option>Vehicle</option>
-              <option>Material</option>
-              <option>Vendor</option>
-            </select>
-          </label>
-          <label>
-            Resource
-            <input name="resourceName" maxlength="140" placeholder="Vactron, truck, sample kit" />
-          </label>
-        </div>
+        <p class="help-text">Crew, equipment, materials and subcontractors are planned on the job's <strong>Plan &amp; resources</strong> tab.</p>
         <label>
           Dispatch note
           <textarea name="notes" rows="4" maxlength="500" placeholder="Crew, access, timing, or readiness note."></textarea>
@@ -3936,6 +3924,40 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Assign employee</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="dispatchAssignVendorDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="dispatch-assign-vendor">
+        <input name="jobId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Plan &amp; resources</p>
+            <h2>Assign subcontractor</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="lookup-field">
+          <span>Vendor or subcontractor</span>
+          <div class="record-lookup" data-lookup-types="account" data-lookup-name="vendorAccountId" data-lookup-filter="vendor">
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search vendors and subcontractors" />
+            <input type="hidden" name="vendorAccountId" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
+        <p class="help-text" data-vendor-approval-note></p>
+        <label>
+          Standing assignment (terms)
+          <select name="subcontractorAssignmentId"></select>
+        </label>
+        <label>
+          Scope on this job
+          <input name="scopeNote" maxlength="160" placeholder="e.g. Vac truck and operator, day 1 only" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Assign subcontractor</button>
         </menu>
       </form>
     </dialog>
@@ -4689,27 +4711,41 @@
               <option>Canceled</option>
             </select>
           </label>
+        </div>
+        <fieldset class="doc-line-items-fieldset">
+          <legend>What we pay this subcontractor</legend>
           <label>
-            Rate type
-            <select name="rateType">
-              <option value="">Not set</option>
-              <option>Hourly</option>
-              <option>Flat</option>
-              <option>Unit-based</option>
-              <option>Time and Materials</option>
+            Pricing basis
+            <select name="pricingBasis">
+              <option value="fixed">A fixed rate</option>
+              <option value="rate-sheet">Their rate sheet</option>
             </select>
           </label>
-        </div>
-        <div class="form-grid">
-          <label>
-            Rate amount
-            <input name="rateAmount" type="number" min="0" step="0.01" />
-          </label>
-          <label>
-            Rate card
-            <select name="priceLevelId"></select>
-          </label>
-        </div>
+          <div class="form-grid" data-pricing-basis="fixed">
+            <label>
+              Rate
+              <input name="rateAmount" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              Per
+              <select name="rateType">
+                <option value="">Not set</option>
+                <option>Hourly</option>
+                <option>Daily</option>
+                <option>Unit-based</option>
+                <option>Flat</option>
+                <option>Time and Materials</option>
+              </select>
+            </label>
+          </div>
+          <div data-pricing-basis="rate-sheet" hidden>
+            <label>
+              Rate sheet
+              <select name="priceLevelId"></select>
+            </label>
+          </div>
+          <p class="help-text">This is our cost. The 2026 rate sheet bills subcontracted services to the customer at cost + 28%.</p>
+        </fieldset>
         <div class="form-grid">
           <label>
             Start date

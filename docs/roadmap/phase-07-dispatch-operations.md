@@ -1,6 +1,6 @@
 # Phase 07 — Dispatch & Operations Correctness
 
-**Status:** 🟢 **Verification pass + fixes shipped 2026-09-17.** Items 1, 2, 3, 5, 6, 9, 10, 11, 12, 13 confirmed against code and fixed; all verified live via Playwright. Items 4, 7, 8 deliberately deferred (owner decision / cross-phase coordination — see below). Item 9 was added to this session's scope after the owner decided "warn, don't block" while work was already underway. **A second live-bug-report session (2026-09-17, same day) shipped 8 more fixes — alert resolve/dismiss, closed-project feed filtering, live (not cached) certification eligibility on dispatch assignments, exception acknowledge/recheck, a certifications multi-select instead of a single forced text field, and surfacing intake-stage equipment/labor/vendor notes on the dispatch job — see "Live bug report follow-up" below.**
+**Status:** ✅ **Complete except item 8.** The 2026-09-17 verification pass and live-bug follow-up, and the 2026-09-22 pass's four items (2026-09-23), are done; the Front Line timer-hours fix was verified live 2026-09-23. **Sprint Wave 4 (2026-09-23):** item 4 (job-centric Plan & resources tab, Q33) is built, and item 7 (sample photos) was found already done by Phase 10. **Remaining:** item 8, the job-template rebuild, which the owner explicitly left deferred (Q34).
 **Depends on:** Phase 01 (shared data layer — dispatch and projects are already server-side, this phase fixes behavior, not data location)
 **Estimated sessions:** 3
 **Source:** `bioremedy crm notes 9.16.2026.docx`
@@ -49,6 +49,12 @@ Concrete, additive. `dispatchJobs.projectId` already exists and resolves correct
 
 > *"for job and dispatch of jobs we need to work on the planning and scheduling of resources and such. Maybe its for the schedule board, but doing it all from inside the job is confusing."*
 
+**✅ Done 2026-09-23 (sprint Wave 4), per Q33 ("job-centric: resources are planned from the job, not a schedule board").** The confusion was two partial places to plan: the Schedule dialog (time, lead, plus a free-text resource quick-add) and the job's Assignment tab (typed pickers). Consolidated so each thing has one home:
+- The Schedule dialog is *when + who leads*. The free-text resource quick-add is gone, replaced by a pointer to the tab.
+- The Assignment tab is renamed **Plan & resources**. It opens with a full-width **Plan** panel: the schedule window, field lead, crew/equipment/materials/subcontractor counts, the plan-related readiness checks (schedule, workers, resources, equipment condition, subcontractor approvals) and an "Edit schedule & lead" button. Workers, Equipment, Materials and the new **Subcontractors** panel (Phase 04 item 5) follow.
+- **New readiness check "Equipment condition":** Block when an assigned asset is on maintenance hold; Warning when it has an open issue.
+- Old quick-add rows (vehicles, free-text vendors) stay visible under "Vehicles & other".
+
 **⏸ Deferred — owner decision pending, matches Phase 04/06's pattern for deferred items.** This is a product/UX question, not a discrete bug: whether resource assignment belongs primarily on the Schedule Board with the job as a read-only reference, or vice versa. Implementing a fix here risks getting "fixed" into the wrong shape twice, so this session left it untouched. See "Open decisions" below.
 
 ### 5. Calendar shows "Yeady" instead of "Completed"
@@ -71,7 +77,7 @@ Almost certainly a literal string typo somewhere (a status label constant or a t
 
 > *"on samples it mentions north view, sample interval, and container label. These are photos that should be uploaded during sampling. Can we get that added to the front line work load."*
 
-**⏸ Deferred — cross-phase, depends on Phase 10.** This is a Front Line task-type addition (a photo capture task), not a Dispatch/Operations change per se. Left untouched this session; implement in coordination with Phase 10's task-type work as originally scoped.
+**✅ Closed 2026-09-23: already done by Phase 10 Part 2 (2026-09-17).** The Front Line Sample task has three *required* photo inputs (north view, sample interval, container label; `renderFrontlineSampleCapture()`), uploaded to `jobTaskAttachments` and shown as thumbnails on the sample record. Confirmed in code during sprint Wave 4; nothing left to build. **⏸ Deferred — cross-phase, depends on Phase 10.** This is a Front Line task-type addition (a photo capture task), not a Dispatch/Operations change per se. Left untouched this session; implement in coordination with Phase 10's task-type work as originally scoped.
 
 ### 8. Job dispatch templates may need a rebuild
 

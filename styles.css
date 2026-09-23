@@ -6280,3 +6280,39 @@ body[data-theme="dark"] .frontline-device {
   opacity: 0.7;
   font-weight: 600;
 }
+
+/* Plan & resources (Phase 07 item 4 / Phase 04 item 5). */
+.dispatch-plan-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .dispatch-plan-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vendor-approval-warning {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+/* Phase 06 item 13: approved-subcontractor quick picks under vendor needs; unapproved entries flagged. */
+.approved-sub-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+}
+
+.approved-sub-picks[hidden] {
+  display: none;
+}
+
+.tag.tag-unapproved {
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #b91c1c;
+}
