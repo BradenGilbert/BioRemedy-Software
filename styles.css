@@ -6048,17 +6048,43 @@ body[data-theme="dark"] .frontline-device {
   }
 }
 
-/* Phase 06 item 35: live scope summary under the Proposed Solution narrative. */
-.scope-summary {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border: 1px dashed var(--border, #d8dee6);
-  border-radius: 8px;
-  font-size: 0.88rem;
+/* A panel that spans every column of a crm-profile-grid (e.g. the Scope summary at the bottom of
+   Develop & Planning). The grid collapses to one column on narrow screens, where this is a no-op. */
+.crm-profile-grid-full {
+  grid-column: 1 / -1;
 }
 
-.scope-summary .eyebrow {
+/* Phase 06 item 35: the live scope summary. The facts wrap side by side, and priced lines sit under them. */
+.scope-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+.scope-summary-item h4,
+.scope-summary-priced h4 {
   margin: 0 0 6px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-text, #6b7684);
+}
+
+.scope-summary-item ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+
+.scope-summary-item p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.scope-summary-priced td.num,
+.scope-summary-priced th.num {
+  text-align: right;
 }
 
 [data-table-id="rate-card-products"] td:first-child {

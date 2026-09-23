@@ -4159,7 +4159,7 @@ function renderOpportunityDevelopPlanningTab(opportunity, missingFields = []) {
         </div>
         <div class="panel-body">
           <dl class="detail-list">
-            <div><dt>Proposed solution</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "proposedSolution") || "Not captured")}${renderOpportunityScopeSummary(opportunity)}</dd></div>
+            <div><dt>Proposed solution</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "proposedSolution") || "Not captured")}</dd></div>
             <div>
               <dt>Site walk</dt>
               <dd>
@@ -4240,6 +4240,14 @@ function renderOpportunityDevelopPlanningTab(opportunity, missingFields = []) {
             </div>
           </div>
         </div>
+      </article>
+
+      <article class="panel crm-profile-grid-full">
+        <div class="panel-header">
+          <h3>Scope summary</h3>
+          <span class="muted-text">Assembled live from this opportunity's records; supports the Proposed solution narrative</span>
+        </div>
+        <div class="panel-body">${renderOpportunityScopeSummary(opportunity)}</div>
       </article>
     </section>
   `;
@@ -20120,28 +20128,50 @@ function composeOpportunityScope(opportunity) {
 
 function renderOpportunityScopeSummary(opportunity) {
   const scope = composeOpportunityScope(opportunity);
-  const needItem = (item) => `${escapeHtml(item.name)}${item.note ? ` <small>(${escapeHtml(item.note)})</small>` : ""}`;
+  const needItem = (item) => `<li>${escapeHtml(item.name)}${item.note ? ` <small>(${escapeHtml(item.note)})</small>` : ""}</li>`;
   const docLabel = scope.docRef.type === "quote" ? "Quote" : scope.docRef.type === "estimate" ? "Estimate" : "";
+  const uomName = (uomId) => getUnitsOfMeasure().find((uom) => uom.id === uomId)?.name || "";
+  // Rendered in its own full-width panel at the bottom of Develop & Planning: the facts sit side by
+  // side in a wrapping grid, and the priced lines get a full-width table under them.
   return `
-    <div class="scope-summary">
-      <p class="eyebrow">Scope summary, assembled from this opportunity's records</p>
-      <dl class="detail-list">
-        <div><dt>Sites</dt><dd>${scope.sites.length ? scope.sites.map((site) => `${escapeHtml(site.label)}${site.role ? ` <small>(${escapeHtml(site.role)})</small>` : ""}`).join("<br />") : "No sites linked"}</dd></div>
-        <div><dt>Site walk</dt><dd>${escapeHtml(scope.siteWalkStatus)}</dd></div>
-        ${scope.needs.map((group) => `<div><dt>${escapeHtml(group.title)}</dt><dd>${group.items.map(needItem).join("<br />")}</dd></div>`).join("")}
-        <div>
-          <dt>Priced scope</dt>
-          <dd>${
-            docLabel
-              ? `${escapeHtml(docLabel)} "${escapeHtml(scope.docRef.document.name || "")}", ${money(scope.docRef.total)}${scope.lines.length ? `<br /><small>${scope.lines
-                  .slice(0, 6)
-                  .map((line) => escapeHtml(line.productName || line.productDescription || "Line"))
-                  .join(" · ")}${scope.lines.length > 6 ? ` · +${scope.lines.length - 6} more` : ""}</small>` : ""}`
-              : "No quote or estimate yet"
-          }</dd>
-        </div>
-      </dl>
+    <div class="scope-summary-grid">
+      <section class="scope-summary-item">
+        <h4>Sites</h4>
+        ${scope.sites.length ? `<ul>${scope.sites.map((site) => `<li>${escapeHtml(site.label)}${site.role ? ` <small>(${escapeHtml(site.role)})</small>` : ""}</li>`).join("")}</ul>` : `<p class="muted-text">No sites linked</p>`}
+      </section>
+      <section class="scope-summary-item">
+        <h4>Site walk</h4>
+        <p>${escapeHtml(scope.siteWalkStatus)}</p>
+      </section>
+      ${scope.needs.map((group) => `<section class="scope-summary-item"><h4>${escapeHtml(group.title)}</h4><ul>${group.items.map(needItem).join("")}</ul></section>`).join("")}
+      ${scope.needs.length ? "" : `<section class="scope-summary-item"><h4>Resource needs</h4><p class="muted-text">None listed</p></section>`}
     </div>
+    <section class="scope-summary-priced">
+      <h4>Priced scope${docLabel ? `: ${escapeHtml(docLabel)} "${escapeHtml(scope.docRef.document.name || "")}", ${moneyExact(scope.docRef.total)}` : ""}</h4>
+      ${
+        !docLabel
+          ? `<p class="muted-text">No quote or estimate yet.</p>`
+          : scope.lines.length
+            ? `<table class="data-table">
+                <thead><tr><th>Item</th><th>Tier</th><th class="num">Qty</th><th class="num">Amount</th></tr></thead>
+                <tbody>
+                  ${scope.lines
+                    .map(
+                      (line) => `
+                        <tr>
+                          <td>${escapeHtml(line.productName || line.productDescription || "Line")}</td>
+                          <td>${escapeHtml(rateTierLabel(line.rateTier))}</td>
+                          <td class="num">${escapeHtml(line.billableQuantity ?? line.quantity ?? "")} ${escapeHtml(uomName(line.uomId))}</td>
+                          <td class="num">${moneyExact(line.extendedAmount ?? Number(line.quantity || 0) * Number(line.pricePerUnit || 0))}</td>
+                        </tr>
+                      `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>`
+            : `<p class="muted-text">The ${escapeHtml(docLabel.toLowerCase())} has no line items yet.</p>`
+      }
+    </section>
   `;
 }
 
