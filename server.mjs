@@ -253,7 +253,7 @@ const defaultBackend = {
       status: "In service",
       maintenanceDue: "2026-07-18",
       lastUsed: "2026-07-03",
-      assignedJobId: "job-north-river-i130",
+      assignedProjectId: "job-north-river-i130",
       issue: "",
       specs: { tankCapacity: "3,600 gal", pumpPressure: "27 in-Hg", engineHours: "812", deconStatus: "Clean" },
     },
@@ -265,7 +265,7 @@ const defaultBackend = {
       status: "Ready",
       maintenanceDue: "2026-08-04",
       lastUsed: "2026-07-02",
-      assignedJobId: "job-riverbend-ust",
+      assignedProjectId: "job-riverbend-ust",
       issue: "",
       specs: { flowRate: "110 GPM", hoseSize: "3 in", engineHours: "240" },
     },
@@ -277,7 +277,7 @@ const defaultBackend = {
       status: "Maintenance hold",
       maintenanceDue: "2026-07-06",
       lastUsed: "2026-07-03",
-      assignedJobId: "job-north-river-i130",
+      assignedProjectId: "job-north-river-i130",
       issue: "Hydraulic lift inspection failed. Scheduler should avoid assignment.",
       specs: { vin: "1FT7X2B69JEA14207", licensePlate: "TX-BR1802", mileage: "58,410", fuelType: "Diesel" },
     },
@@ -289,7 +289,7 @@ const defaultBackend = {
       status: "Ready",
       maintenanceDue: "2026-07-30",
       lastUsed: "2026-06-27",
-      assignedJobId: "job-clearwater-abatement",
+      assignedProjectId: "job-clearwater-abatement",
       issue: "",
       specs: { cfmRating: "1,200 CFM", filterType: "HEPA", filterChangeInterval: "90 days" },
     },
@@ -2235,6 +2235,11 @@ async function loadBackend() {
     ...job,
     accountId: job.accountId || requestAccounts.get(job.jobRequestId) || accountIdsByCustomer.get(job.customerName?.trim().toLowerCase()) || "",
   }));
+  // Pre-Phase-01 `assignedJobId` → `assignedProjectId`, so a restored older backup reads correctly.
+  data.equipmentAssets = data.equipmentAssets.map(({ assignedJobId, ...asset }) => ({
+    ...asset,
+    assignedProjectId: asset.assignedProjectId || assignedJobId || "",
+  }));
   return data;
 }
 
@@ -2419,7 +2424,7 @@ function normalizeRecord(collection, payload, data) {
       status: payload.status || "Ready",
       maintenanceDue: payload.maintenanceDue || now.slice(0, 10),
       lastUsed: payload.lastUsed || "",
-      assignedJobId: payload.assignedJobId || "",
+      assignedProjectId: payload.assignedProjectId || payload.assignedJobId || "",
       issue: payload.issue || "",
       specs: payload.specs && typeof payload.specs === "object" ? payload.specs : {},
     };

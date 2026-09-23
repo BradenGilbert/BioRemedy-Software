@@ -5216,9 +5216,11 @@ function getAccountColumnLabel(columnKey) {
 
 function renderAccountColumnValue(account, columnKey, { summary }) {
   if (columnKey === "accountName") {
+    const expiryWarning = accountVendorExpiryWarning(account);
+    const name = getAccountFieldValue(account, "accountName");
     return `
       <button class="link-button account-name" type="button" data-action="view-account" data-id="${account.id}">
-        ${escapeHtml(getAccountFieldValue(account, "accountName"))}
+        ${expiryWarning ? withTrailingAlertDot(name, accountVendorExpiryLabel(expiryWarning)) : escapeHtml(name)}
       </button>
       <div class="row-meta">
         <span>${escapeHtml(getAccountFieldValue(account, "accountNumber"))}</span>
@@ -5371,7 +5373,7 @@ function renderAccountDetail() {
       <div class="account-detail-shell">
         ${renderAccountDetailHeader(account)}
         <div class="account-detail-tabs-row">
-          ${renderAccountDetailTabs(activeTab)}
+          ${renderAccountDetailTabs(activeTab, account)}
         </div>
         <div class="account-detail-tabbody">
           ${renderAccountTabBody(activeTab, account)}
@@ -5381,15 +5383,25 @@ function renderAccountDetail() {
   `;
 }
 
+// Vendor insurance only — customer subcontractor approvals do not expire (Phase 04 Q23).
 function accountVendorExpiryWarning(account) {
   const vendorProfile = vendorProfileForAccount(account.id);
-  const vendorExpiry = vendorProfile ? isExpiringOrExpired(vendorProfile.insuranceExpiration) : null;
-  const approvalExpiries = approvedSubcontractorsForAccount(account.id)
-    .map((link) => isExpiringOrExpired(link.approvedUntil))
-    .filter(Boolean);
-  if (vendorExpiry === "expired" || approvalExpiries.includes("expired")) return "expired";
-  if (vendorExpiry === "expiring" || approvalExpiries.includes("expiring")) return "expiring";
-  return null;
+  return vendorProfile ? isExpiringOrExpired(vendorProfile.insuranceExpiration) : null;
+}
+
+function accountVendorExpiryLabel(warning) {
+  return warning === "expired" ? "Vendor insurance expired" : "Vendor insurance expiring soon";
+}
+
+function renderAlertDot(title) {
+  return `<span class="tab-alert-dot" title="${escapeAttribute(title)}" aria-label="${escapeAttribute(title)}"></span>`;
+}
+
+// Glues the dot to the last word so a wrapping label never leaves it alone on its own line.
+function withTrailingAlertDot(text, title) {
+  const value = String(text || "");
+  const splitAt = value.lastIndexOf(" ") + 1;
+  return `${escapeHtml(value.slice(0, splitAt))}<span style="white-space: nowrap">${escapeHtml(value.slice(splitAt))}${renderAlertDot(title)}</span>`;
 }
 
 function renderAccountDetailHeader(account) {
@@ -5421,7 +5433,7 @@ function renderAccountDetailHeader(account) {
       </div>
       <div class="account-hero-stats">
         ${isPaused ? `<span class="risk-badge high">Paused</span>` : ""}
-        ${expiryWarning ? `<span class="risk-badge ${expiryWarning === "expired" ? "high" : "medium"}" title="Vendor insurance or a subcontractor approval is expired or expiring within 30 days — see the Vendor & Subcontractor tab">${expiryWarning === "expired" ? "Compliance expired" : "Compliance expiring soon"}</span>` : ""}
+        ${expiryWarning ? `<span class="risk-badge ${expiryWarning === "expired" ? "high" : "medium"}" title="This vendor's certificate of insurance is expired or expires within 30 days — see the Vendor & Subcontractor tab">${accountVendorExpiryLabel(expiryWarning)}</span>` : ""}
         <span class="risk-badge ${statusTone}"${statusTooltip ? ` title="${escapeAttribute(statusTooltip)}"` : ""}>Account ${escapeHtml(statusLabel)}</span>
         <div class="metric account-hero-metric">
           <p class="eyebrow">Annual Revenue</p>
@@ -5443,14 +5455,15 @@ function renderAccountDetailHeader(account) {
   `;
 }
 
-function renderAccountDetailTabs(activeTab) {
+function renderAccountDetailTabs(activeTab, account) {
+  const expiryWarning = accountVendorExpiryWarning(account);
   return `
     <div class="segment-tabs" role="tablist" aria-label="Account detail sections">
       ${accountDetailTabs
         .map(
           (tab) => `
             <button type="button" role="tab" aria-selected="${tab.id === activeTab}" class="${tab.id === activeTab ? "active" : ""}" data-action="switch-account-tab" data-tab="${tab.id}">
-              ${escapeHtml(tab.label)}
+              ${escapeHtml(tab.label)}${tab.id === "vendor-subcontractor" && expiryWarning ? renderAlertDot(accountVendorExpiryLabel(expiryWarning)) : ""}
             </button>
           `,
         )
@@ -5729,8 +5742,10 @@ function renderAccountVendorSubcontractorTab(account) {
   const serviceAgreements = serviceAgreementsForAccount(account.id);
   const subcontractorAssignments = vendorProfile ? subcontractorAssignmentsForVendorProfile(vendorProfile.id) : [];
   const approvedSubs = approvedSubcontractorsForAccount(account.id);
-  const showCompliance = Boolean(relationship?.isVendor || relationship?.isSubcontractor);
+  // An existing vendor profile always shows, so an insurance alert never points at hidden data.
+  const showCompliance = Boolean(relationship?.isVendor || relationship?.isSubcontractor || vendorProfile);
   const showApprovedSubs = Boolean(relationship?.isClient);
+  const compliancePanelClass = accountVendorExpiryWarning(account) ? "panel panel-needs-attention" : "panel";
 
   return `
     <section class="crm-profile-grid">
@@ -5738,7 +5753,7 @@ function renderAccountVendorSubcontractorTab(account) {
         ${
           showCompliance
             ? `
-              <article class="panel">
+              <article class="${compliancePanelClass}">
                 <div class="panel-header">
                   <h3>Compliance &amp; Paperwork</h3>
                   <button class="mini-button" type="button" data-action="open-vendor-profile" data-account-id="${escapeAttribute(account.id)}">${vendorProfile ? "Edit" : "Add"}</button>
@@ -5750,7 +5765,7 @@ function renderAccountVendorSubcontractorTab(account) {
               </article>
             `
             : `
-              <article class="panel">
+              <article class="${compliancePanelClass}">
                 <div class="panel-header"><h3>Compliance &amp; Paperwork</h3></div>
                 <div class="panel-body"><div class="empty-state">This account isn't flagged as a vendor or subcontractor (Relationship Snapshot on the General tab). Flag it there, then add a vendor profile here.</div></div>
               </article>
@@ -5818,7 +5833,6 @@ function renderAccountVendorSubcontractorTab(account) {
 
 function renderApprovedSubcontractorCard(link) {
   const vendor = findAccount(link.subcontractorAccountId);
-  const expiry = isExpiringOrExpired(link.approvedUntil);
   const statusTone = link.status === "Approved" ? "low" : link.status === "Rejected" || link.status === "Expired" ? "high" : "medium";
   return `
     <article class="detail-card">
@@ -5827,7 +5841,6 @@ function renderApprovedSubcontractorCard(link) {
         <span class="risk-badge ${statusTone}">${escapeHtml(link.status || "Pending")}</span>
         ${link.approvedScope ? `<span>${escapeHtml(link.approvedScope)}</span>` : ""}
         ${link.approvedUntil ? `<span>Until ${formatDate(link.approvedUntil)}</span>` : ""}
-        ${expiry ? `<span class="risk-badge ${expiry === "expired" ? "high" : "medium"}">${expiry === "expired" ? "Expired" : "Expiring soon"}</span>` : ""}
       </div>
       ${link.notes ? `<p class="help-text">${escapeHtml(link.notes)}</p>` : ""}
       <div class="inline-actions">
@@ -8663,7 +8676,43 @@ function operationsClassRows(jobClass) {
   const filter = state.opsClassTableFilter;
   if (filter === "no-dispatch") return base.filter((job) => dispatchJobsForProject(job.id).length === 0);
   if (filter === "alerts") return base.filter((job) => alertsForJob(job.id).some((alert) => alert.status !== "Resolved"));
+  if (filter === "resource-blocks") return base.filter((job) => resourceBlocksForProject(job.id).length > 0);
   return base;
+}
+
+// Table title follows the active metric card, e.g. "Open Alerts - Scheduled Work projects".
+function operationsClassTableTitle(jobClass) {
+  const labels = {
+    "no-dispatch": "Projects Without Scheduled Dispatches",
+    alerts: "Open Alerts",
+    "resource-blocks": "Resource Blocks",
+  };
+  return `${labels[state.opsClassTableFilter] || "Active Jobs"} - ${jobClass} projects`;
+}
+
+// A project is resource-blocked when equipment assigned to it (or checked out to it and not yet
+// returned) is on maintenance hold / has an open issue, or when it consumes a material that is below
+// healthy stock.
+function resourceBlocksForProject(projectId) {
+  const blocks = [];
+  const openLogTags = new Set(
+    state.equipmentLogs.filter((log) => log.projectId === projectId && !log.returned).map((log) => log.assetTag),
+  );
+  getEquipmentStatus().forEach((asset) => {
+    if (asset.status !== "Maintenance hold" && !asset.issue) return;
+    if (asset.assignedProjectId === projectId || openLogTags.has(asset.assetTag)) {
+      blocks.push({ kind: "Equipment", label: asset.assetTag, detail: asset.issue || asset.status });
+    }
+  });
+  const usedMaterials = new Set(
+    state.materialUsage.filter((usage) => usage.projectId === projectId).map((usage) => String(usage.materialType || "").toLowerCase()),
+  );
+  getConsumableStatus().forEach((item) => {
+    if (item.status !== "Healthy" && usedMaterials.has(String(item.materialType || "").toLowerCase())) {
+      blocks.push({ kind: "Inventory", label: item.materialType, detail: item.status });
+    }
+  });
+  return blocks;
 }
 
 function renderOperationsScheduled() {
@@ -8682,7 +8731,7 @@ function renderOperationsScheduled() {
       )}
       ${renderOperationsClassMetrics("Scheduled Work")}
       <article class="panel">
-        <div class="panel-header"><h3>Scheduled Work projects</h3></div>
+        <div class="panel-header"><h3>${escapeHtml(operationsClassTableTitle("Scheduled Work"))}</h3></div>
         <div class="panel-body">
           ${renderAllProjectsTable(operationsClassRows("Scheduled Work"))}
         </div>
@@ -8709,9 +8758,9 @@ function renderOperationsEmergency() {
       ${renderOperationsClassMetrics("Emergency Response")}
       <section class="detail-grid">
         <article class="panel">
-          <div class="panel-header"><h3>Active emergency jobs</h3></div>
+          <div class="panel-header"><h3>${escapeHtml(operationsClassTableTitle("Emergency Response"))}</h3></div>
           <div class="panel-body record-list">
-            ${emergencyJobs.map(renderJobCard).join("") || `<div class="empty-state">No active emergency response jobs.</div>`}
+            ${operationsClassRows("Emergency Response").map(renderJobCard).join("") || `<div class="empty-state">No matching emergency response jobs.</div>`}
           </div>
         </article>
         <article class="panel">
@@ -8736,7 +8785,7 @@ function renderOperationsRemediation() {
       )}
       ${renderOperationsClassMetrics("Multi-Stage Remediation")}
       <article class="panel">
-        <div class="panel-header"><h3>Multi-Stage Remediation projects</h3></div>
+        <div class="panel-header"><h3>${escapeHtml(operationsClassTableTitle("Multi-Stage Remediation"))}</h3></div>
         <div class="panel-body">
           ${renderAllProjectsTable(operationsClassRows("Multi-Stage Remediation"))}
         </div>
@@ -8824,16 +8873,14 @@ function renderOperationsMetrics() {
 // fixes: the old renderOperationsMetrics() was one unfiltered set shared by all three class views,
 // so Scheduled Work's "Active jobs" counted emergency jobs too). Card 1/3 count what's on this
 // page; Card 2 is "projects without scheduled dispatches" for Scheduled/Multi-Stage, or "Emergency
-// response" (same scope as card 1) for Emergency, per the phase doc's table. Every card except
-// Resource Blocks is a query into the same `operationsClassRows()` the table below reads, so the
-// count and the table can never disagree; Resource Blocks isn't a project-row count, so it links to
-// Inventory instead of filtering this page's table.
+// response" (same scope as card 1) for Emergency, per the phase doc's table. Every card (Resource
+// Blocks included) is a query into the same `operationsClassRows()` the table
+// below reads, so the count and the table can never disagree.
 function renderOperationsClassMetrics(jobClass) {
   const activeJobs = state.projects.filter((job) => job.jobClass === jobClass && isActiveProject(job));
   const noDispatch = activeJobs.filter((job) => dispatchJobsForProject(job.id).length === 0);
   const withAlerts = activeJobs.filter((job) => alertsForJob(job.id).some((alert) => alert.status !== "Resolved"));
-  const maintenanceHolds = equipmentAssets.filter((asset) => asset.status === "Maintenance hold").length;
-  const lowConsumables = getConsumableStatus().filter((item) => item.status !== "Healthy").length;
+  const withResourceBlocks = activeJobs.filter((job) => resourceBlocksForProject(job.id).length > 0);
   const activeFilter = state.opsClassTableFilter;
 
   const card2 =
@@ -8858,10 +8905,10 @@ function renderOperationsClassMetrics(jobClass) {
         <strong>${withAlerts.length}</strong>
         <span>Scope, safety, access, or approval issues</span>
       </button>
-      <button class="metric metric-link" type="button" data-view="inventory-equipment">
+      <button class="metric metric-link ${activeFilter === "resource-blocks" ? "active" : ""}" type="button" data-action="filter-ops-class-table" data-filter="resource-blocks">
         <p class="eyebrow">Resource blocks</p>
-        <strong>${maintenanceHolds + lowConsumables}</strong>
-        <span>Inventory or equipment constraints</span>
+        <strong>${withResourceBlocks.length}</strong>
+        <span>Projects with equipment or inventory constraints</span>
       </button>
     </section>
   `;

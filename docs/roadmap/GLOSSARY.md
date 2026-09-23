@@ -105,7 +105,7 @@ Another two-things-currently-collapsed-into-one problem, this time on `contacts`
 | `job_assignments` | The final record of who was actually scheduled — even when it originated from a crew. |
 
 **Retired / dead:**
-- `laborResources` — retired 2026-08-17. Duplicated real people from `employees` under unlinked IDs. 5 stale rows still sit in `data/backend.json`; cleaned in Phase 01.
+- `laborResources` — retired 2026-08-17. Duplicated real people from `employees` under unlinked IDs. The 5 stale rows were removed from `data/backend.json` in Phase 01 (2026-09-16).
 - `crewMemberships` — a dead join table never written to (frozen at 4 seed rows). Crew membership derives live from `employees.crewId`. Retired in Phase 01.
 
 ---

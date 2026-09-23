@@ -650,6 +650,13 @@ deleted from `data/backend.json`.
   `operations` OR `finance`, both per an explicit owner decision to give
   Sales/Finance visibility into field alerts and job-cost data respectively;
   `equipmentLogs`/`scheduledWork`/`spatialData` gated `operations` only).
+  `equipmentAssets.assignedJobId` renamed to `assignedProjectId` September
+  23, 2026 (data migrated; two rows held real project IDs). The server's save
+  normalizer had kept only `assignedJobId`, silently dropping the
+  `assignedProjectId` the client sends, so no UI assignment ever persisted.
+  It now writes `assignedProjectId` (still accepting the legacy name as
+  input), and `loadBackend()` renames the legacy field on read so a restored
+  older backup is covered.
   (`timeEntries` retired September 16, 2026 -- zero `app.js` readers/writers
   beyond the blanket role-filter pass-through; its one seed row held a
   `jobId` referencing a project, the exact naming collision the Phase 01

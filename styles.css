@@ -842,7 +842,8 @@ h3 {
   font-weight: 800;
 }
 
-/* Phase 06 item 32 — red dot on a tab that holds a field blocking the next stage advance. */
+/* The app-wide alert marker: a red dot on any tab, list row or label that holds an alert.
+   Pair with .panel-needs-attention on the panel that holds it. */
 .tab-alert-dot {
   display: inline-block;
   width: 8px;
@@ -851,6 +852,10 @@ h3 {
   background: var(--red);
   margin-left: 6px;
   vertical-align: middle;
+}
+
+.segment-tabs button.active .tab-alert-dot {
+  box-shadow: 0 0 0 2px #ffffff;
 }
 
 /* Persistent (not transient like .panel-highlight) — stays as long as the field is actually
