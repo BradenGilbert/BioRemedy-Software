@@ -119,6 +119,27 @@ Any alert on any panel uses the red-dot style: a red dot (`renderAlertDot()`) on
 
 ---
 
+## Code audit — 2026-09-23 (between Waves 5 and 6)
+
+The owner asked for a bug scan before Wave 6. Three passes: a static wiring audit (buttons vs handlers, forms vs save functions, dialog fields, server whitelists, view routes), a click-fuzz that pressed every opener on every view and detail tab and re-saved every edit dialog unchanged, and a render sweep of every record on every detail tab looking for `NaN`/`undefined`/`[object Object]`. Plus a referential-integrity pass over the live data.
+
+**Fixed (commit "Audit fixes"):**
+- **202 dropdown reads in 72 save handlers could crash.** A `<select>` whose stored value has no matching option submits nothing, so `data.get(...)` is null and `.toString()` threw (the City of Georgetown bug, and the fuzz found it again on an opportunity's team-member and lead dialogs). Every select read in a save handler is now `(data.get("x") || "").toString()`.
+- **GPS points with seven-decimal coordinates couldn't be saved:** the dialog's `step="0.000001"` rejected them, and OwnTracks pings and intake pins have seven. Now `step="any"`.
+- **A consumable that had gone negative couldn't be edited** (`min="0"` on On hand) even though going negative is a deliberate Front Line feature.
+- **Negative-stock alerts were written and never shown.** `inventoryAlerts` (Phase 10 Part 2) now appear on Office → Alerts, on the consumable's page, and as the red dot's reason in the consumables list, until the item is back above zero.
+- **Renaming an equipment tag detached its history:** logs, dispatch resources, maintenance records, restock items and GPS points are keyed by tag. Renames now cascade, and the live "VAC-204" → "VAC TRAILER - 204" references were moved (5 records).
+- **Four project pages read "NaN% complete"** (no dates); progress now falls back to stage-only. A blank project manager printed a bare "PM" badge.
+- **Three Remove handlers had no button:** addresses, vendor profiles and the relationship snapshot now have one.
+- **"Edit schedule & lead" on a closed job did nothing** (it only raised a toast); it's hidden there now, like the header's Schedule button already was.
+- A Forms-tile submission (no task behind it) would have listed every actionless attachment, i.e. field receipts, on its card. Guarded.
+
+**Found, needs the owner (data, not code):** the live data holds children of records that no longer exist, all hard-deleted by hand or by an old reset (no delete path exists in the app): 9 dispatch jobs and 8 job requests point at 5 missing projects; 6 dispatch jobs, 2 opportunities, 5 facilities, 2 addresses, 1 vendor profile and 6 job requests point at 6 missing accounts; one stakeholder link points at a missing contact. They render as "Unknown account" and their edit dialogs can't save (the account dropdown has nothing to select). Options: soft-delete the orphans, or recreate the parents. Decide in Wave 8's clean-up, or now. Two dispatch resources reference equipment that never existed (`HAND-03`, `PID-09`) and two GPS points carry junk tags (`7q`, `Corporate Office`).
+
+**Noted, not changed:** 18 functions are no longer called (`renderOperationsLegacy`, `saveNote`, `openNoteDialog`, `renderProjectOverviewCard`…) and 13 server collections have no client reader (`salesOrders`, `leads`, `connections`, `annotations`…). Neither hurts; both are Wave 8 clean-up candidates. `saveDispatchSchedule` still reads two inputs Wave 4 removed, harmlessly.
+
+---
+
 ## Stage C — Pilot gate
 
 ### Phase 12 — Identity, Authorization & Audit · *not started, 7 criteria*

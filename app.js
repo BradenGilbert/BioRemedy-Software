@@ -6199,7 +6199,10 @@ function renderAccountVendorSubcontractorTab(account) {
               <article class="${compliancePanelClass}">
                 <div class="panel-header">
                   <h3>Compliance &amp; Paperwork</h3>
-                  <button class="mini-button" type="button" data-action="open-vendor-profile" data-account-id="${escapeAttribute(account.id)}">${vendorProfile ? "Edit" : "Add"}</button>
+                  <span class="inline-actions">
+                    <button class="mini-button" type="button" data-action="open-vendor-profile" data-account-id="${escapeAttribute(account.id)}">${vendorProfile ? "Edit" : "Add"}</button>
+                    ${vendorProfile ? `<button class="mini-button" type="button" data-action="remove-vendor-profile" data-id="${escapeAttribute(vendorProfile.id)}" data-account-id="${escapeAttribute(account.id)}">Remove</button>` : ""}
+                  </span>
                 </div>
                 <p class="help-text">Documents we collect from them — this account is our vendor/subcontractor.</p>
                 <div class="panel-body">
@@ -6354,7 +6357,10 @@ function renderAccountGeneralTab(account) {
         <article class="panel">
           <div class="panel-header">
             <h3>Relationship snapshot</h3>
-            <button class="mini-button" type="button" data-action="open-relationship-snapshot" data-account-id="${escapeAttribute(account.id)}">${relationship ? "Edit" : "Add"}</button>
+            <span class="inline-actions">
+              <button class="mini-button" type="button" data-action="open-relationship-snapshot" data-account-id="${escapeAttribute(account.id)}">${relationship ? "Edit" : "Add"}</button>
+              ${relationship ? `<button class="mini-button" type="button" data-action="remove-account-relationship" data-id="${escapeAttribute(relationship.id)}">Remove</button>` : ""}
+            </span>
           </div>
           <div class="panel-body">
             ${renderAccountRelationshipSummary(relationship)}
@@ -7296,6 +7302,7 @@ function renderAddressCard(address) {
       </div>
       <div class="inline-actions">
         <button class="mini-button" type="button" data-action="open-address" data-account-id="${escapeAttribute(address.accountId)}" data-id="${escapeAttribute(address.id)}">Edit</button>
+        <button class="mini-button" type="button" data-action="remove-address" data-id="${escapeAttribute(address.id)}">Remove</button>
       </div>
     </article>
   `;
@@ -8575,7 +8582,7 @@ function renderProjectDetail() {
           <div class="inline-actions">
             <span class="risk-badge ${progress.tone}">${progress.percent}% complete</span>
             <span class="stage-badge">${escapeHtml(job.status)}</span>
-            <span class="tag">PM ${escapeHtml(job.projectManager)}</span>
+            <span class="tag">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
             ${job.notToExceed ? `<span class="risk-badge medium">NTE ${money(job.notToExceed)}</span>` : `<span class="tag">Budget ${money(job.budget)}</span>`}
           </div>
         </div>
@@ -9565,7 +9572,7 @@ function renderRemediationCard(job) {
           <button class="link-button account-name" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${escapeHtml(job.name)}</button>
           <div class="row-meta">
             <span>${escapeHtml(account?.name ?? "Unknown account")}</span>
-            <span>PM ${escapeHtml(job.projectManager)}</span>
+            <span>PM ${escapeHtml(job.projectManager || "not assigned")}</span>
             <span>${formatDate(job.startDate)} to ${formatDate(job.targetDate)}</span>
           </div>
         </div>
@@ -10431,7 +10438,7 @@ function renderJobCard(job) {
       </div>
       <p class="help-text">${escapeHtml(job.marginWatch)}</p>
       <div class="inline-actions">
-        <span class="stage-badge">PM ${escapeHtml(job.projectManager)}</span>
+        <span class="stage-badge">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
         <span class="tag">Sales ${escapeHtml(job.salesLead)}</span>
         ${job.notToExceed ? `<span class="risk-badge medium">NTE ${money(job.notToExceed)}</span>` : `<span class="tag">Budget ${money(job.budget)}</span>`}
       </div>
@@ -11127,7 +11134,7 @@ async function saveStandbyAssignment(form) {
   const assignment = {
     ...(existing || {}),
     id: existingId || makeId("standby"),
-    employeeId: data.get("employeeId").toString(),
+    employeeId: (data.get("employeeId") || "").toString(),
     startsAt: new Date(data.get("startsAt").toString()).toISOString(),
     endsAt: new Date(data.get("endsAt").toString()).toISOString(),
     notes: data.get("notes").toString().trim(),
@@ -11169,7 +11176,7 @@ async function saveStandbyRotationSettings(form) {
   const data = new FormData(form);
   const settings = {
     id: "default",
-    rotationPattern: data.get("rotationPattern").toString(),
+    rotationPattern: (data.get("rotationPattern") || "").toString(),
     notes: data.get("notes").toString().trim(),
     updatedBy: state.currentUser?.name || "Local user",
     updatedAt: new Date().toISOString(),
@@ -11386,8 +11393,8 @@ async function saveFrontlineDevice(form) {
     id: existingId || makeId("device"),
     deviceIdentifier: existing?.deviceIdentifier || `BR-DEV-${makeId("").slice(-6).toUpperCase()}`,
     displayName: data.get("displayName").toString().trim(),
-    employeeId: data.get("employeeId").toString(),
-    ownership: data.get("ownership").toString(),
+    employeeId: (data.get("employeeId") || "").toString(),
+    ownership: (data.get("ownership") || "").toString(),
     platform: data.get("platform").toString().trim(),
     hardwareModel: data.get("hardwareModel").toString().trim(),
     imei: data.get("imei").toString().trim(),
@@ -12684,7 +12691,7 @@ async function saveDispatchAssignVendor(form) {
       type: "Vendor",
       name: vendor.name,
       vendorAccountId,
-      subcontractorAssignmentId: data.get("subcontractorAssignmentId").toString(),
+      subcontractorAssignmentId: (data.get("subcontractorAssignmentId") || "").toString(),
       scopeNote: data.get("scopeNote").toString().trim(),
       assetTag: "",
       quantity: 1,
@@ -12732,7 +12739,7 @@ function renderDispatchPlanSummary(job, readiness) {
     <article class="panel crm-profile-grid-full ${blocked ? "panel-needs-attention" : ""}">
       <div class="panel-header">
         <div><h3>Plan</h3><span>Everything this job needs, planned from here: when, who leads, crew, equipment, materials, subcontractors</span></div>
-        <button class="mini-button" type="button" data-action="open-job-schedule" data-job-id="${escapeAttribute(job.id)}">Edit schedule &amp; lead</button>
+        ${job.status === "closed" ? "" : `<button class="mini-button" type="button" data-action="open-job-schedule" data-job-id="${escapeAttribute(job.id)}">Edit schedule &amp; lead</button>`}
       </div>
       <div class="panel-body dispatch-plan-summary">
         <dl class="detail-list">
@@ -13142,7 +13149,20 @@ function renderInventoryConsumables() {
 
 // Red-dot rules for inventory. "Watch" stock is a heads-up, not an alert; only below-reorder counts.
 function consumableAlertTitle(item) {
+  if (Number(item?.onHand) < 0) return `Stock is negative (${item.onHand} ${item.unit || ""}): a Front Line material task took more than was on hand`;
   return item?.status === "Reorder" ? "At or below the reorder point" : "";
+}
+
+// Front Line's negative-stock confirmation writes an inventoryAlerts row on the server (Phase 10,
+// Part 2). An alert stays live until the item is back at or above zero; after that it's history.
+function inventoryAlertsForItem(itemId) {
+  return (state.backend.inventoryAlerts || [])
+    .filter((alert) => alert.inventoryItemId === itemId)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+function liveInventoryAlerts() {
+  return (state.backend.inventoryAlerts || []).filter((alert) => alert.status !== "Resolved" && Number(findInventoryItem(alert.inventoryItemId)?.onHand) < 0);
 }
 
 function equipmentAlertTitle(asset) {
@@ -13221,6 +13241,25 @@ function renderConsumableDetail() {
               ${purchaseHistory.map(renderPurchaseOrderCard).join("") || `<div class="empty-state">No purchase orders for this consumable yet.</div>`}
             </div>
           </article>
+
+          ${
+            inventoryAlertsForItem(consumable.id).length
+              ? `<article class="panel${Number(consumable.onHand) < 0 ? " panel-needs-attention" : ""}">
+                  <div class="panel-header"><div><h3>Negative stock events${Number(consumable.onHand) < 0 ? renderAlertDot("Stock is still negative") : ""}</h3><span>Times a Front Line material task took more than was on hand</span></div></div>
+                  <div class="panel-body record-list">
+                    ${inventoryAlertsForItem(consumable.id)
+                      .map((alert) => {
+                        const dispatchJob = findDispatchJob(alert.jobId);
+                        return `<article class="detail-card">
+                          <strong>${escapeHtml(alert.requestedBy || "Unknown")} took ${escapeHtml(alert.requestedQuantity)} ${escapeHtml(consumable.unit || "")} with ${escapeHtml(alert.onHandAtRequest)} on hand</strong>
+                          <div class="row-meta"><span>Balance after: ${escapeHtml(alert.resultingBalance)}</span><span>${formatDateTime(alert.createdAt)}</span>${dispatchJob ? `<button class="mini-button" type="button" data-action="view-dispatch-job" data-id="${escapeAttribute(dispatchJob.id)}">${escapeHtml(dispatchJob.jobNumber)}</button>` : ""}</div>
+                        </article>`;
+                      })
+                      .join("")}
+                  </div>
+                </article>`
+              : ""
+          }
 
           <article class="panel">
             <div class="panel-header"><div><h3>Stock movements</h3><span>Every change to on-hand quantity, newest first</span></div></div>
@@ -14284,7 +14323,7 @@ function renderClientSpillDetail() {
           <div class="inline-actions">
             <span class="risk-badge ${progress.tone}">${progress.percent}% complete</span>
             <span class="stage-badge">${escapeHtml(job.status)}</span>
-            <span class="tag">PM ${escapeHtml(job.projectManager)}</span>
+            <span class="tag">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
             ${job.notToExceed ? `<span class="tag">Authorized NTE ${money(job.notToExceed)}</span>` : ""}
           </div>
         </div>
@@ -14483,7 +14522,7 @@ function renderClientSpillCard(job) {
       <div class="inline-actions">
         <span class="${alerts.length ? "risk-badge high" : "tag"}">${alerts.length} open updates</span>
         <span class="tag">${samples.length} samples</span>
-        <span class="tag">PM ${escapeHtml(job.projectManager)}</span>
+        <span class="tag">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
       </div>
       <div class="inline-actions">
         <button class="mini-button" type="button" data-action="view-client-spill" data-id="${escapeAttribute(job.id)}">Open spill</button>
@@ -16582,6 +16621,7 @@ function findJobAction(actionId) {
 }
 
 function attachmentsForAction(actionId) {
+  if (!actionId) return [];
   return (state.backend.jobTaskAttachments || []).filter((attachment) => attachment.actionId === actionId);
 }
 
@@ -17335,12 +17375,12 @@ async function saveOpportunity(form) {
   const stage = existing ? existing.stage : data.get("startingStage")?.toString() || "Lead";
   // Item 26 — closeBandSetAt only moves when the band itself actually changes, not on every save
   // of an unrelated field. That's what keeps the staleness reading ("set N days ago") meaningful.
-  const newCloseBand = data.get("closeBand").toString();
+  const newCloseBand = (data.get("closeBand") || "").toString();
   const closeBandChanged = (existing?.closeBand || "") !== newCloseBand;
   const opportunity = buildCoreOpportunityRecord({
     ...(existing || {}),
     id: existingId || makeId("opp"),
-    accountId: data.get("accountId").toString(),
+    accountId: (data.get("accountId") || "").toString(),
     name: data.get("name").toString().trim(),
     opportunityName: data.get("name").toString().trim(),
     value: Number(data.get("value")),
@@ -17351,8 +17391,8 @@ async function saveOpportunity(form) {
     dealStage: stage,
     probability: STAGE_PROBABILITY[stage],
     closeProbability: STAGE_PROBABILITY[stage],
-    serviceType: data.get("serviceType").toString(),
-    status: stage === "Won" ? "Won" : data.get("status").toString(),
+    serviceType: (data.get("serviceType") || "").toString(),
+    status: stage === "Won" ? "Won" : (data.get("status") || "").toString(),
     nextStep: data.get("nextStep").toString().trim(),
     customerNeed: data.get("customerNeed").toString().trim(),
     weightedAmount: undefined,
@@ -17387,7 +17427,7 @@ async function saveAccount(form) {
   const businessDescription = data.get("businessDescription").toString().trim();
   const ownerEmployeeId = (data.get("ownerEmployeeId") || "").toString();
   const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
-  const industryId = data.get("industryId").toString();
+  const industryId = (data.get("industryId") || "").toString();
   const enteredCity = data.get("addressCity").toString().trim();
   const enteredState = data.get("addressState").toString().trim();
   const account = buildCoreAccountRecord({
@@ -17396,13 +17436,13 @@ async function saveAccount(form) {
     name: data.get("name").toString().trim(),
     accountName: data.get("name").toString().trim(),
     website: data.get("website").toString().trim(),
-    accountType: data.get("accountType").toString(),
+    accountType: (data.get("accountType") || "").toString(),
     contact: existing?.contact || "",
     email: data.get("email").toString().trim(),
     phone: data.get("phone").toString().trim(),
     mainPhoneNumber: data.get("phone").toString().trim(),
     faxNumber: data.get("fax").toString().trim(),
-    parentAccountId: data.get("parentAccountId").toString(),
+    parentAccountId: (data.get("parentAccountId") || "").toString(),
     city: enteredCity || existing?.city || "",
     addressOneCity: enteredCity || existing?.addressOneCity || "",
     addressOneState: enteredState || existing?.addressOneState || "",
@@ -17489,7 +17529,7 @@ async function saveContact(form) {
   const contact = buildCoreContactRecord({
     ...(existing || {}),
     id: existingId || makeId("cont"),
-    accountId: data.get("accountId").toString(),
+    accountId: (data.get("accountId") || "").toString(),
     name: data.get("name").toString().trim(),
     fullName: data.get("name").toString().trim(),
     title: data.get("title").toString().trim(),
@@ -17497,10 +17537,10 @@ async function saveContact(form) {
     email: data.get("email").toString().trim(),
     phone: data.get("phone").toString().trim(),
     businessPhone: data.get("phone").toString().trim(),
-    influence: data.get("influence").toString(),
-    relationshipRole: data.get("influence").toString(),
-    preferredContact: data.get("preferredContact").toString(),
-    preferredContactMethod: data.get("preferredContact").toString(),
+    influence: (data.get("influence") || "").toString(),
+    relationshipRole: (data.get("influence") || "").toString(),
+    preferredContact: (data.get("preferredContact") || "").toString(),
+    preferredContactMethod: (data.get("preferredContact") || "").toString(),
     // opportunityIds is a real one-to-many field (a contact can be a stakeholder on several
     // opportunities — see the opportunity-side Stakeholders panel, the actual source of truth
     // for adding/removing these). This dialog's picker only ever shows the *first* entry, so on
@@ -17508,8 +17548,8 @@ async function saveContact(form) {
     // written here; every other change goes through the opportunity's own Stakeholders panel.
     opportunityIds: existing ? existing.opportunityIds || [] : opportunityId ? [opportunityId] : [],
     notes: data.get("notes").toString().trim() || "No relationship notes yet.",
-    divisionId: data.get("divisionId").toString(),
-    owner: existing?.owner || findAccount(data.get("accountId").toString())?.owner || "Unassigned",
+    divisionId: (data.get("divisionId") || "").toString(),
+    owner: existing?.owner || findAccount((data.get("accountId") || "").toString())?.owner || "Unassigned",
   });
 
   await saveBackendRecord("contacts", contact, { refresh: false });
@@ -17567,8 +17607,8 @@ async function saveContactCommPrefs(form) {
   await saveContactPatch(
     contactId,
     {
-      preferredContactMethod: data.get("preferredContactMethod").toString(),
-      preferredContact: data.get("preferredContactMethod").toString(),
+      preferredContactMethod: (data.get("preferredContactMethod") || "").toString(),
+      preferredContact: (data.get("preferredContactMethod") || "").toString(),
       doNotAllowEmails: form.elements.doNotAllowEmails.checked,
       doNotAllowPhoneCalls: form.elements.doNotAllowPhoneCalls.checked,
       doNotAllowMail: form.elements.doNotAllowMail.checked,
@@ -17598,12 +17638,12 @@ async function saveContactRole(form) {
   const ownerEmployeeId = (data.get("ownerEmployeeId") || "").toString();
   const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
   const patch = {
-    accountRole: data.get("accountRole").toString(),
-    relationshipRole: data.get("relationshipRole").toString(),
-    influence: data.get("relationshipRole").toString(),
-    lifecycleStage: data.get("lifecycleStage").toString(),
-    leadStatus: data.get("leadStatus").toString(),
-    divisionId: data.get("divisionId").toString(),
+    accountRole: (data.get("accountRole") || "").toString(),
+    relationshipRole: (data.get("relationshipRole") || "").toString(),
+    influence: (data.get("relationshipRole") || "").toString(),
+    lifecycleStage: (data.get("lifecycleStage") || "").toString(),
+    leadStatus: (data.get("leadStatus") || "").toString(),
+    divisionId: (data.get("divisionId") || "").toString(),
   };
   // Only touch owner when a real selection was made — the picker can fail to preselect an
   // existing owner (e.g. a demo/session identity with no matching employee row), and silently
@@ -17619,7 +17659,7 @@ async function saveContactAddressOne(form) {
   await saveContactPatch(
     contactId,
     {
-      addressOneType: data.get("addressOneType").toString(),
+      addressOneType: (data.get("addressOneType") || "").toString(),
       addressOneStreetOne: data.get("addressOneStreetOne").toString().trim(),
       addressOneStreetTwo: data.get("addressOneStreetTwo").toString().trim(),
       addressOneStreetThree: data.get("addressOneStreetThree").toString().trim(),
@@ -17643,7 +17683,7 @@ async function saveContactAddressTwo(form) {
   await saveContactPatch(
     contactId,
     {
-      addressTwoType: data.get("addressTwoType").toString(),
+      addressTwoType: (data.get("addressTwoType") || "").toString(),
       addressTwoStreetOne: data.get("addressTwoStreetOne").toString().trim(),
       addressTwoStreetTwo: data.get("addressTwoStreetTwo").toString().trim(),
       addressTwoStreetThree: data.get("addressTwoStreetThree").toString().trim(),
@@ -17662,7 +17702,7 @@ async function saveContactAddressTwo(form) {
 
 async function saveProjectAlert(form) {
   const data = new FormData(form);
-  const job = findProject(data.get("projectId").toString());
+  const job = findProject((data.get("projectId") || "").toString());
   if (!job) return;
 
   const alert = {
@@ -17670,8 +17710,8 @@ async function saveProjectAlert(form) {
     projectId: job.id,
     accountId: job.accountId,
     facilityId: job.facilityId,
-    alertType: data.get("alertType").toString(),
-    severity: data.get("severity").toString(),
+    alertType: (data.get("alertType") || "").toString(),
+    severity: (data.get("severity") || "").toString(),
     description: data.get("description").toString().trim(),
     reportedBy: state.currentUser?.name || "Local user",
     reportedAt: new Date().toISOString(),
@@ -17698,7 +17738,7 @@ async function saveProjectAlert(form) {
 
 async function saveMaterialUsage(form) {
   const data = new FormData(form);
-  const job = findProject(data.get("projectId").toString());
+  const job = findProject((data.get("projectId") || "").toString());
   if (!job) return;
 
   const material = {
@@ -17722,7 +17762,7 @@ async function saveMaterialUsage(form) {
 
 async function saveEquipmentLog(form) {
   const data = new FormData(form);
-  const job = findProject(data.get("projectId").toString());
+  const job = findProject((data.get("projectId") || "").toString());
   if (!job) return;
 
   const equipment = {
@@ -17748,11 +17788,11 @@ async function saveEquipmentLog(form) {
 
 async function saveScheduleEvent(form) {
   const data = new FormData(form);
-  const equipmentAssetTag = data.get("equipmentAssetTag").toString();
-  const laborResourceId = data.get("laborResourceId").toString();
+  const equipmentAssetTag = (data.get("equipmentAssetTag") || "").toString();
+  const laborResourceId = (data.get("laborResourceId") || "").toString();
   const requiredCertifications = Array.from(form.querySelector("select[name='requiredCertifications']")?.selectedOptions || []).map((option) => option.value);
   const record = {
-    projectId: data.get("projectId").toString(),
+    projectId: (data.get("projectId") || "").toString(),
     title: data.get("title").toString().trim(),
     date: data.get("date").toString(),
     crew: data.get("crew").toString().trim(),
@@ -17774,7 +17814,7 @@ async function saveScheduleEvent(form) {
 
 async function saveRemediation(form) {
   const data = new FormData(form);
-  const account = findAccount(data.get("accountId").toString());
+  const account = findAccount((data.get("accountId") || "").toString());
   if (!account) return;
 
   const job = buildCoreProjectRecord({
@@ -17841,10 +17881,10 @@ async function savePurchaseOrder(form) {
   try {
     await saveBackendRecord("purchaseOrders", {
       id: existingOrderId || "",
-      itemId: data.get("itemId").toString(),
+      itemId: (data.get("itemId") || "").toString(),
       quantity: Number(data.get("quantity")),
       vendor: data.get("vendor").toString().trim(),
-      status: data.get("status").toString() || "Draft",
+      status: (data.get("status") || "").toString() || "Draft",
       requestedBy: existing?.requestedBy || state.currentUser?.name || "Local user",
       createdAt: existing?.createdAt || "",
       receivedAt: existing?.receivedAt || "",
@@ -17896,8 +17936,8 @@ async function saveEquipmentAsset(form) {
       id,
       assetTag: data.get("assetTag").toString().trim(),
       equipment: data.get("equipment").toString().trim(),
-      category: data.get("category").toString() || "General equipment",
-      status: data.get("status").toString(),
+      category: (data.get("category") || "").toString() || "General equipment",
+      status: (data.get("status") || "").toString(),
       lastUsed: data.get("lastUsed").toString(),
       maintenanceDue: data.get("maintenanceDue").toString(),
       issue: data.get("issue").toString().trim(),
@@ -17913,12 +17953,40 @@ async function saveEquipmentAsset(form) {
       currentMeter: numberOrNull(data.get("currentMeter")),
       maintenanceDueMeter: numberOrNull(data.get("maintenanceDueMeter")),
     });
+    const newTag = data.get("assetTag").toString().trim();
+    if (existing && existing.assetTag && newTag && existing.assetTag !== newTag) {
+      const touched = await cascadeAssetTagRename(existing.assetTag, newTag);
+      await refreshBackendState();
+      closeDialogs();
+      render();
+      showToast(`Equipment asset saved. ${touched} record${touched === 1 ? "" : "s"} moved from ${existing.assetTag} to ${newTag}.`);
+      return;
+    }
     closeDialogs();
     render();
     showToast("Equipment asset saved on the backend.");
   } catch (error) {
     showToast(error.message || "Equipment asset could not be saved.");
   }
+}
+
+// The asset tag is the key every log, dispatch resource, maintenance record, restock item and GPS
+// point uses for equipment, so a rename has to follow it everywhere (found 2026-09-23: "VAC-204"
+// had been renamed "VAC TRAILER - 204" and its history detached).
+async function cascadeAssetTagRename(oldTag, newTag) {
+  let touched = 0;
+  const update = async (collection, rows, patch) => {
+    for (const row of rows) {
+      await saveBackendRecord(collection, patch(row), { refresh: false });
+      touched += 1;
+    }
+  };
+  await update("equipmentLogs", (state.backend.equipmentLogs || []).filter((row) => row.assetTag === oldTag), (row) => ({ ...row, assetTag: newTag }));
+  await update("jobResources", (state.backend.jobResources || []).filter((row) => row.assetTag === oldTag), (row) => ({ ...row, assetTag: newTag }));
+  await update("equipmentMaintenanceRecords", (state.backend.equipmentMaintenanceRecords || []).filter((row) => row.assetTag === oldTag), (row) => ({ ...row, assetTag: newTag }));
+  await update("equipmentRestockItems", (state.backend.equipmentRestockItems || []).filter((row) => row.assetTag === oldTag), (row) => ({ ...row, assetTag: newTag }));
+  await update("locations", (state.backend.locations || []).filter((row) => (row.assetTags || []).includes(oldTag)), (row) => ({ ...row, assetTags: row.assetTags.map((tag) => (tag === oldTag ? newTag : tag)) }));
+  return touched;
 }
 
 // Phase 11 (2026-09-23): the dialog's Type options ("Scheduled service", "Repair", "Inspection",
@@ -17929,7 +17997,7 @@ const PM_MAINTENANCE_TYPE = "Scheduled service";
 async function saveEquipmentMaintenanceRecord(form) {
   const data = new FormData(form);
   const assetTag = data.get("assetTag").toString().trim();
-  const type = data.get("type").toString();
+  const type = (data.get("type") || "").toString();
   const date = data.get("date").toString() || todayIso();
   const status = data.get("status")?.toString() || "Completed";
   const meterReading = numberOrNull(data.get("meterReading"));
@@ -17999,7 +18067,7 @@ async function saveEquipmentRestockItem(form) {
       itemName: data.get("itemName").toString().trim(),
       quantityNeeded: Number(data.get("quantityNeeded") || 1),
       unit: data.get("unit").toString().trim(),
-      status: data.get("status").toString() || "Needed",
+      status: (data.get("status") || "").toString() || "Needed",
       notes: data.get("notes").toString().trim(),
     });
     closeDialogs();
@@ -18019,9 +18087,9 @@ async function saveLocation(form) {
     return;
   }
 
-  const scheduleEventId = data.get("scheduleEventId").toString();
+  const scheduleEventId = (data.get("scheduleEventId") || "").toString();
   const scheduleEvent = getScheduleEvents().find((event) => event.id === scheduleEventId);
-  const projectId = data.get("projectId").toString() || scheduleEvent?.projectId || "";
+  const projectId = (data.get("projectId") || "").toString() || scheduleEvent?.projectId || "";
   const assetTags = data
     .get("assetTags")
     .toString()
@@ -18039,10 +18107,10 @@ async function saveLocation(form) {
       latitude,
       longitude,
       assetTags,
-      status: data.get("status").toString(),
+      status: (data.get("status") || "").toString(),
       source: data.get("source").toString() || "Manual",
       lastPingAt: new Date().toISOString(),
-      locationType: data.get("locationType").toString(),
+      locationType: (data.get("locationType") || "").toString(),
       linearReference: data.get("linearReference").toString().trim(),
       isTemporary,
       retainUntil: isTemporary ? data.get("retainUntil").toString() : "",
@@ -18071,14 +18139,14 @@ async function saveEmployee(form) {
     lastName,
     displayName: `${firstName} ${lastName}`.trim(),
     jobTitle: data.get("jobTitle").toString().trim(),
-    employmentStatus: data.get("employmentStatus").toString(),
-    employmentType: data.get("employmentType").toString(),
+    employmentStatus: (data.get("employmentStatus") || "").toString(),
+    employmentType: (data.get("employmentType") || "").toString(),
     primaryEmail: data.get("primaryEmail").toString().trim(),
     mobilePhone: data.get("mobilePhone").toString().trim(),
-    managerEmployeeId: data.get("managerEmployeeId").toString(),
-    businessUnit: data.get("businessUnit").toString(),
-    teamId: data.get("teamId").toString(),
-    crewId: data.get("crewId").toString(),
+    managerEmployeeId: (data.get("managerEmployeeId") || "").toString(),
+    businessUnit: (data.get("businessUnit") || "").toString(),
+    teamId: (data.get("teamId") || "").toString(),
+    crewId: (data.get("crewId") || "").toString(),
     homeBase: data.get("homeBase").toString().trim(),
     availabilitySummary: existing?.availabilitySummary || "Standard calendar not assigned",
     hoursWorked: existing?.hoursWorked || 0,
@@ -18118,7 +18186,7 @@ async function saveEmployee(form) {
 
 async function saveEmployeeCredential(form) {
   const data = new FormData(form);
-  const employeeId = data.get("employeeId").toString();
+  const employeeId = (data.get("employeeId") || "").toString();
   const employee = findEmployee(employeeId);
   if (!employee) {
     showToast("Select a valid employee.");
@@ -18131,19 +18199,19 @@ async function saveEmployeeCredential(form) {
     return;
   }
   const existingId = data.get("id")?.toString().trim();
-  const assignmentStatus = data.get("assignmentStatus").toString();
+  const assignmentStatus = (data.get("assignmentStatus") || "").toString();
   const record = {
     id: existingId || makeId("cert"),
     employeeId,
     certTypeId,
     // Derived from the catalog, not typed — keeps existing table/eligibility copy working.
-    recordType: data.get("recordType").toString(),
+    recordType: (data.get("recordType") || "").toString(),
     code: certType.code || certType.name,
     name: certType.name,
     number: data.get("number").toString().trim(),
     issuedOn: data.get("issuedOn").toString(),
     expiresOn: data.get("expiresOn").toString(),
-    status: data.get("status").toString(),
+    status: (data.get("status") || "").toString(),
     assignmentStatus,
     trainingStartedOn: data.get("trainingStartedOn").toString(),
     trainingCompletedOn: data.get("trainingCompletedOn").toString(),
@@ -18205,10 +18273,10 @@ async function saveCertificationType(form) {
   const record = {
     id: existingId || makeId("certtype"),
     name,
-    category: data.get("category").toString(),
+    category: (data.get("category") || "").toString(),
     issuingBody: data.get("issuingBody").toString().trim(),
     renewalIntervalMonths: renewal ? Number(renewal) : null,
-    status: data.get("status").toString(),
+    status: (data.get("status") || "").toString(),
   };
   try {
     await saveBackendRecord("certificationTypes", record);
@@ -18256,8 +18324,8 @@ async function saveWorkforceTeam(form) {
     code: data.get("code").toString().trim(),
     name,
     businessUnit: data.get("businessUnit").toString().trim(),
-    managerEmployeeId: data.get("managerEmployeeId").toString(),
-    status: data.get("status").toString(),
+    managerEmployeeId: (data.get("managerEmployeeId") || "").toString(),
+    status: (data.get("status") || "").toString(),
   };
   try {
     await saveBackendRecord("workforceTeams", record);
@@ -18318,8 +18386,8 @@ async function saveCrewProfile(form) {
     code: data.get("code").toString().trim(),
     name,
     type: data.get("type").toString().trim(),
-    supervisorEmployeeId: data.get("supervisorEmployeeId").toString(),
-    status: data.get("status").toString(),
+    supervisorEmployeeId: (data.get("supervisorEmployeeId") || "").toString(),
+    status: (data.get("status") || "").toString(),
     timezone: "America/Chicago",
     requiredCertTypeIds,
   };
@@ -18335,12 +18403,12 @@ async function saveCrewProfile(form) {
 
 async function saveJobRequest(form) {
   const data = new FormData(form);
-  const account = findAccount(data.get("accountId").toString());
+  const account = findAccount((data.get("accountId") || "").toString());
   if (!account) {
     showToast("Select a customer account before sending the request.");
     return;
   }
-  const requestedEmployee = findEmployee(data.get("requestedEmployeeId").toString());
+  const requestedEmployee = findEmployee((data.get("requestedEmployeeId") || "").toString());
   const customerPacketFiles = [...form.elements.customerPacketFiles.files];
   const quoteFiles = [...form.elements.quoteFiles.files];
   const now = new Date();
@@ -18351,10 +18419,10 @@ async function saveJobRequest(form) {
     projectId: data.get("projectId").toString(),
     receivedAt: now.toISOString(),
     requestedServiceAt: requestedValue ? new Date(requestedValue).toISOString() : "",
-    requestedTimeText: data.get("priority").toString() === "Emergency" ? "ASAP" : requestedValue ? formatDateTime(requestedValue) : "Date not confirmed",
+    requestedTimeText: (data.get("priority") || "").toString() === "Emergency" ? "ASAP" : requestedValue ? formatDateTime(requestedValue) : "Date not confirmed",
     status: "Submitted",
-    priority: data.get("priority").toString(),
-    serviceCategory: data.get("serviceCategory").toString(),
+    priority: (data.get("priority") || "").toString(),
+    serviceCategory: (data.get("serviceCategory") || "").toString(),
     accountId: account.id,
     customerName: account.name,
     customerPoNumber: data.get("customerPoNumber").toString().trim(),
@@ -18372,8 +18440,8 @@ async function saveJobRequest(form) {
     vendorNotes: data.get("vendorNotes").toString().trim(),
     pricingNotes: data.get("pricingNotes").toString().trim(),
     description: data.get("description").toString().trim(),
-    customerPacketStatus: data.get("customerPacketStatus").toString(),
-    quoteStatus: data.get("quoteStatus").toString(),
+    customerPacketStatus: (data.get("customerPacketStatus") || "").toString(),
+    quoteStatus: (data.get("quoteStatus") || "").toString(),
     convertedJobId: "",
     receivedBy: state.currentUser?.name || "Local user",
   };
@@ -18700,7 +18768,7 @@ async function submitEmergencyIntake(form) {
     const submitButton = form.querySelector('button[type="submit"]');
     if (submitButton) submitButton.disabled = true;
 
-    let account = data.get("accountId").toString() ? findAccount(data.get("accountId").toString()) : null;
+    let account = (data.get("accountId") || "").toString() ? findAccount((data.get("accountId") || "").toString()) : null;
     const hasExistingAccount = Boolean(account);
     if (!account) {
       const newAccountName = data.get("newAccountName").toString().trim() || `${data.get("callerName").toString().trim()} (spill call)`;
@@ -18750,23 +18818,23 @@ async function submitEmergencyIntake(form) {
       // Caller and site
       callerName: data.get("callerName").toString().trim(),
       callerPhone: data.get("callerPhone").toString().trim(),
-      callerRelationship: data.get("callerRelationship").toString(),
+      callerRelationship: (data.get("callerRelationship") || "").toString(),
       // The spill
       spillMaterial: data.get("spillMaterial").toString().trim(),
       spillQuantity: data.get("spillQuantity").toString().trim(),
-      spillSurface: data.get("spillSurface").toString(),
-      stormDrainInvolved: data.get("stormDrainInvolved").toString(),
-      offRoadDischarge: data.get("offRoadDischarge").toString(),
-      absorbentDeployed: data.get("absorbentDeployed").toString(),
+      spillSurface: (data.get("spillSurface") || "").toString(),
+      stormDrainInvolved: (data.get("stormDrainInvolved") || "").toString(),
+      offRoadDischarge: (data.get("offRoadDischarge") || "").toString(),
+      absorbentDeployed: (data.get("absorbentDeployed") || "").toString(),
       absorbentDeployedBy: data.get("absorbentDeployedBy").toString().trim(),
       // Who else is there
-      lawEnforcementStatus: data.get("lawEnforcementStatus").toString(),
-      fireDepartmentStatus: data.get("fireDepartmentStatus").toString(),
-      otherEmergencyServicesStatus: data.get("otherEmergencyServicesStatus").toString(),
+      lawEnforcementStatus: (data.get("lawEnforcementStatus") || "").toString(),
+      fireDepartmentStatus: (data.get("fireDepartmentStatus") || "").toString(),
+      otherEmergencyServicesStatus: (data.get("otherEmergencyServicesStatus") || "").toString(),
       agencyIncidentNumber: data.get("agencyIncidentNumber").toString().trim(),
       // Payment/insurance and the mobilization decision
-      hasInsurance: data.get("hasInsurance").toString(),
-      isInsuranceClaim: data.get("isInsuranceClaim").toString(),
+      hasInsurance: (data.get("hasInsurance") || "").toString(),
+      isInsuranceClaim: (data.get("isInsuranceClaim") || "").toString(),
       insuranceCarrier: data.get("insuranceCarrier").toString().trim(),
       insurancePolicyNumber: data.get("insurancePolicyNumber").toString().trim(),
       insuranceClaimNumber: data.get("insuranceClaimNumber").toString().trim(),
@@ -18834,7 +18902,7 @@ async function submitEmergencyIntake(form) {
       addressText,
       onsiteContactName: data.get("callerName").toString().trim(),
       onsiteContactPhone: data.get("callerPhone").toString().trim(),
-      description: `Emergency spill response. ${data.get("spillMaterial").toString().trim() || "Material not specified"} — ${data.get("spillSurface").toString()}.`,
+      description: `Emergency spill response. ${data.get("spillMaterial").toString().trim() || "Material not specified"} — ${(data.get("spillSurface") || "").toString()}.`,
       readinessStatus: mobilization.status === "Cleared to mobilize" ? "Ready" : "Blocked",
       completionPercent: 0,
       updatedAt: new Date().toISOString(),
@@ -18928,8 +18996,8 @@ async function applyFallbackJobPlan(job) {
 
 async function saveDispatchSchedule(form) {
   const data = new FormData(form);
-  const job = findDispatchJob(data.get("jobId").toString());
-  const fieldLead = findEmployee(data.get("fieldLeadEmployeeId").toString());
+  const job = findDispatchJob((data.get("jobId") || "").toString());
+  const fieldLead = findEmployee((data.get("fieldLeadEmployeeId") || "").toString());
   if (!job || !fieldLead) {
     showToast("Select a valid job and field lead.");
     return;
@@ -18950,7 +19018,7 @@ async function saveDispatchSchedule(form) {
     showToast("Schedule end time must be after start time.");
     return;
   }
-  const crewId = data.get("crewId").toString();
+  const crewId = (data.get("crewId") || "").toString();
   // The Schedule dialog lost its free-text resource quick-add on 2026-09-23 (resources are planned
   // on the job's Plan & resources tab, Q33); older rows it created still render there.
   const resourceName = data.get("resourceName")?.toString().trim() || "";
@@ -19062,7 +19130,7 @@ function openDispatchAssignEmployeeDialog(jobId) {
 async function saveDispatchAssignEmployee(form) {
   const data = new FormData(form);
   const jobId = data.get("jobId").toString();
-  const employeeId = data.get("employeeId").toString();
+  const employeeId = (data.get("employeeId") || "").toString();
   const employee = findEmployee(employeeId);
   if (!employee) {
     showToast("Select an employee to assign.");
@@ -19137,7 +19205,7 @@ function openDispatchAssignEquipmentDialog(jobId) {
 async function saveDispatchAssignEquipment(form) {
   const data = new FormData(form);
   const jobId = data.get("jobId").toString();
-  const assetTag = data.get("assetTag").toString();
+  const assetTag = (data.get("assetTag") || "").toString();
   const asset = findEquipmentAssetByTag(assetTag);
   if (!asset) {
     showToast("Select an equipment asset to assign.");
@@ -19179,7 +19247,7 @@ function openDispatchAssignMaterialDialog(jobId) {
 async function saveDispatchAssignMaterial(form) {
   const data = new FormData(form);
   const jobId = data.get("jobId").toString();
-  const inventoryItemId = data.get("inventoryItemId").toString();
+  const inventoryItemId = (data.get("inventoryItemId") || "").toString();
   const item = findInventoryItem(inventoryItemId);
   if (!item) {
     showToast("Select a material to assign.");
@@ -21044,7 +21112,7 @@ async function saveQuickNote(form) {
 async function saveActivityMeeting(form) {
   const data = new FormData(form);
   const accountId = data.get("accountId").toString();
-  const meetingFormat = data.get("meetingFormat").toString();
+  const meetingFormat = (data.get("meetingFormat") || "").toString();
   await persistActivity(
     {
       accountId,
@@ -21054,14 +21122,14 @@ async function saveActivityMeeting(form) {
       subject: data.get("subject").toString().trim(),
       body: data.get("body").toString().trim(),
       direction: "Internal",
-      channel: meetingFormat === "Online" ? data.get("meetingPlatform").toString() : "In person",
+      channel: meetingFormat === "Online" ? (data.get("meetingPlatform") || "").toString() : "In person",
       activityDate: data.get("activityDate").toString(),
       meetingTime: data.get("meetingTime").toString(),
       meetingFormat,
-      meetingPlatform: meetingFormat === "Online" ? data.get("meetingPlatform").toString() : "",
+      meetingPlatform: meetingFormat === "Online" ? (data.get("meetingPlatform") || "").toString() : "",
       meetingLink: meetingFormat === "Online" ? data.get("meetingLink").toString().trim() : "",
       meetingLocation: meetingFormat === "Offline" ? data.get("meetingLocation").toString().trim() : "",
-      status: data.get("status").toString(),
+      status: (data.get("status") || "").toString(),
       tags: data.getAll("tags").map(String),
       relatedRecords: readRegardingField(form),
     },
@@ -21080,11 +21148,11 @@ async function saveActivityCall(form) {
       activityType: "Call",
       subject: data.get("subject").toString().trim(),
       body: data.get("body").toString().trim(),
-      direction: data.get("direction").toString(),
+      direction: (data.get("direction") || "").toString(),
       channel: "Phone",
       phoneNumber: data.get("phoneNumber").toString().trim(),
       activityDate: data.get("activityDate").toString(),
-      status: data.get("status").toString(),
+      status: (data.get("status") || "").toString(),
       tags: data.getAll("tags").map(String),
       relatedRecords: readRegardingField(form),
     },
@@ -21103,7 +21171,7 @@ async function saveActivityEmail(form) {
       activityType: "Email",
       subject: data.get("subject").toString().trim(),
       body: data.get("body").toString().trim(),
-      direction: data.get("direction").toString(),
+      direction: (data.get("direction") || "").toString(),
       channel: "Email",
       emailAddress: data.get("emailAddress").toString().trim(),
       activityDate: data.get("activityDate").toString(),
@@ -21131,8 +21199,8 @@ async function saveActivityTask(form) {
       channel: "Task",
       activityDate: dueDate,
       dueDate,
-      priority: data.get("priority").toString(),
-      status: data.get("status").toString(),
+      priority: (data.get("priority") || "").toString(),
+      status: (data.get("status") || "").toString(),
       tags: data.getAll("tags").map(String),
       relatedRecords: readRegardingField(form),
     },
@@ -21309,7 +21377,7 @@ async function saveProjectFromOpportunity(form) {
   }
   const opportunityId = data.get("opportunityId").toString();
   const opportunity = findOpportunity(opportunityId);
-  const projectManagerEmployeeId = data.get("projectManagerEmployeeId").toString();
+  const projectManagerEmployeeId = (data.get("projectManagerEmployeeId") || "").toString();
   const projectManager = getEmployees().find((employee) => employee.id === projectManagerEmployeeId)?.displayName || "";
   // Project Stage is not user-choosable at creation (Phase 15 item 4) — the stage ladder owns it from here.
   const projectStage = "Intake";
@@ -21323,7 +21391,7 @@ async function saveProjectFromOpportunity(form) {
     opportunityId,
     contactIds: contactsForAccount(account.id).map((contact) => contact.id),
     name: data.get("name").toString().trim(),
-    jobClass: data.get("jobClass").toString(),
+    jobClass: (data.get("jobClass") || "").toString(),
     status: "Pre-mobilization",
     activePhase: projectStage,
     projectManagerEmployeeId,
@@ -21417,8 +21485,8 @@ async function saveProjectIntake(form) {
     insuranceCarrier: data.get("insuranceCarrier").toString().trim(),
     claimNumber: data.get("claimNumber").toString().trim(),
     serviceProfile: data.get("serviceProfile").toString().trim(),
-    jobClass: data.get("jobClass").toString(),
-    siteWalkStatus: data.get("siteWalkStatus").toString(),
+    jobClass: (data.get("jobClass") || "").toString(),
+    siteWalkStatus: (data.get("siteWalkStatus") || "").toString(),
     sitePhotoRefs,
   };
 
@@ -21539,20 +21607,20 @@ function openSettingsDialog() {
 
 async function savePlatformSettings(form) {
   const data = new FormData(form);
-  const roleProfile = data.get("roleProfile").toString();
+  const roleProfile = (data.get("roleProfile") || "").toString();
   const settings = {
     ...defaultPlatformSettings,
     ...state.platformSettings,
-    theme: data.get("theme").toString(),
-    density: data.get("density").toString(),
-    gpsMode: data.get("gpsMode").toString(),
-    gpsRefresh: data.get("gpsRefresh").toString(),
-    gpsAccuracy: data.get("gpsAccuracy").toString(),
+    theme: (data.get("theme") || "").toString(),
+    density: (data.get("density") || "").toString(),
+    gpsMode: (data.get("gpsMode") || "").toString(),
+    gpsRefresh: (data.get("gpsRefresh") || "").toString(),
+    gpsAccuracy: (data.get("gpsAccuracy") || "").toString(),
     geofenceAlerts: form.elements.geofenceAlerts.checked,
     roleProfile,
-    schedulerBlockMode: data.get("schedulerBlockMode").toString(),
-    qboMode: data.get("qboMode").toString(),
-    inventoryAlertMode: data.get("inventoryAlertMode").toString(),
+    schedulerBlockMode: (data.get("schedulerBlockMode") || "").toString(),
+    qboMode: (data.get("qboMode") || "").toString(),
+    inventoryAlertMode: (data.get("inventoryAlertMode") || "").toString(),
   };
 
   await putSetting("platformSettings", settings);
@@ -21673,8 +21741,8 @@ async function saveOpportunityLead(form) {
   if (!opportunity) return;
   const updated = buildCoreOpportunityRecord({
     ...opportunity,
-    facilityId: data.get("facilityId").toString(),
-    industry: data.get("industry").toString().trim(),
+    facilityId: (data.get("facilityId") || "").toString(),
+    industry: (data.get("industry") || "").toString().trim(),
     contaminationNotes: data.get("contaminationNotes").toString().trim(),
     originatingLeadId: data.get("originatingLeadId").toString().trim(),
     sourceCampaign: data.get("sourceCampaign").toString().trim(),
@@ -21684,7 +21752,7 @@ async function saveOpportunityLead(form) {
     updatedAt: new Date().toISOString(),
   });
 
-  const contactId = data.get("contactId").toString();
+  const contactId = (data.get("contactId") || "").toString();
 
   try {
     await saveBackendRecord("opportunities", updated);
@@ -21721,10 +21789,10 @@ async function saveOpportunityQualify(form) {
   if (!opportunity) return;
   const updated = buildCoreOpportunityRecord({
     ...opportunity,
-    purchaseTimeframe: data.get("purchaseTimeframe").toString(),
+    purchaseTimeframe: (data.get("purchaseTimeframe") || "").toString(),
     budgetAmount: Number(data.get("budgetAmount") || 0),
-    purchaseProcess: data.get("purchaseProcess").toString(),
-    decisionMakerFound: data.get("decisionMakerFound").toString(),
+    purchaseProcess: (data.get("purchaseProcess") || "").toString(),
+    decisionMakerFound: (data.get("decisionMakerFound") || "").toString(),
     captureSummary: data.get("captureSummary").toString().trim(),
     updatedAt: new Date().toISOString(),
   });
@@ -21763,7 +21831,7 @@ async function saveOpportunityDevelop(form) {
   const updated = buildCoreOpportunityRecord({
     ...opportunity,
     proposedSolution: data.get("proposedSolution").toString().trim(),
-    siteWalkStatus: data.get("siteWalkStatus").toString(),
+    siteWalkStatus: (data.get("siteWalkStatus") || "").toString(),
     updatedAt: new Date().toISOString(),
   });
 
@@ -21801,7 +21869,7 @@ function openOpportunityStakeholderDialog(opportunityId, entryId = "") {
 
 async function saveOpportunityStakeholder(form) {
   const data = new FormData(form);
-  const contactId = data.get("contactId").toString();
+  const contactId = (data.get("contactId") || "").toString();
   if (!contactId) {
     showToast("Select a contact to add as a stakeholder.");
     return;
@@ -21813,7 +21881,7 @@ async function saveOpportunityStakeholder(form) {
     contactId,
     accountId: findOpportunity(opportunityId)?.accountId || "",
     relationshipRole: data.get("relationshipRole").toString().trim(),
-    influenceLevel: data.get("influenceLevel").toString(),
+    influenceLevel: (data.get("influenceLevel") || "").toString(),
     isPrimary: form.elements.isPrimary.checked,
   };
   try {
@@ -21883,7 +21951,7 @@ function openOpportunityCompetitorDialog(opportunityId, entryId = "") {
 async function saveOpportunityCompetitor(form) {
   const data = new FormData(form);
   const opportunityId = data.get("opportunityId").toString();
-  let competitorId = data.get("competitorId").toString();
+  let competitorId = (data.get("competitorId") || "").toString();
   const newCompetitorName = data.get("newCompetitorName").toString().trim();
 
   try {
@@ -21998,21 +22066,21 @@ function openOpportunityAssignmentDialog(opportunityId, purpose = "Sales", entry
 
 async function saveOpportunityAssignment(form) {
   const data = new FormData(form);
-  const type = data.get("type").toString();
+  const type = (data.get("type") || "").toString();
   let name = "";
   let employeeId = "";
   let contactId = "";
   let vendorAccountId = "";
   let vendorContactId = "";
   if (type === "External") {
-    contactId = data.get("contactId").toString();
+    contactId = (data.get("contactId") || "").toString();
     name = findContact(contactId)?.name || "";
   } else if (type === "Vendor") {
-    vendorAccountId = data.get("vendorAccountId").toString();
-    vendorContactId = data.get("vendorContactId").toString();
+    vendorAccountId = (data.get("vendorAccountId") || "").toString();
+    vendorContactId = (data.get("vendorContactId") || "").toString();
     name = [findContact(vendorContactId)?.name, findAccount(vendorAccountId)?.name].filter(Boolean).join(" - ");
   } else {
-    employeeId = data.get("employeeId").toString();
+    employeeId = (data.get("employeeId") || "").toString();
     name = getEmployees().find((employee) => employee.id === employeeId)?.displayName || "";
   }
   if (!name) {
@@ -22022,7 +22090,7 @@ async function saveOpportunityAssignment(form) {
   const record = {
     id: data.get("id").toString() || makeId("opp-assignment"),
     opportunityId: data.get("opportunityId").toString(),
-    purpose: data.get("purpose").toString(),
+    purpose: (data.get("purpose") || "").toString(),
     name,
     type,
     employeeId,
@@ -22030,7 +22098,7 @@ async function saveOpportunityAssignment(form) {
     vendorAccountId,
     vendorContactId,
     assignedRole: data.get("assignedRole").toString().trim(),
-    status: data.get("status").toString(),
+    status: (data.get("status") || "").toString(),
     notes: data.get("notes").toString().trim(),
   };
   try {
@@ -22187,9 +22255,9 @@ async function saveOpportunityProposal(form) {
   if (!opportunity) return;
   const updated = buildCoreOpportunityRecord({
     ...opportunity,
-    proposalDevelopedStatus: data.get("proposalDevelopedStatus").toString(),
-    internalReviewStatus: data.get("internalReviewStatus").toString(),
-    proposalPresentedStatus: data.get("proposalPresentedStatus").toString(),
+    proposalDevelopedStatus: (data.get("proposalDevelopedStatus") || "").toString(),
+    internalReviewStatus: (data.get("internalReviewStatus") || "").toString(),
+    proposalPresentedStatus: (data.get("proposalPresentedStatus") || "").toString(),
     updatedAt: new Date().toISOString(),
   });
 
@@ -22224,9 +22292,9 @@ async function saveOpportunityNegotiation(form) {
   if (!opportunity) return;
   const updated = buildCoreOpportunityRecord({
     ...opportunity,
-    accountPaperworkStatus: data.get("accountPaperworkStatus").toString(),
-    quoteSignedStatus: data.get("quoteSignedStatus").toString(),
-    workAuthorizationStatus: data.get("workAuthorizationStatus").toString(),
+    accountPaperworkStatus: (data.get("accountPaperworkStatus") || "").toString(),
+    quoteSignedStatus: (data.get("quoteSignedStatus") || "").toString(),
+    workAuthorizationStatus: (data.get("workAuthorizationStatus") || "").toString(),
     updatedAt: new Date().toISOString(),
   });
 
@@ -22919,11 +22987,11 @@ async function saveOpportunityQuote(form) {
     opportunityId,
     customerId: opportunity.accountId,
     customerLogicalName: "account",
-    priceLevelId: data.get("priceLevelId").toString(),
+    priceLevelId: (data.get("priceLevelId") || "").toString(),
     name: data.get("name").toString().trim(),
     ...docFields,
-    statusCode: data.get("statusCode").toString(),
-    stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
+    statusCode: (data.get("statusCode") || "").toString(),
+    stateCode: (data.get("statusCode") || "").toString() === "Won" || (data.get("statusCode") || "").toString() === "Lost" ? "Closed" : "Active",
     effectiveFrom: data.get("effectiveFrom").toString(),
     effectiveTo: data.get("effectiveTo").toString(),
     billingAddressId: data.get("billingAddressId")?.toString() || "",
@@ -23007,11 +23075,11 @@ async function saveOpportunityEstimate(form) {
     opportunityId,
     customerId: opportunity.accountId,
     customerLogicalName: "account",
-    priceLevelId: data.get("priceLevelId").toString(),
+    priceLevelId: (data.get("priceLevelId") || "").toString(),
     name: data.get("name").toString().trim(),
     ...docFields,
-    statusCode: data.get("statusCode").toString(),
-    stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
+    statusCode: (data.get("statusCode") || "").toString(),
+    stateCode: (data.get("statusCode") || "").toString() === "Won" || (data.get("statusCode") || "").toString() === "Lost" ? "Closed" : "Active",
     effectiveFrom: existingEstimate?.effectiveFrom || "",
     effectiveTo: existingEstimate?.effectiveTo || "",
     billingAddressId: data.get("billingAddressId")?.toString() || "",
@@ -23650,8 +23718,8 @@ async function saveInvoice(form) {
     invoiceNumber: data.get("invoiceNumber").toString().trim() || existing?.invoiceNumber || nextInvoiceNumber(invoiceDate),
     invoiceDate,
     dueDate: data.get("dueDate").toString(),
-    status: data.get("status").toString(),
-    priceLevelId: data.get("priceLevelId").toString(),
+    status: (data.get("status") || "").toString(),
+    priceLevelId: (data.get("priceLevelId") || "").toString(),
     quotedAmount: Number(data.get("quotedAmount") || 0),
     reportedLocation: data.get("reportedLocation").toString().trim(),
     termsText: data.get("termsText").toString().trim(),
@@ -24159,7 +24227,7 @@ async function saveRateCardPriceLevel(form) {
     name: data.get("name").toString().trim(),
     beginDate: data.get("beginDate").toString(),
     endDate: data.get("endDate").toString(),
-    transactionCurrencyId: data.get("transactionCurrencyId").toString(),
+    transactionCurrencyId: (data.get("transactionCurrencyId") || "").toString(),
     stateCode: "Active",
     statusCode: "Active",
     isDefault,
@@ -24205,7 +24273,7 @@ async function saveRateCardUom(form) {
   const data = new FormData(form);
   const record = {
     id: data.get("id").toString() || makeId("uom"),
-    unitGroupId: data.get("unitGroupId").toString(),
+    unitGroupId: (data.get("unitGroupId") || "").toString(),
     baseUomId: "",
     name: data.get("name").toString().trim(),
     quantity: Number(data.get("quantity") || 1),
@@ -24274,8 +24342,8 @@ async function saveRateCardProduct(form) {
   const data = new FormData(form);
   const productId = data.get("id").toString() || makeId("product");
   const existing = getProducts().find((item) => item.id === productId);
-  const priceLevelId = data.get("priceLevelId").toString();
-  const defaultUomId = data.get("defaultUomId").toString();
+  const priceLevelId = (data.get("priceLevelId") || "").toString();
+  const defaultUomId = (data.get("defaultUomId") || "").toString();
   const minimumQuantity = Number(data.get("minimumQuantity") || 0);
   const record = {
     ...(existing || {}),
@@ -24299,7 +24367,7 @@ async function saveRateCardProduct(form) {
     // blank means the export falls back to `name` above.
     qboItemName: data.get("qboItemName").toString().trim(),
   };
-  const costPlus = data.get("pricingMethodCode").toString() === COST_PLUS_METHOD;
+  const costPlus = (data.get("pricingMethodCode") || "").toString() === COST_PLUS_METHOD;
   try {
     await saveBackendRecord("products", record, { refresh: false });
     if (priceLevelId) {
@@ -24369,7 +24437,7 @@ async function saveContactPreferences(form) {
   try {
     await saveBackendRecord("accounts", {
       ...account,
-      preferredContactMethod: data.get("preferredContactMethod").toString(),
+      preferredContactMethod: (data.get("preferredContactMethod") || "").toString(),
       doNotAllowEmails: !form.elements.allowEmails.checked,
       doNotAllowBulkEmail: !form.elements.allowBulkEmail.checked,
       doNotAllowPhoneCalls: !form.elements.allowPhoneCalls.checked,
@@ -24462,7 +24530,7 @@ async function saveAccountOwner(form) {
   if (!existing) return;
   const ownerEmployeeId = (data.get("ownerEmployeeId") || "").toString();
   const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
-  const contactId = data.get("contactId").toString();
+  const contactId = (data.get("contactId") || "").toString();
   const contact = contactId ? findContact(contactId) : null;
   const account = buildCoreAccountRecord({
     ...existing,
@@ -24486,9 +24554,9 @@ async function saveAccountBilling(form) {
   if (!existing) return;
   const account = buildCoreAccountRecord({
     ...existing,
-    currency: data.get("currency").toString(),
-    billingType: data.get("billingType").toString(),
-    billingInterval: data.get("billingInterval").toString(),
+    currency: (data.get("currency") || "").toString(),
+    billingType: (data.get("billingType") || "").toString(),
+    billingInterval: (data.get("billingInterval") || "").toString(),
     creditHold: form.elements.creditHold.checked,
   });
   await saveBackendRecord("accounts", account, { refresh: false });
@@ -24525,7 +24593,7 @@ async function saveAccountAp(form) {
   const existingId = data.get("id").toString();
   const existing = findAccount(existingId);
   if (!existing) return;
-  const contactId = data.get("contactId").toString();
+  const contactId = (data.get("contactId") || "").toString();
   const contact = contactId ? findContact(contactId) : null;
   const account = buildCoreAccountRecord({
     ...existing,
@@ -24742,7 +24810,7 @@ async function saveAddress(form) {
     id: data.get("id").toString() || makeId("address"),
     accountId,
     addressName: data.get("addressName").toString().trim(),
-    addressType: data.get("addressType").toString(),
+    addressType: (data.get("addressType") || "").toString(),
     isPrimary,
     suiteNumber: data.get("suiteNumber").toString().trim(),
     street1: data.get("street1").toString().trim(),
@@ -24758,7 +24826,7 @@ async function saveAddress(form) {
     longitude: data.get("longitude") ? Number(data.get("longitude")) : null,
     freightTerms: data.get("freightTerms").toString().trim(),
     shippingMethod: data.get("shippingMethod").toString().trim(),
-    contactId: data.get("contactId").toString(),
+    contactId: (data.get("contactId") || "").toString(),
     deliveryInstructions: data.get("deliveryInstructions").toString().trim(),
   };
 
@@ -24824,7 +24892,7 @@ function openIndustriesDialog(accountId = "") {
 async function saveAccountIndustries(form) {
   const data = new FormData(form);
   const accountId = data.get("accountId").toString();
-  const primaryIndustryId = data.get("primaryIndustryId").toString();
+  const primaryIndustryId = (data.get("primaryIndustryId") || "").toString();
   const checkedIds = new Set(data.getAll("industryId").map((value) => value.toString()));
   const currentLinks = industriesForAccount(accountId);
 
@@ -24936,24 +25004,24 @@ async function saveVendorProfile(form) {
     id: data.get("id").toString() || existing?.id || makeId("vendor-profile"),
     accountId,
     vendorNumber: data.get("vendorNumber").toString().trim() || existing?.vendorNumber || nextVendorNumber(),
-    subcontractorTypeId: data.get("subcontractorTypeId").toString(),
-    onboardingStatus: data.get("onboardingStatus").toString(),
+    subcontractorTypeId: (data.get("subcontractorTypeId") || "").toString(),
+    onboardingStatus: (data.get("onboardingStatus") || "").toString(),
     isSuspended: form.elements.isSuspended.checked,
     approvalDate: data.get("approvalDate").toString(),
-    approvedById: data.get("approvedById").toString(),
-    w9Status: data.get("w9Status").toString(),
-    insuranceStatus: data.get("insuranceStatus").toString(),
+    approvedById: (data.get("approvedById") || "").toString(),
+    w9Status: (data.get("w9Status") || "").toString(),
+    insuranceStatus: (data.get("insuranceStatus") || "").toString(),
     insuranceExpiration: data.get("insuranceExpiration").toString(),
-    safetyStatus: data.get("safetyStatus").toString(),
+    safetyStatus: (data.get("safetyStatus") || "").toString(),
     paymentTerms: data.get("paymentTerms").toString().trim(),
-    defaultPriceLevelId: data.get("defaultPriceLevelId").toString(),
+    defaultPriceLevelId: (data.get("defaultPriceLevelId") || "").toString(),
     serviceTerritory: data.get("serviceTerritory").toString().trim(),
-    performanceRating: data.get("performanceRating").toString(),
+    performanceRating: (data.get("performanceRating") || "").toString(),
     accountingVendorId: data.get("accountingVendorId").toString().trim(),
-    remitToAddressId: data.get("remitToAddressId").toString(),
-    dispatchAddressId: data.get("dispatchAddressId").toString(),
-    billingAddressId: data.get("billingAddressId").toString(),
-    operationsContactId: data.get("contactId").toString(),
+    remitToAddressId: (data.get("remitToAddressId") || "").toString(),
+    dispatchAddressId: (data.get("dispatchAddressId") || "").toString(),
+    billingAddressId: (data.get("billingAddressId") || "").toString(),
+    operationsContactId: (data.get("contactId") || "").toString(),
     notes: data.get("notes").toString().trim(),
   };
 
@@ -24961,7 +25029,7 @@ async function saveVendorProfile(form) {
     await saveBackendRecord("vendorProfiles", record);
     await saveRelationshipExtensionPatch(accountId, {
       isSubcontractor,
-      subcontractorPermitted: data.get("subcontractorPermitted").toString(),
+      subcontractorPermitted: (data.get("subcontractorPermitted") || "").toString(),
       subcontractorPreapprovalRequired: form.elements.subcontractorPreapprovalRequired.checked,
       eligibleForSubcontracting: computeSubcontractingEligibility(record, isSubcontractor),
     });
@@ -25017,10 +25085,10 @@ async function saveSalesTask(form) {
     id: data.get("id").toString() || makeId("sales-task"),
     accountId: data.get("accountId").toString(),
     subject: data.get("subject").toString().trim(),
-    contactId: data.get("contactId").toString(),
+    contactId: (data.get("contactId") || "").toString(),
     dueDate: data.get("dueDate").toString(),
-    priority: data.get("priority").toString(),
-    activityStatus: data.get("activityStatus").toString(),
+    priority: (data.get("priority") || "").toString(),
+    activityStatus: (data.get("activityStatus") || "").toString(),
     statusReason: data.get("statusReason").toString().trim(),
     actualStart: data.get("actualStart").toString(),
     actualEnd: data.get("actualEnd").toString(),
@@ -25123,7 +25191,7 @@ async function saveCompanyProfile(form) {
   try {
     await saveRelationshipExtensionPatch(accountId, {
       sicCode: data.get("sicCode").toString().trim(),
-      ownershipType: data.get("ownershipType").toString(),
+      ownershipType: (data.get("ownershipType") || "").toString(),
     });
     closeDialogs();
     render();
@@ -25155,16 +25223,16 @@ function openRelationshipSnapshotDialog(accountId = "") {
 async function saveRelationshipSnapshot(form) {
   const data = new FormData(form);
   const accountId = data.get("accountId").toString();
-  const customerStatus = data.get("customerStatus").toString();
+  const customerStatus = (data.get("customerStatus") || "").toString();
   const isClient = ["Active customer", "Inactive customer", "Former customer"].includes(customerStatus);
   try {
     await saveRelationshipExtensionPatch(accountId, {
-      accountTypeId: data.get("accountTypeId").toString(),
-      relationshipStatus: data.get("relationshipStatus").toString(),
-      primaryRelationship: data.get("primaryRelationship").toString(),
+      accountTypeId: (data.get("accountTypeId") || "").toString(),
+      relationshipStatus: (data.get("relationshipStatus") || "").toString(),
+      primaryRelationship: (data.get("primaryRelationship") || "").toString(),
       customerStatus,
       isClient,
-      taxAddressId: data.get("taxAddressId").toString(),
+      taxAddressId: (data.get("taxAddressId") || "").toString(),
       isProspect: form.elements.isProspect.checked,
       isVendor: form.elements.isVendor.checked,
     });
@@ -25194,9 +25262,9 @@ async function saveDocumentStatus(form) {
   const accountId = data.get("accountId").toString();
   try {
     await saveRelationshipExtensionPatch(accountId, {
-      msaStatus: data.get("msaStatus").toString(),
-      coiStatus: data.get("coiStatus").toString(),
-      w9DocumentStatus: data.get("w9DocumentStatus").toString(),
+      msaStatus: (data.get("msaStatus") || "").toString(),
+      coiStatus: (data.get("coiStatus") || "").toString(),
+      w9DocumentStatus: (data.get("w9DocumentStatus") || "").toString(),
     });
     closeDialogs();
     render();
@@ -25350,7 +25418,7 @@ async function saveFacility(form) {
   const data = new FormData(form);
   const existingId = data.get("id").toString();
   const existing = existingId ? findFacility(existingId) : null;
-  const category = data.get("category").toString();
+  const category = (data.get("category") || "").toString();
   const street1 = data.get("street1").toString().trim();
   const city = data.get("city").toString().trim();
   const hasConcern = category === "Job Site / Field Location" || form.elements.hasConcern.checked;
@@ -25372,7 +25440,7 @@ async function saveFacility(form) {
     badge: data.get("badge").toString().trim(),
     concern: hasConcern ? data.get("concern").toString().trim() : "",
     access: data.get("access").toString().trim(),
-    environmentalRisk: data.get("environmentalRisk").toString(),
+    environmentalRisk: (data.get("environmentalRisk") || "").toString(),
     environmentalRiskNotes: data.get("environmentalRiskNotes").toString().trim(),
   };
   delete facility.type;
@@ -25462,7 +25530,7 @@ async function removeFacilityComment(id) {
 
 async function saveFacilityContact(form) {
   const data = new FormData(form);
-  const contactId = data.get("contactId").toString();
+  const contactId = (data.get("contactId") || "").toString();
   const facilityId = data.get("facilityId").toString();
   if (!contactId || !facilityId) return;
 
@@ -25471,7 +25539,7 @@ async function saveFacilityContact(form) {
       id: data.get("id").toString() || "",
       facilityId,
       contactId,
-      relationshipRole: data.get("relationshipRole").toString(),
+      relationshipRole: (data.get("relationshipRole") || "").toString(),
       isPrimary: form.elements.isPrimary.checked,
     });
     closeDialogs();
@@ -25711,16 +25779,16 @@ async function saveServiceAgreement(form) {
     accountId: data.get("accountId").toString(),
     agreementName: data.get("agreementName").toString().trim(),
     agreementNumber: data.get("agreementNumber").toString().trim(),
-    agreementType: data.get("agreementType").toString(),
-    agreementStatus: data.get("agreementStatus").toString(),
+    agreementType: (data.get("agreementType") || "").toString(),
+    agreementStatus: (data.get("agreementStatus") || "").toString(),
     effectiveStart: data.get("effectiveStart").toString(),
     effectiveEnd: data.get("effectiveEnd").toString(),
     autoRenew: form.elements.autoRenew.checked,
     renewalTermMonths: data.get("renewalTermMonths") ? Number(data.get("renewalTermMonths")) : null,
     paymentTerms: data.get("paymentTerms").toString().trim(),
     billingFrequency: data.get("billingFrequency").toString().trim(),
-    priceLevelId: data.get("priceLevelId").toString(),
-    transactionCurrencyId: data.get("transactionCurrencyId").toString(),
+    priceLevelId: (data.get("priceLevelId") || "").toString(),
+    transactionCurrencyId: (data.get("transactionCurrencyId") || "").toString(),
     totalContractValue: data.get("totalContractValue") ? Number(data.get("totalContractValue")) : null,
     scopeOfWork: data.get("scopeOfWork").toString().trim(),
   };
@@ -25783,7 +25851,7 @@ async function saveApprovedSubcontractor(form) {
     id: data.get("id").toString() || makeId("approved-sub"),
     accountId,
     subcontractorAccountId,
-    status: data.get("status").toString(),
+    status: (data.get("status") || "").toString(),
     approvedScope: data.get("approvedScope").toString().trim(),
     approvedFrom: data.get("approvedFrom").toString(),
     approvedUntil: data.get("approvedUntil").toString(),
@@ -25857,11 +25925,11 @@ async function saveSubcontractorAssignment(form) {
     id: data.get("id").toString() || makeId("subcontractor-assignment"),
     vendorProfileId: data.get("vendorProfileId").toString(),
     assignmentName: data.get("assignmentName").toString().trim(),
-    assignmentStatus: data.get("assignmentStatus").toString(),
-    pricingBasis: data.get("pricingBasis").toString(),
-    rateType: data.get("pricingBasis") === "fixed" ? data.get("rateType").toString() : "",
+    assignmentStatus: (data.get("assignmentStatus") || "").toString(),
+    pricingBasis: (data.get("pricingBasis") || "").toString(),
+    rateType: data.get("pricingBasis") === "fixed" ? (data.get("rateType") || "").toString() : "",
     rateAmount: data.get("pricingBasis") === "fixed" && data.get("rateAmount") ? Number(data.get("rateAmount")) : null,
-    priceLevelId: data.get("pricingBasis") === "rate-sheet" ? data.get("priceLevelId").toString() : "",
+    priceLevelId: data.get("pricingBasis") === "rate-sheet" ? (data.get("priceLevelId") || "").toString() : "",
     startDate: data.get("startDate").toString(),
     endDate: data.get("endDate").toString(),
     relatedJobReference: data.get("relatedJobReference").toString().trim(),
@@ -26311,7 +26379,7 @@ async function saveSampleLabInfo(form) {
     ...sample,
     labName: data.get("labName").toString().trim(),
     chainOfCustody: data.get("chainOfCustody").toString().trim(),
-    labStatus: data.get("labStatus").toString(),
+    labStatus: (data.get("labStatus") || "").toString(),
     labReceivedAt: labReceivedAt ? new Date(labReceivedAt).toISOString() : sample.labReceivedAt || "",
     requestedAnalyses: analyses,
     labResults: data.get("labResults").toString().trim(),
@@ -26398,7 +26466,7 @@ async function saveSampleResult(form) {
     reportingLimit: data.get("reportingLimit").toString(),
     actionLevel: data.get("actionLevel").toString(),
     actionLevelSource: data.get("actionLevelSource").toString().trim(),
-    labReportId: data.get("labReportId").toString(),
+    labReportId: (data.get("labReportId") || "").toString(),
     reportedOn: data.get("reportedOn").toString(),
     createdAt: existing?.createdAt || "",
     enteredBy: data.get("enteredBy").toString().trim() || state.currentUser?.name || "Local user",
@@ -28023,13 +28091,13 @@ function toggleOpportunityLocationTypeFields(type) {
 async function saveOpportunityLocation(form) {
   const data = new FormData(form);
   const opportunityId = data.get("opportunityId").toString();
-  const type = data.get("type").toString();
+  const type = (data.get("type") || "").toString();
   try {
     await linkOpportunityLocation({
       opportunityId,
       type,
-      facilityId: type === "Facility" ? data.get("facilityId").toString() : "",
-      locationId: type === "Location" ? data.get("locationId").toString() : "",
+      facilityId: type === "Facility" ? (data.get("facilityId") || "").toString() : "",
+      locationId: type === "Location" ? (data.get("locationId") || "").toString() : "",
       role: data.get("role").toString().trim(),
       note: data.get("note").toString().trim(),
     });
@@ -28464,8 +28532,8 @@ function getJobProgress(job) {
     else if (phaseText.includes("closeout") || phaseText.includes("complete")) stageIndex = 4;
   }
 
-  const dateProgress = getDateProgress(job.startDate, job.targetDate);
   const phaseProgress = [18, 35, 55, 74, 94][stageIndex] || 20;
+  const dateProgress = getDateProgress(job.startDate, job.targetDate) ?? phaseProgress;
   const percent = Math.max(8, Math.min(98, Math.round((dateProgress + phaseProgress) / 2)));
   const alerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved");
   const hasHighAlert = alerts.some((alert) => alert.severity === "High");
@@ -28479,9 +28547,12 @@ function isOpsProjectClosed(job) {
   return getJobProgress(job).stageIndex === 4;
 }
 
+// Returns null when either date is missing or unparseable, so callers fall back to stage progress
+// instead of printing "NaN%" (four seed projects had no dates at all).
 function getDateProgress(startValue, endValue) {
   const start = parseDate(startValue);
   const end = parseDate(endValue);
+  if (!startValue || !endValue || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
   const today = parseDate(todayIso());
   const total = Math.max(1, end - start);
   return Math.round(Math.min(100, Math.max(0, ((today - start) / total) * 100)));
@@ -29646,6 +29717,13 @@ function getOfficeAlerts() {
       detail: alert.description,
       tone: alert.severity.toLowerCase() === "high" ? "high" : "medium",
     }));
+  const negativeStockAlerts = liveInventoryAlerts().map((alert) => ({
+    group: "Inventory",
+    owner: findInventoryItem(alert.inventoryItemId)?.buyer || "Inventory Manager",
+    title: `${alert.materialType} went negative on ${findDispatchJob(alert.jobId)?.jobNumber || "a dispatch job"}`,
+    detail: `${alert.requestedBy || "A worker"} took ${alert.requestedQuantity} with ${alert.onHandAtRequest} on hand; balance is ${alert.resultingBalance}. Restock or correct the count.`,
+    tone: "high",
+  }));
   const consumableAlerts = getConsumableStatus()
     .filter((item) => item.status !== "Healthy")
     .map((item) => ({
@@ -29674,7 +29752,7 @@ function getOfficeAlerts() {
       tone: "high",
     }));
 
-  return [...projectAlerts, ...consumableAlerts, ...equipmentAlerts, ...financeAlerts];
+  return [...projectAlerts, ...negativeStockAlerts, ...consumableAlerts, ...equipmentAlerts, ...financeAlerts];
 }
 
 function getFinanceRows() {

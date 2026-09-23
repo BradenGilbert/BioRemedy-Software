@@ -319,6 +319,8 @@ what was built and why. Kept here as the original source record.
 
 ## Corrections found during implementation
 
+- **2026-09-23 audit:** the negative-stock confirmation's `inventoryAlerts` rows were written by the server and read by nothing. They now show on Office → Alerts, on the consumable's page ("Negative stock events") and in the consumables list's red dot, until the item is back at or above zero. The consumable dialog also refused to save while On hand was negative (`min="0"`); it no longer does.
+
 - **The tile table's "Time Sheet — would write the existing `timeEntries` collection" was stale.**
   `timeEntries` had actually been *retired* 2026-09-16 (zero `app.js` readers/writers, per
   `docs/database-handoff-map.md`) — it no longer existed in `server.mjs`/`data/backend.json` by the

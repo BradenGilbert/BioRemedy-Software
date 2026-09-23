@@ -65,6 +65,8 @@ These have already caused planning errors. Confirm before acting:
 
 **Keep docs in sync in the same session.** If you add or change a field or collection, update `docs/database-handoff-map.md` before the session ends. Not in chat, not in memory — in the doc.
 
+**Dropdown reads must be null-safe.** A `<select>` whose stored value matches no option submits nothing, so `data.get("x")` is `null`. Write `(data.get("x") || "").toString()`, and when a picker is filtered, keep the record's current value selectable (`setEmployeeSelectValue` is the pattern). This crashed two dialogs before the 2026-09-23 audit.
+
 **Audit before deleting legacy UI.** Cross-check every old panel's data against the new one before removing it.
 
 **Update phase status when a phase ships** — both the phase doc's `**Status:**` line and the table in `docs/roadmap/README.md`.
