@@ -30,7 +30,7 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 
 | File | What |
 |---|---|
-| `app.js` | ~29,500 lines, ~1,200 functions, one ES module. The entire front end. |
+| `app.js` | ~29,900 lines, ~1,210 functions, one ES module. The entire front end. |
 | `index.html` | ~5,500 lines. App shell + 92 `<dialog>` forms. |
 | `styles.css` | ~6,550 lines. |
 | `server.mjs` | Node server. `/api/backend/{collection}` routes over `data/backend.json`; API requests run one at a time and writes are atomic (2026-09-23). |

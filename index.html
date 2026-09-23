@@ -1035,6 +1035,28 @@
           Fuel surcharge basis
           <input name="fuelSurchargeNote" maxlength="200" placeholder="e.g. DOE diesel average, week of Sep 21" />
         </label>
+        <fieldset class="settings-section">
+          <legend>Invoices</legend>
+          <div class="form-grid">
+            <label>
+              Sales tax %
+              <input name="salesTaxPercent" type="number" min="0" step="0.001" />
+            </label>
+            <label>
+              Payment terms (days)
+              <input name="invoiceTermsDays" type="number" min="0" step="1" />
+            </label>
+          </div>
+          <p class="help-text">Tax stays at 0% and every line starts non-taxable until the accountant confirms Texas treatment (owner, 2026-09-23). Lines can be marked taxable one by one.</p>
+          <label>
+            Terms wording (printed on every invoice)
+            <textarea name="invoiceTermsText" rows="2"></textarea>
+          </label>
+          <label>
+            Remit-to block (printed under BioRemedy)
+            <textarea name="invoiceRemitTo" rows="3" placeholder="Remit-to address, phone, billing email"></textarea>
+          </label>
+        </fieldset>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save pricing settings</button>
@@ -2641,31 +2663,24 @@
       </form>
     </dialog>
 
-    <dialog id="invoiceDialog" class="modal">
-      <form method="dialog" class="modal-panel" data-form="invoice">
+    <dialog id="invoiceDialog" class="modal" data-doc-kind="invoice">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="invoice">
         <input name="id" type="hidden" />
         <div class="modal-header">
-          <h2>Invoice</h2>
+          <div>
+            <p class="eyebrow">Invoice</p>
+            <h2 data-invoice-title>New invoice</h2>
+          </div>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
-        <label>
-          Project
-          <select name="projectId" required></select>
-        </label>
         <div class="form-grid">
           <label>
-            Quoted amount
-            <input name="quotedAmount" required type="number" min="0" step="100" value="0" />
+            Project
+            <select name="projectId" required></select>
           </label>
           <label>
-            Invoice amount
-            <input name="invoiceAmount" required type="number" min="0" step="100" value="0" />
-          </label>
-        </div>
-        <div class="form-grid">
-          <label>
-            Due date
-            <input name="dueDate" required type="date" />
+            Invoice #
+            <input name="invoiceNumber" maxlength="40" placeholder="Assigned on save" />
           </label>
           <label>
             Status
@@ -2678,9 +2693,101 @@
             </select>
           </label>
         </div>
+        <div class="form-grid">
+          <label>
+            Invoice date
+            <input name="invoiceDate" type="date" required />
+          </label>
+          <label>
+            Due date
+            <input name="dueDate" type="date" required />
+          </label>
+          <label>
+            Quoted (reference)
+            <input name="quotedAmount" type="number" min="0" step="0.01" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Rate sheet
+            <select name="priceLevelId" data-doc-price-level></select>
+          </label>
+          <label>
+            Default rate tier
+            <select name="rateTier" data-doc-tier>
+              <option value="standard">Standard</option>
+              <option value="ot_emergency">OT / Emergency</option>
+              <option value="double_time">Double time</option>
+            </select>
+          </label>
+          <label>
+            Reported location
+            <input name="reportedLocation" maxlength="200" />
+          </label>
+        </div>
+        <div class="form-grid doc-pricing-controls">
+          <label>
+            Fuel surcharge %
+            <input name="fuelSurchargePercent" type="number" min="0" step="0.01" data-doc-fuel-pct placeholder="Not set" />
+          </label>
+          <label>
+            Energy, Security &amp; Insurance fee %
+            <input name="energySecurityFeePercent" type="number" min="0" step="0.01" data-doc-fee-pct />
+          </label>
+          <label>
+            Sales tax %
+            <input name="taxRatePercent" type="number" min="0" step="0.001" data-doc-tax-pct />
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="isEmergencyCallout" data-doc-emergency />
+          <span>Emergency call-out (bills the rate sheet's 4-hour minimum on hourly labor, trucks and equipment)</span>
+        </label>
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Line items by day</legend>
+          <div class="doc-line-items doc-line-items-header invoice-line-grid">
+            <span>Day</span>
+            <span>Product</span>
+            <span>Description</span>
+            <span>Qty</span>
+            <span>Unit</span>
+            <span>Tier</span>
+            <span>Rate</span>
+            <span>Line total</span>
+            <span>Tax</span>
+            <span></span>
+          </div>
+          <div class="doc-line-items invoice-line-grid" data-line-container></div>
+          <div class="inline-actions">
+            <button class="mini-button" type="button" data-action="add-doc-line">Add line</button>
+            <button class="mini-button" type="button" data-action="draft-invoice-lines">Draft lines from field records</button>
+          </div>
+          <p class="help-text">Drafted lines come from Front Line hours (one line per person per day), equipment on the job, materials used, billable receipts (at cost) and waste disposal (the sheet's cost-plus disposal line). Days follow each dispatch job's operational day. Review every line before sending.</p>
+        </fieldset>
+        <div class="doc-totals">
+          <div class="doc-totals-row"><span>Subtotal</span><strong data-doc-subtotal>$0.00</strong></div>
+          <div class="doc-totals-row"><span>Fuel surcharge</span><strong data-doc-fuel-amount>$0.00</strong></div>
+          <div class="doc-totals-row"><span>Energy, Security &amp; Insurance</span><strong data-doc-fee-amount>$0.00</strong></div>
+          <div class="doc-totals-row"><span>Tax</span><strong data-doc-tax-amount>$0.00</strong></div>
+          <p class="help-text" data-doc-pricing-hint></p>
+          <label class="doc-total-field">
+            Invoice total
+            <input name="totalAmount" type="number" readonly data-doc-total />
+          </label>
+        </div>
+        <div data-legacy-amount hidden>
+          <label>
+            Invoice amount (saved before itemization; used until line items are added)
+            <input name="legacyAmount" type="number" min="0" step="0.01" />
+          </label>
+        </div>
+        <label>
+          Terms (printed)
+          <textarea name="termsText" rows="2"></textarea>
+        </label>
         <label>
           Notes
-          <textarea name="notes" rows="4" maxlength="400" placeholder="Billing notes, customer approval, or invoice hold reason."></textarea>
+          <textarea name="notes" rows="3" maxlength="400" placeholder="Billing notes, customer approval, or invoice hold reason."></textarea>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>

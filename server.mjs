@@ -2603,17 +2603,38 @@ function normalizeRecord(collection, payload, data) {
   }
 
   if (collection === "invoices") {
+    const numberOrNull = (value) => (value === "" || value == null || !Number.isFinite(Number(value)) ? null : Number(value));
     return {
       id,
       projectId: payload.projectId || "",
       customer: payload.customer || "",
       quotedAmount: Number(payload.quotedAmount || 0),
       fieldExpenses: Number(payload.fieldExpenses || 0),
-      invoiceAmount: Number(payload.invoiceAmount || payload.quotedAmount || 0),
+      invoiceAmount: Number(payload.invoiceAmount ?? payload.quotedAmount ?? 0),
       status: payload.status || "Draft",
       dueDate: payload.dueDate || "",
       notes: payload.notes || "",
       qboStatus: payload.qboStatus || "Not exported",
+      // Phase 09 Lone Star pass (2026-09-23): the itemized invoice's document fields, the same
+      // pricing fields quotes carry plus tax, terms and the reported location.
+      invoiceNumber: payload.invoiceNumber || "",
+      invoiceDate: payload.invoiceDate || "",
+      priceLevelId: payload.priceLevelId || "",
+      rateTier: payload.rateTier || "standard",
+      isEmergencyCallout: Boolean(payload.isEmergencyCallout),
+      fuelSurchargePercent: numberOrNull(payload.fuelSurchargePercent),
+      energySecurityFeePercent: Number(payload.energySecurityFeePercent || 0),
+      taxRatePercent: Number(payload.taxRatePercent || 0),
+      subtotalAmount: numberOrNull(payload.subtotalAmount),
+      fuelSurchargeAmount: numberOrNull(payload.fuelSurchargeAmount),
+      energySecurityFeeAmount: numberOrNull(payload.energySecurityFeeAmount),
+      taxableAmount: numberOrNull(payload.taxableAmount),
+      taxAmount: Number(payload.taxAmount || 0),
+      totalAmount: numberOrNull(payload.totalAmount),
+      reportedLocation: payload.reportedLocation || "",
+      termsText: payload.termsText || "",
+      createdAt: payload.createdAt || now,
+      updatedAt: now,
     };
   }
 
@@ -3280,20 +3301,23 @@ function buildQboInvoicePayload(invoice, data) {
     };
   });
 
+  // Tax sits outside the lines (QBO's TxnTaxDetail), so the lines plus tax must equal the total.
   const lineTotal = roundCentsQbo(qboLines.reduce((sum, line) => sum + Number(line.Amount || 0), 0));
+  const taxAmount = roundCentsQbo(Number(invoice.taxAmount || 0));
   const invoiceTotal = roundCentsQbo(Number(invoice.invoiceAmount || 0));
-  if (Math.abs(lineTotal - invoiceTotal) > 0.01) {
-    issues.push(`Line total (${lineTotal.toFixed(2)}) does not match the invoice total (${invoiceTotal.toFixed(2)}).`);
+  if (Math.abs(lineTotal + taxAmount - invoiceTotal) > 0.01) {
+    issues.push(`Line total (${lineTotal.toFixed(2)})${taxAmount ? ` plus tax (${taxAmount.toFixed(2)})` : ""} does not match the invoice total (${invoiceTotal.toFixed(2)}).`);
   }
 
   const payload = {
-    DocNumber: invoice.id,
-    TxnDate: new Date().toISOString().slice(0, 10),
+    DocNumber: invoice.invoiceNumber || invoice.id,
+    TxnDate: invoice.invoiceDate || new Date().toISOString().slice(0, 10),
     DueDate: invoice.dueDate || "",
     CustomerRef: { name: customerName || "Unmapped customer" },
     Line: qboLines,
     PrivateNote: invoice.notes || "",
   };
+  if (taxAmount) payload.TxnTaxDetail = { TotalTax: taxAmount };
   if (account?.email) payload.BillEmail = { Address: account.email };
   if (account?.addressOneStreetOne || account?.addressOneCity) {
     payload.BillAddr = {

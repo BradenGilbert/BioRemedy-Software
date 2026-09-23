@@ -69,6 +69,8 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 | Stock movement | `inventoryMovements` | One change to an inventory item's `onHand`, with the reason. Written by the server only. |
 | Sample result | `sampleResults` | One analyte result for one sample. **Not** `sampleLabReports`, which are the uploaded report *files*. |
 | Notification | `notifications` | An in-app message addressed to roles (until Phase 12). **Not** `projectAlerts` (the field alert itself) or `inventoryAlerts`. |
+| Labor role ("bills as") | `employees.laborProductId` | The Labor rate line a person bills at (e.g. "Technician - HazMat trained…"). **Not** `jobTitle`, which is free text for the org chart. Set under Rate Card → Catalog alignment. |
+| Invoice line day | `invoiceLines.operationalDate` | The operational day a billed line belongs to; drives the invoice's "Day N" headings. Same rule as the report (Q5). |
 
 ---
 

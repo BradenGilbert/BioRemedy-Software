@@ -79,15 +79,16 @@ Wave 4: vendor needs pick from the approved list (13).
 ### Phase 08 — Quotes & Estimates · ✅ round two shipped 2026-09-23 (sprint Wave 1)
 **Shipped:** the rate-card rework. Both tabs of `2026 RATES.xlsx` were imported as rate sheets (owner: both, "Rate Sheet" default) with three tier prices, cost-plus rows, 4-hour emergency minimums and fuel-surcharge flags. The 18% Energy/Security/Insurance fee (owner: automatic, removable) and the fuel surcharge are generated as real lines. A per-line tier, section-grouped pickers filtered to the document's sheet, a rebuilt Rate Card screen with catalog alignment, equipment and consumables linked to their rate line, and the Estimation Tool drafting lines from Resource Needs. All five round-one boxes are ticked. Also fixed app-wide: whole-dollar rounding of every amount.
 **Still open:**
-- Link employees to their labor-role rate line (Section I roles vs `employees.jobTitle`), so Phase 09 can price labor per role
-- Owner to enter the current fuel surcharge % (Rate Card → Pricing settings); it starts unset
+- ~~Link employees to their labor-role rate line~~: shipped 2026-09-23 (Wave 5b, Catalog alignment)
+- ~~Owner to enter the fuel surcharge %~~: 10% is set in the live data as of 2026-09-23; confirm it's current
 - Phase 09's close report prices usage at sell rates (now visible, flagged in both phase docs)
 
 ### Phase 10 — Front Line · ✅ 2026-09-22 pass shipped 2026-09-23 (Wave 2)
 Map markers fixed (two maps used the broken default, not one), Receipts tile with per-job expenses rolled up to the project and the close report, Exit as a full-width bar, tile grid overflow fixed.
 
-### Phase 09 — Billing & Invoicing · *one 2026-09-22 item still open*
-- **Lone Star invoice layout** (day grouping, tier-labelled activity lines, surcharge/fee lines, tax column, terms footer). Everything it waited on now exists: Phase 08's tiers and minimums (Wave 1), the operational day (Q5) and the shared print shell (Wave 5). **Needs owner answers first:** which lines are taxable and at what rate, BioRemedy's payment-terms wording, and the default tier for emergency work. It also has to generate `invoiceLines`. Today invoices have none, so every QuickBooks export is "Blocked" (found in Wave 5).
+### Phase 09 — Billing & Invoicing · ✅ 2026-09-22 pass shipped 2026-09-23 (Wave 5b)
+Itemized, day-grouped invoices on the quote pricing engine, drafted from field records, printed in the Lone Star layout. Owner decisions: tax column at 0% with lines non-taxable until the accountant confirms; Net 30 + 1.5%/month; emergency work starts at OT & Emergency. QuickBooks exports now carry real lines.
+**Still open:** the close report prices usage at sell rates (needs a cost basis); invoices are one per project (no progress billing yet).
 
 ### Phase 11 — Field Ops Depth & Reporting · ✅ shipped 2026-09-23 (Wave 5)
 Post-work report with per-day case narrative, both weather snapshots, post-job review (required to close a job) and photo curation. Permits, waste tracking into job cost, stock ledger, fleet PM plans, structured lab results, notifications and QBO payloads. **Deferred with reasons in the phase doc:** approval chains (to Phase 12), project commercial controls, dashboards/global search (Phase 14), template redesign (Q34).
@@ -144,7 +145,7 @@ Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enfo
 
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
-**Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, and Phase 09's Lone Star invoice (waiting on three owner answers). Next is Wave 6: the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
+**Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, Phase 09's Lone Star invoice also shipped (Wave 5b). Next is Wave 6: the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
 **Before real users:** Phase 12, then Phase 13.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 

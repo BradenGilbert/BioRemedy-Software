@@ -6535,3 +6535,20 @@ body[data-theme="dark"] .frontline-device {
 .weather-slot-stacked dt {
   display: none;
 }
+
+/* ---- Invoices (Phase 09 Lone Star pass, 2026-09-23): a day column before the product ---- */
+#invoiceDialog .modal-panel.wide-modal-panel {
+  width: min(1340px, calc(100vw - 28px));
+}
+
+.invoice-line-grid .doc-line-row,
+.invoice-line-grid.doc-line-items-header {
+  /* day, product, description, qty, unit, tier, rate, line total, taxable, remove */
+  grid-template-columns: 140px minmax(150px, 1.6fr) minmax(130px, 1.3fr) 76px minmax(90px, 0.8fr) minmax(110px, 0.9fr) 92px minmax(96px, 1fr) 36px auto;
+}
+
+@media (max-width: 720px) {
+  .invoice-line-grid .doc-line-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

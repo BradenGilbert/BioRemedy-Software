@@ -1,6 +1,6 @@
 # Phase 09 — Billing & Invoicing
 
-**Status:** 🟢 **Shipped 2026-09-17. Live bug report follow-up shipped 2026-09-18** — the cost report now aggregates dispatch-side equipment/material resources across every deployment on a project, not just office-manual logs. See "Live bug report follow-up" below. A real "close project" action gated on the `PROJECT_STAGES` ladder reaching Closeout; closing generates a stored cost-report/P&L snapshot from real equipment/labor/material usage, priced from Phase 08's rate card; a "Regenerate" action re-runs the same generator after post-close usage posts; the generated numbers now feed (not bypass) the existing manual invoice dialog. Verified live via Playwright: closed a real project with real logged usage, confirmed the report's numbers, confirmed the invoice dialog pre-filled from it, posted a new usage entry after close and confirmed the stale snapshot only updated on explicit Regenerate (with a new `regeneratedAt`, original `generatedAt` preserved), and confirmed a project with zero usage and no quote/estimate still closes cleanly to an all-zero report with no console errors.
+**Status:** 🟢 **Shipped 2026-09-17; the 2026-09-22 pass (Lone Star invoice) shipped 2026-09-23 in sprint Wave 5b**, which added itemized, day-grouped invoices on the quote pricing engine, with tax, terms, a Lone Star print layout, and lines drafted from field records. See "Lone Star invoice: what's built". **Live bug report follow-up shipped 2026-09-18** — the cost report now aggregates dispatch-side equipment/material resources across every deployment on a project, not just office-manual logs. See "Live bug report follow-up" below. A real "close project" action gated on the `PROJECT_STAGES` ladder reaching Closeout; closing generates a stored cost-report/P&L snapshot from real equipment/labor/material usage, priced from Phase 08's rate card; a "Regenerate" action re-runs the same generator after post-close usage posts; the generated numbers now feed (not bypass) the existing manual invoice dialog. Verified live via Playwright: closed a real project with real logged usage, confirmed the report's numbers, confirmed the invoice dialog pre-filled from it, posted a new usage entry after close and confirmed the stale snapshot only updated on explicit Regenerate (with a new `regeneratedAt`, original `generatedAt` preserved), and confirmed a project with zero usage and no quote/estimate still closes cleanly to an all-zero report with no console errors.
 **Depends on:** Phase 08 (rate data) — shipped 2026-09-17. Phase 07 item 11 (project stage must actually advance before "project close" means anything) — shipped 2026-09-17.
 **Estimated sessions:** 3
 **Source:** `bioremedy crm notes 9.16.2026.docx`
@@ -130,7 +130,7 @@ See `docs/database-handoff-map.md`'s Phase 09 note for the full inventory.
 
 - **2026-09-23 (sprint Wave 5): the operational day (Q5) now exists.** `dispatchJobs.operationalDate` is stamped when the crew taps Start work and is correctable on the job's Close-out tab. Phase 11's post-work report already groups billables by it, so the invoice's day grouping should read the same field; see Phase 11's corrections for how a genuinely multi-day job is handled.
 - **2026-09-23 (Wave 5): waste disposal now feeds the report.** `closeReport.costs.waste` sums `wasteRecords.disposalCost`, the fourth bucket this doc deferred to Phase 11. Reports generated earlier say so and pick it up on Regenerate.
-- **2026-09-23 (Wave 5, found building the QuickBooks payload): invoices have no line items.** `saveInvoice()` writes only `quotedAmount`/`invoiceAmount`; nothing generates `invoiceLines` (one seed invoice has lines, and they don't sum to its total). The QBO export therefore falls back to a single "Services" line and marks the export "Blocked - fix mapping issues". Itemized invoice lines by operational day are the core of the Lone Star invoice pass below, which is still **not started**. It needs owner answers on taxable lines, payment-terms wording and the default tier for emergency work before it's built.
+- **2026-09-23 (Wave 5, found building the QuickBooks payload): invoices have no line items.** `saveInvoice()` writes only `quotedAmount`/`invoiceAmount`; nothing generates `invoiceLines` (one seed invoice has lines, and they don't sum to its total). The QBO export therefore falls back to a single "Services" line and marks the export "Blocked - fix mapping issues". **Fixed the same day by the Lone Star pass (Wave 5b):** invoices now carry itemized lines, and a clean export queues with no issues.
 - **2026-09-23 (flagged by Phase 08 round two, not fixed): the close report prices usage at the rate card's *sell* rates and calls the result "costs."** Before Phase 08's rate-card rework the only rows it could use were three generic cost-basis products, so the distinction was invisible. Now that the rate card holds BioRemedy's real sell prices, a report built from them measures billable value, not cost, and the "margin" it shows is inflated by the markup. The three generic products are still priced on both rate sheets, so the report behaves exactly as before. A true P&L needs a cost basis (per labor role, per asset, per consumable) that no collection holds yet. Recommended fix: a `unitCost` on `productPriceLevels` (or on the linked catalog row), read here instead of `amount`.
 - **2026-09-17 — a real gap not visible from the plan doc alone: there is no per-project labor-hours figure anywhere in the app.** The plan doc pointed to "whatever Phase 07 item 12 fixes for labor/hours tracking," but that fix (`employees.hoursWorked`) is a cumulative, cross-project running total incremented on every Timer-task submission regardless of which job it was for — it cannot be attributed back to a single project's cost report. The only place the app captures hours tied to a *specific* dispatch job is a Front Line Timer-task submission itself (`jobFormSubmissions`, keyed by `jobId` = a `dispatchJobs` id, with `payload.hours`). Resolved by adding `laborHoursForProject(projectId)`, which walks every `dispatchJobs` row linked to the project (`dispatchJobsForProject()`, already existed) and sums `payload.hours` from any Timer-type submission on each — real per-job data, just assembled from a different path than the plan doc assumed existed already.
 - **2026-09-17 — Phase 08's rate card had no per-unit cost basis for equipment/labor/materials, only whole-engagement day-rate services.** All three pre-existing seed products (`prod-ust-remediation`, `prod-asbestos-containment`, `prod-disposal-impacted-soil`) price a multi-day service engagement as a lump sum (e.g. $14,500/day), which isn't a resolvable per-log or per-hour cost input. Rather than fabricate false per-asset or per-employee-role granularity that doesn't exist in this prototype, three generic cost-basis products were added to the rate card so the report generator still resolves real rate-card data (not a re-hardcoded constant) for the common case: `prod-field-labor-standard` ($95/hr, `uom-hour`), `prod-equipment-standard-daily` ($650/day, `uom-day`), `prod-material-standard-unit` ($42/unit, a new `uom-unit`/`unit-group-consumables` pair — `materialUsage.unit` is free text with no UoM FK, so there was no existing per-unit measure to hang a rate off of). `resolveCostBasisRate()` falls back to the same flat numbers only if even this generic product has no rate configured for the resolved price level — a defensive fallback, not the primary path, and it's flagged in the UI (`rateSource: "fallback"` renders as "- fallback rate" next to the number) so it's visibly distinguishable from a genuine rate-card hit. This is a deliberate, documented interim design, not a claim that granular per-equipment-type or per-employee-role rates exist yet.
@@ -241,7 +241,7 @@ one, so no second bug was found there.
 
 # 2026-09-22 feedback pass
 
-**Source:** `docs/roadmap/notes-2026-09-22.md` item 25. **Status:** Not started.
+**Source:** `docs/roadmap/notes-2026-09-22.md` item 25. **Status:** ✅ Shipped 2026-09-23 (sprint Wave 5b). See "Lone Star invoice: what's built" at the end of this doc.
 
 ### Invoice layout should follow the Lone Star model
 
@@ -267,3 +267,43 @@ The reference is `docs/uploaded files/lone star hazmart Invoice_2026080901_WAC_f
 
 - **Invoice day-grouping (Q5):** a usage record belongs to **the dispatch job's operational day**, not its `createdAt`. A technician logging material at 1am belongs to the day of the job, not the calendar date of the entry. This means `dispatchJobs` needs an explicit operational-day value that survives overnight work — derive it once at job level, do not recompute it per record.
 - **Currency precision (Q6):** cents throughout. See Phase 08's locked decisions.
+
+---
+
+## Decisions locked 2026-09-23 (owner)
+
+- **Sales tax:** a tax column at **0%**, with every line non-taxable by default, until BioRemedy's accountant confirms Texas treatment. Lines can be marked taxable one at a time; the rate lives in Pricing settings (`pricingSettings.salesTaxPercent`) and is copied onto each invoice.
+- **Payment terms:** Net 30, printed as *"Payment is due within 30 days. A finance charge of 1.5% per month will be added to all past-due balances."* (Lone Star's wording). Days and wording are editable in Pricing settings.
+- **Emergency work:** lines drafted for an Emergency Response project start at the **OT & Emergency** tier with the emergency call-out (4-hour minimum) on. The office can change any line.
+- **Timing:** built now (Wave 5b), before identity (Wave 6).
+
+## Lone Star invoice: what's built (2026-09-23, sprint Wave 5b)
+
+- **Itemized invoices on the quote pricing engine.** The invoice dialog (still `#invoiceDialog`, still `data-form="invoice"`, so every existing "Create invoice" button works) has a rate sheet, default tier, fuel surcharge %, 18% fee, sales tax % and the emergency toggle, with one line grid. Each invoice line adds an operational **Day** and a **Tax** box to the quote line's columns, and keeps the dispatch job and source record it was drafted from (`dispatchJobId`, `sourceType`, `sourceId`).
+- **Draft lines from field records.** A new invoice drafts itself; an existing one can be re-drafted. Days follow Q5 through the same `dispatchRecordDay()` rule as Phase 11's report:
+  - **Labor:** Front Line timer hours, one line per person per dispatch job per day, so the emergency minimum applies per person. Priced at the person's labor role (`employees.laborProductId`, set under Rate Card → Catalog alignment; this closes Phase 08's open item). Anyone unlinked falls back to the generic labor product, and the line says so.
+  - **Equipment:** equipment on the job, once per work day, at its linked rate line. Hourly items take the day's longest logged shift as their hours, and the line says so.
+  - **Materials:** Front Line consumption and office logs.
+  - **Billable receipts:** at cost.
+  - **Waste disposal:** through the rate sheet's own cost-plus Hazardous / Non-Hazardous Waste Disposal lines (cost + 28%).
+- **Print** (`renderInvoicePrintHtml()`, on the shared print shell):
+  - Header: BioRemedy plus an optional remit-to block (Pricing settings), then INVOICE, Bill To, Invoice #, Date, Due Date and Terms (Net 30).
+  - Body: the reported location, day headings like `Day 1 | Environmental Sampling | 09.16.26`, and Activity / Qty / Rate / Amount with the tier and description. The emergency minimum is explained, taxable amounts get a "T" suffix, and surcharges and fees sit in their own group.
+  - Footer: the terms, then Subtotal / Tax / Total / Balance due.
+- **Finance table:** Create / Edit / Print / QBO export. The invoice number and line count show on each row, and an unpaid invoice with no lines gets the red dot, because its QuickBooks export would be blocked.
+- **QuickBooks:** `DocNumber` is the invoice number, `TxnDate` the invoice date, and tax goes in `TxnTaxDetail.TotalTax`. The consistency check is now lines + tax = total.
+- **Old flat invoices** keep their total, editable, until lines are added. One never itemized and still Draft/Ready prices like a new invoice (current surcharge, fee and tax); one already Sent or Paid keeps its saved percentages, as quotes do.
+- Verified on a scratch copy with Playwright:
+  - A multi-stage project drafted 17 lines over two operational days; its labor priced at the linked Technician rate.
+  - Setting one line taxable at 8.25% taxed only that line.
+  - The fuel surcharge (10% of $1,320) and 18% fee generated as lines.
+  - The printed layout and the QuickBooks export matched (19 lines, no issues).
+  - A new Emergency Response invoice defaulted to OT & Emergency with the minimum on.
+  - Quote rows were unchanged.
+  - Zero console errors.
+
+### Corrections found during the Lone Star pass
+
+- **Invoices were one flat record per project** (`quotedAmount`/`invoiceAmount`), and the server's `invoices` normalizer dropped every other field. It now whitelists the itemized fields and keeps `createdAt`. `getFinanceRows()` still assumes one invoice per project; progress billing (several invoices per project) would need that relaxed.
+- **Hourly equipment has no hours of its own.** The draft uses the day's longest timer shift as its hours and labels the line so the office can correct it. Equipment hours are worth capturing on Front Line if this proves wrong.
+- **The close report still prices usage at sell rates** (see the 2026-09-23 correction above). The invoice uses sell rates correctly; the P&L does not yet have a cost basis.

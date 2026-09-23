@@ -578,6 +578,13 @@ writeup.
 - **`qboExports`** gained `payload` (the QBO v3 Invoice JSON) and `validationIssues[]`, and `invoices.qboStatus` can now be `Blocked - fix mapping issues`. **`products.qboItemName`** and **`accounts.qboCustomerName`** override the names sent.
 - **`projects.closeReport.costs`** gained `waste: { items, total }`.
 
+**Sprint Wave 5b (2026-09-23) — Phase 09's Lone Star invoice.** No new collections.
+- **`invoices`** gained `invoiceNumber`, `invoiceDate`, `priceLevelId`, `rateTier`, `isEmergencyCallout`, `fuelSurchargePercent`, `energySecurityFeePercent`, `taxRatePercent`, `subtotalAmount`, `fuelSurchargeAmount`, `energySecurityFeeAmount`, `taxableAmount`, `taxAmount`, `totalAmount`, `reportedLocation`, `termsText`, `createdAt`, `updatedAt`. All are whitelisted in `normalizeRecord()`, which previously kept only ten fields. `invoiceAmount` is the grand total once lines exist.
+- **`invoiceLines`** now uses the quote line shape: `lineKind`, `sequenceNumber`, `rateTier`, `pricingMethod`, `unitCost`, `markupPercent`, `minimumQuantity`, `billableQuantity`, `minimumApplied`, `fuelSurchargeApplies`. It adds `operationalDate`, `isTaxable`, `tax` (the line's tax amount), `dispatchJobId`, `sourceType` (`labor` | `equipment` | `material` | `expense` | `waste`) and `sourceId`.
+- **`employees`** gained `laborProductId`: the Labor rate line the person bills as.
+- **`pricingSettings`** gained `salesTaxPercent` (0), `invoiceTermsDays` (30), `invoiceTermsText` and `invoiceRemitTo`.
+- SQL impact: `invoices`/`invoice_lines` already exist in `crm-schema/`. Add the pricing and tax columns listed above, a `labor_product_id` on employees (or an employee → labor-role link table), and the four invoice settings columns.
+
 Also in this session: `server.mjs` now serializes API requests and writes `backend.json`
 atomically (temp file + rename), after a live concurrent-save collision. See
 `docs/roadmap/phase-08-quotes-estimates.md`, "Rate-card rework: design" and its 2026-09-23

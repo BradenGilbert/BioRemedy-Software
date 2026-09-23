@@ -2291,11 +2291,13 @@ async function handleClick(event) {
     const container = dialog?.querySelector("[data-line-container]");
     if (container) {
       const settings = readDocSettings(dialog);
-      container.insertAdjacentHTML("beforeend", renderDocLineRowHtml({}, settings.priceLevelId, settings.rateTier));
+      container.insertAdjacentHTML("beforeend", renderDocLineRowHtml({}, settings.priceLevelId, settings.rateTier, { invoice: dialog.dataset.docKind === "invoice" }));
       recomputeDocTotal(dialog);
     }
   }
   if (action === "add-lines-from-needs") addDocLinesFromNeeds(actionButton.closest("dialog"));
+  if (action === "draft-invoice-lines") draftInvoiceLinesIntoDialog(actionButton.closest("dialog"));
+  if (action === "print-invoice") printInvoice(id);
   if (action === "remove-doc-line") {
     const dialog = actionButton.closest("dialog");
     actionButton.closest(".doc-line-row")?.remove();
@@ -2952,7 +2954,17 @@ function handleInputInner(event) {
     recomputeDocTotal(dialog);
     return;
   }
-  if (event.target.matches("[data-doc-emergency], [data-doc-fuel-pct], [data-doc-fee-pct]")) {
+  if (event.target.closest("#invoiceDialog") && event.target.name === "dueDate") {
+    event.target.dataset.touched = "true";
+  }
+  if (event.target.closest("#invoiceDialog") && event.target.name === "invoiceDate" && event.type === "change") {
+    const form = event.target.form;
+    if (!form.elements.dueDate.dataset.touched && event.target.value) {
+      form.elements.dueDate.value = addDaysFrom(event.target.value, Number(getPricingSettings().invoiceTermsDays || 30));
+    }
+    return;
+  }
+  if (event.target.matches("[data-doc-emergency], [data-doc-fuel-pct], [data-doc-fee-pct], [data-doc-tax-pct]")) {
     recomputeDocTotal(event.target.closest("dialog"));
     return;
   }
@@ -2961,7 +2973,8 @@ function handleInputInner(event) {
     (event.target.matches("[data-line-quantity]") ||
       event.target.matches("[data-line-rate]") ||
       event.target.matches("[data-line-cost]") ||
-      event.target.matches("[data-line-optional]"))
+      event.target.matches("[data-line-optional]") ||
+      event.target.matches("[data-line-taxable]"))
   ) {
     recomputeDocTotal(event.target.closest("dialog"));
     return;
@@ -14557,11 +14570,16 @@ function renderClientChronologyItem(event) {
   `;
 }
 
+function invoiceNeedsLines(invoice) {
+  return Boolean(invoice && invoice.status !== "Paid" && !invoiceLinesForInvoice(invoice.id).some((line) => !isGeneratedDocLine(line)));
+}
+
 function renderFinanceRow(row) {
   return `
     <tr>
       <td data-label="Job">
-        <strong>${escapeHtml(row.job.name)}</strong>
+        <strong>${invoiceNeedsLines(row.invoice) ? withTrailingAlertDot(row.job.name, "Invoice has no line items; QuickBooks export will be blocked") : escapeHtml(row.job.name)}</strong>
+        ${row.invoice ? `<div class="row-meta"><span>${escapeHtml(row.invoice.invoiceNumber || row.invoice.id)}</span><span>${invoiceLinesForInvoice(row.invoice.id).filter((line) => !isGeneratedDocLine(line)).length} line items</span></div>` : ""}
         <div class="row-meta">
           <span>${escapeHtml(row.account?.name ?? "Unknown account")}</span>
           <span>${escapeHtml(row.job.jobClass)}</span>
@@ -14586,7 +14604,8 @@ function renderFinanceRow(row) {
       <td data-label="Status">
         <span class="risk-badge ${row.statusTone}">${escapeHtml(row.status)}</span>
         <div class="inline-actions">
-          <button class="mini-button" type="button" data-action="open-invoice" data-job-id="${row.job.id}">Edit</button>
+          <button class="mini-button" type="button" data-action="open-invoice" data-job-id="${row.job.id}">${row.invoice ? "Edit" : "Create"}</button>
+          ${row.invoice?.id ? `<button class="mini-button" type="button" data-action="print-invoice" data-id="${row.invoice.id}">Print</button>` : ""}
           ${row.invoice?.id ? `<button class="mini-button" type="button" data-action="export-qbo" data-id="${row.invoice.id}">QBO export</button>` : ""}
         </div>
       </td>
@@ -20907,30 +20926,6 @@ async function regenerateProjectCloseReport(projectId) {
   showToast("Cost report and P&L regenerated.");
 }
 
-async function saveInvoice(form) {
-  const data = new FormData(form);
-  const job = findProject(data.get("projectId").toString());
-  const account = job ? findAccount(job.accountId) : null;
-  try {
-    await saveBackendRecord("invoices", {
-      id: data.get("id").toString(),
-      projectId: data.get("projectId").toString(),
-      customer: account?.name || "",
-      quotedAmount: Number(data.get("quotedAmount")),
-      invoiceAmount: Number(data.get("invoiceAmount")),
-      status: data.get("status").toString(),
-      dueDate: data.get("dueDate").toString(),
-      notes: data.get("notes").toString().trim(),
-      qboStatus: "Not exported",
-    });
-    closeDialogs();
-    render();
-    showToast("Invoice saved on the backend.");
-  } catch (error) {
-    showToast(error.message || "Invoice could not be saved.");
-  }
-}
-
 async function exportInvoiceToQbo(invoiceId) {
   try {
     await apiRequest("/api/qbo/export", {
@@ -22327,6 +22322,10 @@ function getPricingSettings() {
     fuelSurchargeUpdatedAt: row.fuelSurchargeUpdatedAt || "",
     fuelSurchargeNote: row.fuelSurchargeNote || "",
     energySecurityFeePercent: row.energySecurityFeePercent ?? 18,
+    salesTaxPercent: row.salesTaxPercent ?? 0,
+    invoiceTermsDays: row.invoiceTermsDays ?? 30,
+    invoiceTermsText: row.invoiceTermsText || "Payment is due within 30 days. A finance charge of 1.5% per month will be added to all past-due balances.",
+    invoiceRemitTo: row.invoiceRemitTo || "",
   };
 }
 
@@ -22368,6 +22367,8 @@ function computeLineAmounts(line, isEmergencyCallout) {
 // The fuel surcharge applies to fuel-burning item lines. The energy/security fee is a percentage of
 // the item subtotal, taken before the surcharge (the sheet: "fuel is excluded from this fee").
 // Optional/write-in lines count toward none of it.
+// Invoices add tax on their taxable lines (owner 2026-09-23: rate 0% and nothing taxable until the
+// accountant confirms); the surcharge and fee lines are never taxed here.
 function computeDocumentTotals(itemLines, settings) {
   const counted = itemLines.filter((line) => !line.isOptional);
   const subtotal = roundCents(counted.reduce((sum, line) => sum + Number(line.extendedAmount || 0), 0));
@@ -22376,7 +22377,10 @@ function computeDocumentTotals(itemLines, settings) {
   const feePercent = Number(settings.energySecurityFeePercent || 0);
   const fuelSurcharge = roundCents((fuelBase * fuelPercent) / 100);
   const fee = roundCents((subtotal * feePercent) / 100);
-  return { subtotal, fuelBase, fuelPercent, fuelSurcharge, feePercent, fee, total: roundCents(subtotal + fuelSurcharge + fee) };
+  const taxPercent = Number(settings.taxRatePercent || 0);
+  const taxBase = roundCents(counted.filter((line) => line.isTaxable).reduce((sum, line) => sum + Number(line.extendedAmount || 0), 0));
+  const tax = roundCents((taxBase * taxPercent) / 100);
+  return { subtotal, fuelBase, fuelPercent, fuelSurcharge, feePercent, fee, taxPercent, taxBase, tax, total: roundCents(subtotal + fuelSurcharge + fee + tax) };
 }
 
 function isGeneratedDocLine(line) {
@@ -22452,14 +22456,16 @@ function docLineProductOptions(priceLevelId, selectedId) {
     .join("");
 }
 
-function renderDocLineRowHtml(line = {}, priceLevelId = defaultPriceLevelId(), defaultTier = "standard") {
+function renderDocLineRowHtml(line = {}, priceLevelId = defaultPriceLevelId(), defaultTier = "standard", { invoice = false } = {}) {
   const uoms = getUnitsOfMeasure();
   const tier = line.rateTier || defaultTier;
   const costPlus = line.pricingMethod === "cost_plus";
   const qty = line.quantity ?? 1;
   const rate = line.pricePerUnit ?? "";
+  const source = invoice ? ` data-line-job="${escapeAttribute(line.dispatchJobId || "")}" data-line-source-type="${escapeAttribute(line.sourceType || "")}" data-line-source-id="${escapeAttribute(line.sourceId || "")}"` : "";
   return `
-    <div class="doc-line-row" data-line-row data-line-method="${costPlus ? "cost_plus" : "rate"}" data-line-markup="${escapeAttribute(line.markupPercent ?? "")}" data-line-min="${escapeAttribute(line.minimumQuantity || 0)}" data-line-fuel="${line.fuelSurchargeApplies ? "1" : ""}">
+    <div class="doc-line-row" data-line-row data-line-method="${costPlus ? "cost_plus" : "rate"}" data-line-markup="${escapeAttribute(line.markupPercent ?? "")}" data-line-min="${escapeAttribute(line.minimumQuantity || 0)}" data-line-fuel="${line.fuelSurchargeApplies ? "1" : ""}"${source}>
+      ${invoice ? `<input type="date" data-line-day value="${escapeAttribute(line.operationalDate || "")}" title="Operational day this line belongs to" />` : ""}
       <select data-line-product>
         <option value="">Custom / free text</option>
         ${docLineProductOptions(priceLevelId, line.productId)}
@@ -22481,7 +22487,11 @@ function renderDocLineRowHtml(line = {}, priceLevelId = defaultPriceLevelId(), d
         </span>
       </span>
       <span class="doc-line-total" data-line-total>${moneyExact(Number(line.extendedAmount || 0))}</span>
-      <input type="checkbox" class="doc-line-optional" data-line-optional title="Write-in option: the customer can accept or decline it; excluded from the total" ${line.isOptional ? "checked" : ""} />
+      ${
+        invoice
+          ? `<input type="checkbox" class="doc-line-optional" data-line-taxable title="Taxable line" ${line.isTaxable ? "checked" : ""} />`
+          : `<input type="checkbox" class="doc-line-optional" data-line-optional title="Write-in option: the customer can accept or decline it; excluded from the total" ${line.isOptional ? "checked" : ""} />`
+      }
       <button type="button" class="icon-button" data-action="remove-doc-line" aria-label="Remove line">&times;</button>
     </div>
   `;
@@ -22494,6 +22504,7 @@ function readDocSettings(dialog) {
     isEmergencyCallout: Boolean(dialog.querySelector("[data-doc-emergency]")?.checked),
     fuelSurchargePercent: numberOrNull(dialog.querySelector("[data-doc-fuel-pct]")?.value),
     energySecurityFeePercent: Number(dialog.querySelector("[data-doc-fee-pct]")?.value || 0),
+    taxRatePercent: dialog.querySelector("[data-doc-tax-pct]") ? Number(dialog.querySelector("[data-doc-tax-pct]").value || 0) : null,
   };
 }
 
@@ -22512,6 +22523,15 @@ function readDocLineRow(row) {
     minimumQuantity: Number(row.dataset.lineMin || 0),
     fuelSurchargeApplies: row.dataset.lineFuel === "1",
     isOptional: Boolean(row.querySelector("[data-line-optional]")?.checked),
+    ...(row.querySelector("[data-line-day]")
+      ? {
+          operationalDate: row.querySelector("[data-line-day]").value || "",
+          isTaxable: Boolean(row.querySelector("[data-line-taxable]")?.checked),
+          dispatchJobId: row.dataset.lineJob || "",
+          sourceType: row.dataset.lineSourceType || "",
+          sourceId: row.dataset.lineSourceId || "",
+        }
+      : {}),
   };
 }
 
@@ -22565,6 +22585,7 @@ function recomputeDocTotal(dialog) {
   setText("[data-doc-subtotal]", moneyExact(totals.subtotal));
   setText("[data-doc-fuel-amount]", moneyExact(totals.fuelSurcharge));
   setText("[data-doc-fee-amount]", moneyExact(totals.fee));
+  setText("[data-doc-tax-amount]", moneyExact(totals.tax));
   setText(
     "[data-doc-pricing-hint]",
     totals.fuelBase > 0 && settings.fuelSurchargePercent == null
@@ -22684,8 +22705,11 @@ function collectDocPricing(dialog) {
         extendedAmount: amounts.extendedAmount,
         fuelSurchargeApplies: line.fuelSurchargeApplies,
         manualDiscountAmount: 0,
-        tax: 0,
+        tax: line.isTaxable && settings.taxRatePercent ? roundCents((amounts.extendedAmount * settings.taxRatePercent) / 100) : 0,
         isOptional: line.isOptional,
+        ...("operationalDate" in line
+          ? { operationalDate: line.operationalDate, isTaxable: line.isTaxable, dispatchJobId: line.dispatchJobId, sourceType: line.sourceType, sourceId: line.sourceId }
+          : {}),
       };
     })
     .filter((line) => line.quantity > 0 || line.pricePerUnit > 0 || line.unitCost > 0 || line.productDescription);
@@ -22703,6 +22727,7 @@ function collectDocPricing(dialog) {
       energySecurityFeeAmount: totals.fee,
       totalAmount: totals.total,
       totalAmountBase: totals.total,
+      ...(settings.taxRatePercent != null ? { taxRatePercent: settings.taxRatePercent, taxableAmount: totals.taxBase, taxAmount: totals.tax } : {}),
     },
   };
 }
@@ -23324,6 +23349,434 @@ function printOpportunityEstimate(opportunityId, estimateId) {
   openPrintWindow(html, "estimate");
 }
 
+// ---- Invoices: itemized, day-grouped, Lone Star layout (Phase 09 2026-09-22 pass) -------------
+//
+// An invoice now carries priced lines like a quote: the same rate sheets, tiers, emergency minimums,
+// cost-plus rows, fuel surcharge and energy/security fee, plus a day (Q5: the dispatch job's
+// operational day), a taxable flag and a tax rate. Owner decisions 2026-09-23: tax column at 0% with
+// every line non-taxable until the accountant confirms; terms "Net 30 + 1.5%/month"; lines drafted
+// for emergency work start at the OT & Emergency tier with the 4-hour minimum on.
+
+function invoiceForProject(projectId) {
+  return (state.backend.invoices || []).find((invoice) => invoice.projectId === projectId) || null;
+}
+
+function invoiceLinesForInvoice(invoiceId) {
+  return sortDocLines((state.backend.invoiceLines || []).filter((line) => line.invoiceId === invoiceId && !line.deletedAt));
+}
+
+function nextInvoiceNumber(invoiceDate) {
+  const date = invoiceDate || todayIso();
+  const prefix = `INV-${date.slice(0, 4)}-${date.slice(5, 7)}${date.slice(8, 10)}`;
+  const taken = (state.backend.invoices || []).filter((invoice) => String(invoice.invoiceNumber || "").startsWith(prefix)).length;
+  return `${prefix}-${String(taken + 1).padStart(2, "0")}`;
+}
+
+// The line's day heading on the printed invoice: "Day 1 | Emergency Response | 08.09.26".
+function invoiceDayHeading(dayIndex, date, lines) {
+  const job = lines.map((line) => findDispatchJob(line.dispatchJobId)).find(Boolean);
+  const label = job?.jobType || job?.jobName || "Services";
+  const [year, month, day] = String(date).split("-");
+  return `Day ${dayIndex + 1} | ${label} | ${month}.${day}.${String(year).slice(2)}`;
+}
+
+// Drafts invoice lines from what was actually recorded, grouped by operational day with the same rule
+// the post-work report uses. A draft, not a bill: every line stays editable, and anything the system
+// had to assume says so in its description.
+function draftInvoiceLinesForProject(project, priceLevelId, defaultTier) {
+  const dispatchJobs = dispatchJobsForProject(project.id).slice().reverse();
+  const jobIds = new Set(dispatchJobs.map((dispatchJob) => dispatchJob.id));
+  const workDaysByJob = new Map(dispatchJobs.map((dispatchJob) => [dispatchJob.id, dispatchJobWorkDays(dispatchJob)]));
+  const calendarDay = (value) => (value ? localIsoDate(parseDate(value)) : "");
+  const fieldDay = (jobId, timestamp) => {
+    const dispatchJob = findDispatchJob(jobId);
+    return dispatchJob ? dispatchRecordDay(dispatchJob, timestamp, workDaysByJob.get(jobId) || dispatchJobWorkDays(dispatchJob)) : calendarDay(timestamp);
+  };
+  const productFor = (productId) => (productId ? getProducts().find((product) => product.id === productId) || null : null);
+  const uomFor = (product) => (product ? productPriceLevelRate(product.id, priceLevelId)?.uomId || product.defaultUomId || "" : "");
+  const isHourly = (product) => /hour/i.test(getUnitsOfMeasure().find((uom) => uom.id === uomFor(product))?.name || "");
+  const lines = [];
+  const add = (fields) => lines.push({ rateTier: defaultTier, quantity: 1, ...fields });
+
+  // Labor: one line per person per day, so the emergency minimum applies per person, as a call-out
+  // does. The labor role is the employee's linked rate line (Rate Card → Catalog alignment).
+  const shiftHours = new Map();
+  laborHoursForProject(project.id).entries.forEach((entry) => {
+    const day = fieldDay(entry.dispatchJobId, entry.submittedAt);
+    const key = `${entry.dispatchJobId}|${day}|${entry.employee}`;
+    shiftHours.set(`${entry.dispatchJobId}|${day}`, Math.max(shiftHours.get(`${entry.dispatchJobId}|${day}`) || 0, entry.hours));
+    const existing = lines.find((line) => line.groupKey === key);
+    if (existing) {
+      existing.quantity = roundCents(existing.quantity + entry.hours);
+      return;
+    }
+    const employee = (state.backend.employees || []).find((person) => person.displayName === entry.employee);
+    const product = productFor(employee?.laborProductId) || productFor("prod-field-labor-standard");
+    add({
+      groupKey: key,
+      sourceType: "labor",
+      operationalDate: day,
+      dispatchJobId: entry.dispatchJobId,
+      productId: product?.id || "",
+      productName: product?.name || "Field labor",
+      productDescription: `${entry.employee}${employee?.jobTitle ? ` · ${employee.jobTitle}` : ""}${employee?.laborProductId ? "" : " (no labor role linked; set it under Rate Card → Catalog alignment)"}`,
+      uomId: uomFor(product),
+      quantity: entry.hours,
+    });
+  });
+
+  // Equipment assigned on dispatch counts once per work day of its job. Hourly items take the day's
+  // longest logged shift as their hours (equipment has no hours of its own), and say so.
+  (state.backend.jobResources || [])
+    .filter((resource) => jobIds.has(resource.jobId) && resource.type === "Equipment" && resource.status !== "Removed")
+    .forEach((resource) => {
+      const asset = resource.assetTag ? findEquipmentAssetByTag(resource.assetTag) : null;
+      const product = productFor(asset?.productId) || productFor("prod-equipment-standard-daily");
+      (workDaysByJob.get(resource.jobId) || []).forEach((day) => {
+        const hours = shiftHours.get(`${resource.jobId}|${day}`) || 0;
+        const hourly = isHourly(product);
+        add({
+          sourceType: "equipment",
+          sourceId: resource.id,
+          operationalDate: day,
+          dispatchJobId: resource.jobId,
+          productId: product?.id || "",
+          productName: product?.name || resource.name,
+          productDescription: `${resource.name}${resource.assetTag ? ` (${resource.assetTag})` : ""}${hourly ? (hours ? `; hours = the day's crew shift, adjust if different` : "; no hours logged, enter them") : ""}${asset?.productId ? "" : "; not linked to a rate line"}`,
+          uomId: uomFor(product),
+          quantity: hourly ? hours || 1 : Number(resource.quantity || 1),
+        });
+      });
+    });
+  equipmentLogsForJob(project.id).forEach((log) => {
+    const asset = log.assetTag ? findEquipmentAssetByTag(log.assetTag) : null;
+    const product = productFor(asset?.productId) || productFor("prod-equipment-standard-daily");
+    add({
+      sourceType: "equipment",
+      sourceId: log.id,
+      operationalDate: calendarDay(log.checkedOut),
+      productId: product?.id || "",
+      productName: product?.name || log.equipment,
+      productDescription: `${log.equipment}${log.assetTag ? ` (${log.assetTag})` : ""}; office equipment log`,
+      uomId: uomFor(product),
+    });
+  });
+
+  // Materials: consumed on Front Line, or logged in the office.
+  (state.backend.jobResources || [])
+    .filter((resource) => jobIds.has(resource.jobId) && resource.type === "Material" && resource.status === "Consumed")
+    .forEach((resource) => {
+      const item = resource.inventoryItemId ? findInventoryItem(resource.inventoryItemId) : null;
+      const product = productFor(item?.productId) || productFor("prod-material-standard-unit");
+      add({
+        sourceType: "material",
+        sourceId: resource.id,
+        operationalDate: fieldDay(resource.jobId, resource.consumedAt),
+        dispatchJobId: resource.jobId,
+        productId: product?.id || "",
+        productName: product?.name || resource.name,
+        productDescription: `${resource.name}${resource.unit ? ` (${resource.unit})` : ""}${item?.productId ? "" : "; not linked to a rate line"}`,
+        uomId: uomFor(product),
+        quantity: Number(resource.quantity || 0),
+      });
+    });
+  materialUsageForJob(project.id).forEach((usage) => {
+    const item = (state.backend.inventoryItems || []).find((row) => String(row.materialType || "").toLowerCase() === String(usage.materialType || "").toLowerCase());
+    const product = productFor(item?.productId) || productFor("prod-material-standard-unit");
+    add({
+      sourceType: "material",
+      sourceId: usage.id,
+      operationalDate: calendarDay(usage.timestamp),
+      productId: product?.id || "",
+      productName: product?.name || usage.materialType,
+      productDescription: `${usage.materialType}${usage.unit ? ` (${usage.unit})` : ""}; office material log`,
+      uomId: uomFor(product),
+      quantity: Number(usage.quantity || 0),
+    });
+  });
+
+  // Billable field receipts go on at cost; the office can add a markup on the line.
+  expensesForProject(project.id)
+    .filter((expense) => expense.billable)
+    .forEach((expense) =>
+      add({
+        sourceType: "expense",
+        sourceId: expense.id,
+        operationalDate: fieldDay(expense.dispatchJobId, expense.incurredOn),
+        dispatchJobId: expense.dispatchJobId || "",
+        productId: "",
+        productName: expense.category || "Field expense",
+        productDescription: `${expense.category || "Expense"}${expense.vendor ? `: ${expense.vendor}` : ""} (billed at cost)`,
+        pricingMethod: "cost_plus",
+        unitCost: Number(expense.amount || 0),
+        markupPercent: 0,
+      }),
+    );
+
+  // Disposal bills through the sheet's own cost-plus disposal lines (cost + the sheet's markup).
+  wasteRecordsForProject(project.id)
+    .filter((record) => Number(record.disposalCost) > 0)
+    .forEach((record) => {
+      const product = productFor(/hazardous \(rcra\)/i.test(record.classification || "") ? "prod-rs-hazardous-waste-disposal" : "prod-rs-non-hazardous-waste-disposal");
+      const costPlus = isCostPlusPrice(product ? productPriceLevelRate(product.id, priceLevelId) : null);
+      add({
+        sourceType: "waste",
+        sourceId: record.id,
+        operationalDate: record.dispatchJobId ? fieldDay(record.dispatchJobId, record.shippedOn || record.disposedOn) : record.disposedOn || record.shippedOn || calendarDay(record.createdAt),
+        dispatchJobId: record.dispatchJobId || "",
+        productId: costPlus ? product.id : "",
+        productName: product?.name || "Waste disposal",
+        productDescription: `${record.description || "Waste"}${record.manifestNumber ? ` · Manifest ${record.manifestNumber}` : ""}`,
+        pricingMethod: "cost_plus",
+        unitCost: Number(record.disposalCost),
+        markupPercent: costPlus ? Number(productPriceLevelRate(product.id, priceLevelId)?.markupPercent || 0) : 0,
+        uomId: uomFor(product),
+      });
+    });
+
+  const kindOrder = ["labor", "equipment", "material", "expense", "waste"];
+  return lines
+    .filter((line) => Number(line.quantity) > 0 || line.pricingMethod === "cost_plus")
+    .sort((a, b) => String(a.operationalDate).localeCompare(String(b.operationalDate)) || kindOrder.indexOf(a.sourceType) - kindOrder.indexOf(b.sourceType));
+}
+
+function fillInvoiceLines(dialog, lines) {
+  const container = dialog.querySelector("[data-line-container]");
+  const settings = readDocSettings(dialog);
+  container.innerHTML = lines.map((line) => renderDocLineRowHtml(line, settings.priceLevelId, settings.rateTier, { invoice: true })).join("");
+  // Re-price rate-sheet products from the sheet (tier, minimum, fuel flag, cost-plus markup). Custom
+  // lines (receipts) keep the at-cost pricing they were drafted with.
+  container.querySelectorAll(".doc-line-row").forEach((row, index) => {
+    if (lines[index]?.productId) repriceDocLine(row, settings.priceLevelId);
+  });
+  recomputeDocTotal(dialog);
+}
+
+function draftInvoiceLinesIntoDialog(dialog, { confirmReplace = true } = {}) {
+  const form = dialog.querySelector("form");
+  const project = findProject(form.elements.projectId.value);
+  if (!project) {
+    showToast("Pick a project first.");
+    return;
+  }
+  const existing = [...dialog.querySelectorAll(".doc-line-row")].filter((row) => {
+    const line = readDocLineRow(row);
+    return line.productId || line.description;
+  });
+  if (confirmReplace && existing.length && !window.confirm(`Replace the ${existing.length} line${existing.length === 1 ? "" : "s"} on this invoice with a fresh draft from field records?`)) return;
+  const settings = readDocSettings(dialog);
+  const lines = draftInvoiceLinesForProject(project, settings.priceLevelId, settings.rateTier);
+  fillInvoiceLines(dialog, lines.length ? lines : [{}]);
+  showToast(lines.length ? `Drafted ${lines.length} line${lines.length === 1 ? "" : "s"} from field records. Review each before sending.` : "No field hours, equipment, materials, receipts or disposal are recorded for this project yet.");
+}
+
+function openInvoiceDialog(jobId = "") {
+  const dialog = document.querySelector("#invoiceDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populateProjectSelect(dialog);
+  populatePriceLevelSelect(dialog, "priceLevelId");
+  const settings = getPricingSettings();
+  const invoice = jobId ? invoiceForProject(jobId) : null;
+  const project = jobId ? findProject(jobId) : null;
+  const row = jobId ? getFinanceRows().find((item) => item.job.id === jobId) : null;
+  const emergency = project?.jobClass === "Emergency Response";
+  form.elements.id.value = invoice?.id || "";
+  form.elements.projectId.value = jobId || "";
+  form.elements.projectId.disabled = Boolean(invoice);
+  form.elements.invoiceNumber.value = invoice?.invoiceNumber || "";
+  form.elements.invoiceDate.value = invoice?.invoiceDate || todayIso();
+  form.elements.dueDate.value = invoice?.dueDate || addDaysFrom(form.elements.invoiceDate.value, Number(settings.invoiceTermsDays || 30));
+  delete form.elements.dueDate.dataset.touched;
+  form.elements.status.value = ["Draft", "Ready", "Sent", "Past due", "Paid"].includes(invoice?.status) ? invoice.status : "Draft";
+  form.elements.priceLevelId.value = invoice?.priceLevelId || currentQuoteOrEstimateForOpportunity(findOpportunity(project?.opportunityId)).priceLevelId || defaultPriceLevelId();
+  form.elements.quotedAmount.value = invoice?.quotedAmount ?? row?.quoted ?? 0;
+  form.elements.reportedLocation.value = invoice?.reportedLocation ?? defaultInvoiceLocation(project);
+  form.elements.termsText.value = invoice?.termsText || settings.invoiceTermsText;
+  form.elements.notes.value = invoice?.notes || "";
+  const lines = invoice ? invoiceLinesForInvoice(invoice.id).filter((line) => !isGeneratedDocLine(line)) : [];
+  // An invoice never itemized and not yet sent prices like a new one: current surcharge, fee and tax.
+  // Once it has gone out (or has lines), it keeps what it was saved with, as quotes do.
+  const freshPricing = !invoice || (!lines.length && ["Draft", "Ready"].includes(invoice.status));
+  // New work for an emergency starts at OT & Emergency with the minimum on (owner, 2026-09-23).
+  populateDocPricingControls(
+    dialog,
+    freshPricing
+      ? emergency
+        ? { rateTier: "ot_emergency", isEmergencyCallout: true, fuelSurchargePercent: settings.fuelSurchargePercent, energySecurityFeePercent: settings.energySecurityFeePercent }
+        : null
+      : invoice,
+  );
+  const taxField = dialog.querySelector("[data-doc-tax-pct]");
+  if (taxField) taxField.value = freshPricing ? settings.salesTaxPercent ?? 0 : invoice.taxRatePercent ?? 0;
+  // Invoices saved before itemization have only a total; it stays editable until lines are added.
+  form.elements.legacyAmount.value = invoice && !lines.length ? Number(invoice.invoiceAmount || 0) : "";
+  dialog.querySelector("[data-legacy-amount]").hidden = !(invoice && !lines.length);
+  dialog.querySelector("[data-invoice-title]").textContent = invoice ? `Invoice ${invoice.invoiceNumber || invoice.id}` : "New invoice";
+  dialog.showModal();
+  if (lines.length) fillInvoiceLines(dialog, lines);
+  else if (!invoice && project) draftInvoiceLinesIntoDialog(dialog, { confirmReplace: false });
+  else fillInvoiceLines(dialog, [{}]);
+}
+
+function defaultInvoiceLocation(project) {
+  if (!project) return "";
+  const facility = findFacility(project.facilityId);
+  const address = [facility?.address, facility?.city].filter(Boolean).join(", ");
+  const gps = (state.backend.locations || []).find((point) => point.projectId === project.id && /spill origin/i.test(point.locationType || ""));
+  return [address || dispatchJobsForProject(project.id).find((dispatchJob) => dispatchJob.addressText)?.addressText || "", gps ? `GPS ${Number(gps.latitude).toFixed(5)}, ${Number(gps.longitude).toFixed(5)}` : ""].filter(Boolean).join(" · ");
+}
+
+async function saveInvoice(form) {
+  const dialog = form.closest("dialog");
+  const data = new FormData(form);
+  const existing = (state.backend.invoices || []).find((invoice) => invoice.id === data.get("id").toString()) || null;
+  const projectId = existing?.projectId || form.elements.projectId.value;
+  const project = findProject(projectId);
+  if (!project) {
+    showToast("Pick a project for this invoice.");
+    return;
+  }
+  const { lines, docFields } = collectDocPricing(dialog);
+  const itemLines = lines.filter((line) => !isGeneratedDocLine(line));
+  const legacyAmount = Number(data.get("legacyAmount") || 0);
+  const invoiceDate = data.get("invoiceDate").toString() || todayIso();
+  const invoiceId = existing?.id || makeId("invoice");
+  const invoice = {
+    ...(existing || {}),
+    id: invoiceId,
+    projectId,
+    customer: findAccount(project.accountId)?.name || existing?.customer || "",
+    invoiceNumber: data.get("invoiceNumber").toString().trim() || existing?.invoiceNumber || nextInvoiceNumber(invoiceDate),
+    invoiceDate,
+    dueDate: data.get("dueDate").toString(),
+    status: data.get("status").toString(),
+    priceLevelId: data.get("priceLevelId").toString(),
+    quotedAmount: Number(data.get("quotedAmount") || 0),
+    reportedLocation: data.get("reportedLocation").toString().trim(),
+    termsText: data.get("termsText").toString().trim(),
+    notes: data.get("notes").toString().trim(),
+    ...docFields,
+    // With no lines yet the old flat total still stands (pre-itemization invoices).
+    invoiceAmount: itemLines.length ? docFields.totalAmount : legacyAmount,
+    qboStatus: existing?.qboStatus || "Not exported",
+    createdAt: existing?.createdAt || new Date().toISOString(),
+  };
+  try {
+    await saveBackendRecord("invoices", invoice, { refresh: false });
+    for (const line of invoiceLinesForInvoice(invoiceId)) {
+      await saveBackendRecord("invoiceLines", { ...line, deletedAt: new Date().toISOString() }, { refresh: false });
+    }
+    if (itemLines.length) {
+      for (const line of lines) {
+        await saveBackendRecord("invoiceLines", { id: makeId("invoice-line"), invoiceId, ...line }, { refresh: false });
+      }
+    }
+    closeDialogs();
+    await refreshBackendState();
+    render();
+    showToast(`Invoice ${invoice.invoiceNumber} saved.`);
+  } catch (error) {
+    showToast(error.message || "Invoice could not be saved.");
+  }
+}
+
+function renderInvoicePrintHtml(invoice) {
+  const project = findProject(invoice.projectId);
+  const account = findAccount(project?.accountId);
+  const settings = getPricingSettings();
+  const lines = invoiceLinesForInvoice(invoice.id);
+  const itemLines = lines.filter((line) => !isGeneratedDocLine(line));
+  const generatedLines = lines.filter(isGeneratedDocLine);
+  const uomName = (uomId) => getUnitsOfMeasure().find((uom) => uom.id === uomId)?.name || "";
+  const billingAddress = addressesForAccount(account?.id || "").find((address) => address.addressType === "Bill To" || address.isPrimary);
+  const billTo = [account?.name, billingAddress?.street1, [billingAddress?.city, billingAddress?.stateOrProvince, billingAddress?.postalCode].filter(Boolean).join(", ")].filter(Boolean);
+  const days = [...new Set(itemLines.map((line) => line.operationalDate || ""))].sort((a, b) => (a === "") - (b === "") || a.localeCompare(b));
+  const activityRow = (line) => {
+    const billed = line.billableQuantity ?? line.quantity;
+    const tier = line.pricingMethod !== "cost_plus" && line.rateTier && line.rateTier !== "standard" ? ` – ${rateTierLabel(line.rateTier)}` : "";
+    return `
+      <tr>
+        <td><strong>${escapeHtml(line.productName || "Item")}${escapeHtml(tier)}</strong>${line.productDescription ? `<br /><small>${escapeHtml(line.productDescription)}</small>` : ""}${line.minimumApplied ? `<br /><small>Emergency call-out minimum: ${escapeHtml(billed)} ${escapeHtml(uomName(line.uomId))} billed (${escapeHtml(line.quantity)} worked)</small>` : ""}</td>
+        <td class="num">${escapeHtml(billed)}${uomName(line.uomId) ? ` <small>${escapeHtml(uomName(line.uomId))}</small>` : ""}</td>
+        <td class="num">${moneyExact(Number(line.pricePerUnit || 0))}</td>
+        <td class="num">${moneyExact(Number(line.extendedAmount || 0))}${line.isTaxable ? " T" : ""}</td>
+      </tr>
+    `;
+  };
+  const subtotal = Number(invoice.subtotalAmount ?? itemLines.reduce((sum, line) => sum + Number(line.extendedAmount || 0), 0));
+  const total = Number(invoice.invoiceAmount || 0);
+  const body = `
+    <div class="print-doc-header">
+      <div>
+        <h1>BioRemedy</h1>
+        ${settings.invoiceRemitTo ? `<div class="remit-to">${escapeHtml(settings.invoiceRemitTo)}</div>` : ""}
+      </div>
+      <div class="print-doc-meta"><div class="invoice-title">INVOICE</div></div>
+    </div>
+    <div class="invoice-parties">
+      <div><h3>Bill to</h3>${billTo.map((line) => escapeHtml(line)).join("<br />") || "<em>No billing address</em>"}</div>
+      <dl class="invoice-facts">
+        <div><dt>Invoice #</dt><dd>${escapeHtml(invoice.invoiceNumber || invoice.id)}</dd></div>
+        <div><dt>Date</dt><dd>${escapeHtml(invoice.invoiceDate ? formatDate(invoice.invoiceDate) : "")}</dd></div>
+        <div><dt>Due date</dt><dd>${escapeHtml(invoice.dueDate ? formatDate(invoice.dueDate) : "")}</dd></div>
+        <div><dt>Terms</dt><dd>Net ${escapeHtml(settings.invoiceTermsDays || 30)}</dd></div>
+      </dl>
+    </div>
+    ${invoice.reportedLocation ? `<p class="invoice-location"><strong>Reported location:</strong> ${escapeHtml(invoice.reportedLocation)}</p>` : ""}
+    <table>
+      <thead><tr><th>Activity</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        ${
+          itemLines.length
+            ? days
+                .map((date, index) => {
+                  const dayLines = itemLines.filter((line) => (line.operationalDate || "") === date);
+                  return `<tr class="invoice-day-row"><td colspan="4">${escapeHtml(date ? invoiceDayHeading(index, date, dayLines) : "Other charges")}</td></tr>${dayLines.map(activityRow).join("")}`;
+                })
+                .join("")
+            : `<tr><td colspan="3">Services rendered</td><td class="num">${moneyExact(total)}</td></tr>`
+        }
+        ${generatedLines.length ? `<tr class="invoice-day-row"><td colspan="4">Surcharges and fees</td></tr>${generatedLines.map(activityRow).join("")}` : ""}
+      </tbody>
+    </table>
+    <div class="invoice-footer">
+      <p class="invoice-terms">${escapeHtml(invoice.termsText || settings.invoiceTermsText)}</p>
+      <table class="invoice-totals">
+        <tr><td>Subtotal</td><td class="num">${moneyExact(itemLines.length ? subtotal + Number(invoice.fuelSurchargeAmount || 0) + Number(invoice.energySecurityFeeAmount || 0) : total)}</td></tr>
+        <tr><td>Tax (${escapeHtml(invoice.taxRatePercent ?? 0)}%)</td><td class="num">${moneyExact(Number(invoice.taxAmount || 0))}</td></tr>
+        <tr class="print-doc-total-row"><td>Total</td><td class="num">${moneyExact(total)}</td></tr>
+        <tr><td>Balance due</td><td class="num">${moneyExact(invoice.status === "Paid" ? 0 : total)}</td></tr>
+      </table>
+    </div>
+    ${itemLines.some((line) => line.isTaxable) ? `<p class="invoice-note">T = taxable line.</p>` : ""}
+    ${invoice.notes ? `<div class="print-doc-notes"><strong>Notes:</strong><br />${escapeHtml(invoice.notes)}</div>` : ""}
+  `;
+  const extraStyles = `
+    .invoice-title { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.08em; }
+    .remit-to { white-space: pre-line; font-size: 0.85rem; }
+    .invoice-parties { display: grid; grid-template-columns: 1fr auto; gap: 24px; margin-bottom: 12px; }
+    .invoice-facts { margin: 0; display: grid; grid-template-columns: auto auto; gap: 2px 12px; font-size: 0.88rem; }
+    .invoice-facts div { display: contents; }
+    .invoice-facts dt { font-weight: 600; text-transform: uppercase; font-size: 0.72rem; color: #666; align-self: center; }
+    .invoice-facts dd { margin: 0; }
+    .invoice-location { font-size: 0.88rem; }
+    .invoice-day-row td { background: #eef1f4; font-weight: 700; font-size: 0.85rem; }
+    .invoice-footer { display: grid; grid-template-columns: 1fr 260px; gap: 24px; align-items: start; }
+    .invoice-terms { font-size: 0.82rem; margin: 0; }
+    .invoice-totals td { border-bottom: 1px solid #d8dee6; }
+    .invoice-note { font-size: 0.75rem; color: #666; }
+    @media (max-width: 640px) { .invoice-parties, .invoice-footer { grid-template-columns: 1fr; } }
+  `;
+  return renderPrintShell({ title: `Invoice ${invoice.invoiceNumber || invoice.id}`, body, extraStyles });
+}
+
+function printInvoice(invoiceId) {
+  const invoice = (state.backend.invoices || []).find((item) => item.id === invoiceId);
+  if (!invoice) return;
+  openPrintWindow(renderInvoicePrintHtml(invoice), "invoice");
+}
+
 // --- Rate card admin ------------------------------------------------------------------------
 //
 // Phase 08 item 2 built this screen as the single source of truth for products, units and rates;
@@ -23370,7 +23823,7 @@ function catalogLinksForProduct(productId) {
 
 // <option>s for a "bills as" picker on an equipment asset or consumable, grouped by section.
 function rateLineOptions(kind, selectedId) {
-  const categories = kind === "equipment" ? EQUIPMENT_RATE_CATEGORIES : CONSUMABLE_RATE_CATEGORIES;
+  const categories = kind === "equipment" ? EQUIPMENT_RATE_CATEGORIES : kind === "labor" ? ["Labor"] : CONSUMABLE_RATE_CATEGORIES;
   const groups = categories
     .map((category) => [category, getProducts().filter((product) => product.category === category)])
     .filter(([, products]) => products.length);
@@ -23561,6 +24014,19 @@ function renderRateCard() {
                 .join("") || `<div class="empty-state">No equipment assets.</div>`}
             </div>
             <div class="record-list">
+              <h4>Crew labor roles (${getEmployees().filter((employee) => employee.laborProductId).length} of ${getEmployees().length} linked)</h4>
+              <p class="help-text">Which Labor rate line each person bills as. Invoices drafted from field hours price labor with it.</p>
+              ${getEmployees()
+                .map(
+                  (employee) => `
+                    <label class="compact-label">${escapeHtml(employee.displayName)}${employee.jobTitle ? ` · ${escapeHtml(employee.jobTitle)}` : ""}
+                      <select data-link-rate-line="employees" data-link-field="laborProductId" data-id="${escapeAttribute(employee.id)}">${rateLineOptions("labor", employee.laborProductId || "")}</select>
+                    </label>
+                  `,
+                )
+                .join("") || `<div class="empty-state">No employees.</div>`}
+            </div>
+            <div class="record-list">
               <h4>Consumables (${getConsumableStatus().length - unlinkedConsumables.length} of ${getConsumableStatus().length} linked)</h4>
               ${getConsumableStatus()
                 .map(
@@ -23614,7 +24080,7 @@ async function saveCatalogRateLink(select) {
   const stored = (state.backend[collection] || []).find((item) => item.id === select.dataset.id);
   if (!stored) return;
   try {
-    await saveBackendRecord(collection, { ...stored, productId: select.value });
+    await saveBackendRecord(collection, { ...stored, [select.dataset.linkField || "productId"]: select.value });
     render();
     showToast(select.value ? "Linked to the rate card." : "Rate card link removed.");
   } catch (error) {
@@ -23630,6 +24096,10 @@ function openPricingSettingsDialog() {
   form.elements.fuelSurchargePercent.value = settings.fuelSurchargePercent ?? "";
   form.elements.fuelSurchargeNote.value = settings.fuelSurchargeNote || "";
   form.elements.energySecurityFeePercent.value = settings.energySecurityFeePercent ?? 18;
+  form.elements.salesTaxPercent.value = settings.salesTaxPercent ?? 0;
+  form.elements.invoiceTermsDays.value = settings.invoiceTermsDays ?? 30;
+  form.elements.invoiceTermsText.value = settings.invoiceTermsText;
+  form.elements.invoiceRemitTo.value = settings.invoiceRemitTo;
   dialog.showModal();
 }
 
@@ -23638,8 +24108,14 @@ async function savePricingSettings(form) {
   const previous = getPricingSettings();
   const fuelSurchargePercent = numberOrNull(data.get("fuelSurchargePercent"));
   try {
+    const stored = (state.backend.pricingSettings || []).find((item) => item.id === previous.id) || {};
     await saveBackendRecord("pricingSettings", {
+      ...stored,
       id: previous.id,
+      salesTaxPercent: Number(data.get("salesTaxPercent") || 0),
+      invoiceTermsDays: Number(data.get("invoiceTermsDays") || 30),
+      invoiceTermsText: data.get("invoiceTermsText").toString().trim(),
+      invoiceRemitTo: data.get("invoiceRemitTo").toString().trim(),
       fuelSurchargePercent,
       fuelSurchargeNote: data.get("fuelSurchargeNote").toString().trim(),
       fuelSurchargeUpdatedAt: fuelSurchargePercent !== previous.fuelSurchargePercent ? new Date().toISOString() : previous.fuelSurchargeUpdatedAt,
@@ -26079,26 +26555,6 @@ function openDispatchScheduleDialog(jobId = "") {
     if (assignment?.crewId) form.elements.crewId.value = assignment.crewId;
   } else {
     form.elements.date.value = todayIso();
-  }
-  dialog.showModal();
-}
-
-function openInvoiceDialog(jobId = "") {
-  const dialog = document.querySelector("#invoiceDialog");
-  const form = dialog.querySelector("form");
-  populateProjectSelect(dialog);
-  form.reset();
-  const row = jobId ? getFinanceRows().find((item) => item.job.id === jobId) : null;
-  if (jobId) form.elements.projectId.value = jobId;
-  if (row) {
-    form.elements.id.value = row.invoice?.id || "";
-    form.elements.quotedAmount.value = row.quoted;
-    form.elements.invoiceAmount.value = row.invoicePrep;
-    form.elements.status.value = ["Draft", "Ready", "Sent", "Past due", "Paid"].includes(row.status) ? row.status : "Draft";
-    form.elements.dueDate.value = row.invoice?.dueDate || addDays(30);
-    form.elements.notes.value = row.invoice?.notes || row.invoiceSignal;
-  } else {
-    form.elements.dueDate.value = addDays(30);
   }
   dialog.showModal();
 }
