@@ -1449,10 +1449,14 @@
           Division
           <select name="divisionId"></select>
         </label>
-        <label id="contactOpportunityField">
-          Associated opportunity
-          <select name="opportunityId"></select>
-        </label>
+        <div class="lookup-field" id="contactOpportunityField">
+          <span>Associated opportunity</span>
+          <div class="record-lookup" data-lookup-types="opportunity" data-lookup-name="opportunityId">
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search opportunities by name, account or stage" />
+            <input type="hidden" name="opportunityId" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <p class="help-text" id="contactOpportunityNote" hidden>This contact may be linked to more than one opportunity — manage all of them from each opportunity's own Stakeholders panel (Develop &amp; Planning tab), not here.</p>
         <label>
           General notes
@@ -2453,10 +2457,14 @@
             <select name="contactIds" multiple size="4"></select>
           </label>
         </div>
-        <label>
-          Opportunity
-          <select name="opportunityId"></select>
-        </label>
+        <div class="lookup-field">
+          <span>Opportunity</span>
+          <div class="record-lookup" data-lookup-types="opportunity" data-lookup-name="opportunityId">
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search opportunities by name, account or stage" />
+            <input type="hidden" name="opportunityId" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <div class="form-grid">
           <label>
             Activity date
@@ -2491,6 +2499,15 @@
           <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
           <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
         </fieldset>
+        <div class="lookup-field">
+          <span>Regarding <small class="muted-text">(this also shows on each linked record's timeline)</small></span>
+          <div class="record-lookup" data-lookup-types="contact,facility,account,opportunity,dispatchJob,project" data-lookup-name="relatedRecords" data-lookup-multiple>
+            <div class="record-lookup-chips"></div>
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Link a contact, facility, account, opportunity, job or project" />
+            <input type="hidden" name="relatedRecords" value="[]" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <label>
           Notes
           <textarea name="body" rows="5" required maxlength="700" placeholder="Capture meeting notes, call summary, email detail, task context, or buyer concerns."></textarea>
@@ -2519,6 +2536,15 @@
           <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
           <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
         </fieldset>
+        <div class="lookup-field">
+          <span>Regarding <small class="muted-text">(this also shows on each linked record's timeline)</small></span>
+          <div class="record-lookup" data-lookup-types="contact,facility,account,opportunity,dispatchJob,project" data-lookup-name="relatedRecords" data-lookup-multiple>
+            <div class="record-lookup-chips"></div>
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Link a contact, facility, account, opportunity, job or project" />
+            <input type="hidden" name="relatedRecords" value="[]" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save tags</button>
@@ -2553,6 +2579,15 @@
           <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
           <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
         </fieldset>
+        <div class="lookup-field">
+          <span>Regarding <small class="muted-text">(this also shows on each linked record's timeline)</small></span>
+          <div class="record-lookup" data-lookup-types="contact,facility,account,opportunity,dispatchJob,project" data-lookup-name="relatedRecords" data-lookup-multiple>
+            <div class="record-lookup-chips"></div>
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Link a contact, facility, account, opportunity, job or project" />
+            <input type="hidden" name="relatedRecords" value="[]" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save note</button>
@@ -2634,6 +2669,15 @@
           <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
           <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
         </fieldset>
+        <div class="lookup-field">
+          <span>Regarding <small class="muted-text">(this also shows on each linked record's timeline)</small></span>
+          <div class="record-lookup" data-lookup-types="contact,facility,account,opportunity,dispatchJob,project" data-lookup-name="relatedRecords" data-lookup-multiple>
+            <div class="record-lookup-chips"></div>
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Link a contact, facility, account, opportunity, job or project" />
+            <input type="hidden" name="relatedRecords" value="[]" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save meeting</button>
@@ -2698,6 +2742,15 @@
           <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
           <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
         </fieldset>
+        <div class="lookup-field">
+          <span>Regarding <small class="muted-text">(this also shows on each linked record's timeline)</small></span>
+          <div class="record-lookup" data-lookup-types="contact,facility,account,opportunity,dispatchJob,project" data-lookup-name="relatedRecords" data-lookup-multiple>
+            <div class="record-lookup-chips"></div>
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Link a contact, facility, account, opportunity, job or project" />
+            <input type="hidden" name="relatedRecords" value="[]" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save call</button>
@@ -2754,6 +2807,15 @@
           <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
           <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
         </fieldset>
+        <div class="lookup-field">
+          <span>Regarding <small class="muted-text">(this also shows on each linked record's timeline)</small></span>
+          <div class="record-lookup" data-lookup-types="contact,facility,account,opportunity,dispatchJob,project" data-lookup-name="relatedRecords" data-lookup-multiple>
+            <div class="record-lookup-chips"></div>
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Link a contact, facility, account, opportunity, job or project" />
+            <input type="hidden" name="relatedRecords" value="[]" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save email</button>
@@ -2813,6 +2875,15 @@
           <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
           <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
         </fieldset>
+        <div class="lookup-field">
+          <span>Regarding <small class="muted-text">(this also shows on each linked record's timeline)</small></span>
+          <div class="record-lookup" data-lookup-types="contact,facility,account,opportunity,dispatchJob,project" data-lookup-name="relatedRecords" data-lookup-multiple>
+            <div class="record-lookup-chips"></div>
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Link a contact, facility, account, opportunity, job or project" />
+            <input type="hidden" name="relatedRecords" value="[]" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save task</button>
@@ -4551,10 +4622,14 @@
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <p class="help-text">This approves a vendor to work on jobs for <em>this specific customer</em> — separate from that vendor's own general compliance standing.</p>
-        <label>
-          Vendor
-          <select name="subcontractorAccountId" required></select>
-        </label>
+        <div class="lookup-field">
+          <span>Vendor</span>
+          <div class="record-lookup" data-lookup-types="account" data-lookup-name="subcontractorAccountId" data-lookup-filter="vendor">
+            <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search vendors and subcontractors" />
+            <input type="hidden" name="subcontractorAccountId" />
+            <div class="record-lookup-results" hidden></div>
+          </div>
+        </div>
         <div class="form-grid">
           <label>
             Status

@@ -1,6 +1,6 @@
 # Phase 03 — Account Domain Correctness
 
-**Status:** 🟢 **Nearly complete.** Items 1–5 and 8–10 were done 2026-09-16; item 7 was dropped (Q30). **2026-09-23 (sprint Wave 2):** the 2026-09-22 industries item shipped (three new industries, Government renamed to include DOT, `naicsCode` on every row), the `accountIndustries` join was confirmed as the authoritative industry, opportunity industry became a curated picker, and Q55's facility-level environmental risk was built. **Only item 6 remains**, and it's blocked on the owner: list-filter "buttons" vs the existing compact search/dropdowns. Q54 (account lifecycle status) is back-burnered by the owner.
+**Status:** ✅ **Complete 2026-09-23.** Items 1–5 and 8–10 were done 2026-09-16; item 7 was dropped (Q30). The sprint closed the rest: the 2026-09-22 industries item, Q55 facility environmental risk (Wave 2), and item 6's quick-filter chips (Wave 3, owner's choice). Q54 (account lifecycle status) is back-burnered by the owner and blocks nothing.
 **Depends on:** Phase 02 (Create Account captures a primary *address*, which requires the address model to be real)
 **Estimated sessions:** 2–3
 
@@ -200,6 +200,13 @@ Built once in `renderQuickActions()` (`app.js:2761`), which already branches on 
 Replace the current ad hoc controls with consistent filter/search buttons. Build this once and share it with Phase 05 (Contacts) and Phase 06 (Opportunities) — the notes explicitly ask for the same treatment on all three ("Do these same cleanup steps on contacts and opportunities").
 
 **🟡 Investigated 2026-09-16 — likely already substantially done, one open question before closing it out.** Traced the actual code before planning further work: `renderAccounts()`, `renderContacts()`, and `renderPipeline()` (`app.js`) all already share one component pair — `renderCompactSearch()` (icon + text input) and `renderCompactSelect()` (icon + dropdown, highlights when a filter is active) — for search, the industry/view filters, and the view switcher, consistently across all three list pages. This is almost certainly the result of the "Cleanup roadmap, Rounds 1-4" work (shipped and verified 2026-08-17, see roadmap `README.md`), done before this phase doc existed. **Open question, not resolved this session:** the 2026-09-15 quote literally names "Search Accounts or sites" and "all industries filters" as the controls to *replace*, but the compact redesign still uses a search box + dropdowns (just restyled with icons) — it never became literal filter *buttons*/chips. It's unclear whether the compact redesign already satisfies the ask, or whether "buttons" meant something more specific (e.g., quick-filter chips like "Needs action" instead of a dropdown). Confirm with the owner which is wanted before spending more time here — building a speculative chip-based redesign without that answer risks the same "wrong until verified" trap the roadmap already flagged once for this file.
+
+**✅ Done 2026-09-23 (sprint Wave 3), per the owner's answer: quick-filter chips, keeping the search box and dropdowns.** One chip row component (`renderQuickFilterChips()` / `applyQuickFilters()`) sits above all three lists:
+- **Accounts:** My accounts, Customers, Prospects, Vendors & subs, Needs attention (a vendor-insurance alert or open field alerts), No touch in 30 days.
+- **Contacts:** My contacts, Decision makers, No account, Added in 30 days.
+- **Opportunities:** My opportunities, Open, Closing in 30 days, Missing info for next stage, Won. These apply to the table and the pipeline board alike.
+
+Active chips combine (all must match). Each chip shows how many rows it would leave. "Mine" matches the record owner to the signed-in user.
 
 ### 7. "Remove the Account Table" — unresolved, needs clarification
 

@@ -1,6 +1,6 @@
 # Phase 05 — Contacts & Activity Timeline
 
-**Status:** 🟢 **Most items done.** Corrected 2026-09-23 (sprint Wave 0): this line had fallen behind the item bodies. Done: items 1, 2 (activity tags, 2026-09-18), 3, 5, 6, 7, 8, 9, 10, 12, 15, and the person/type half of 11 (2026-09-18). Item 13 is settled with no change (Q57). **Remaining:** item 4 (shared opportunity-lookup component, also wanted by Phases 03/04), the "Related" half of item 11 (depends on Phase 06 item 20, the Regarding field), and item 14 (Connected-via links, to be done together with Phase 06 item 12). All three are sprint Wave 3. **Phone formatter shipped 2026-09-23 (Wave 2).** See its section below.
+**Status:** ✅ **Complete 2026-09-23.** Items 1–3, 5–12 and 15 are done; item 13 is settled with no change (Q57). The last four shipped in the sprint: the phone formatter (Wave 2), and in Wave 3 the shared record lookup (item 4), the timeline "Related" filter (item 11) and clickable, source-complete Connected-via links (item 14). The only thing still deliberately deferred is the `activities` vs `sales_tasks` table split (see the glossary).
 **Depends on:** Phase 02 (facility↔contact junction), Phase 03 (edit-button audit pattern)
 **Coordinate with:** Phase 06 (Opportunity Domain) — items 14 here and Phase 06 items 6/8/9/12 touch the same contact↔opportunity relationship and the same "Connected via" panel; build the shared multi-select/lookup component once, use it in both.
 **Estimated sessions:** 3
@@ -77,6 +77,15 @@ This is the same control the Create dropdown (Phase 03) and subcontractor picker
 
 **🟡 Investigated 2026-09-17, not built.** Confirmed exactly as described: `populateOpportunitySelect()` (`app.js`) is a plain, fully unfiltered `<select>` over every opportunity in the system (name + account name only, no stage), used from both `openActivityDialog` and `openContactDialog`. Building the actual typeahead-lookup component (shared across this, the Phase 03 Create dropdown, and the Phase 04 subcontractor picker — none of which exist as a shared component today either) is a real, standalone UI-component build, not a quick swap — deliberately not started this session so it isn't done three-quarters-done in a rush. Whoever picks this up should build the one shared component first, then wire it into all three call sites in the same pass.
 
+**✅ Built 2026-09-23 (sprint Wave 3): one shared record lookup**, as this item asked, built once and wired into every call site:
+- `.record-lookup` in `index.html`, driven by `searchRecordLookup()` / `pickRecordLookup()` / `syncRecordLookups()` in `app.js`.
+- Type to search across opportunities (name · account · stage), accounts, contacts, facilities, projects and dispatch jobs. The dialog's own account ranks first, then name matches, then matches on the detail line.
+- Enter picks the top match without submitting the dialog; Escape closes the list; ArrowDown moves into it.
+- **Single mode** replaced the "every opportunity" `<select>` in the generic Activity dialog and the Contact dialog. `populateOpportunitySelect()` is gone.
+- **Multiple mode** is Phase 06 item 20's "Regarding" field.
+- **Filtered mode** (`data-lookup-filter="vendor"` plus `data-lookup-exclude`) replaced Phase 04's approved-subcontractor `<select>`.
+- **The "+ Create" menu needed nothing:** it opens the same Activity and Contact dialogs, so it inherits the lookup.
+
 ### 5. Surface contact ↔ facility relationships
 
 From Phase 02's `facility_contacts` junction: show on the Contact detail page which facilities a person works at or manages.
@@ -136,6 +145,8 @@ Extends item 2's tag-filter-chip work with three more filter dimensions: by pers
 
 **🟡 Partially done 2026-09-18.** Person and event-type filters shipped, in `renderTimelinePanel()` alongside the tag chips from item 2 — both are compact selects (`renderCompactSelect`, same component used everywhere else in the app for list filters), populated dynamically from whichever people/types actually appear in that timeline's activities, keyed per-context so filters on one record's timeline don't leak into another's. Verified live: filtering an account timeline to "Note" only shows Note-type entries; person filter lists real owners. **Not done: "Related" filtering** — that dimension depends on Phase 06 item 20's "Regarding" cross-entity linking work (a bigger, separately-tracked build, see that item), since "Related" and "Regarding" turned out to describe the same underlying relationship data. Do not build a second, different "Related" mechanism — wire this filter on top of `relatedRecords` once item 20 ships.
 
+**✅ "Related" filter done 2026-09-23 (sprint Wave 3)**, once Phase 06 item 20's Regarding field existed to feed it. A third compact select, "Filter by related record", lists every record the timeline's activities are tied to: their contacts, their opportunity, and everything they're Regarding, each labelled by type. It's keyed per timeline like the other filters, and shared by every timeline surface, including the new Facility timeline.
+
 ### 12. Timeline search only accepts one character at a time
 
 > *"When using search function in timeline it only lets you type one character at a time"*
@@ -155,6 +166,8 @@ Classic "the input loses focus on every re-render" bug — almost certainly the 
 > *"On contact linked opportunity page, opportunities are not clickable."*
 
 **CONFIRMED** — see Phase 06 item 8 for the full citation (the "Connected via projects and opportunities" panel renders opportunity/project names as inert text, not links). Implement alongside Phase 06 item 12's broader overhaul of that same panel (team-member sources, badges, filtering, recency cap) — don't fix the click-target in isolation and then redo the whole panel again shortly after.
+
+**✅ Done 2026-09-23 (sprint Wave 3), together with Phase 06 item 12 as planned.** The connection badges are clickable (they were since 2026-09-17), and the panel was rebuilt around real sources and recency. See Phase 06 item 12.
 
 ### 15. List-view search/filter cleanup (Contacts)
 

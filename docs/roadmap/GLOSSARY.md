@@ -66,6 +66,7 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 | Estimate (UI: "Estimation Tool") | *(no table yet)* | `estimates` + `estimateLines` | — | Internal working draft, same line shape as quotes. Converts into a quote (`quotes.sourceEstimateId`); converting twice is allowed. The collection is still named `estimates`; only the label changed. |
 | Rate sheet | `price_levels` | `priceLevels` | — | **Naming hazard:** a "rate sheet" in the UI and in the owner's words is a `priceLevels` row (the Dataverse name). There is one per workbook tab ("2026 Rate Sheet", "2026 Rate Sheet (Sheet5)"), and exactly one has `isDefault`. A product's three tier prices on a sheet live on its `productPriceLevels` row: `amount` = Standard, `amountOtEmergency`, `amountDoubleTime`. "Rate card" is the admin *screen*, not a record. |
 | Lead | `leads` | `leads` | — | |
+| "Regarding" on an activity | `activity_parties` | `activities.relatedRecords` | — | **Not a tag.** Links one activity to other records (contact, facility, account, opportunity, "Job" = `dispatchJobs`, project) so it appears on each of their timelines. Tags (`activities.tags`) categorise; Regarding cross-posts. Phase 06 item 20. |
 
 ---
 

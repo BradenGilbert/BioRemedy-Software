@@ -1596,6 +1596,9 @@ const state = {
   timelineVisibleCounts: {},
   timelineTagFilters: {},
   timelinePersonFilters: {},
+  timelineRelatedFilters: {},
+  contactConnectionFilter: "",
+  quickFilters: { accounts: [], contacts: [], opportunities: [] },
   timelineTypeFilters: {},
   contactSearch: "",
   contactTableView: "sales",
@@ -2113,6 +2116,10 @@ function bindEvents() {
   document.addEventListener("submit", handleSubmit);
   document.addEventListener("input", handleInput);
   document.addEventListener("change", handleInput);
+  document.addEventListener("keydown", handleRecordLookupKeydown);
+  document.addEventListener("focusin", (event) => {
+    if (event.target.matches?.(".record-lookup-input")) searchRecordLookup(event.target.closest(".record-lookup"));
+  });
   document.addEventListener("dragstart", handleDragStart);
   document.addEventListener("dragover", handleDragOver);
   document.addEventListener("dragleave", handleDragLeave);
@@ -2133,6 +2140,15 @@ async function updateOnlineStatus(isOnline) {
 }
 
 async function handleClick(event) {
+  // Any click outside a lookup closes its results list.
+  closeRecordLookups(event.target.closest?.(".record-lookup"));
+  const lookupButton = event.target.closest?.('[data-action="lookup-pick"], [data-action="lookup-remove"]');
+  if (lookupButton) {
+    const container = lookupButton.closest(".record-lookup");
+    if (lookupButton.dataset.action === "lookup-pick") pickRecordLookup(container, lookupButton.dataset.type, lookupButton.dataset.id);
+    else removeRecordLookupItem(container, lookupButton.dataset.type, lookupButton.dataset.id);
+    return;
+  }
   document.querySelectorAll("details.activity-picker[open], details.create-menu[open]").forEach((details) => {
     if (!details.contains(event.target)) details.open = false;
   });
@@ -2308,6 +2324,19 @@ async function handleClick(event) {
   if (action === "open-facility-contact") openFacilityContactDialog(actionButton.dataset.facilityId, actionButton.dataset.accountId, id);
   if (action === "remove-facility-contact") await removeFacilityContact(id);
   if (action === "view-facility") viewFacility(id);
+  if (action === "toggle-quick-filter") {
+    const list = actionButton.dataset.list;
+    const active = new Set(state.quickFilters[list] || []);
+    if (active.has(actionButton.dataset.filter)) active.delete(actionButton.dataset.filter);
+    else active.add(actionButton.dataset.filter);
+    state.quickFilters[list] = [...active];
+    render();
+  }
+  if (action === "clear-quick-filters") {
+    state.quickFilters[actionButton.dataset.list] = [];
+    render();
+  }
+  if (action === "add-regarding-note") openRegardingNote(actionButton.dataset.type, id, actionButton.dataset.accountId || "");
   if (action === "open-facility-comment") openFacilityCommentDialog(actionButton.dataset.facilityId);
   if (action === "remove-facility-comment") await removeFacilityComment(id);
   if (action === "switch-account-tab") {
@@ -2797,6 +2826,13 @@ function handleInput(event) {
 }
 
 function handleInputInner(event) {
+  if (event.type === "input" && event.target.matches?.(".record-lookup-input")) {
+    const container = event.target.closest(".record-lookup");
+    // Clearing a single lookup's text clears its value; any other edit waits for a pick.
+    if (!container.hasAttribute("data-lookup-multiple") && !event.target.value.trim()) lookupParts(container).hidden.value = "";
+    searchRecordLookup(container);
+    return;
+  }
   if (event.type === "input" && isPhoneInput(event.target)) applyPhoneFormatting(event.target);
   if (event.target.matches('[data-action="upload-sample-lab-report"]')) {
     const input = event.target;
@@ -2913,6 +2949,18 @@ function handleInputInner(event) {
   if (event.target.id.startsWith("timelinePersonFilter-")) {
     const contextKey = event.target.id.slice("timelinePersonFilter-".length);
     state.timelinePersonFilters[contextKey] = event.target.value;
+    render();
+  }
+
+  if (event.target.id === "contactConnectionFilter") {
+    state.contactConnectionFilter = event.target.value;
+    render();
+    return;
+  }
+
+  if (event.target.id.startsWith("timelineRelatedFilter-")) {
+    const contextKey = event.target.id.slice("timelineRelatedFilter-".length);
+    state.timelineRelatedFilters[contextKey] = event.target.value;
     render();
   }
 
@@ -3680,7 +3728,70 @@ function renderPipelineAttentionItem(item) {
   `;
 }
 
-function getScopedOpportunities() {
+// --- Quick-filter chips (Phase 03 item 6; owner decision 2026-09-23) --------------------------
+// One-click filters above the Accounts, Contacts and Opportunities lists, alongside the search box
+// and dropdowns (not instead of them). Active chips combine: every one must match. Each chip shows
+// how many rows it would leave, counted after search/dropdowns but before other chips.
+const QUICK_FILTERS = {
+  accounts: [
+    { id: "mine", label: "My accounts", test: (account) => isCurrentUsersRecord(account.owner) },
+    { id: "customers", label: "Customers", test: (account) => account.accountType === "Customer" && !/prospect/i.test(account.classification || "") },
+    { id: "prospects", label: "Prospects", test: (account) => /prospect/i.test(`${account.classification || ""} ${account.accountType || ""}`) },
+    { id: "vendors", label: "Vendors & subs", test: (account) => vendorAccounts().some((vendor) => vendor.id === account.id) },
+    {
+      id: "attention",
+      label: "Needs attention",
+      test: (account) => Boolean(accountVendorExpiryWarning(account)) || alertsForAccount(account.id).some((alert) => alert.status !== "Resolved"),
+    },
+    { id: "stale", label: "No touch in 30 days", test: (account) => !account.lastContact || daysUntil(account.lastContact) < -30 },
+  ],
+  contacts: [
+    { id: "mine", label: "My contacts", test: (contact) => isCurrentUsersRecord(contact.owner) },
+    { id: "decision", label: "Decision makers", test: (contact) => /decision/i.test(contact.influence || contact.relationshipRole || "") },
+    { id: "unaffiliated", label: "No account", test: (contact) => !contact.accountId },
+    { id: "recent", label: "Added in 30 days", test: (contact) => Boolean(contact.createdAt) && daysUntil(contact.createdAt) >= -30 },
+  ],
+  opportunities: [
+    { id: "mine", label: "My opportunities", test: (opportunity) => isCurrentUsersRecord(opportunity.owner) },
+    { id: "open", label: "Open", test: (opportunity) => !["Won", "Lost"].includes(opportunity.stage) && !["Won", "Lost"].includes(opportunity.status) },
+    { id: "closing", label: "Closing in 30 days", test: (opportunity) => opportunity.closeBand === "0-30" },
+    { id: "blocked", label: "Missing info for next stage", test: (opportunity) => getNextStageMissingFields(opportunity).length > 0 },
+    { id: "won", label: "Won", test: (opportunity) => opportunity.stage === "Won" || opportunity.status === "Won" },
+  ],
+};
+
+function isCurrentUsersRecord(ownerName) {
+  const me = state.currentUser?.name;
+  return Boolean(me) && String(ownerName || "").trim().toLowerCase() === me.trim().toLowerCase();
+}
+
+function applyQuickFilters(listKey, rows) {
+  const active = state.quickFilters[listKey] || [];
+  const tests = QUICK_FILTERS[listKey].filter((chip) => active.includes(chip.id));
+  return tests.length ? rows.filter((row) => tests.every((chip) => chip.test(row))) : rows;
+}
+
+function renderQuickFilterChips(listKey, rows) {
+  const active = state.quickFilters[listKey] || [];
+  return `
+    <div class="quick-filter-chips" role="group" aria-label="Quick filters">
+      ${QUICK_FILTERS[listKey]
+        .map(
+          (chip) => `
+            <button type="button" class="timeline-filter-chip${active.includes(chip.id) ? " active" : ""}" data-action="toggle-quick-filter" data-list="${listKey}" data-filter="${chip.id}" aria-pressed="${active.includes(chip.id)}">
+              ${escapeHtml(chip.label)} <small>${rows.filter(chip.test).length}</small>
+            </button>
+          `,
+        )
+        .join("")}
+      ${active.length ? `<button type="button" class="link-button compact-link" data-action="clear-quick-filters" data-list="${listKey}">Clear</button>` : ""}
+    </div>
+  `;
+}
+
+// Search and account scope only; the quick-filter chips apply on top (getScopedOpportunities), and
+// count against this list.
+function getSearchScopedOpportunities() {
   const scoped = state.pipelineAccountFilter
     ? state.opportunities.filter((opportunity) => opportunity.accountId === state.pipelineAccountFilter)
     : state.opportunities;
@@ -3694,6 +3805,10 @@ function getScopedOpportunities() {
       .toLowerCase()
       .includes(search);
   });
+}
+
+function getScopedOpportunities() {
+  return applyQuickFilters("opportunities", getSearchScopedOpportunities());
 }
 
 function renderPipeline() {
@@ -3744,6 +3859,7 @@ function renderPipeline() {
           )}
         </div>
       </div>
+      ${renderQuickFilterChips("opportunities", getSearchScopedOpportunities())}
       ${state.opportunityTableView !== "board" ? renderOpportunityTable(activeView) : ""}
       <section class="pipeline-board" aria-label="Pipeline stages">
         ${STAGES.map(renderStageColumn).join("")}
@@ -4915,6 +5031,7 @@ function buildCoreActivityRecord(activity) {
     completedAt: activity.completedAt || (status === "Completed" ? createdAt : ""),
     priority: activity.priority || (activityType === "Task" ? "Medium" : ""),
     tags: normalizeActivityTags(activity.tags),
+    relatedRecords: normalizeRelatedRecords(activity.relatedRecords),
   };
 }
 
@@ -5292,7 +5409,7 @@ function renderAccounts() {
   const sortedIndustries = getIndustries()
     .slice()
     .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-  const accounts = state.accounts
+  const searchedAccounts = state.accounts
     .filter((account) => {
       if (!search) return true;
       return [
@@ -5311,6 +5428,7 @@ function renderAccounts() {
       if (!state.accountIndustryFilter) return true;
       return industriesForAccount(account.id).some((link) => link.industryId === state.accountIndustryFilter);
     });
+  const accounts = applyQuickFilters("accounts", searchedAccounts);
   const priorityAccounts = accounts
     .map(getAccountCrmSummary)
     .sort((a, b) => b.priority - a.priority)
@@ -5357,6 +5475,7 @@ function renderAccounts() {
           </div>
         </div>
         <div class="panel-body">
+          ${renderQuickFilterChips("accounts", searchedAccounts)}
           <table class="data-table">
             <thead>
               <tr>
@@ -6753,6 +6872,15 @@ function renderFacilityDetail() {
             ${renderFacilityWorkHistoryPanel(facility)}
             ${renderFacilityPhotosPanel(facility)}
           </div>
+          <article class="panel crm-profile-grid-full">
+            <div class="panel-header">
+              <div><h3>Timeline</h3><span>Notes and activities regarding this facility, or a project or job here</span></div>
+              <button class="mini-button" type="button" data-action="add-regarding-note" data-type="facility" data-id="${escapeAttribute(facility.id)}" data-account-id="${escapeAttribute(facility.accountId || "")}">Add note</button>
+            </div>
+            <div class="panel-body">
+              ${renderTimelinePanel(activitiesForFacility(facility.id), `facility-${facility.id}`, "Nothing references this facility yet. Add a note here, or pick this facility under Regarding on any activity.")}
+            </div>
+          </article>
         </section>
       </div>
     </section>
@@ -7304,7 +7432,7 @@ function renderAccountOpportunityCard(opportunity) {
 function renderContacts() {
   const activeView = contactTableViews[state.contactTableView] || contactTableViews.sales;
   const search = state.contactSearch.trim().toLowerCase();
-  const contacts = state.contacts.filter((contact) => {
+  const searchedContacts = state.contacts.filter((contact) => {
     const account = findAccount(contact.accountId);
     const opportunities = opportunitiesForContact(contact);
     if (!search) return true;
@@ -7317,6 +7445,7 @@ function renderContacts() {
       .toLowerCase()
       .includes(search);
   });
+  const contacts = applyQuickFilters("contacts", searchedContacts);
   const decisionMakers = state.contacts.filter((contact) => contact.influence === "Decision maker").length;
   const champions = state.contacts.filter((contact) => contact.influence === "Champion").length;
   const contactsWithDeals = state.contacts.filter((contact) => contact.opportunityIds?.length).length;
@@ -7372,6 +7501,7 @@ function renderContacts() {
           </div>
         </div>
         <div class="panel-body">
+          ${renderQuickFilterChips("contacts", searchedContacts)}
           <table class="data-table">
             <thead>
               <tr>
@@ -7905,16 +8035,16 @@ function renderContactCoworkerCard(coworker) {
   `;
 }
 
-function renderContactConnectionCard(connection) {
-  const badges = [
-    ...connection.sharedOpportunities
-      .map((id) => findOpportunity(id))
-      .filter(Boolean)
-      .map((opportunity) => `<button class="mini-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">${escapeHtml(opportunity.name)}</button>`),
-    ...connection.sharedJobs.map(
-      (job) => `<button class="mini-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${escapeHtml(job.name)}</button>`,
-    ),
-  ].slice(0, 4);
+// Most recent shared work first, capped at four badges with a "+N more" count (owner: "only list
+// the most recent 3-4"). The badge tooltip says how each side is tied to the record.
+function renderContactConnectionCard(connection, filter = "") {
+  const shared = connection.shared.filter((item) => !filter || item.kind === filter);
+  const badges = shared.slice(0, 4).map((item) => {
+    const action = item.kind === "opportunity" ? "view-opportunity" : "view-project";
+    const title = `${item.kind === "opportunity" ? "Opportunity" : "Project"} · ${[...item.via].join(", ")}`;
+    return `<button class="mini-button" type="button" data-action="${action}" data-id="${escapeAttribute(item.record.id)}" title="${escapeAttribute(title)}">${escapeHtml(item.record.name || "Untitled")}</button>`;
+  });
+  if (shared.length > 4) badges.push(`<span class="tag">+${shared.length - 4} more</span>`);
   return `
     <article class="detail-card">
       <button class="link-button person-name" type="button" data-action="view-contact" data-id="${escapeAttribute(connection.contact.id)}">${escapeHtml(connection.contact.name)}</button>
@@ -7970,9 +8100,21 @@ function renderContactRelationshipsTab(contact) {
       </div>
       <div class="detail-stack">
         <article class="panel">
-          <div class="panel-header"><h3>Connected via projects and opportunities</h3></div>
+          <div class="panel-header">
+            <div><h3>Connected via projects and opportunities</h3><span>Stakeholders, team members and project contacts; most recent first</span></div>
+            <select id="contactConnectionFilter" aria-label="Filter connections">
+              <option value="" ${!state.contactConnectionFilter ? "selected" : ""}>All shared work</option>
+              <option value="opportunity" ${state.contactConnectionFilter === "opportunity" ? "selected" : ""}>Opportunities only</option>
+              <option value="project" ${state.contactConnectionFilter === "project" ? "selected" : ""}>Projects only</option>
+            </select>
+          </div>
           <div class="panel-body record-list">
-            ${connections.map(renderContactConnectionCard).join("") || `<div class="empty-state">No shared opportunities or projects with other contacts yet.</div>`}
+            ${
+              connections
+                .filter((connection) => !state.contactConnectionFilter || connection.shared.some((item) => item.kind === state.contactConnectionFilter))
+                .map((connection) => renderContactConnectionCard(connection, state.contactConnectionFilter))
+                .join("") || `<div class="empty-state">${state.contactConnectionFilter ? "No connections through this kind of work." : "No shared opportunities or projects with other contacts yet."}</div>`
+            }
           </div>
         </article>
       </div>
@@ -14075,15 +14217,32 @@ function renderTimelinePanel(activities, contextKey, emptyMessage) {
   const activeTags = state.timelineTagFilters[contextKey] || [];
   const personFilter = state.timelinePersonFilters[contextKey] || "";
   const typeFilter = state.timelineTypeFilters[contextKey] || "";
+  const relatedFilter = state.timelineRelatedFilters[contextKey] || "";
   const people = [...new Set(activities.map((activity) => activity.owner || activity.author).filter(Boolean))].sort();
+  // Phase 05 item 11: "Related" lists every record these activities are tied to: the people on
+  // them, their opportunity, and anything they're "Regarding".
+  const relatedKeysFor = (activity) => [
+    ...(activity.contactIds || []).map((id) => `contact:${id}`),
+    ...(activity.opportunityId ? [`opportunity:${activity.opportunityId}`] : []),
+    ...(activity.relatedRecords || []).map((item) => `${item.type}:${item.id}`),
+  ];
+  const relatedOptions = [...new Set(activities.flatMap(relatedKeysFor))]
+    .map((key) => {
+      const [type, id] = key.split(":");
+      const title = lookupRecordTitle(type, id);
+      return title ? { key, label: `${RECORD_LOOKUP_TYPES[type]?.label || type}: ${title}` } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.label.localeCompare(b.label));
   const types = [...new Set(activities.map((activity) => activity.activityType || activity.kind).filter(Boolean))].sort();
   const filtered = activities.filter((activity) => {
     if (activeTags.length && !(activity.tags || []).some((tag) => activeTags.includes(tag))) return false;
     if (personFilter && (activity.owner || activity.author) !== personFilter) return false;
     if (typeFilter && (activity.activityType || activity.kind) !== typeFilter) return false;
+    if (relatedFilter && !relatedKeysFor(activity).includes(relatedFilter)) return false;
     return true;
   });
-  const anyFilterActive = Boolean(activeTags.length || personFilter || typeFilter);
+  const anyFilterActive = Boolean(activeTags.length || personFilter || typeFilter || relatedFilter);
   const visibleCount = state.timelineVisibleCounts[contextKey] || TIMELINE_PAGE_SIZE;
   const visible = filtered.slice(0, visibleCount);
   const remaining = filtered.length - visible.length;
@@ -14107,6 +14266,17 @@ function renderTimelinePanel(activities, contextKey, emptyMessage) {
         `<option value="">All types</option>${types.map((type) => `<option value="${escapeAttribute(type)}" ${type === typeFilter ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}`,
         Boolean(typeFilter),
       )}
+      ${
+        relatedOptions.length
+          ? renderCompactSelect(
+              `timelineRelatedFilter-${contextKey}`,
+              FILTER_ICON_SVG,
+              "Filter by related record",
+              `<option value="">Any related record</option>${relatedOptions.map((option) => `<option value="${escapeAttribute(option.key)}" ${option.key === relatedFilter ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}`,
+              Boolean(relatedFilter),
+            )
+          : ""
+      }
     </div>
     <div class="record-list timeline-scroll">
       ${visible.map((activity) => renderTimelineItem(activity, contextKey)).join("") || `<div class="empty-state">${escapeHtml(anyFilterActive ? "No activities match the selected filters." : emptyMessage)}</div>`}
@@ -14135,8 +14305,9 @@ function renderTimelineItem(activity, contextKey) {
       <p>${escapeHtml(activity.body)}</p>
       <div class="tag-chip-list">
         ${(activity.tags || []).map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("")}
-        <button class="mini-button" type="button" data-action="edit-activity-tags" data-id="${escapeAttribute(activity.id)}" data-context="${escapeAttribute(contextKey || "")}">Edit tags</button>
+        <button class="mini-button" type="button" data-action="edit-activity-tags" data-id="${escapeAttribute(activity.id)}" data-context="${escapeAttribute(contextKey || "")}">Tags &amp; regarding</button>
       </div>
+      ${renderRegardingLinks(activity)}
       <div class="row-meta">
         <span>${escapeHtml(account?.name ?? "Unknown account")}</span>
         ${contacts.map((contact) => `<span>${escapeHtml(contact.name)}</span>`).join("")}
@@ -18865,6 +19036,7 @@ async function saveActivity(form) {
     dueDate: data.get("dueDate")?.toString() || (activityType === "Task" ? activityDate : ""),
     status,
     tags: data.getAll("tags").map(String),
+    relatedRecords: readRegardingField(form),
   });
 }
 
@@ -18889,6 +19061,7 @@ async function saveQuickNote(form) {
       activityDate: todayIso(),
       status: "Completed",
       tags: data.getAll("tags").map(String),
+      relatedRecords: readRegardingField(form),
     },
     "Quick note saved.",
   );
@@ -18916,6 +19089,7 @@ async function saveActivityMeeting(form) {
       meetingLocation: meetingFormat === "Offline" ? data.get("meetingLocation").toString().trim() : "",
       status: data.get("status").toString(),
       tags: data.getAll("tags").map(String),
+      relatedRecords: readRegardingField(form),
     },
     "Meeting saved.",
   );
@@ -18938,6 +19112,7 @@ async function saveActivityCall(form) {
       activityDate: data.get("activityDate").toString(),
       status: data.get("status").toString(),
       tags: data.getAll("tags").map(String),
+      relatedRecords: readRegardingField(form),
     },
     "Call saved.",
   );
@@ -18960,6 +19135,7 @@ async function saveActivityEmail(form) {
       activityDate: data.get("activityDate").toString(),
       status: "Completed",
       tags: data.getAll("tags").map(String),
+      relatedRecords: readRegardingField(form),
     },
     "Email saved.",
   );
@@ -18984,6 +19160,7 @@ async function saveActivityTask(form) {
       priority: data.get("priority").toString(),
       status: data.get("status").toString(),
       tags: data.getAll("tags").map(String),
+      relatedRecords: readRegardingField(form),
     },
     "Task saved.",
   );
@@ -21902,7 +22079,6 @@ function openContactDialog(accountId = "", contactId = "") {
   const form = dialog.querySelector("form");
   form.reset();
   populateAccountSelect(dialog, "No account (unaffiliated)");
-  populateOpportunitySelect(dialog);
   const contact = contactId ? findContact(contactId) : null;
   if (contact) {
     const core = getCoreContact(contact);
@@ -21931,6 +22107,7 @@ function openContactDialog(accountId = "", contactId = "") {
     dialog.querySelector("#contactOpportunityField").hidden = false;
     dialog.querySelector("#contactOpportunityNote").hidden = true;
   }
+  syncRecordLookups(dialog);
   dialog.showModal();
 }
 
@@ -23104,11 +23281,8 @@ function openApprovedSubcontractorDialog(accountId = "", linkId = "") {
   const form = dialog.querySelector("form");
   form.reset();
   form.elements.accountId.value = accountId;
-  const vendors = vendorAccounts().filter((vendor) => vendor.id !== accountId);
-  form.elements.subcontractorAccountId.innerHTML = [
-    `<option value="">Select a vendor</option>`,
-    ...vendors.map((vendor) => `<option value="${escapeAttribute(vendor.id)}">${escapeHtml(vendor.name)}</option>`),
-  ].join("");
+  const vendorLookup = dialog.querySelector('.record-lookup[data-lookup-name="subcontractorAccountId"]');
+  vendorLookup.dataset.lookupExclude = accountId;
   const link = linkId ? getApprovedSubcontractors().find((item) => item.id === linkId) : null;
   if (link) {
     form.elements.id.value = link.id;
@@ -23121,6 +23295,7 @@ function openApprovedSubcontractorDialog(accountId = "", linkId = "") {
   } else {
     form.elements.id.value = "";
   }
+  syncRecordLookups(dialog);
   dialog.showModal();
 }
 
@@ -23804,7 +23979,6 @@ function openActivityDialog(accountId = "", contactId = "", opportunityId = "") 
   form.reset();
   populateAccountSelect(dialog);
   populateContactSelect(dialog, accountId);
-  populateOpportunitySelect(dialog);
   const selectedContact = findContact(contactId);
   const selectedOpportunity = findOpportunity(opportunityId);
   const resolvedAccountId = accountId || selectedContact?.accountId || selectedOpportunity?.accountId || state.accounts[0]?.id || "";
@@ -23816,6 +23990,7 @@ function openActivityDialog(accountId = "", contactId = "", opportunityId = "") 
   form.elements.dueDate.value = "";
   form.elements.channel.value = "";
   form.elements.subject.value = "";
+  syncRecordLookups(dialog);
   dialog.showModal();
 }
 
@@ -23841,6 +24016,8 @@ function openTagEditorDialog(activityId) {
   form.querySelectorAll('input[name="tags"]').forEach((checkbox) => {
     checkbox.checked = activeTags.includes(checkbox.value);
   });
+  const regarding = dialog.querySelector('.record-lookup[data-lookup-name="relatedRecords"]');
+  if (regarding) setRecordLookupValue(regarding, activity.relatedRecords || []);
   dialog.showModal();
 }
 
@@ -23850,11 +24027,11 @@ async function saveActivityTags(form) {
   const activity = state.activities.find((item) => item.id === activityId);
   if (!activity) return;
   const tags = normalizeActivityTags(data.getAll("tags").map(String));
-  await saveBackendRecord("activities", { ...activity, tags }, { refresh: false });
+  await saveBackendRecord("activities", { ...activity, tags, relatedRecords: readRegardingField(form) }, { refresh: false });
   closeDialogs();
   await refreshState();
   render();
-  showToast("Tags updated.");
+  showToast("Tags and links updated.");
 }
 
 function openQuickNoteDialog(accountId = "", contactId = "", opportunityId = "") {
@@ -23865,6 +24042,7 @@ function openQuickNoteDialog(accountId = "", contactId = "", opportunityId = "")
   form.elements.accountId.value = accountId;
   form.elements.contactId.value = contactId;
   form.elements.opportunityId.value = opportunityId;
+  syncRecordLookups(dialog);
   dialog.showModal();
 }
 
@@ -23897,6 +24075,7 @@ function openActivityMeetingDialog(accountId = "", contactId = "", opportunityId
   if (contactId) selectContactIds(form, [contactId]);
   form.elements.activityDate.value = todayIso();
   toggleMeetingFormatFields(form.elements.meetingFormat.value);
+  syncRecordLookups(dialog);
   dialog.showModal();
 }
 
@@ -23910,6 +24089,7 @@ function openActivityCallDialog(accountId = "", contactId = "", opportunityId = 
   populateContactSelect(dialog, accountId);
   if (contactId) selectContactIds(form, [contactId]);
   form.elements.activityDate.value = todayIso();
+  syncRecordLookups(dialog);
   dialog.showModal();
 }
 
@@ -23923,6 +24103,7 @@ function openActivityEmailDialog(accountId = "", contactId = "", opportunityId =
   populateContactSelect(dialog, accountId);
   if (contactId) selectContactIds(form, [contactId]);
   form.elements.activityDate.value = todayIso();
+  syncRecordLookups(dialog);
   dialog.showModal();
 }
 
@@ -23936,6 +24117,7 @@ function openActivityTaskDialog(accountId = "", contactId = "", opportunityId = 
   populateContactSelect(dialog, accountId);
   if (contactId) selectContactIds(form, [contactId]);
   form.elements.dueDate.value = todayIso();
+  syncRecordLookups(dialog);
   dialog.showModal();
 }
 
@@ -24020,18 +24202,6 @@ function populateDispatchJobSelect(root) {
       .filter((job) => !isTerminalDispatchStatus(job.status))
       .map((job) => `<option value="${escapeAttribute(job.id)}">${escapeHtml(job.jobNumber)} - ${escapeHtml(job.jobName)}</option>`)
       .join("");
-  });
-}
-
-function populateOpportunitySelect(root) {
-  root.querySelectorAll("select[name='opportunityId']").forEach((select) => {
-    select.innerHTML = [
-      `<option value="">No opportunity yet</option>`,
-      ...state.opportunities.map((opportunity) => {
-        const account = findAccount(opportunity.accountId);
-        return `<option value="${opportunity.id}">${escapeHtml(opportunity.name)} - ${escapeHtml(account?.name ?? "Unknown account")}</option>`;
-      }),
-    ].join("");
   });
 }
 
@@ -24813,24 +24983,310 @@ function opportunitiesForAccount(accountId) {
   return state.opportunities.filter((opportunity) => opportunity.accountId === accountId);
 }
 
+// --- Record lookup (Phase 05 item 4) and "Regarding" (Phase 06 item 20) ------------------------
+//
+// One typeahead for picking records, instead of scrolling a <select> of every row in the system.
+// Markup (static in index.html):
+//   <div class="record-lookup" data-lookup-types="opportunity" data-lookup-name="opportunityId">
+//     [<div class="record-lookup-chips"></div>]           multiple mode only
+//     <input type="search" class="record-lookup-input" autocomplete="off" />
+//     <input type="hidden" name="opportunityId" />
+//     <div class="record-lookup-results" hidden></div>
+//   </div>
+// Single mode keeps the picked id in the hidden input. Multiple mode (data-lookup-multiple) keeps a
+// JSON array of { type, id } and shows removable chips; "Regarding" uses it. Results favour the
+// record in context (the dialog's account) without hard-filtering to it.
+const RECORD_LOOKUP_TYPES = {
+  contact: {
+    label: "Contact",
+    action: "view-contact",
+    rows: () => state.contacts,
+    title: (row) => row.name || row.fullName || "Unnamed contact",
+    meta: (row) => [row.title || row.jobTitle, findAccount(row.accountId)?.name].filter(Boolean).join(" · "),
+    accountId: (row) => row.accountId,
+  },
+  facility: {
+    label: "Facility",
+    action: "view-facility",
+    rows: () => (state.backend.facilities || []).filter((row) => !row.deletedAt),
+    title: (row) => row.name || "Unnamed facility",
+    meta: (row) => [findAccount(row.accountId)?.name, row.city].filter(Boolean).join(" · "),
+    accountId: (row) => row.accountId,
+  },
+  account: {
+    label: "Account",
+    action: "view-account",
+    rows: () => state.accounts,
+    title: (row) => row.name || row.accountName || "Unnamed account",
+    meta: (row) => [row.accountType, row.city || row.addressOneCity].filter(Boolean).join(" · "),
+    accountId: (row) => row.id,
+  },
+  opportunity: {
+    label: "Opportunity",
+    action: "view-opportunity",
+    rows: () => state.opportunities,
+    title: (row) => row.name || row.opportunityName || "Unnamed opportunity",
+    meta: (row) => [findAccount(row.accountId)?.name, row.stage].filter(Boolean).join(" · "),
+    accountId: (row) => row.accountId,
+  },
+  dispatchJob: {
+    label: "Job",
+    action: "view-dispatch-job",
+    rows: () => getDispatchJobs(),
+    title: (row) => [row.jobNumber, row.jobName].filter(Boolean).join(" ") || "Dispatch job",
+    meta: (row) => [row.customerName, formatDispatchStatus(row.status)].filter(Boolean).join(" · "),
+    accountId: (row) => row.accountId,
+  },
+  project: {
+    label: "Project",
+    action: "view-project",
+    rows: () => state.projects,
+    title: (row) => row.name || "Unnamed project",
+    meta: (row) => [findAccount(row.accountId)?.name, row.projectStage].filter(Boolean).join(" · "),
+    accountId: (row) => row.accountId,
+  },
+};
+
+// Optional narrowing, via data-lookup-filter on the container. data-lookup-exclude drops one id
+// (e.g. the customer itself when picking its approved subcontractors).
+const RECORD_LOOKUP_FILTERS = {
+  vendor: (type, row) => type !== "account" || vendorAccounts().some((vendor) => vendor.id === row.id),
+};
+
+function findLookupRecord(type, id) {
+  return RECORD_LOOKUP_TYPES[type]?.rows().find((row) => row.id === id) || null;
+}
+
+function lookupRecordTitle(type, id) {
+  const record = findLookupRecord(type, id);
+  return record ? RECORD_LOOKUP_TYPES[type].title(record) : "";
+}
+
+function normalizeRelatedRecords(value) {
+  const list = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  return list.filter((item) => {
+    const key = `${item?.type}:${item?.id}`;
+    if (!item?.id || !RECORD_LOOKUP_TYPES[item.type] || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function readRegardingField(form) {
+  try {
+    return normalizeRelatedRecords(JSON.parse(form.elements.relatedRecords?.value || "[]"));
+  } catch {
+    return [];
+  }
+}
+
+function lookupParts(container) {
+  return {
+    input: container.querySelector(".record-lookup-input"),
+    hidden: container.querySelector('input[type="hidden"]'),
+    results: container.querySelector(".record-lookup-results"),
+    chips: container.querySelector(".record-lookup-chips"),
+    multiple: container.hasAttribute("data-lookup-multiple"),
+    types: (container.dataset.lookupTypes || "").split(",").map((type) => type.trim()).filter((type) => RECORD_LOOKUP_TYPES[type]),
+  };
+}
+
+function lookupSelected(container) {
+  const { hidden, multiple, types } = lookupParts(container);
+  if (multiple) {
+    try {
+      return normalizeRelatedRecords(JSON.parse(hidden.value || "[]"));
+    } catch {
+      return [];
+    }
+  }
+  return hidden.value ? [{ type: types[0], id: hidden.value }] : [];
+}
+
+// Re-render a lookup from its hidden value, after a dialog opens or a value is set in code.
+function syncRecordLookup(container) {
+  const { input, chips, multiple, results } = lookupParts(container);
+  const selected = lookupSelected(container);
+  if (results) results.hidden = true;
+  if (multiple) {
+    if (chips) {
+      chips.innerHTML = selected
+        .map(
+          (item) =>
+            `<span class="record-lookup-chip"><small>${escapeHtml(RECORD_LOOKUP_TYPES[item.type].label)}</small> ${escapeHtml(lookupRecordTitle(item.type, item.id) || "Unknown record")}<button type="button" class="icon-button" data-action="lookup-remove" data-type="${escapeAttribute(item.type)}" data-id="${escapeAttribute(item.id)}" aria-label="Remove">&times;</button></span>`,
+        )
+        .join("");
+    }
+    input.value = "";
+  } else {
+    input.value = selected[0] ? lookupRecordTitle(selected[0].type, selected[0].id) : "";
+  }
+}
+
+function syncRecordLookups(root) {
+  root.querySelectorAll(".record-lookup").forEach(syncRecordLookup);
+}
+
+function setRecordLookupValue(container, value) {
+  const { hidden, multiple } = lookupParts(container);
+  hidden.value = multiple ? JSON.stringify(normalizeRelatedRecords(value)) : value || "";
+  syncRecordLookup(container);
+}
+
+function searchRecordLookup(container) {
+  const { input, results, types } = lookupParts(container);
+  const term = input.value.trim().toLowerCase();
+  const contextAccountId = container.closest("form")?.elements.accountId?.value || container.dataset.contextAccount || "";
+  const chosen = new Set(lookupSelected(container).map((item) => `${item.type}:${item.id}`));
+  const filter = RECORD_LOOKUP_FILTERS[container.dataset.lookupFilter] || (() => true);
+  const exclude = container.dataset.lookupExclude || "";
+  const matches = [];
+  types.forEach((type) => {
+    const config = RECORD_LOOKUP_TYPES[type];
+    config.rows().forEach((row) => {
+      if (chosen.has(`${type}:${row.id}`) || row.id === exclude || !filter(type, row)) return;
+      const title = config.title(row);
+      const meta = config.meta(row);
+      const haystack = `${title} ${meta}`.toLowerCase();
+      if (term && !haystack.includes(term)) return;
+      // Name matches outrank matches on the detail line (a city, an account); the record in
+      // context gets a boost on top.
+      const inContext = contextAccountId && config.accountId(row) === contextAccountId;
+      const titleLower = title.toLowerCase();
+      const nameScore = !term ? 0 : titleLower.startsWith(term) ? 3 : titleLower.includes(term) ? 2 : 0;
+      matches.push({ type, id: row.id, title, meta, score: nameScore + (inContext ? 2 : 0) });
+    });
+  });
+  matches.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+  const shown = matches.slice(0, 12);
+  results.innerHTML = shown.length
+    ? shown
+        .map(
+          (match) => `
+            <button type="button" class="record-lookup-option" data-action="lookup-pick" data-type="${escapeAttribute(match.type)}" data-id="${escapeAttribute(match.id)}">
+              <strong>${escapeHtml(match.title)}</strong>
+              <small>${types.length > 1 ? `${escapeHtml(RECORD_LOOKUP_TYPES[match.type].label)} · ` : ""}${escapeHtml(match.meta)}</small>
+            </button>
+          `,
+        )
+        .join("") + (matches.length > shown.length ? `<p class="record-lookup-more">${matches.length - shown.length} more; keep typing to narrow</p>` : "")
+    : `<p class="record-lookup-more">No matches${term ? ` for "${escapeHtml(input.value.trim())}"` : ""}.</p>`;
+  results.hidden = false;
+}
+
+function pickRecordLookup(container, type, id) {
+  const { hidden, multiple, input } = lookupParts(container);
+  if (multiple) {
+    hidden.value = JSON.stringify(normalizeRelatedRecords([...lookupSelected(container), { type, id }]));
+  } else {
+    hidden.value = id;
+  }
+  syncRecordLookup(container);
+  if (multiple) input.focus();
+  container.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function removeRecordLookupItem(container, type, id) {
+  const { hidden } = lookupParts(container);
+  hidden.value = JSON.stringify(lookupSelected(container).filter((item) => !(item.type === type && item.id === id)));
+  syncRecordLookup(container);
+}
+
+function closeRecordLookups(except = null) {
+  document.querySelectorAll(".record-lookup-results:not([hidden])").forEach((results) => {
+    if (except && except.contains(results)) return;
+    results.hidden = true;
+    // A single lookup whose text was edited but never picked goes back to showing its real value.
+    const container = results.closest(".record-lookup");
+    if (container && !container.hasAttribute("data-lookup-multiple")) syncRecordLookup(container);
+  });
+}
+
+function handleRecordLookupKeydown(event) {
+  const input = event.target.closest?.(".record-lookup-input");
+  if (!input) return;
+  const container = input.closest(".record-lookup");
+  if (event.key === "Enter") {
+    // Enter picks the top match instead of submitting the dialog.
+    event.preventDefault();
+    const first = container.querySelector(".record-lookup-option");
+    if (first) pickRecordLookup(container, first.dataset.type, first.dataset.id);
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    closeRecordLookups();
+  } else if (event.key === "ArrowDown") {
+    event.preventDefault();
+    container.querySelector(".record-lookup-option")?.focus();
+  }
+}
+
+// Activities "Regarding" a record show on that record's timeline as well as their primary owner's.
+function activityReferences(activity, type, id) {
+  return Boolean(id) && (activity.relatedRecords || []).some((item) => item.type === type && item.id === id);
+}
+
+function renderRegardingLinks(activity) {
+  const related = normalizeRelatedRecords(activity.relatedRecords);
+  if (!related.length) return "";
+  return `
+    <div class="regarding-links">
+      <span class="muted-text">Regarding</span>
+      ${related
+        .map((item) => {
+          const title = lookupRecordTitle(item.type, item.id);
+          return title
+            ? `<button class="link-button compact-link" type="button" data-action="${RECORD_LOOKUP_TYPES[item.type].action}" data-id="${escapeAttribute(item.id)}">${escapeHtml(title)}</button>`
+            : "";
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+// A facility's timeline: notes that name it, or name a project or dispatch job at this site.
+function activitiesForFacility(facilityId) {
+  const projectIds = new Set(state.projects.filter((project) => project.facilityId === facilityId).map((project) => project.id));
+  const jobIds = new Set(getDispatchJobs().filter((job) => job.facilityId === facilityId || projectIds.has(job.projectId)).map((job) => job.id));
+  return state.activities.filter(
+    (activity) =>
+      activityReferences(activity, "facility", facilityId) ||
+      (activity.relatedRecords || []).some((item) => (item.type === "project" && projectIds.has(item.id)) || (item.type === "dispatchJob" && jobIds.has(item.id))),
+  );
+}
+
+function activitiesForProject(projectId) {
+  const jobIds = new Set(dispatchJobsForProject(projectId).map((job) => job.id));
+  return state.activities.filter(
+    (activity) => activityReferences(activity, "project", projectId) || (activity.relatedRecords || []).some((item) => item.type === "dispatchJob" && jobIds.has(item.id)),
+  );
+}
+
+function openRegardingNote(type, id, accountId = "") {
+  openQuickNoteDialog(accountId);
+  const container = document.querySelector('#quickNoteDialog .record-lookup[data-lookup-name="relatedRecords"]');
+  if (container) setRecordLookupValue(container, [{ type, id }]);
+}
+
 function activitiesForAccount(accountId) {
-  return state.activities.filter((activity) => activity.accountId === accountId);
+  return state.activities.filter((activity) => activity.accountId === accountId || activityReferences(activity, "account", accountId));
 }
 
 function activitiesForContact(contactId) {
-  return state.activities.filter((activity) => (activity.contactIds || []).includes(contactId));
+  return state.activities.filter((activity) => (activity.contactIds || []).includes(contactId) || activityReferences(activity, "contact", contactId));
 }
 
 function activitiesForOpportunity(opportunityId) {
-  return state.activities.filter((activity) => activity.opportunityId === opportunityId);
+  return state.activities.filter((activity) => activity.opportunityId === opportunityId || activityReferences(activity, "opportunity", opportunityId));
 }
 
 function activitiesForRecord({ accountId = "", contactId = "", opportunityId = "" }) {
   return state.activities.filter(
     (activity) =>
-      (accountId && activity.accountId === accountId) ||
-      (contactId && (activity.contactIds || []).includes(contactId)) ||
-      (opportunityId && activity.opportunityId === opportunityId),
+      (accountId && (activity.accountId === accountId || activityReferences(activity, "account", accountId))) ||
+      (contactId && ((activity.contactIds || []).includes(contactId) || activityReferences(activity, "contact", contactId))) ||
+      (opportunityId && (activity.opportunityId === opportunityId || activityReferences(activity, "opportunity", opportunityId))),
   );
 }
 
@@ -25082,19 +25538,44 @@ function coworkersForContact(contact) {
   return contactsForAccount(contact.accountId).filter((other) => other.id !== contact.id);
 }
 
+// Phase 06 item 12 / Phase 05 item 14: every way a contact is tied to an opportunity or project.
+// The real stakeholder junction (`opportunityContacts`) and opportunity team members
+// (`opportunityAssignments.contactId`) count, not only the legacy derived `contact.opportunityIds`
+// array Phase 06 found unreliable. Project team assignments are internal staff (no contact link),
+// so a project ties to a contact through `projectsForContact()`.
+function contactWorkLinks(contact) {
+  const opportunities = new Map();
+  const addOpportunity = (id, via) => {
+    const record = findOpportunity(id);
+    if (!record) return;
+    const entry = opportunities.get(id) || { record, via: new Set() };
+    entry.via.add(via);
+    opportunities.set(id, entry);
+  };
+  (state.backend.opportunityContacts || []).filter((link) => link.contactId === contact.id && !link.deletedAt).forEach((link) => addOpportunity(link.opportunityId, "Stakeholder"));
+  (state.backend.opportunityAssignments || []).filter((link) => link.contactId === contact.id && !link.deletedAt).forEach((link) => addOpportunity(link.opportunityId, "Team member"));
+  (contact.opportunityIds || []).forEach((id) => addOpportunity(id, "Linked"));
+  const projects = new Map(projectsForContact(contact).map((record) => [record.id, { record, via: new Set(["Project contact"]) }]));
+  return { opportunities, projects };
+}
+
+function recordRecency(record) {
+  return String(record.updatedAt || record.lastModifiedDate || record.createdAt || record.startDate || "");
+}
+
 function connectedContactsForContact(contact) {
-  const opportunityIds = new Set(contact.opportunityIds || []);
-  const jobIds = new Set(projectsForContact(contact).map((job) => job.id));
-  const seen = new Map();
+  const mine = contactWorkLinks(contact);
+  const connections = [];
   state.contacts.forEach((other) => {
     if (other.id === contact.id) return;
-    const sharedOpportunities = (other.opportunityIds || []).filter((id) => opportunityIds.has(id));
-    const sharedJobs = projectsForContact(other).filter((job) => jobIds.has(job.id));
-    if (sharedOpportunities.length || sharedJobs.length) {
-      seen.set(other.id, { contact: other, sharedOpportunities, sharedJobs });
-    }
+    const theirs = contactWorkLinks(other);
+    const shared = [
+      ...[...theirs.opportunities.entries()].filter(([id]) => mine.opportunities.has(id)).map(([, entry]) => ({ kind: "opportunity", ...entry })),
+      ...[...theirs.projects.entries()].filter(([id]) => mine.projects.has(id)).map(([, entry]) => ({ kind: "project", ...entry })),
+    ].sort((a, b) => recordRecency(b.record).localeCompare(recordRecency(a.record)));
+    if (shared.length) connections.push({ contact: other, shared, latest: recordRecency(shared[0].record) });
   });
-  return [...seen.values()];
+  return connections.sort((a, b) => b.latest.localeCompare(a.latest));
 }
 
 function openTasksForAccount(accountId) {
@@ -25206,6 +25687,16 @@ function getProjectChronology(job) {
         meta: [...(work.equipmentAssetTags || []), ...(work.requiredCertifications || [])],
       });
     });
+
+  activitiesForProject(job.id).forEach((activity) => {
+    events.push({
+      kind: activity.activityType || "Note",
+      title: activity.subject || "Activity",
+      timestamp: activity.activityDate || activity.createdAt,
+      detail: activity.body || "",
+      meta: [activity.owner || activity.author, ...(activity.tags || [])].filter(Boolean),
+    });
+  });
 
   alertsForJob(job.id).forEach((alert) => {
     events.push({

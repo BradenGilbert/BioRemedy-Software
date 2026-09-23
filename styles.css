@@ -6160,3 +6160,123 @@ body[data-theme="dark"] .frontline-device {
     flex-wrap: wrap;
   }
 }
+
+/* Record lookup (Phase 05 item 4) and Regarding chips (Phase 06 item 20). The results list sits in
+   normal flow under the input rather than floating, so a scrolling dialog can never clip it. */
+.lookup-field {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.83rem;
+  font-weight: 750;
+}
+
+.lookup-field[hidden] {
+  display: none;
+}
+
+.record-lookup {
+  display: grid;
+  gap: 6px;
+  font-weight: 400;
+}
+
+.record-lookup-results {
+  display: grid;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  box-shadow: var(--shadow);
+}
+
+.record-lookup-results[hidden] {
+  display: none;
+}
+
+.record-lookup-option {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.record-lookup-option:hover,
+.record-lookup-option:focus {
+  background: var(--surface-alt, #eef5f0);
+  outline: none;
+}
+
+.record-lookup-option small,
+.record-lookup-more {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.record-lookup-more {
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.record-lookup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.record-lookup-chips:empty {
+  display: none;
+}
+
+.record-lookup-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-alt, #eef5f0);
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.record-lookup-chip small {
+  color: var(--muted);
+}
+
+.record-lookup-chip .icon-button {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.regarding-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 0.84rem;
+}
+
+/* Quick-filter chips above the Accounts / Contacts / Opportunities lists (Phase 03 item 6). */
+.quick-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.quick-filter-chips small {
+  opacity: 0.7;
+  font-weight: 600;
+}

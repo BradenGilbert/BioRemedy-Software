@@ -535,6 +535,11 @@ writeup.
 - `opportunities.industry` still stores an industry *name*, now picked from the curated list.
 - No schema change for phone numbers: they're stored formatted (`555-123-4567`, `1-555-123-4567 x204`), and old rows are formatted at display time.
 
+**Sprint Wave 3 (2026-09-23):**
+- **`activities.relatedRecords`** ("Regarding", Phase 06 item 20): an array of `{ type, id }`, type ∈ `contact | facility | account | opportunity | dispatchJob | project`, normalised by `buildCoreActivityRecord()`. Every per-record activity query also returns activities that reference the record. SQL impact: this is the `activity_parties` shape (one row per activity × referenced record) already in `crm-schema/`, not a JSON column; map it there at cutover.
+- No new collections.
+- The Phase 04 approved-subcontractor picker now stores the same `subcontractorAccountId`, picked through a lookup instead of a `<select>`.
+
 Also in this session: `server.mjs` now serializes API requests and writes `backend.json`
 atomically (temp file + rename), after a live concurrent-save collision. See
 `docs/roadmap/phase-08-quotes-estimates.md`, "Rate-card rework: design" and its 2026-09-23

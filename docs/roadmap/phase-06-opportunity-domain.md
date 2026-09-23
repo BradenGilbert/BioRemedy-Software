@@ -150,6 +150,14 @@ This is really a Contact-page item (Phase 05 owns the Contact detail page) but i
 
 **🟡 Partially done 2026-09-17, alongside item 8.** Badges (not text blob) and the cap (4, not "most recent" — no reliable recency field to sort by was found) are both done. **Not done:** including project team-member assignments as a connection source, and filtering. Both are real additions beyond the click-target fix, left for a dedicated pass.
 
+**✅ Completed 2026-09-23 (sprint Wave 3).** `connectedContactsForContact()` now builds on `contactWorkLinks()`, which gathers every way a contact is tied to work:
+- the stakeholder junction (`opportunityContacts`);
+- opportunity **team members** (`opportunityAssignments.contactId`);
+- the legacy `contact.opportunityIds` array, which Phase 06 found unreliable and is now only one source among several;
+- project contacts (`projectsForContact()`).
+
+**Correction:** project team assignments (`projectAssignments`) are internal staff with a `userName`/`userEmail`, not contacts, so there is no contact-level "team member" on a project to include. Badges are sorted **most recent first** (`updatedAt` → `createdAt`; "no reliable recency field" was only true of the legacy array), capped at four with a "+N more" count, and each badge's tooltip says how the contact is tied ("Opportunity · Stakeholder, Team member"). A filter (All shared work / Opportunities only / Projects only) sits in the panel header.
+
 ### 13. Resource Needs (Develop & Planning) — vendor/sub free text now, approved-list-only later
 
 > *"Develop and planning section of opportunities, under Resource needs it lists vendor/subcontractor needs... having it be open text free for any entry makes sense but later we will want the sub/vendor entries to be selected from the approved vendor/sub list."*
@@ -225,6 +233,13 @@ This is a **cross-entity relate/cross-post field**, distinct from Phase 05 item 
 - Every timeline renderer (`renderTimelinePanel`) must query not just "activities scoped to this record" but also "activities that reference this record via `relatedRecords`," and de-duplicate.
 - **Facilities need their own timeline panel** — they don't have one today. This is new UI on the Facility detail page (owned by Phase 02/03's facility work), not just a Quick Note change.
 - "Job" in the owner's list most likely means `dispatchJobs` (see `CLAUDE.md`'s naming-hazard note: `jobs` in IndexedDB means Projects, dispatch jobs are `dispatchJobs`) — confirm which is meant before wiring the lookup, but dispatch jobs is the more likely intent given "if a job happens there."
+
+**✅ Built 2026-09-23 (sprint Wave 3).**
+- **Field:** `activities.relatedRecords`, an array of `{ type, id }` with type ∈ `contact | facility | account | opportunity | dispatchJob | project`. "Job" is wired as **dispatch jobs**, the likely intent as noted above, and projects are their own type.
+- **Where it's set:** picked with the shared lookup (Phase 05 item 4) in multiple mode, in all six activity dialogs (Activity, Quick Note, Meeting, Call, Email, Task). The tag editor, now "Tags & regarding", edits it on existing activities.
+- **Where it shows:** `activitiesForAccount` / `ForContact` / `ForOpportunity` / `ForRecord` now also return activities that reference the record, so every existing timeline picks them up with no per-surface change, and each timeline item lists its Regarding links as clickable names. The project's "Chronological site events" includes activities regarding the project or any of its dispatch jobs (`activitiesForProject()`).
+- **New Facility timeline:** a full-width panel on the Facility detail page (`activitiesForFacility()`) shows activities regarding the facility, or a project or dispatch job at it. Its "Add note" opens a Quick Note with the facility pre-filled under Regarding. "If a job happens there, it should pop up": the page's existing Prior work history already lists that work, and notes about it land on this timeline.
+- **Verified live:** a note regarding Plumbus Factory and Balfour Services appeared on the facility's timeline and on Balfour's account timeline; the timeline's new "Related" filter (Phase 05 item 11) lists it.
 
 **Scope note:** this is materially larger than "Quick Notes gets a field" — it's a small cross-entity linking system plus a new Facility timeline. Tracking as its own build within this phase's remaining work, sequenced after Phase 05 item 2's tag system ships (the two can share the timeline-panel plumbing, but Regarding is not built by reusing the tag picker).
 
@@ -345,7 +360,12 @@ Update `docs/database-handoff-map.md` when any of the above land.
 
 **Source:** `docs/roadmap/notes-2026-09-22.md` (items 1, 4–15). Every claim below was checked against the running code on 2026-09-22 — citations are current as of that date.
 
-**Status:** ✅ **Phase substantially complete, 2026-09-23 (second session).** All ten 2026-09-22-pass items now done except one deliberately-deferred sub-piece: 26 (close-band replacement, fully shipped with data migration), 27–29 and 33–34 (shipped in the first 2026-09-23 session), 30/31 (opportunity↔facility/location junction + panel, shipped), 32 (red-dot validation + tab contrast, shipped), 35 (2 of 3 sub-pieces shipped — customerNeed moved, Develop & Planning is now the sites/site-walk home via items 30/31/15; the "composed Proposed Solution generator" sub-piece is explicitly deferred, shared scope with Phase 08 item 8). Also closed out two carried-over original-pass items: 3 (list search — found already working, no change needed) and 15 (site walk quick-schedule). Verified live via Playwright throughout. Remaining open: 16 (blocked on Phase 13), 20 (Regarding field — explicitly a separate, large build), 13 (blocked on Phase 04), and the two items blocked on the owner (list-filter-cleanup ambiguity from Phase 03, ~~Account Table~~ already dropped).
+**Status:** ✅ **Phase substantially complete.** The 2026-09-22 pass shipped in two sessions on 2026-09-23. **Sprint Waves 1 and 3 (2026-09-23)** finished the rest that wasn't blocked:
+- the composed Proposed Solution (35), now a live full-width Scope summary shared with Phase 08's Estimation Tool;
+- the Connected-via panel (12), with real sources, recency ordering and a filter;
+- the "Regarding" cross-entity field (20), with the new Facility timeline.
+
+**Remaining:** 13 (depends on Phase 04 item 5, sprint Wave 4), 16 (blocked on Phase 13), and per-opportunity-type stage gates (deferred by the owner, not built).
 
 ### 26. Close forecast: replace `closeQuarter` with 30/60/90/360-day bands
 
