@@ -55,6 +55,23 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 
 ---
 
+## Field record and reporting terms (Phase 11, 2026-09-23)
+
+| Term | JSON backend | Meaning |
+|---|---|---|
+| Operational day | `dispatchJobs.operationalDate` | **The day a dispatch job's work belongs to**, stamped once at Start work (Phase 09 Q5). Usage logged at 1am counts on the operational day, not the calendar date. Not `scheduledStart`, not `createdAt`. |
+| Work day | derived | A day that owes a case narrative: the operational day, plus any extra day the field lead added for a multi-day job. |
+| Case narrative | `dispatchJobs.dailyNarratives[]` | Per work day: *Scene description* (what was found) and *Scene activities* (what was done). Written by the field lead. **Not** a project note or an activity. |
+| Post-job review | `dispatchJobs.postJobReview` | Accidents / near misses / injuries, Yes or No. Required to close the job. |
+| Weather snapshot | `weatherSnapshots` | A frozen, provider-fetched observation. `kind: incident` (at `projects.incidentReportedAt`) or `response` (at the job's Start work). Never typed and never re-fetched. |
+| Permit | `permits` | A permit **BioRemedy holds** (e.g. the 10-day storage permit). **Not** a customer's permit or a site permit. |
+| Waste record | `wasteRecords` | Waste from one project, tracked from accumulation to disposal, optionally stored under a permit (whose storage limit sets a ship-by date). |
+| Stock movement | `inventoryMovements` | One change to an inventory item's `onHand`, with the reason. Written by the server only. |
+| Sample result | `sampleResults` | One analyte result for one sample. **Not** `sampleLabReports`, which are the uploaded report *files*. |
+| Notification | `notifications` | An in-app message addressed to roles (until Phase 12). **Not** `projectAlerts` (the field alert itself) or `inventoryAlerts`. |
+
+---
+
 ## Sales entities
 
 | Concept | SQL | JSON backend | IndexedDB | Notes |

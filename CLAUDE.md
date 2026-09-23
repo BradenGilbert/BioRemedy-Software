@@ -30,16 +30,16 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 
 | File | What |
 |---|---|
-| `app.js` | ~26,700 lines, ~1,080 functions, one ES module. The entire front end. |
-| `index.html` | ~5,100 lines. App shell + 87 `<dialog>` forms. |
-| `styles.css` | ~6,200 lines. |
+| `app.js` | ~29,500 lines, ~1,200 functions, one ES module. The entire front end. |
+| `index.html` | ~5,500 lines. App shell + 92 `<dialog>` forms. |
+| `styles.css` | ~6,550 lines. |
 | `server.mjs` | Node server. `/api/backend/{collection}` routes over `data/backend.json`; API requests run one at a time and writes are atomic (2026-09-23). |
 | `crm-schema/` | 28 SQL files, 141 tables. **Designed, not deployed.** The intended target model. |
 | `laravel-ready/` | **Deprecated.** Stack decision is Node + Postgres. Reference only — do not add to it. |
 
 **Where data lives (updated 2026-09-22):**
 
-- **JSON backend** (`data/backend.json`, server, shared) — **everything.** ~97 collections. Phase 01 (2026-09-16) migrated every core CRM collection here from browser storage.
+- **JSON backend** (`data/backend.json`, server, shared) — **everything.** ~103 collections. Phase 01 (2026-09-16) migrated every core CRM collection here from browser storage.
 - **IndexedDB** — device-scoped state only: `syncQueue` and `settings`. Nothing else. If you find yourself writing a record to IndexedDB, you are doing something wrong.
 - **PostgreSQL** — designed (`crm-schema/`), never deployed. Phase 14, after the pilot.
 

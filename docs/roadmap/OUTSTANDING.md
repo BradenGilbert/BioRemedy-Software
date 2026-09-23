@@ -12,7 +12,7 @@ Shipped work is deliberately not repeated here; `README.md` has the "already shi
 |---|---|
 | Phases shipped | 10 (00, 01, 02, 08, 09, 10, 15, 16, 17, 18) — though 08 and 10 both gained a second round on 2026-09-22 (08's rate-card rework still outstanding), and 18's item 4 waits for Phase 12 |
 | Phases substantially done, with named leftovers | 5 (03, 04, 05, 06, 07) |
-| Phases not started | 5 (11, 12, 13, 14, 19) |
+| Phases not started | 4 (12, 13, 14, 19). Phase 11 shipped 2026-09-23 (Wave 5) |
 | Open items with a checkbox against them | ~80 |
 | Blocked on an owner decision, not on engineering | 14 |
 
@@ -86,11 +86,13 @@ Wave 4: vendor needs pick from the approved list (13).
 ### Phase 10 — Front Line · ✅ 2026-09-22 pass shipped 2026-09-23 (Wave 2)
 Map markers fixed (two maps used the broken default, not one), Receipts tile with per-job expenses rolled up to the project and the close report, Exit as a full-width bar, tile grid overflow fixed.
 
-### Phase 11 — Field Ops Depth & Reporting · *outline + 2 new specs*
-- **Post-work report generator** modelled on Lone Star's: per-day timeline, case narrative, per-day and summary billables, JSA/safety, post-job review, crew e-signatures. Structure fully transcribed in the phase doc
-- **The case narrative is the missing input** — per-day, written by the field lead at close-out
-- **Weather: two snapshots** — at incident time and at cleanup commencement — pulled, immutable, anchored to GPS. Note "cleanup commenced" is not a field today
-- Plus the existing outline backlog: permit registry and waste tracking, lab data normalization, inventory ledger, fleet maintenance, approvals/notifications
+### Phase 09 — Billing & Invoicing · *one 2026-09-22 item still open*
+- **Lone Star invoice layout** (day grouping, tier-labelled activity lines, surcharge/fee lines, tax column, terms footer). Everything it waited on now exists: Phase 08's tiers and minimums (Wave 1), the operational day (Q5) and the shared print shell (Wave 5). **Needs owner answers first:** which lines are taxable and at what rate, BioRemedy's payment-terms wording, and the default tier for emergency work. It also has to generate `invoiceLines`. Today invoices have none, so every QuickBooks export is "Blocked" (found in Wave 5).
+
+### Phase 11 — Field Ops Depth & Reporting · ✅ shipped 2026-09-23 (Wave 5)
+Post-work report with per-day case narrative, both weather snapshots, post-job review (required to close a job) and photo curation. Permits, waste tracking into job cost, stock ledger, fleet PM plans, structured lab results, notifications and QBO payloads. **Deferred with reasons in the phase doc:** approval chains (to Phase 12), project commercial controls, dashboards/global search (Phase 14), template redesign (Q34).
+**Owner to-do:** enter the two permits' numbers, agencies and expiry dates (Office → Compliance). Both are flagged until then.
+**Data clean-up for Wave 8:** two seed dispatch jobs reference projects that don't exist.
 
 ### Phase 15 — Project Execution Workspace · ✅ shipped 2026-09-23
 Equipment/vendor/resource needs, site walk status, and a quote/estimate reference now carry into the project at creation. Opportunity-Lost closes linked projects. Project detail is now Intake/Plan/Live tabs. Project Stage is greyed out at creation, budget accepts cents, and the label reads "Completion date". Not carried: site photos (opportunity has no field to carry — blocked on Phase 13) and multi-site lists (blocked on Phase 06's `opportunityLocations` junction, not yet built). The customer-paperwork flag reads live from the project's job requests rather than a carried opportunity field — see the phase doc's corrections section for why.
@@ -142,7 +144,7 @@ Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enfo
 
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
-**Now (2026-09-23 sprint):** Waves 1–4 shipped; Stage B's correctness work is done apart from items blocked on Phase 13 and the owner-deferred template rebuild. Next is Wave 5: Phase 11 field-ops depth (planning pass first, then the post-work report generator, case narrative, weather snapshots, permit registry / waste tracking and the rest of its outline).
+**Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, and Phase 09's Lone Star invoice (waiting on three owner answers). Next is Wave 6: the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
 **Before real users:** Phase 12, then Phase 13.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 

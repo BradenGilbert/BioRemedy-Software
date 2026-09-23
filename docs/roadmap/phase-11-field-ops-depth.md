@@ -1,8 +1,8 @@
 # Phase 11 — Field Ops Depth & Reporting
 
-**Status:** OUTLINE ONLY — deliberately not detailed yet
-**Depends on:** Phase 14 (dependency written when this phase was numbered 14 and ran after Postgres; the 2026-09-17 reprioritization moved this phase ahead of Phase 14 in sequence — that dependency note is now stale and should be revisited when this phase is actually detailed, not treated as a hard blocker)
-**Detail this phase when:** the pilot has shown which gaps actually hurt
+**Status:** ✅ **Shipped 2026-09-23 (sprint Wave 5).** The 2026-09-22 pass in full: the post-work report generator, the per-day case narrative, both weather snapshots, the post-job review and report photo curation. From the outline: the permit registry, per-job waste tracking into job cost, a stock-movement ledger, fleet maintenance depth, structured lab results, in-app notifications and QuickBooks export payloads. The remaining outline items are deferred, each with its reason, in "Build plan" below.
+**Depends on:** nothing outstanding. The old "Depends on Phase 14" note dates from when this phase ran after Postgres; see Corrections.
+**Detailed:** 2026-09-23, sprint planning pass (the owner asked to close every open phase before the Postgres/Entra cut-over, so the "wait for the pilot" gate was waived)
 
 ---
 
@@ -120,3 +120,52 @@ Design points:
 - **Weather (Q39): pulled automatically.** No hand-entry path.
 - **"Cleanup commenced" (Q40): when field work began.** Concretely, that is the dispatch job transitioning to in-progress work — **not** crew dispatch, and not arrival on site. Whichever status transition represents "work started" is the one that stamps the second weather snapshot; if no transition cleanly means that today, add one rather than approximating with arrival.
 - **Report output (Q41): generated on demand from stored values when the button is pressed** — a print view, not a stored PDF artifact. Consistent with Phase 08's quote export. Note the consequence: a report re-run later reflects the data as it stands then, **except** for the weather snapshots and any other explicitly stored snapshot, which are frozen by design.
+
+---
+
+## Build plan (2026-09-23 planning pass)
+
+The outline became this plan after tracing the code. Several items were already partly built (see Corrections), which changed the scope from "build" to "deepen".
+
+| Item | Decision | Shape |
+|---|---|---|
+| Post-work report generator | **Build** | A print view built on demand (Q41) from the project's records. `buildPostWorkReport()` gathers data and `renderPostWorkReportHtml()` lays it out, so Phase 13 or the Client Portal can reuse the data half. Printed through the shared shell quotes and estimates use. Sections follow Lone Star's structure. |
+| Case narrative | **Build** | `dispatchJobs.dailyNarratives[]`, one entry per work day, with Scene description and Scene activities. Written on the dispatch job's new Close-out tab or on Front Line. "Draft activities from field data" fills a starting point from status events, submissions and consumption; the lead then rewrites it as prose. |
+| Weather snapshots | **Build** | New `weatherSnapshots` collection, written only by `POST /api/weather-snapshots/capture`, with the provider behind one adapter (Open-Meteo; `CRM_WEATHER_PROVIDER=off` forces the failure path). The incident snapshot is taken on emergency-intake save; the response snapshot at Start work (Q40). Anchored to the project's GPS `locations` row, then the job's coordinates, then the intake pin. A failure is stored and shown as "Not captured" with its reason and a Try again button. |
+| Post-job review | **Build** | `dispatchJobs.postJobReview`: accidents, near misses and injuries (Yes/No), with details required on any Yes. Closing the job requires it. A Yes notifies operations. |
+| Photo curation | **Build** | New project Report tab: a readiness checklist, then every field photo on the project's dispatch jobs with an include box and a report caption (`jobTaskAttachments.includeInReport` / `reportCaption`). |
+| Permit registry | **Build** | New `permits` collection on Office → Compliance, seeded with the two permits the owner named (numbers and dates left blank for the owner, and flagged). |
+| Per-job waste tracking | **Build** | New `wasteRecords` collection on the project's Live tab. A permit's `storageLimitDays` turns accumulation into a ship-by deadline, flagged within 2 days and when passed. `disposalCost` feeds a new `waste` bucket in the cost report (Phase 09's deferred fourth bucket). |
+| Inventory ledger (P1 #1) | **Build the ledger; defer locations/lots/reorder** | New `inventoryMovements`, written server-side inside the same save as every `onHand` change (PO receive, Front Line consume, manual adjustment). |
+| Fleet maintenance (P1 #3) | **Deepen the existing records** | PM interval (days and meter), meter readings, downtime, vendor and work order number; next due computed automatically; meter-overdue raises the red dot. |
+| Lab normalization (P2 #5) | **Build result rows** | New `sampleResults` with server-computed `resultNumeric` / `exceedsActionLevel`. Exceedances drive the sample's tone and red dots. A laboratories/methods master table is deferred. |
+| Approvals & notifications (P2 #7) | **Build notifications; move approval chains to Phase 12** | New `notifications` collection and a topbar bell. Raised by field alerts (which previously recorded `notified` without telling anyone), post-job safety events, weather failures, and swept deadlines (permit renewal/expiry, waste storage limits). Ordered approval steps need named approvers, which is Phase 12's identity work. |
+| QuickBooks (carried item) | **Real payloads; transport at cut-over** | The export builds the QBO v3 Invoice JSON, validates it, and stores the payload on the queue row. Intuit OAuth waits for cut-over. |
+| Customer contracts / rate agreements (P1 #2) | **Covered, rest deferred** | Rate sheets, per-account service agreements and the subcontractor pricing basis shipped in Phases 04/08. MSAs and change-order documents need Phase 13's document store. |
+| Accounting completion (P1 #4) | **Deferred to cut-over** | Payments, credit memos and vendor bills are QuickBooks' job once it's connected. |
+| Project commercial controls (P2 #8) | **Deferred** | Budgets vs committed vs forecast needs an owner definition of "committed". Not raised in any note. |
+| Template redesign (P2 #9) | **Deferred by the owner** | Q34. |
+| Daily field logs | **Covered** | The per-day narrative, weather, curated photos and timer hours together are the daily log. |
+| Dashboards, global search, "activity progress report" | **Deferred** | Reporting belongs on Postgres (Phase 14). The progress report still needs a definition. |
+| Action dependency graph, activities vs sales tasks | **Deferred** | Unchanged from the outline. |
+
+## What's built (2026-09-23, sprint Wave 5)
+
+- **Weather.** `fetchWeatherObservation()` in `server.mjs` picks the observation nearest the requested hour, using Open-Meteo's forecast endpoint for the last ~80 days and its archive for older dates. It returns conditions (WMO code mapped to words), °F, humidity, precipitation, wind speed, gusts and compass direction. The capture route runs outside the API queue so a slow provider never blocks other requests, re-checks for a race before writing, and never re-fetches a captured snapshot. The project Intake tab has a "Weather at the scene" panel (incident + one slot per dispatch job); the dispatch Close-out tab shows its own. Verified against Open-Meteo live (incident: clear sky 81.2°F, SSW 5 mph; start of work: mainly clear 93.5°F, E 14 mph) and the stored-failure path.
+- **Close-out tab** on dispatch job detail: the operational day (correctable), one narrative form per work day, the post-job review, and start-of-work weather. It carries its own red dot while close-out is owed (Field complete / Office review) and a day lacks a narrative, the review is unanswered, or weather failed. Front Line shows the same forms under the work plan while the job is on site, in progress or field complete.
+- **Report tab** on the project, plus a "Post-work report" button in the project header. The report prints the header block (both weather snapshots with provenance, responsible party, contact, caller, PM, sales rep, GPS + street location, agencies, incident description), then a day-by-day timeline with each day's narrative and billables (manpower from timer hours, equipment, material), selected photos, a billables summary, samples and structured results, waste and disposal, safety/JSA checklists, the post-job review per job, and e-signatures with images. Every gap prints as a red "not recorded" line.
+- **Permits** on Office → Compliance with a red dot for missing number/expiry, inside renewal lead time, or expired. **Waste** on the project Live tab, with the Live tab and project-list dots for storage deadlines; status changes stamp their dates.
+- **Notifications:** the topbar bell shows the unread count, and the dialog offers Open (navigates), Mark read and Mark all read.
+- **Worker-built, merged and re-verified in the combined tree:** the stock ledger (Stock movements panel on a consumable), fleet PM plans (asset dialog, maintenance totals, meter-based dots), Analytical results on the sample page, and QBO payloads with validation issues, View payload and Download JSON.
+- Verified with Playwright on a scratch copy: all 38 workspace views, every project on all four tabs, and every dispatch job's Close-out tab, with zero console errors. No horizontal overflow at 390 px.
+
+## Corrections found during implementation
+
+- **The "Depends on Phase 14" line was stale**, as its own text suspected. Nothing in this phase needed Postgres.
+- **"`jobs.projectStage` is written but never read" (carried item) was already fixed** by Phase 07 item 11 (`advanceProjectStageFromDispatchStatus()`). Struck.
+- **"Lat/long on dispatch jobs — deliberately not added" is out of date:** `dispatchJobs` has `latitude`/`longitude`. The weather anchor uses them as its second choice after the project's GPS point.
+- **Fleet maintenance and lab reports were not greenfield.** `equipmentMaintenanceRecords` (type/date/cost/next due, updating `equipmentAssets.maintenanceDue`) and `sampleLabReports` (uploaded report files) already existed. Wave 5 deepened them rather than adding parallel tables. The outline's claim that lab results were "mostly JSON blobs" was also wrong: they were one free-text field, `labResults`.
+- **"Cleanup commenced" needed no new status.** `on_site → in_progress` ("Start work") already meant work started, so Q40 hangs off that transition.
+- **Day grouping follows Phase 09's Q5, which the outline didn't mention.** The per-day billables are the same day-stamping question Phase 09 answered: a record belongs to its dispatch job's *operational day*, not the calendar date it was logged. `dispatchJobs.operationalDate` is stamped at Start work and never recomputed; older jobs derive it from their first start-work/on-site event, then the schedule. To keep the Phase 11 note that a multi-day job needs a narrative per day, the field lead can add extra work days. A record keeps its own calendar day only when that day was added; otherwise, like a 1am entry, it rolls to the operational day. If the pilot shows multi-day jobs are common, revisit Q5 with the owner. The alternative is one dispatch job per day.
+- **Two seed dispatch jobs point at projects that don't exist** (`dispatch-job-georgetown` → `project-georgetown-er`, `dispatch-job-msw82clh-jflvmm` → `job-msw7bs9r-pw20zg`). Their weather capture is skipped instead of 404ing, and their "Back to project" button leads nowhere. This is a data clean-up for Wave 8's pre-cutover mapping, not a code fix.
+- **Worker worktrees started from a stale commit.** Three of the four Sonnet workers branched from `19c30f5` (before Waves 1–4) and had to rebase onto `f970be2` before merging. One worker's cleanup also stopped the live server, which was restarted. Future waves should tell workers to rebase first and to stop only processes they started.

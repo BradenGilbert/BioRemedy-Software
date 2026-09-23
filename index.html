@@ -33,6 +33,7 @@
         <div class="topbar-actions">
           <span id="connectionStatus" class="status-pill" aria-live="polite"></span>
           <div id="quickActions" class="quick-actions" aria-label="Quick actions"></div>
+          <span id="notificationBell" class="notification-bell"></span>
           <button class="icon-button settings-button" type="button" data-action="open-settings" aria-label="Open settings" title="Settings">
             <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
               <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
@@ -1002,6 +1003,10 @@
             <span>Fuel-burning: subject to the fuel surcharge</span>
           </label>
         </div>
+        <label>
+          QuickBooks item name (optional)
+          <input name="qboItemName" maxlength="120" placeholder="Blank = use the product name above" />
+        </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save product</button>
@@ -1035,6 +1040,195 @@
           <button class="primary-button" type="submit">Save pricing settings</button>
         </menu>
       </form>
+    </dialog>
+
+    <dialog id="permitDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="permit">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Company permits</p>
+            <h2 data-permit-title>Add permit</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Permit name
+          <input name="name" required maxlength="120" placeholder="e.g. 10-day waste storage permit" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Type
+            <select name="permitType"></select>
+          </label>
+          <label>
+            Status
+            <select name="status"></select>
+          </label>
+          <label>
+            Permit number
+            <input name="permitNumber" maxlength="60" />
+          </label>
+          <label>
+            Issuing agency
+            <input name="issuingAgency" maxlength="80" placeholder="e.g. TCEQ, EPA, city" />
+          </label>
+          <label>
+            Issued
+            <input name="issuedOn" type="date" />
+          </label>
+          <label>
+            Expires
+            <input name="expiresOn" type="date" />
+          </label>
+          <label>
+            Renewal lead time (days)
+            <input name="renewalLeadDays" type="number" min="0" step="1" />
+          </label>
+          <label>
+            Storage limit (days)
+            <input name="storageLimitDays" type="number" min="0" step="1" placeholder="Blank if not a storage permit" />
+          </label>
+        </div>
+        <label>
+          Waste types covered
+          <input name="wasteTypesCovered" maxlength="200" />
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="3"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save permit</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="wasteRecordDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="waste-record">
+        <input name="id" type="hidden" />
+        <input name="projectId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Waste &amp; disposal</p>
+            <h2 data-waste-title>Add waste record</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Description
+          <input name="description" required maxlength="160" placeholder="e.g. Diesel-impacted soil and absorbents" />
+        </label>
+        <div class="form-grid">
+          <label>
+            Classification
+            <select name="classification"></select>
+          </label>
+          <label>
+            Waste code / profile #
+            <input name="wasteCode" maxlength="60" />
+          </label>
+          <label>
+            Container
+            <select name="containerType"></select>
+          </label>
+          <label>
+            Containers
+            <input name="containerCount" type="number" min="0" step="1" />
+          </label>
+          <label>
+            Quantity
+            <input name="quantity" type="number" min="0" step="0.01" />
+          </label>
+          <label>
+            Unit
+            <select name="unit"></select>
+          </label>
+          <label>
+            Dispatch job
+            <select name="dispatchJobId"></select>
+          </label>
+          <label>
+            Stored under permit
+            <select name="permitId"></select>
+          </label>
+          <label>
+            Accumulation started
+            <input name="accumulationStartedOn" type="date" />
+          </label>
+          <label>
+            Storage location
+            <input name="storageLocation" maxlength="120" placeholder="Yard, bay, or site" />
+          </label>
+        </div>
+        <fieldset class="settings-section">
+          <legend>Disposal</legend>
+          <div class="form-grid">
+            <label>
+              Status
+              <select name="status"></select>
+            </label>
+            <label>
+              Disposal requested
+              <input name="disposalRequestedOn" type="date" />
+            </label>
+            <div class="lookup-field">
+              <span>Disposal company</span>
+              <div class="record-lookup" data-lookup-types="account" data-lookup-name="disposalVendorAccountId" data-lookup-filter="vendor">
+                <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search vendors" />
+                <input type="hidden" name="disposalVendorAccountId" />
+                <div class="record-lookup-results" hidden></div>
+              </div>
+            </div>
+            <label>
+              Receiving facility
+              <input name="disposalFacility" maxlength="120" />
+            </label>
+            <label>
+              Manifest #
+              <input name="manifestNumber" maxlength="60" />
+            </label>
+            <label>
+              Shipped
+              <input name="shippedOn" type="date" />
+            </label>
+            <label>
+              Disposed
+              <input name="disposedOn" type="date" />
+            </label>
+            <label>
+              Disposal cost
+              <input name="disposalCost" type="number" min="0" step="0.01" />
+            </label>
+          </div>
+        </fieldset>
+        <label>
+          Notes
+          <textarea name="notes" rows="2"></textarea>
+        </label>
+        <p class="help-text">Disposal cost is money spent and feeds the project's cost report. Manifest and receipt documents attach once the Phase 13 document store exists.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save waste record</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="notificationsDialog" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Notifications</p>
+            <h2>What needs attention</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="mark-all-notifications-read">Mark all read</button>
+        </div>
+        <div class="notification-list" data-notification-list></div>
+      </div>
     </dialog>
 
     <dialog id="projectCreateDialog" class="modal">
@@ -1274,6 +1468,10 @@
         <label>
           Concerns
           <input name="concern" maxlength="120" placeholder="Anything worth flagging at a glance, e.g. transports waste oil" />
+        </label>
+        <label>
+          QuickBooks customer name (optional)
+          <input name="qboCustomerName" maxlength="120" placeholder="Blank = use the account name above" />
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
@@ -2071,6 +2269,10 @@
             <input name="barcode" maxlength="60" placeholder="Scan or type UPC/SKU" />
           </label>
         </div>
+        <label>
+          Adjustment reason
+          <input name="adjustmentNote" maxlength="200" placeholder="Only needed if you changed On hand -- e.g. cycle count correction" />
+        </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save consumable</button>
@@ -2168,6 +2370,37 @@
           Issue
           <textarea name="issue" rows="3" maxlength="300" placeholder="Describe issue if this asset should block scheduling."></textarea>
         </label>
+        <!-- Phase 11 (2026-09-23): preventive-maintenance plan. Interval fields are optional; leaving
+             both blank means this asset is tracked on ad-hoc "Maintenance due" dates only, same as before. -->
+        <p class="help-text">Preventive-maintenance plan (optional). Leave blank to keep tracking this asset by date only.</p>
+        <div class="form-grid">
+          <label>
+            PM interval (days)
+            <input name="pmIntervalDays" type="number" min="0" step="1" placeholder="e.g. 90" />
+          </label>
+          <label>
+            PM interval (meter)
+            <input name="pmIntervalMeter" type="number" min="0" step="1" placeholder="e.g. 250" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Meter unit
+            <select name="meterUnit">
+              <option value="">Not tracked</option>
+              <option value="hours">Hours</option>
+              <option value="miles">Miles</option>
+            </select>
+          </label>
+          <label>
+            Current meter reading
+            <input name="currentMeter" type="number" min="0" step="1" placeholder="e.g. 812" />
+          </label>
+        </div>
+        <label>
+          Next PM due (meter)
+          <input name="maintenanceDueMeter" type="number" min="0" step="1" placeholder="e.g. 1000" />
+        </label>
         <p class="help-text">Fields below change based on the equipment category selected above.</p>
         <div class="form-grid" id="equipmentSpecFieldGrid"></div>
         <menu class="modal-actions">
@@ -2214,10 +2447,47 @@
             <input name="cost" type="number" min="0" step="1" value="0" />
           </label>
         </div>
+        <div class="form-grid">
+          <label>
+            Vendor
+            <input name="vendor" maxlength="80" placeholder="Outside shop, if any" />
+          </label>
+          <label>
+            Work order #
+            <input name="workOrderNumber" maxlength="40" placeholder="WO-1042" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Meter reading
+            <input name="meterReading" type="number" min="0" step="1" placeholder="e.g. 900" />
+          </label>
+          <label>
+            Meter unit
+            <select name="meterUnit">
+              <option value="hours">Hours</option>
+              <option value="miles">Miles</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Downtime (hours)
+            <input name="downtimeHours" type="number" min="0" step="0.5" value="0" />
+          </label>
+          <label>
+            Status
+            <select name="status">
+              <option>Completed</option>
+              <option>Scheduled</option>
+            </select>
+          </label>
+        </div>
         <label>
           Next due date
           <input name="nextDueDate" type="date" />
         </label>
+        <p class="help-text">Leave next due date blank on a completed preventive-maintenance record to auto-calculate it from the asset's PM interval.</p>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save maintenance record</button>
@@ -3299,6 +3569,89 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save lab info</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <!-- Phase 11 (2026-09-23) — one structured analytical result row per analyte, separate from the
+         free-text "Assign lab / report results" dialog above. -->
+    <dialog id="sampleResultDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="sample-result">
+        <input name="id" type="hidden" />
+        <input name="sampleId" type="hidden" />
+        <input name="projectId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Sample</p>
+            <h2>Analytical result</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Analyte
+            <input name="analyte" required maxlength="120" placeholder="Benzene" />
+          </label>
+          <label>
+            Method
+            <input name="method" maxlength="60" placeholder="EPA 8260B" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Result (as reported)
+            <input name="resultValue" required maxlength="40" placeholder="12.4 or ND" />
+          </label>
+          <label>
+            Units
+            <input name="units" maxlength="30" placeholder="mg/kg" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Qualifier
+            <input name="qualifier" maxlength="20" placeholder="U, J, B..." />
+          </label>
+          <label>
+            Reported on
+            <input name="reportedOn" type="date" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Detection limit
+            <input name="detectionLimit" type="number" step="any" />
+          </label>
+          <label>
+            Reporting limit
+            <input name="reportingLimit" type="number" step="any" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Action level
+            <input name="actionLevel" type="number" step="any" />
+          </label>
+          <label>
+            Action level source
+            <input name="actionLevelSource" maxlength="140" placeholder="TCEQ TRRP Tier 1 residential" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Linked lab report
+            <select name="labReportId">
+              <option value="">No file linked</option>
+            </select>
+          </label>
+          <label>
+            Entered by
+            <input name="enteredBy" maxlength="120" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save result</button>
         </menu>
       </form>
     </dialog>

@@ -2069,6 +2069,21 @@ h3 {
   border-bottom: 0;
 }
 
+/* Phase 11 (2026-09-23) — analytical result row exceeding its action level, a stronger cue than
+   the risk-badge alone since the whole row is what an inspector scans. */
+.sample-result-row-exceeds td {
+  background: rgba(175, 63, 54, 0.08);
+}
+
+/* The shared .data-table is table-layout: fixed, sized for its wider, more uniform tables; with
+   only 8 columns of very different lengths (a one-word analyte next to a full status phrase) fixed
+   layout clips the risk-badge text. Keeping the inherited min-width (rather than shrinking to the
+   panel) is what makes auto layout behave — without it the browser compresses short columns down
+   to single-character wraps instead of relying on .data-table-scroll's horizontal scroll. */
+.sample-results-table {
+  table-layout: auto;
+}
+
 /* Phase 17 — shared data-table component chrome (search + sort), used by every new table this
    phase adds so the app stops growing bespoke search boxes per screen. */
 .data-table-wrap {
@@ -3017,6 +3032,31 @@ body[data-theme="dark"] .map-popup span {
 .detail-card {
   display: grid;
   gap: 9px;
+}
+
+/* Phase 11 (2026-09-23): QuickBooks export queue — mapping issues and the raw payload preview. */
+.qbo-issue-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--red);
+  font-size: 0.85em;
+}
+
+.qbo-payload-details summary {
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.qbo-payload-pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.78em;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+  padding: 10px;
+  margin: 6px 0 0;
 }
 
 .blocked-card {
@@ -6315,4 +6355,183 @@ body[data-theme="dark"] .frontline-device {
 .tag.tag-unapproved {
   border-color: rgba(220, 38, 38, 0.35);
   color: #b91c1c;
+}
+
+/* ---- Phase 11 (2026-09-23): weather, close-out, report photos, notifications ---- */
+
+.weather-slot-list dd small {
+  display: block;
+  margin-top: 2px;
+}
+
+.weather-slot-list dd .mini-button {
+  margin-top: 6px;
+}
+
+.closeout-day {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: var(--surface);
+}
+
+.closeout-day summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.closeout-day-form,
+.closeout-review-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.closeout-day-form textarea,
+.closeout-review-form textarea {
+  width: 100%;
+}
+
+.review-question {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.review-question > span:first-child {
+  flex: 1 1 180px;
+}
+
+.review-answers {
+  display: inline-flex;
+  gap: 14px;
+}
+
+.closeout-add-day {
+  margin-top: 6px;
+  align-items: flex-end;
+}
+
+.report-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.report-photo {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.report-photo.included {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px rgba(21, 153, 71, 0.25);
+}
+
+.report-photo img {
+  display: block;
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--surface-alt);
+}
+
+.report-photo input[type="text"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.report-photo figcaption {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.notification-bell {
+  display: inline-flex;
+}
+
+.notification-button {
+  position: relative;
+}
+
+.notification-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.notification-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.notification-list {
+  display: grid;
+  gap: 8px;
+  max-height: 60vh;
+  overflow: auto;
+  margin-top: 10px;
+}
+
+.notification-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+
+.notification-row > div:first-child {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.notification-row.unread {
+  border-left: 4px solid var(--red);
+}
+
+.notification-row p {
+  margin: 4px 0;
+}
+
+.notification-row small {
+  display: block;
+  margin-top: 4px;
+}
+
+.closeout-operational-day {
+  margin-bottom: 12px;
+  align-items: flex-end;
+}
+
+/* In the dispatch job sidebar the panel title already names the slot, so drop the label column. */
+.weather-slot-stacked .weather-slot {
+  display: block;
+}
+
+.weather-slot-stacked dt {
+  display: none;
 }

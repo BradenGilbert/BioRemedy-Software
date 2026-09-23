@@ -114,6 +114,8 @@ None of these exist in `crm-schema/` yet — this is net-new schema design, and 
 
 ## Corrections found during implementation
 
+- **2026-09-23 — inherited from Phase 11 (sprint Wave 5):** in-app `notifications` now exist, addressed to roles (`audienceRoles`), with `readBy` tracked by user name and `recipientUserId` left empty. When real identities land, address notifications to users and replace `readBy` names with user ids. Phase 11's "approvals" half (approval requests with ordered steps and escalation) was moved here, because an approval step needs a named approver.
+
 *(Record here anything that turned out to be different from the plan.)*
 
 ---

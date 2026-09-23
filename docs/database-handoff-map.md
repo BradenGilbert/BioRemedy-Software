@@ -545,6 +545,39 @@ writeup.
 - **`subcontractorAssignments`** gained `pricingBasis` (`fixed` | `rate-sheet`; Phase 04 item 14). Only the matching fields are saved: `rateAmount`/`rateType` for fixed, `priceLevelId` for rate sheet.
 - No new collections.
 
+**Sprint Wave 5 (2026-09-23) — Phase 11 field ops depth.** Six new collections and new fields:
+- **`weatherSnapshots`** (new; gated `operations`, readable by sales and finance). Fields:
+  - `projectId`; `dispatchJobId` (empty for the incident snapshot); `kind` (`incident` | `response`).
+  - `observedFor`: the moment looked up, either `projects.incidentReportedAt` or the job's first `in_progress` status event.
+  - `latitude`/`longitude`; `anchorSource` (`GPS location` | `Dispatch job coordinates` | `Emergency intake pin`); `anchorLocationId`; `anchorLabel`.
+  - `requestedBy`, `fetchedAt`, `status` (`captured` | `not_captured`), `error`.
+  - Once captured: `provider`, `providerEndpoint`, `observationTime`, `conditions`, `weatherCode` (WMO), `temperatureF`, `relativeHumidity`, `precipitationIn`, `windSpeedMph`, `windGustMph`, `windDirectionDeg`, `windDirection`.
+
+  Append-only: only `POST /api/weather-snapshots/capture` writes it (a generic POST returns 405). There is at most one captured row per project + kind (+ job), and failed attempts stay as history. SQL: new `weather_snapshots` table.
+- **`permits`** (new; gated `operations`, readable by inventory and finance): `name`, `permitType`, `permitNumber`, `issuingAgency`, `issuedOn`, `expiresOn`, `renewalLeadDays` (default 60), `storageLimitDays`, `wasteTypesCovered`, `status`, `notes`, `updatedBy`. Seeded with the owner's two permits, numbers and dates blank. SQL: new `company_permits` table (the Priority 2 safety/compliance permit model).
+- **`wasteRecords`** (new; gated `operations`, readable by finance). Fields:
+  - `projectId`, `dispatchJobId`, `description`, `classification`, `wasteCode`.
+  - `containerType`, `containerCount`, `quantity`, `unit`, `permitId` → permits, `storageLocation`, `accumulationStartedOn`.
+  - `status` (`Accumulating` | `Disposal requested` | `Shipped` | `Disposed`), `disposalRequestedOn`, `disposalVendorAccountId` → accounts, `disposalFacility`, `manifestNumber`, `shippedOn`, `disposedOn`.
+  - `disposalCost`, `notes`, `createdAt`, `createdBy`, `updatedBy`.
+
+  `disposalCost` feeds `projects.closeReport.costs.waste`. SQL: new `waste_records` table; manifest files go to Phase 13's store.
+- **`notifications`** (new; gated `customerDirectory`, i.e. every internal role): `dedupeKey`, `title`, `body`, `severity` (`info` | `warning` | `critical`), `audienceRoles[]`, `recipientUserId` (empty until Phase 12), `link` (a route hash), `createdAt`, `readBy[]` (user names until Phase 12). Ids derive from the condition (`notif-<key>`), so raising is idempotent. SQL: `notifications` plus a `notification_reads` join table in place of `readBy`.
+- **`inventoryMovements`** (new; gated `inventory`): `inventoryItemId`, `quantityDelta`, `balanceAfter`, `reason` (`receipt` | `field-usage` | `adjustment` | `return`), `refType` (`purchaseOrder` | `jobAction` | `inventoryItem`), `refId`, `dispatchJobId`, `projectId`, `occurredAt`, `by`, `note`.
+  - Written server-side only, inside the same save as the `onHand` change: PO receive, Front Line consume, and any `inventoryItems` POST that changes `onHand`. On that last path the transient `adjustmentNote` becomes the note and is not stored on the item. A generic POST returns 405.
+  - SQL: `stock_movements`; at cut-over `onHand` should become a derived balance.
+- **`sampleResults`** (new; gated `operations`, readable by sales): `sampleId`, `projectId`, `analyte`, `method`, `resultValue` (as reported), `resultNumeric` (server-computed; null for ND), `units`, `detectionLimit`, `reportingLimit`, `qualifier`, `actionLevel`, `actionLevelSource`, `exceedsActionLevel` (server-computed), `labReportId` → sampleLabReports, `reportedOn`, `enteredBy`, `createdAt`, `deletedAt`. SQL: `lab_result_rows`.
+- **`dispatchJobs`** gained:
+  - `operationalDate`: Phase 09 Q5, stamped at Start work and correctable on Close-out.
+  - `dailyNarratives[]`: `date`, `sceneDescription`, `sceneActivities`, `updatedBy`, `updatedAt`.
+  - `postJobReview`: `accidents`/`nearMisses`/`injuries` (Yes | No), `notes`, `answeredBy`, `answeredAt`.
+
+  SQL: a `dispatch_job_narratives` child table; the review as columns on the work order.
+- **`jobTaskAttachments`** gained `includeInReport` and `reportCaption` (report photo curation).
+- **`equipmentAssets`** gained `pmIntervalDays`, `pmIntervalMeter`, `meterUnit`, `currentMeter` and `maintenanceDueMeter`, all added to the `normalizeRecord()` whitelist. **`equipmentMaintenanceRecords`** gained `meterReading`, `meterUnit`, `downtimeHours`, `vendor`, `workOrderNumber` and `status` (`Completed` | `Scheduled`).
+- **`qboExports`** gained `payload` (the QBO v3 Invoice JSON) and `validationIssues[]`, and `invoices.qboStatus` can now be `Blocked - fix mapping issues`. **`products.qboItemName`** and **`accounts.qboCustomerName`** override the names sent.
+- **`projects.closeReport.costs`** gained `waste: { items, total }`.
+
 Also in this session: `server.mjs` now serializes API requests and writes `backend.json`
 atomically (temp file + rename), after a live concurrent-save collision. See
 `docs/roadmap/phase-08-quotes-estimates.md`, "Rate-card rework: design" and its 2026-09-23
@@ -621,7 +654,7 @@ gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
 was retired the same way, same day: removed from `server.mjs` entirely and
 deleted from `data/backend.json`.
 
-### Node JSON Backend - 97 collections
+### Node JSON Backend - 103 collections
 
 > The count was previously documented as 72, then 76, then 82, then 83, then 84.
 > Recounted directly from both `data/backend.json`'s top-level keys and
@@ -635,6 +668,9 @@ deleted from `data/backend.json`.
 > account has approved): 85, then again the same day after the Workforce
 > Credentials/Teams/Crews follow-up (see below) added `certificationTypes`:
 > **86**. Recount from source when it matters, don't trust the running tally.
+> **2026-09-23 recount after sprint Wave 5: 103** `collectionAccess` entries (Wave 5 added
+> `weatherSnapshots`, `permits`, `wasteRecords`, `notifications`, `inventoryMovements`,
+> `sampleResults`).
 
 > **Workforce follow-up, September 17, 2026 (third live-bug/design session):**
 > owner asked for (1) a managed certification-TYPE catalog instead of free
@@ -875,6 +911,8 @@ there.
    movements, lots/batches, reorder rules, vendors, purchase orders, purchase
    order lines, receiving, and returns. The demo has JSON inventory and
    purchase orders, but the SQL schema does not yet have this ledger.
+   **Prototype 2026-09-23 (Wave 5):** `inventoryMovements` is a real,
+   server-written stock ledger. Locations, lots and reorder rules are still open.
 2. **Customer contracts and rate agreements:** customer packets at the account
    level, packet requirements, MSAs/contracts, scopes of work, insurance
    documents, rate sheets, labor/equipment/material rate lines, and change
@@ -883,7 +921,9 @@ there.
 3. **Fleet and equipment maintenance:** vehicles, meter readings, inspections,
    preventive-maintenance plans, maintenance work orders, service history,
    downtime, and repair costs. The current `equipment` table is only a basic
-   asset record.
+   asset record. **Prototype 2026-09-23 (Wave 5):** PM plans (days and meter),
+   meter readings, downtime, vendor and work order number on the existing
+   `equipmentMaintenanceRecords`. Inspections and work-order workflow are still open.
 4. **Vendor and subcontractor management:** now modeled in
    `027_vendor_subcontractor_management.sql` -- `vendor_profiles` (1:1
    account extension carrying onboarding/insurance/W-9/safety compliance),
@@ -909,20 +949,27 @@ there.
 5. **Accounting completion and QuickBooks integration:** payments, payment
    allocations, credit memos, vendor bills, expenses, tax mappings,
    accounting connections, export batches, sync results, and reconciliation.
-   Invoices and a prototype QBO export queue exist.
+   Invoices and a prototype QBO export queue exist. **2026-09-23:** the queue
+   stores a validated QBO v3 Invoice payload per export. Invoices still have
+   no line items (see Phase 09's corrections).
 
 ### Priority 2 - Important Operational Depth
 
 1. **Laboratory data normalization:** laboratories, analytical methods,
    analytes, test requests, custody transfers, result rows, qualifiers, and
    detection limits. Samples exist, but detailed lab results are currently
-   stored mostly as JSON.
+   stored mostly as JSON. **Prototype 2026-09-23 (Wave 5):** `sampleResults`
+   rows (analyte, method, result, limits, qualifier, action level). Laboratories,
+   methods and custody transfers are still open.
 2. **Safety and compliance:** job hazard analyses, safety meetings, incidents,
    observations, permits, SDS records, corrective actions, and regulatory
-   deadlines.
+   deadlines. **Prototype 2026-09-23 (Wave 5):** company `permits`, per-project
+   `wasteRecords` with storage deadlines, and the post-job review. JHAs, SDS and
+   corrective actions are still open.
 3. **Approvals and notifications:** approval requests, ordered approval steps,
    notifications, delivery attempts, subscriptions, escalations, and read
-   state.
+   state. **Prototype 2026-09-23 (Wave 5):** in-app `notifications` with read
+   state. Approvals move to Phase 12; delivery by email or Teams to Phase 19.
 4. **Project commercial controls:** project budgets, committed costs,
    forecasts, change orders, and not-to-exceed revisions tied to approvals.
 

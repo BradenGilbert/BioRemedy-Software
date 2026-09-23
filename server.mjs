@@ -75,12 +75,17 @@ const collectionAccess = {
   spatialData: "operations",
   inventoryItems: "inventory",
   purchaseOrders: "inventory",
+  // Phase 11 (2026-09-23): stock-movement ledger. Append-only — see the POST guard in handleApi.
+  inventoryMovements: "inventory",
   equipmentAssets: "inventory",
   equipmentMaintenanceRecords: "inventory",
   equipmentRestockItems: "inventory",
   laborAssignments: "operations",
   sampleRecords: "operations",
   sampleLabReports: "operations",
+  // Phase 11 (2026-09-23) — structured analytical result rows per sample, one row per analyte.
+  // Same domain and access shape as sampleRecords/sampleLabReports since it's the same workflow.
+  sampleResults: "operations",
   employees: "workforce",
   employeeCertifications: "workforce",
   certificationTypes: "workforce",
@@ -111,6 +116,13 @@ const collectionAccess = {
   // Phase 10 (2026-09-22 pass): field receipts/expenses per dispatch job; the photo itself lives in
   // jobTaskAttachments (kind "receipt") until Phase 13's generic store exists.
   jobExpenses: "dispatch",
+  // Phase 11 (2026-09-23). Weather snapshots are read here but only ever written by the capture
+  // route below (immutable by design, Q41). Permits and waste records are the company's own
+  // regulatory record. Notifications go to every internal role, so they sit in the widest domain.
+  weatherSnapshots: "operations",
+  permits: "operations",
+  wasteRecords: "operations",
+  notifications: "customerDirectory",
   invoices: "finance",
   qboExports: "finance",
   businessUnits: "salesDocuments",
@@ -250,6 +262,9 @@ const defaultBackend = {
       createdAt: "2026-07-06T15:05:00.000Z",
     },
   ],
+  // Phase 11 (2026-09-23): stock-movement ledger — one row per onHand change, written server-side
+  // only (see handleReceivePurchaseOrder, handleJobTaskConsume, and the inventoryItems POST branch).
+  inventoryMovements: [],
   equipmentAssets: [
     {
       id: "asset-vac-204",
@@ -1163,8 +1178,44 @@ const defaultBackend = {
   jobStatusEvents: [],
   jobTaskAttachments: [],
   jobExpenses: [],
+  weatherSnapshots: [],
+  permits: [
+    {
+      id: "permit-10-day-storage",
+      name: "10-day waste storage permit",
+      permitType: "Waste storage",
+      permitNumber: "",
+      issuingAgency: "",
+      issuedOn: "",
+      expiresOn: "",
+      renewalLeadDays: 60,
+      storageLimitDays: 10,
+      wasteTypesCovered: "",
+      status: "Active",
+      notes: "Named by the owner 2026-09-16. Permit number, agency and dates still to be entered.",
+    },
+    {
+      id: "permit-oily-waste-handler",
+      name: "Oily waste handler permit",
+      permitType: "Waste handler",
+      permitNumber: "",
+      issuingAgency: "",
+      issuedOn: "",
+      expiresOn: "",
+      renewalLeadDays: 60,
+      storageLimitDays: null,
+      wasteTypesCovered: "Oily waste",
+      status: "Active",
+      notes: "Named by the owner 2026-09-16. Permit number, agency and dates still to be entered.",
+    },
+  ],
+  wasteRecords: [],
+  notifications: [],
   laborAssignments: [],
   sampleLabReports: [],
+  // Phase 11 (2026-09-23) — structured analytical results, empty by default (no seed rows; the
+  // existing seed samples keep their free-text results until re-entered).
+  sampleResults: [],
   sampleRecords: [
     {
       id: "sample-riverbend-b1",
@@ -2246,6 +2297,7 @@ async function loadBackend() {
   ]);
   data.jobRequestDocuments = Array.isArray(data.jobRequestDocuments) ? data.jobRequestDocuments : [];
   data.sampleLabReports = Array.isArray(data.sampleLabReports) ? data.sampleLabReports : [];
+  data.sampleResults = Array.isArray(data.sampleResults) ? data.sampleResults : [];
   data.jobRequests = data.jobRequests.map((request) => ({
     ...request,
     accountId: request.accountId || accountIdsByCustomer.get(request.customerName?.trim().toLowerCase()) || "",
@@ -2295,6 +2347,28 @@ function makeId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Phase 11 (2026-09-23): every write to inventoryItems.onHand goes through here so the ledger can
+// never drift from the stock number it explains. Called from inside the same loadBackend/saveBackend
+// pair as the mutation itself (purchase-order receipt, material consumption, manual onHand edit).
+function appendInventoryMovement(data, movement) {
+  if (!Array.isArray(data.inventoryMovements)) data.inventoryMovements = [];
+  data.inventoryMovements.push({
+    id: makeId("inventory-movement"),
+    inventoryItemId: "",
+    quantityDelta: 0,
+    balanceAfter: 0,
+    reason: "adjustment",
+    refType: "inventoryItem",
+    refId: "",
+    dispatchJobId: "",
+    projectId: "",
+    occurredAt: new Date().toISOString(),
+    by: "",
+    note: "",
+    ...movement,
+  });
+}
+
 function filterBackendForRole(data, role) {
   return {
     accounts: canAccess(role, "customerDirectory") ? data.accounts : [],
@@ -2312,12 +2386,14 @@ function filterBackendForRole(data, role) {
     locations: canAccess(role, "operations") ? data.locations : [],
     inventoryItems: canAccess(role, "inventory") || canAccess(role, "dispatch") ? data.inventoryItems : [],
     purchaseOrders: canAccess(role, "inventory") ? data.purchaseOrders : [],
+    inventoryMovements: canAccess(role, "inventory") ? data.inventoryMovements : [],
     equipmentAssets: canAccess(role, "inventory") || canAccess(role, "operations") ? data.equipmentAssets : [],
     equipmentMaintenanceRecords: canAccess(role, "inventory") || canAccess(role, "operations") ? data.equipmentMaintenanceRecords : [],
     equipmentRestockItems: canAccess(role, "inventory") || canAccess(role, "operations") ? data.equipmentRestockItems : [],
     laborAssignments: canAccess(role, "operations") ? data.laborAssignments : [],
     sampleRecords: canAccess(role, "operations") || canAccess(role, "sales") ? data.sampleRecords : [],
     sampleLabReports: canAccess(role, "operations") || canAccess(role, "sales") ? data.sampleLabReports : [],
+    sampleResults: canAccess(role, "operations") || canAccess(role, "sales") ? data.sampleResults : [],
     employees: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.employees : [],
     employeeCertifications: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.employeeCertifications : [],
     certificationTypes: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.certificationTypes : [],
@@ -2347,6 +2423,11 @@ function filterBackendForRole(data, role) {
     jobTaskAttachments: canAccess(role, "dispatch") ? data.jobTaskAttachments : [],
     // Finance needs expenses for cost reports and reimbursement; operations for project review.
     jobExpenses: canAccess(role, "dispatch") || canAccess(role, "operations") || canAccess(role, "finance") ? data.jobExpenses : [],
+    weatherSnapshots: canAccess(role, "operations") || canAccess(role, "sales") || canAccess(role, "finance") ? data.weatherSnapshots : [],
+    permits: canAccess(role, "operations") || canAccess(role, "inventory") || canAccess(role, "finance") ? data.permits : [],
+    // Finance reads waste records because disposal cost feeds the project P&L.
+    wasteRecords: canAccess(role, "operations") || canAccess(role, "finance") ? data.wasteRecords : [],
+    notifications: canAccess(role, "customerDirectory") ? data.notifications : [],
     invoices: canAccess(role, "finance") ? data.invoices : [],
     qboSettings: canAccess(role, "finance") ? data.qboSettings : { connectionStatus: "Restricted", realmId: "", lastExportAt: "" },
     qboExports: canAccess(role, "finance") ? data.qboExports : [],
@@ -2462,6 +2543,7 @@ function normalizeRecord(collection, payload, data) {
   }
 
   if (collection === "equipmentAssets") {
+    const toNumberOrNull = (value) => (value === undefined || value === null || value === "" ? null : Number(value));
     return {
       id,
       assetTag: payload.assetTag || "",
@@ -2475,6 +2557,14 @@ function normalizeRecord(collection, payload, data) {
       productId: payload.productId || "",
       issue: payload.issue || "",
       specs: payload.specs && typeof payload.specs === "object" ? payload.specs : {},
+      // Phase 11 (2026-09-23): preventive-maintenance interval and meter tracking. These were
+      // dropped silently before being added here — this whitelist is the only place a new
+      // equipmentAssets field takes effect (see the assignedProjectId lesson in CLAUDE.md).
+      pmIntervalDays: toNumberOrNull(payload.pmIntervalDays),
+      pmIntervalMeter: toNumberOrNull(payload.pmIntervalMeter),
+      meterUnit: payload.meterUnit || "",
+      currentMeter: toNumberOrNull(payload.currentMeter),
+      maintenanceDueMeter: toNumberOrNull(payload.maintenanceDueMeter),
     };
   }
 
@@ -2524,6 +2614,43 @@ function normalizeRecord(collection, payload, data) {
       dueDate: payload.dueDate || "",
       notes: payload.notes || "",
       qboStatus: payload.qboStatus || "Not exported",
+    };
+  }
+
+  // Phase 11 (2026-09-23) — structured analytical result rows. resultNumeric and
+  // exceedsActionLevel are derived here, server-side, rather than trusted from the client, so a
+  // stale or hand-edited payload can never misreport an exceedance. resultValue stays the raw
+  // reported text (e.g. "ND", "<0.5", "12.4") even when it doesn't parse to a number.
+  if (collection === "sampleResults") {
+    const resultValue = (payload.resultValue ?? "").toString().trim();
+    const parsedResult = Number(resultValue);
+    const resultNumeric = resultValue !== "" && Number.isFinite(parsedResult) ? parsedResult : null;
+    const toNullableNumber = (value) => {
+      if (value === "" || value === null || value === undefined) return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const actionLevel = toNullableNumber(payload.actionLevel);
+    return {
+      id,
+      sampleId: payload.sampleId || "",
+      projectId: payload.projectId || "",
+      analyte: payload.analyte || "",
+      method: payload.method || "",
+      resultValue,
+      resultNumeric,
+      units: payload.units || "",
+      detectionLimit: toNullableNumber(payload.detectionLimit),
+      reportingLimit: toNullableNumber(payload.reportingLimit),
+      qualifier: payload.qualifier || "",
+      actionLevel,
+      actionLevelSource: payload.actionLevelSource || "",
+      exceedsActionLevel: resultNumeric != null && actionLevel != null && resultNumeric > actionLevel,
+      labReportId: payload.labReportId || "",
+      reportedOn: payload.reportedOn || "",
+      enteredBy: payload.enteredBy || "",
+      createdAt: payload.createdAt || now,
+      deletedAt: payload.deletedAt || "",
     };
   }
 
@@ -2640,6 +2767,17 @@ async function handleReceivePurchaseOrder(request, response, orderId) {
   order.receivedAt = new Date().toISOString();
   order.receivedBy = payload.receivedBy || "Local user";
   order.receivedQuantity = receivedQuantity;
+  appendInventoryMovement(data, {
+    inventoryItemId: inventoryItem.id,
+    quantityDelta: receivedQuantity,
+    balanceAfter: inventoryItem.onHand,
+    reason: "receipt",
+    refType: "purchaseOrder",
+    refId: order.id,
+    occurredAt: order.receivedAt,
+    by: order.receivedBy,
+    note: order.vendor ? `Received from ${order.vendor}` : "",
+  });
   await saveBackend(data);
 
   return json(response, 200, { order, inventoryItem });
@@ -3010,6 +3148,9 @@ async function handleJobTaskConsume(request, response, actionId) {
 
   const consumedAt = new Date().toISOString();
   const consumedBy = request.headers["x-crm-user"]?.toString() || role;
+  // A job action's jobId points at dispatchJobs, which carries the engagement/project it belongs to
+  // -- resolved once here so every movement row from this consume gets both references.
+  const dispatchJob = data.dispatchJobs.find((job) => job.id === action.jobId);
   const created = planned.map(({ inventoryItem, quantity }) => {
     inventoryItem.onHand = Number(inventoryItem.onHand || 0) - quantity;
     const resource = {
@@ -3027,6 +3168,20 @@ async function handleJobTaskConsume(request, response, actionId) {
       consumedBy,
     };
     data.jobResources.push(resource);
+    // Phase 11 (2026-09-23): write-in lines have no inventory item and never touch stock, so only
+    // real catalog lines get a ledger row.
+    appendInventoryMovement(data, {
+      inventoryItemId: inventoryItem.id,
+      quantityDelta: -quantity,
+      balanceAfter: inventoryItem.onHand,
+      reason: "field-usage",
+      refType: "jobAction",
+      refId: actionId,
+      dispatchJobId: action.jobId,
+      projectId: dispatchJob?.projectId || "",
+      occurredAt: consumedAt,
+      by: consumedBy,
+    });
     return resource;
   });
   const createdWriteIns = writeIns.map((entry) => {
@@ -3067,6 +3222,90 @@ async function handleJobTaskConsume(request, response, actionId) {
 
   await saveBackend(data);
   return json(response, 201, { resources: [...created, ...createdWriteIns], alertsRaised: alerts.length });
+}
+
+// Phase 11 (2026-09-23): builds the exact payload a real Intuit QuickBooks Online "Invoice" create
+// call would send (v3 API Invoice entity — CustomerRef/Line[]/SalesItemLineDetail shape), so wiring
+// up real OAuth later is a transport change, not a data-mapping project. `qboItemName` on a product
+// and `qboCustomerName` on an account are optional overrides for what a real QBO item/customer is
+// actually named there; everything else falls back to the name already on the record.
+function roundCentsQbo(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function buildQboInvoicePayload(invoice, data) {
+  const issues = [];
+  const project = data.projects.find((item) => item.id === invoice.projectId) || null;
+  const account = project ? data.accounts.find((item) => item.id === project.accountId) : null;
+  const customerName = (account?.qboCustomerName || account?.name || invoice.customer || "").trim();
+  if (!customerName) issues.push("No customer name — set an account name, or a qboCustomerName override, before exporting.");
+
+  const rawLines = (data.invoiceLines || []).filter((line) => line.invoiceId === invoice.id && !line.deletedAt);
+  const sourceLines = rawLines.length
+    ? rawLines
+    : [
+        {
+          productId: "",
+          productName: "Services",
+          productDescription: invoice.notes || "Services rendered",
+          quantity: 1,
+          billableQuantity: 1,
+          pricePerUnit: Number(invoice.invoiceAmount || 0),
+          extendedAmount: Number(invoice.invoiceAmount || 0),
+        },
+      ];
+  if (!rawLines.length) {
+    issues.push("No priced invoice line items were recorded — exported as a single summary line from the invoice total.");
+  }
+
+  const qboLines = sourceLines.map((line, index) => {
+    const product = line.productId ? data.products.find((item) => item.id === line.productId) : null;
+    const itemName = (product?.qboItemName || product?.name || line.productName || "").trim();
+    if (!itemName) issues.push(`Line ${index + 1} ("${line.productDescription || "no description"}") has no item name to map to QuickBooks.`);
+    const qty = Number(line.billableQuantity ?? line.quantity ?? 1);
+    const unitPrice = Number(line.pricePerUnit || 0);
+    const amount = roundCentsQbo(Number(line.extendedAmount ?? qty * unitPrice));
+    if (Math.abs(roundCentsQbo(qty * unitPrice) - amount) > 0.01) {
+      issues.push(`Line ${index + 1} ("${itemName || "no item"}"): ${qty} x ${unitPrice} does not equal its amount of ${amount.toFixed(2)}.`);
+    }
+    return {
+      DetailType: "SalesItemLineDetail",
+      Amount: amount,
+      Description: line.productDescription || line.productName || "",
+      SalesItemLineDetail: {
+        ItemRef: { name: itemName || "Unmapped item" },
+        Qty: qty,
+        UnitPrice: unitPrice,
+      },
+    };
+  });
+
+  const lineTotal = roundCentsQbo(qboLines.reduce((sum, line) => sum + Number(line.Amount || 0), 0));
+  const invoiceTotal = roundCentsQbo(Number(invoice.invoiceAmount || 0));
+  if (Math.abs(lineTotal - invoiceTotal) > 0.01) {
+    issues.push(`Line total (${lineTotal.toFixed(2)}) does not match the invoice total (${invoiceTotal.toFixed(2)}).`);
+  }
+
+  const payload = {
+    DocNumber: invoice.id,
+    TxnDate: new Date().toISOString().slice(0, 10),
+    DueDate: invoice.dueDate || "",
+    CustomerRef: { name: customerName || "Unmapped customer" },
+    Line: qboLines,
+    PrivateNote: invoice.notes || "",
+  };
+  if (account?.email) payload.BillEmail = { Address: account.email };
+  if (account?.addressOneStreetOne || account?.addressOneCity) {
+    payload.BillAddr = {
+      Line1: account.addressOneStreetOne || "",
+      City: account.addressOneCity || "",
+      CountrySubDivisionCode: account.addressOneState || "",
+      PostalCode: account.addressOneZipCode || "",
+      Country: account.addressOneCountry || "",
+    };
+  }
+
+  return { payload, validationIssues: issues };
 }
 
 async function handleApi(request, response, pathname) {
@@ -3135,12 +3374,16 @@ async function handleApi(request, response, pathname) {
     const invoice = data.invoices.find((item) => item.id === body.invoiceId);
     if (!invoice) return json(response, 404, { error: "Invoice not found." });
 
-    invoice.qboStatus = "Export queued";
+    const { payload, validationIssues } = buildQboInvoicePayload(invoice, data);
+    const status = validationIssues.length ? "Blocked - fix mapping issues" : "Queued - QuickBooks credentials not connected";
+    invoice.qboStatus = status;
     data.qboSettings.lastExportAt = new Date().toISOString();
     data.qboExports.push({
       id: makeId("qbo-export"),
       invoiceId: invoice.id,
-      status: "Queued - QuickBooks credentials not connected",
+      status,
+      payload,
+      validationIssues,
       createdAt: data.qboSettings.lastExportAt,
     });
     await saveBackend(data);
@@ -3162,6 +3405,16 @@ async function handleApi(request, response, pathname) {
   }
 
   if (request.method === "POST") {
+    if (collection === "weatherSnapshots") {
+      return json(response, 405, { error: "Weather snapshots are captured by the server, never written directly." });
+    }
+    // Phase 11 (2026-09-23): the stock-movement ledger is derived, not authored -- every row comes
+    // from handleReceivePurchaseOrder, handleJobTaskConsume, or the inventoryItems adjustment branch
+    // below, each running inside the same load/save as the onHand change it explains. A generic
+    // full-record replace here could write a movement with no matching stock change, or vice versa.
+    if (collection === "inventoryMovements") {
+      return json(response, 405, { error: "The stock ledger is written by the server only." });
+    }
     const body = await readJsonBody(request);
     const record = normalizeRecord(collection, body, data);
     if (collection === "scheduleEvents") {
@@ -3185,6 +3438,27 @@ async function handleApi(request, response, pathname) {
     }
 
     const index = data[collection].findIndex((item) => item.id === record.id);
+    // Phase 11 (2026-09-23): manual onHand edits (the only other path that changes stock) get a
+    // ledger row too, so the ledger stays the complete explanation for every onHand change. `body`
+    // is the raw payload (pre-whitelist) so the transient adjustmentNote survives to here even though
+    // normalizeRecord drops it from the stored record.
+    if (collection === "inventoryItems") {
+      const previous = index >= 0 ? data[collection][index] : null;
+      const previousOnHand = previous ? Number(previous.onHand || 0) : 0;
+      const nextOnHand = Number(record.onHand || 0);
+      if (previous ? previousOnHand !== nextOnHand : nextOnHand !== 0) {
+        appendInventoryMovement(data, {
+          inventoryItemId: record.id,
+          quantityDelta: nextOnHand - previousOnHand,
+          balanceAfter: nextOnHand,
+          reason: "adjustment",
+          refType: "inventoryItem",
+          refId: record.id,
+          by: request.headers["x-crm-user"]?.toString() || role,
+          note: body.adjustmentNote ? String(body.adjustmentNote).trim() : previous ? "" : "Opening balance",
+        });
+      }
+    }
     if (index >= 0) data[collection][index] = record;
     else data[collection].push(record);
     await saveBackend(data);
@@ -3194,11 +3468,184 @@ async function handleApi(request, response, pathname) {
   return json(response, 405, { error: "Method not allowed." });
 }
 
+// ---- Phase 11 (2026-09-23): weather snapshots -----------------------------------------------
+//
+// Q39: weather is pulled, never typed. Q40: the second snapshot is taken when a dispatch job enters
+// in_progress ("Start work"). Q41: snapshots are frozen; a report re-run later shows what was fetched
+// then. The provider sits behind fetchWeatherObservation() so it can be swapped; every failure is
+// stored as a visible "not_captured" row with its reason, never as a blank that reads as fair weather.
+// CRM_WEATHER_PROVIDER=off makes every capture fail (used to test that path).
+const weatherProvider = (process.env.CRM_WEATHER_PROVIDER || "open-meteo").toLowerCase();
+
+const wmoWeatherCodes = {
+  0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Freezing fog",
+  51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle", 56: "Light freezing drizzle", 57: "Freezing drizzle",
+  61: "Light rain", 63: "Rain", 65: "Heavy rain", 66: "Light freezing rain", 67: "Freezing rain",
+  71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains",
+  80: "Light rain showers", 81: "Rain showers", 82: "Violent rain showers", 85: "Light snow showers", 86: "Snow showers",
+  95: "Thunderstorm", 96: "Thunderstorm with light hail", 99: "Thunderstorm with heavy hail",
+};
+
+function compassPoint(degrees) {
+  const points = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  return points[Math.round((((Number(degrees) % 360) + 360) % 360) / 22.5) % 16];
+}
+
+async function fetchWeatherObservation({ latitude, longitude, at }) {
+  if (weatherProvider === "off") throw new Error("Weather provider is switched off on this server.");
+  const when = new Date(at);
+  if (Number.isNaN(when.getTime())) throw new Error("No valid time to look weather up for.");
+  const ageDays = (Date.now() - when.getTime()) / 86400000;
+  if (ageDays < -0.1) throw new Error("That time is in the future.");
+  // The forecast endpoint serves the recent past at hourly resolution; older dates come from the
+  // reanalysis archive, which lags about five days behind.
+  const base = ageDays > 80 ? "https://archive-api.open-meteo.com/v1/archive" : "https://api.open-meteo.com/v1/forecast";
+  const day = when.toISOString().slice(0, 10);
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    start_date: day,
+    end_date: day,
+    hourly: "temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+    temperature_unit: "fahrenheit",
+    wind_speed_unit: "mph",
+    precipitation_unit: "inch",
+    timezone: "GMT",
+  });
+  const providerResponse = await fetch(`${base}?${params}`, { signal: AbortSignal.timeout(10000) });
+  if (!providerResponse.ok) throw new Error(`Weather provider answered ${providerResponse.status}.`);
+  const body = await providerResponse.json();
+  const hourly = body.hourly || {};
+  const times = hourly.time || [];
+  let best = -1;
+  let bestGap = Infinity;
+  times.forEach((time, index) => {
+    const gap = Math.abs(Date.parse(`${time}:00Z`) - when.getTime());
+    if (gap < bestGap && hourly.temperature_2m?.[index] != null) {
+      best = index;
+      bestGap = gap;
+    }
+  });
+  if (best < 0) throw new Error("The provider has no observation for that hour yet.");
+  const code = hourly.weather_code?.[best];
+  return {
+    provider: "Open-Meteo",
+    providerEndpoint: base,
+    observationTime: `${times[best]}:00Z`,
+    conditions: wmoWeatherCodes[code] || `WMO weather code ${code}`,
+    weatherCode: code ?? null,
+    temperatureF: hourly.temperature_2m?.[best] ?? null,
+    relativeHumidity: hourly.relative_humidity_2m?.[best] ?? null,
+    precipitationIn: hourly.precipitation?.[best] ?? null,
+    windSpeedMph: hourly.wind_speed_10m?.[best] ?? null,
+    windGustMph: hourly.wind_gusts_10m?.[best] ?? null,
+    windDirectionDeg: hourly.wind_direction_10m?.[best] ?? null,
+    windDirection: hourly.wind_direction_10m?.[best] != null ? compassPoint(hourly.wind_direction_10m[best]) : "",
+  };
+}
+
+// The GPS locations row is the accurate anchor (a facility's mailing address can be miles from the
+// crew). Order: the project's spill-origin point, any other project GPS point, the dispatch job's
+// own coordinates, then the pin dropped on the emergency intake.
+function resolveWeatherAnchor(data, project, dispatchJob) {
+  const finite = (value) => value !== "" && value != null && Number.isFinite(Number(value));
+  const points = (data.locations || []).filter((point) => point.projectId === project.id && finite(point.latitude) && finite(point.longitude));
+  const point = points.find((item) => /spill origin/i.test(item.locationType || "")) || points[0];
+  if (point) return { latitude: Number(point.latitude), longitude: Number(point.longitude), anchorSource: "GPS location", anchorLocationId: point.id, anchorLabel: point.label || "" };
+  if (dispatchJob && finite(dispatchJob.latitude) && finite(dispatchJob.longitude)) {
+    return { latitude: Number(dispatchJob.latitude), longitude: Number(dispatchJob.longitude), anchorSource: "Dispatch job coordinates", anchorLocationId: "", anchorLabel: dispatchJob.addressText || "" };
+  }
+  if (finite(project.incidentLatitude) && finite(project.incidentLongitude)) {
+    return { latitude: Number(project.incidentLatitude), longitude: Number(project.incidentLongitude), anchorSource: "Emergency intake pin", anchorLocationId: "", anchorLabel: "" };
+  }
+  return null;
+}
+
+function findCapturedSnapshot(data, projectId, kind, dispatchJobId) {
+  return (data.weatherSnapshots || []).find(
+    (snapshot) => snapshot.projectId === projectId && snapshot.kind === kind && snapshot.status === "captured" && (kind === "incident" || snapshot.dispatchJobId === dispatchJobId),
+  );
+}
+
+async function handleWeatherCapture(request, response) {
+  const role = getRole(request);
+  if (!canAccess(role, "operations") && !canAccess(role, "dispatch")) return json(response, 403, { error: "Operations or dispatch role required." });
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const body = await readJsonBody(request);
+  const kind = body.kind;
+  if (!["incident", "response"].includes(kind)) return json(response, 400, { error: "kind must be incident or response." });
+
+  const prepared = await serializeApi(async () => {
+    const data = await loadBackend();
+    const project = data.projects.find((item) => item.id === body.projectId);
+    if (!project) return { error: [404, "Project not found."] };
+    const dispatchJob = body.dispatchJobId ? data.dispatchJobs.find((item) => item.id === body.dispatchJobId) : null;
+    if (kind === "response" && !dispatchJob) return { error: [400, "A response snapshot belongs to a dispatch job."] };
+    const existing = findCapturedSnapshot(data, project.id, kind, dispatchJob?.id);
+    if (existing) return { existing };
+    const startedWork = kind === "response"
+      ? (data.jobStatusEvents || []).filter((event) => event.jobId === dispatchJob.id && event.toStatus === "in_progress").sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))[0]
+      : null;
+    const observedFor = kind === "incident" ? project.incidentReportedAt || "" : startedWork?.occurredAt || body.observedFor || "";
+    return { project, dispatchJob, observedFor, anchor: resolveWeatherAnchor(data, project, dispatchJob) };
+  });
+  if (prepared.error) return json(response, prepared.error[0], { error: prepared.error[1] });
+  if (prepared.existing) return json(response, 200, { snapshot: prepared.existing, existing: true });
+  // No time means nothing to look up; that's not a failed capture, so nothing is stored.
+  if (!prepared.observedFor) {
+    return json(response, 409, { error: kind === "incident" ? "This project has no incident time to look weather up for." : "This dispatch job has not started work yet." });
+  }
+
+  const { project, dispatchJob, observedFor, anchor } = prepared;
+  const snapshot = {
+    id: makeId("weather"),
+    projectId: project.id,
+    dispatchJobId: dispatchJob?.id || "",
+    kind,
+    observedFor,
+    latitude: anchor?.latitude ?? null,
+    longitude: anchor?.longitude ?? null,
+    anchorSource: anchor?.anchorSource || "",
+    anchorLocationId: anchor?.anchorLocationId || "",
+    anchorLabel: anchor?.anchorLabel || "",
+    requestedBy: request.headers["x-crm-user"]?.toString() || role,
+    fetchedAt: new Date().toISOString(),
+    status: "not_captured",
+    error: "",
+  };
+  if (!observedFor) {
+    snapshot.error = kind === "incident" ? "This project has no incident time to look weather up for." : "This dispatch job has not started work yet.";
+  } else if (!anchor) {
+    snapshot.error = "No GPS location on this project to anchor the weather to.";
+  } else {
+    try {
+      Object.assign(snapshot, await fetchWeatherObservation({ latitude: anchor.latitude, longitude: anchor.longitude, at: observedFor }), { status: "captured" });
+    } catch (error) {
+      snapshot.error = error.name === "TimeoutError" ? "The weather provider did not answer in time." : error.message || "Weather lookup failed.";
+    }
+  }
+
+  const saved = await serializeApi(async () => {
+    const data = await loadBackend();
+    // Another request may have captured it while the provider call was in flight.
+    const raced = findCapturedSnapshot(data, project.id, kind, dispatchJob?.id);
+    if (raced) return { snapshot: raced, existing: true };
+    data.weatherSnapshots.push(snapshot);
+    await saveBackend(data);
+    return { snapshot, existing: false };
+  });
+  return json(response, saved.existing ? 200 : 201, saved);
+}
+
 const server = createServer(async (request, response) => {
   try {
     const requestUrl = new URL(request.url ?? "/", "http://localhost");
     let pathname = decodeURIComponent(requestUrl.pathname);
 
+    if (pathname === "/api/weather-snapshots/capture") {
+      await handleWeatherCapture(request, response);
+      return;
+    }
     if (pathname.startsWith("/api/")) {
       await serializeApi(() => handleApi(request, response, pathname));
       return;

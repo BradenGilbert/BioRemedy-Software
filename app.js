@@ -1665,12 +1665,16 @@ const state = {
     locations: [],
     inventoryItems: [],
     purchaseOrders: [],
+    // Phase 11 (2026-09-23): stock-movement ledger, read-only from the client.
+    inventoryMovements: [],
     equipmentAssets: [],
     equipmentMaintenanceRecords: [],
     equipmentRestockItems: [],
     laborAssignments: [],
     sampleRecords: [],
     sampleLabReports: [],
+    // Phase 11 (2026-09-23) — structured analytical result rows per sample.
+    sampleResults: [],
     employees: [],
     employeeCertifications: [],
     certificationTypes: [],
@@ -1697,6 +1701,11 @@ const state = {
     jobActions: [],
     jobTypeTemplates: [],
     jobFormSubmissions: [],
+    // Phase 11 (2026-09-23)
+    weatherSnapshots: [],
+    permits: [],
+    wasteRecords: [],
+    notifications: [],
     invoices: [],
     qboSettings: {
       connectionStatus: "Not connected",
@@ -2091,10 +2100,11 @@ async function apiRequest(pathname, options = {}) {
 // Pass { refresh: false } when chaining several writes, then call refreshBackendState() once at
 // the end. Each refresh re-downloads the whole backend, so a multi-write flow that refreshes every
 // time is needlessly slow on a field device.
-async function saveBackendRecord(collection, record, { refresh = true } = {}) {
+async function saveBackendRecord(collection, record, { refresh = true, headers } = {}) {
   const saved = await apiRequest(`/api/backend/${collection}`, {
     method: "POST",
     body: JSON.stringify(record),
+    headers,
   });
   if (refresh) await refreshBackendState();
   return saved;
@@ -2109,6 +2119,7 @@ async function init() {
   bindEvents();
   registerServiceWorker();
   render();
+  sweepDeadlineNotifications();
 }
 
 function bindEvents() {
@@ -2530,9 +2541,12 @@ async function handleClick(event) {
   if (action === "open-team") openTeamDialog(actionButton.dataset.id);
   if (action === "open-crew") openCrewDialog(actionButton.dataset.id);
   if (action === "open-sample-lab") openSampleLabDialog(actionButton.dataset.id);
+  if (action === "open-sample-result") openSampleResultDialog(actionButton.dataset.sampleId, id);
+  if (action === "delete-sample-result") await deleteSampleResult(id);
   if (action === "open-job-request") openJobRequestDialog(actionButton.dataset.accountId, "", actionButton.dataset.projectId);
   if (action === "open-job-schedule") openDispatchScheduleDialog(actionButton.dataset.jobId);
   if (action === "export-qbo") await exportInvoiceToQbo(id);
+  if (action === "download-qbo-payload") downloadQboExportPayload(id);
   if (action === "view-account") viewAccount(id);
   if (action === "view-contact") viewContact(id);
   if (action === "view-opportunity") viewOpportunity(id);
@@ -2551,6 +2565,36 @@ async function handleClick(event) {
   if (action === "open-dispatch-assign-equipment") openDispatchAssignEquipmentDialog(actionButton.dataset.jobId);
   if (action === "open-dispatch-assign-material") openDispatchAssignMaterialDialog(actionButton.dataset.jobId);
   if (action === "remove-job-resource") await removeJobResource(id);
+  if (action === "capture-weather") {
+    actionButton.disabled = true;
+    try {
+      const snapshot = await captureWeatherSnapshot({ projectId: actionButton.dataset.projectId, dispatchJobId: actionButton.dataset.dispatchJobId || "", kind: actionButton.dataset.kind });
+      showToast(snapshot.status === "captured" ? "Weather captured." : `Still not captured: ${snapshot.error}`);
+    } catch (error) {
+      showToast(error.message || "Weather could not be captured.");
+    }
+    render();
+  }
+  if (action === "draft-narrative-day") {
+    const job = findDispatchJob(actionButton.dataset.jobId);
+    const textarea = actionButton.closest("form")?.elements.sceneActivities;
+    if (job && textarea) {
+      const draft = draftNarrativeActivities(job, actionButton.dataset.date);
+      if (!draft) showToast("Nothing was recorded in the field that day to draft from.");
+      else if (!textarea.value.trim() || window.confirm("Replace what's in Scene activities with a draft from the field data?")) {
+        textarea.value = draft;
+        textarea.focus();
+      }
+    }
+  }
+  if (action === "toggle-report-photo") await toggleReportPhoto(actionButton.dataset.id, actionButton.checked);
+  if (action === "print-post-work-report") printPostWorkReport(actionButton.dataset.id);
+  if (action === "open-permit") openPermitDialog(actionButton.dataset.id || "");
+  if (action === "open-waste-record") openWasteRecordDialog(actionButton.dataset.projectId, actionButton.dataset.id || "");
+  if (action === "open-notifications") openNotificationsDialog();
+  if (action === "mark-notification-read") await markNotificationsRead([actionButton.dataset.id]);
+  if (action === "mark-all-notifications-read") await markNotificationsRead(notificationsForCurrentUser().filter(notificationIsUnread).map((notification) => notification.id));
+  if (action === "open-notification") await openNotification(actionButton.dataset.id);
   if (action === "add-approved-sub-need") {
     const textarea = actionButton.closest("form")?.elements[actionButton.dataset.target];
     if (textarea) {
@@ -2730,6 +2774,12 @@ async function handleSubmit(event) {
   if (form.dataset.form === "opportunity-needs-list") await saveOpportunityNeedsList(form);
   if (form.dataset.form === "opportunity-needs-combined") await saveOpportunityNeedsCombined(form);
   if (form.dataset.form === "emergency-intake") await submitEmergencyIntake(form);
+  if (form.dataset.form === "dispatch-narrative-day") await saveDispatchNarrativeDay(form);
+  if (form.dataset.form === "dispatch-narrative-add-day") await addDispatchNarrativeDay(form);
+  if (form.dataset.form === "dispatch-operational-date") await saveDispatchOperationalDate(form);
+  if (form.dataset.form === "dispatch-post-job-review") await saveDispatchPostJobReview(form);
+  if (form.dataset.form === "permit") await savePermit(form);
+  if (form.dataset.form === "waste-record") await saveWasteRecord(form);
   if (form.dataset.form === "frontline-device") await saveFrontlineDevice(form);
   if (form.dataset.form === "opportunity-location") await saveOpportunityLocation(form);
   if (form.dataset.form === "standby-assignment") await saveStandbyAssignment(form);
@@ -2796,6 +2846,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "workforce-team") await saveWorkforceTeam(form);
   if (form.dataset.form === "crew-profile") await saveCrewProfile(form);
   if (form.dataset.form === "sample-lab") await saveSampleLabInfo(form);
+  if (form.dataset.form === "sample-result") await saveSampleResult(form);
   if (form.dataset.form === "job-request") await saveJobRequest(form);
   if (form.dataset.form === "dispatch-schedule") await saveDispatchSchedule(form);
   if (form.dataset.form === "activity") await saveActivity(form);
@@ -2847,6 +2898,10 @@ function handleInput(event) {
 }
 
 function handleInputInner(event) {
+  if (event.type === "change" && event.target.matches?.("[data-report-caption-id]")) {
+    saveReportPhotoCaption(event.target.dataset.reportCaptionId, event.target.value.trim());
+    return;
+  }
   if (event.type === "input" && event.target.matches?.(".record-lookup-input")) {
     const container = event.target.closest(".record-lookup");
     // Clearing a single lookup's text clears its value; any other edit waits for a pick.
@@ -3187,6 +3242,7 @@ function render() {
   renderConnection();
   renderNav();
   renderQuickActions();
+  renderNotificationBell();
   renderHeaderTitle();
   renderTodaySummary();
 
@@ -6483,12 +6539,26 @@ function isSamplingSessionActive(session) {
   return session.samples.some((sample) => /pending|transit|logged|expedited/i.test(sample.labStatus || ""));
 }
 
-function getSampleResultTone(sample) {
+// Phase 11 (2026-09-23) — shared exceedance/tone logic for a sample, used by both the sample
+// detail page and every list/card that shows a sample's result tone. Structured sampleResults
+// rows are authoritative once a sample has any: any row over its action level means "high", rows
+// present with none exceeding means "low" (no more "medium" guessing once results are in hand).
+// Samples with no structured rows yet fall back to the original free-text regex against
+// labStatus/results, which is all older samples have.
+function sampleExceedance(sample) {
+  const rows = sampleResultsForSample(sample.id);
+  if (rows.length) {
+    return rows.some((row) => row.exceedsActionLevel) ? "high" : "low";
+  }
   return /above|exceed|hit|action level/i.test(`${sample.labStatus || ""} ${sample.results || sample.labResults || ""}`)
     ? "high"
     : /pending|transit|logged|expedited/i.test(sample.labStatus || "")
       ? "medium"
       : "low";
+}
+
+function getSampleResultTone(sample) {
+  return sampleExceedance(sample);
 }
 
 function renderSamplingSessionCard(session) {
@@ -6804,7 +6874,7 @@ function renderOfficeCompliance() {
   const counts = ["Expired", "Expiring within 30 days", "Current", "No date on file"].map((status) => [status, allRows.filter((row) => row.status === status).length]);
   app.innerHTML = `
     <section class="view">
-      ${renderWorkspaceHeader("office", "Compliance", "Vendor and subcontractor certificates of insurance, by expiry. Customer subcontractor approvals don't expire, so they aren't listed.")}
+      ${renderWorkspaceHeader("office", "Compliance", "Vendor and subcontractor certificates of insurance, by expiry, and the company's own permits below. Customer subcontractor approvals don't expire, so they aren't listed.")}
       <section class="metric-strip" aria-label="Compliance status">
         ${counts
           .map(
@@ -6854,6 +6924,7 @@ function renderOfficeCompliance() {
           })}
         </div>
       </article>
+      ${renderPermitsPanel()}
     </section>
   `;
 }
@@ -7423,11 +7494,14 @@ function renderProjectSampleRecord(sample) {
   const coordinates = getSampleCoordinates(sample);
   const photos = attachmentsForAction(sample.actionId).filter((attachment) => attachment.kind === "photo");
   const results = sample.results || sample.labResults || "Pending lab result.";
+  // Red-dot rule: a sample row on the project page carries the dot when its structured results
+  // (or, absent those, the free-text fallback) show an action-level exceedance.
+  const exceedsAction = sampleExceedance(sample) === "high";
   return `
-    <article class="sample-record-card">
+    <article class="sample-record-card ${exceedsAction ? "panel-needs-attention" : ""}">
       <div>
         <button class="link-button account-name" type="button" data-action="view-sample" data-id="${escapeAttribute(sample.id)}">
-          ${escapeHtml(sample.sampleId || sample.id)}
+          ${exceedsAction ? withTrailingAlertDot(sample.sampleId || sample.id, "Exceeds action level") : escapeHtml(sample.sampleId || sample.id)}
         </button>
         <div class="row-meta">
           <span>${escapeHtml(sample.sampleLocation)}</span>
@@ -8302,9 +8376,10 @@ function renderAllProjectsTable(jobs) {
       const scheduled = dispatchJobsForProject(job.id).length > 0;
       const started = dispatchWorkHasStarted(job.id);
       const openAlerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved").length;
+      const rowAlert = [openAlerts ? `${openAlerts} open field alert${openAlerts === 1 ? "" : "s"}` : "", projectWasteAlertTitle(job.id), projectWeatherAlertTitle(job)].filter(Boolean).join("; ");
       return `
         <tr>
-          <td><button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${openAlerts ? withTrailingAlertDot(job.name, `${openAlerts} open field alert${openAlerts === 1 ? "" : "s"}`) : escapeHtml(job.name)}</button></td>
+          <td><button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${rowAlert ? withTrailingAlertDot(job.name, rowAlert) : escapeHtml(job.name)}</button></td>
           <td>${escapeHtml(account?.name || "Unknown account")}</td>
           <td>${escapeHtml(jobClassLabel[job.jobClass] || job.jobClass)}</td>
           <td>${formatDate(job.startDate)}</td>
@@ -8496,6 +8571,7 @@ function renderProjectDetail() {
           <button class="secondary-button" type="button" data-action="open-material" data-job-id="${escapeAttribute(job.id)}">Log material</button>
           <button class="secondary-button" type="button" data-action="open-equipment" data-job-id="${escapeAttribute(job.id)}">Log equipment</button>
           <button class="secondary-button" type="button" data-action="open-schedule" data-job-id="${escapeAttribute(job.id)}">Schedule</button>
+          <button class="secondary-button" type="button" data-action="print-post-work-report" data-id="${escapeAttribute(job.id)}">Post-work report</button>
           ${!job.closedAt && projectCanClose(job) ? `<button class="primary-button" type="button" data-action="close-project" data-id="${escapeAttribute(job.id)}">Close project</button>` : ""}
           <button class="primary-button" type="button" data-action="open-job-request" data-account-id="${escapeAttribute(job.accountId)}" data-project-id="${escapeAttribute(job.id)}">New job request</button>
         </div>
@@ -8537,7 +8613,10 @@ function renderProjectDetail() {
 
       <div class="account-detail-shell">
         <div class="account-detail-tabs-row">
-          ${renderProjectDetailTabs(activeTab, alerts.length)}
+          ${renderProjectDetailTabs(activeTab, {
+            live: [alerts.length ? `${alerts.length} open field alert${alerts.length === 1 ? "" : "s"}` : "", projectWasteAlertTitle(job.id)].filter(Boolean).join("; "),
+            intake: projectWeatherAlertTitle(job),
+          })}
         </div>
         <div class="account-detail-tabbody">
           ${renderProjectTabBody(activeTab, job, ctx)}
@@ -8562,17 +8641,19 @@ const projectDetailTabs = [
   { id: "intake", label: "Intake" },
   { id: "plan", label: "Plan" },
   { id: "live", label: "Live" },
+  { id: "report", label: "Report" },
 ];
 
-// Red-dot rule: open field alerts live on the Live tab, so that tab carries the dot.
-function renderProjectDetailTabs(activeTab, openAlertCount = 0) {
+// Red-dot rule: each tab carries the dot for the alerts it shows. Live has open field alerts and
+// waste at its storage limit; Intake has weather that failed to capture (Phase 11).
+function renderProjectDetailTabs(activeTab, dots = {}) {
   return `
     <div class="segment-tabs" role="tablist" aria-label="Project detail sections">
       ${projectDetailTabs
         .map(
           (tab) => `
             <button type="button" role="tab" aria-selected="${tab.id === activeTab}" class="${tab.id === activeTab ? "active" : ""}" data-action="switch-project-tab" data-tab="${tab.id}">
-              ${escapeHtml(tab.label)}${tab.id === "live" && openAlertCount ? renderAlertDot(`${openAlertCount} open field alert${openAlertCount === 1 ? "" : "s"}`) : ""}
+              ${escapeHtml(tab.label)}${dots[tab.id] ? renderAlertDot(dots[tab.id]) : ""}
             </button>
           `,
         )
@@ -8587,6 +8668,8 @@ function renderProjectTabBody(tab, job, ctx) {
       return renderProjectPlanTab(job, ctx);
     case "live":
       return renderProjectLiveTab(job, ctx);
+    case "report":
+      return renderProjectReportTab(job);
     case "intake":
     default:
       return renderProjectIntakeTab(job, ctx);
@@ -8637,6 +8720,8 @@ function renderProjectIntakeTab(job, ctx) {
       </div>
 
       <div class="detail-stack">
+        ${renderProjectWeatherPanel(job)}
+
         <article class="panel">
           <div class="panel-header"><h3>Sales and account links</h3></div>
           <div class="panel-body record-list">
@@ -8780,6 +8865,8 @@ function renderProjectLiveTab(job, ctx) {
         </article>
 
         ${renderProjectExpensesPanel(job)}
+
+        ${renderProjectWastePanel(job)}
       </div>
 
       <div class="detail-stack">
@@ -8912,13 +8999,14 @@ function renderProjectBillingPanel(job) {
           <div><dt>Equipment (${costs.equipment.items.length} logged, ${money(costs.equipment.unitCost)}/day${costs.equipment.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.equipment.total)}</dd></div>
           <div><dt>Labor (${costs.labor.hours} hrs logged, ${money(costs.labor.unitCost)}/hr${costs.labor.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.labor.total)}</dd></div>
           ${costs.expenses ? `<div><dt>Field expenses (${costs.expenses.items.length} receipt${costs.expenses.items.length === 1 ? "" : "s"})</dt><dd>${money(costs.expenses.total)}</dd></div>` : ""}
+          ${costs.waste ? `<div><dt>Waste disposal (${costs.waste.items.length} record${costs.waste.items.length === 1 ? "" : "s"} with a cost)</dt><dd>${money(costs.waste.total)}</dd></div>` : ""}
           <div><dt>Total cost</dt><dd><strong>${money(costs.total)}</strong></dd></div>
           <div><dt>Revenue (${escapeHtml(revenue.quotedSource === "quote" ? "quote" : revenue.quotedSource === "estimate" ? "estimate" : revenue.quotedSource === "none" ? "no quote/estimate on file" : "opportunity value")})</dt><dd>${money(revenue.quoted)}</dd></div>
           ${revenue.invoiced != null ? `<div><dt>Invoiced amount</dt><dd>${money(revenue.invoiced)}</dd></div>` : ""}
           <div><dt>Margin</dt><dd><strong class="${margin >= 0 ? "" : "risk-badge high"}">${money(margin)}${marginPercent != null ? ` (${marginPercent.toFixed(1)}%)` : ""}</strong></dd></div>
         </dl>
-        ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours && !costs.expenses?.items.length ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
-        <p class="help-text">Waste-disposal cost tracking (permits, disposal manifests) is not included — that's Phase 11/Field Ops Depth scope, not yet built.</p>
+        ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours && !costs.expenses?.items.length && !costs.waste?.items.length ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
+        ${costs.waste ? "" : `<p class="help-text">This report was generated before waste disposal was tracked. Regenerate it to include disposal cost from the waste log.</p>`}
       </div>
     </article>
   `;
@@ -8984,11 +9072,10 @@ function renderSampleDetail() {
     ? sample.requestedAnalyses.join(", ")
     : sample.requestedAnalyses || "Not captured";
   const nearbySamples = samplesForJob(job.id).filter((item) => item.id !== sample.id);
-  const resultTone = /above|exceed|hit|action level/i.test(`${sample.labStatus || ""} ${results}`)
-    ? "high"
-    : /pending|transit|logged|expedited/i.test(sample.labStatus || "")
-      ? "medium"
-      : "low";
+  // Phase 11 (2026-09-23) — shared with every other sample tone/dot in the app; see sampleExceedance.
+  const resultTone = getSampleResultTone(sample);
+  const analyticalResults = sampleResultsForSample(sample.id);
+  const hasExceedance = analyticalResults.some((row) => row.exceedsActionLevel);
 
   app.innerHTML = `
     <section class="view">
@@ -9098,6 +9185,43 @@ function renderSampleDetail() {
             </div>
           </article>
 
+          <article class="panel ${hasExceedance ? "panel-needs-attention" : ""}">
+            <div class="panel-header">
+              <div>
+                <h3>Analytical results</h3>
+                <span>Structured lab results per analyte, with detection/reporting limits and action-level comparison.</span>
+              </div>
+              <button class="mini-button" type="button" data-action="open-sample-result" data-sample-id="${escapeAttribute(sample.id)}">Add result</button>
+            </div>
+            <div class="panel-body">
+              ${
+                analyticalResults.length
+                  ? `
+                    <div class="data-table-scroll">
+                      <table class="data-table sample-results-table">
+                        <thead>
+                          <tr>
+                            <th>Analyte</th>
+                            <th>Method</th>
+                            <th>Result</th>
+                            <th>Qualifier</th>
+                            <th>DL / RL</th>
+                            <th>Action level</th>
+                            <th>Status</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${analyticalResults.map((result) => renderSampleResultRow(result)).join("")}
+                        </tbody>
+                      </table>
+                    </div>
+                  `
+                  : `<p class="help-text">No structured analytical results entered yet. Use "Add result" to record analyte-level lab data.</p>`
+              }
+            </div>
+          </article>
+
           <article class="panel">
             <div class="panel-header">
               <div>
@@ -9151,7 +9275,7 @@ function renderSampleDetail() {
             <div class="panel-body record-list">
               ${nearbySamples.map((item) => `
                 <button class="sample-related-link" type="button" data-action="view-sample" data-id="${escapeAttribute(item.id)}">
-                  <strong>${escapeHtml(item.sampleId || item.id)}</strong>
+                  <strong>${sampleExceedance(item) === "high" ? withTrailingAlertDot(item.sampleId || item.id, "Exceeds action level") : escapeHtml(item.sampleId || item.id)}</strong>
                   <span>${escapeHtml(item.sampleLocation || "Sample location")}</span>
                   <span>${escapeHtml(item.labStatus || "Pending")}</span>
                 </button>
@@ -11463,6 +11587,45 @@ function renderSampleLabReport(report) {
   `;
 }
 
+// Phase 11 (2026-09-23) — one row per structured analytical result. resultNumeric/
+// exceedsActionLevel are computed server-side at save (normalizeRecord in server.mjs); this only
+// renders what came back.
+function renderSampleResultRow(result) {
+  const dlrl = [
+    result.detectionLimit != null ? `DL ${result.detectionLimit}` : "",
+    result.reportingLimit != null ? `RL ${result.reportingLimit}` : "",
+  ]
+    .filter(Boolean)
+    .join(" / ") || "Not captured";
+  const actionLevelText = result.actionLevel != null ? `${result.actionLevel}${result.units ? ` ${result.units}` : ""}` : "Not set";
+  const status = result.exceedsActionLevel
+    ? "Exceeds action level"
+    : result.actionLevel != null
+      ? "Within limit"
+      : "No action level set";
+  const statusTone = result.exceedsActionLevel ? "high" : result.actionLevel != null ? "low" : "medium";
+  const linkedReport = result.labReportId
+    ? (state.backend.sampleLabReports || []).find((report) => report.id === result.labReportId)
+    : null;
+  return `
+    <tr class="${result.exceedsActionLevel ? "sample-result-row-exceeds" : ""}">
+      <td>${result.exceedsActionLevel ? withTrailingAlertDot(result.analyte || "Not captured", "Exceeds action level") : escapeHtml(result.analyte || "Not captured")}</td>
+      <td>${escapeHtml(result.method || "Not captured")}</td>
+      <td>${escapeHtml(result.resultValue || "Not captured")}${result.units ? ` ${escapeHtml(result.units)}` : ""}</td>
+      <td>${escapeHtml(result.qualifier || "")}</td>
+      <td>${escapeHtml(dlrl)}</td>
+      <td>${escapeHtml(actionLevelText)}${result.actionLevelSource ? `<br><small>${escapeHtml(result.actionLevelSource)}</small>` : ""}</td>
+      <td><span class="risk-badge ${statusTone}">${escapeHtml(status)}</span>${linkedReport ? `<br><small>${escapeHtml(linkedReport.fileName)}</small>` : ""}</td>
+      <td>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="open-sample-result" data-sample-id="${escapeAttribute(result.sampleId)}" data-id="${escapeAttribute(result.id)}">Edit</button>
+          <button class="danger-button" type="button" data-action="delete-sample-result" data-id="${escapeAttribute(result.id)}">Delete</button>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
 function renderDispatchJobs() {
   const jobs = getFilteredDispatchJobs();
   const allJobs = getDispatchJobs();
@@ -11542,12 +11705,18 @@ function renderDispatchJobs() {
 // Red-dot rule for dispatch jobs: an open schedule/eligibility conflict, or a job past draft that is
 // blocked from dispatch. A blocked *draft* is not flagged: every unplanned draft is "Blocked" by
 // definition (no schedule, no crew yet), and dotting them all would bury the real alerts.
-function dispatchJobAlertTitle(job, readiness = getJobReadiness(job)) {
+// Readiness and conflicts: the Summary tab's dot.
+function dispatchJobReadinessAlertTitle(job, readiness = getJobReadiness(job)) {
   if (isTerminalDispatchStatus(job.status)) return "";
   const openConflicts = conflictsForDispatchJob(job.id).filter((conflict) => conflict.status === "Open").length;
   if (openConflicts) return `${openConflicts} open conflict${openConflicts === 1 ? "" : "s"}`;
   if (readiness.status === "Blocked" && job.status !== "draft") return "Blocked from dispatch";
   return "";
+}
+
+// List rows and board cards carry every alert on the job; on the detail page each tab carries its own.
+function dispatchJobAlertTitle(job, readiness = getJobReadiness(job)) {
+  return [dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job)].filter(Boolean).join("; ");
 }
 
 function renderDispatchJobTableRow(job) {
@@ -12191,6 +12360,7 @@ const dispatchJobDetailTabs = [
   { id: "summary", label: "Summary" },
   { id: "details", label: "Details" },
   { id: "assignment", label: "Plan & resources" },
+  { id: "closeout", label: "Close-out" },
   { id: "files-activity", label: "Files & Activity" },
 ];
 
@@ -12242,7 +12412,7 @@ function renderDispatchJobDetail() {
       </section>
 
       <div class="account-detail-tabs-row">
-        ${renderDispatchJobDetailTabs(activeTab, dispatchJobAlertTitle(job, readiness))}
+        ${renderDispatchJobDetailTabs(activeTab, dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job))}
       </div>
       <div class="account-detail-tabbody">
         ${renderDispatchJobTabBody(activeTab, job, readiness)}
@@ -12251,15 +12421,16 @@ function renderDispatchJobDetail() {
   `;
 }
 
-// Readiness and exceptions live on Summary, so Summary carries the dot.
-function renderDispatchJobDetailTabs(activeTab, alertTitle = "") {
+// Readiness and exceptions live on Summary, so Summary carries that dot; close-out gaps (Phase 11)
+// dot the Close-out tab.
+function renderDispatchJobDetailTabs(activeTab, alertTitle = "", closeoutTitle = "") {
   return `
     <div class="segment-tabs" role="tablist" aria-label="Dispatch job detail sections">
       ${dispatchJobDetailTabs
         .map(
           (tab) => `
             <button type="button" role="tab" aria-selected="${tab.id === activeTab}" class="${tab.id === activeTab ? "active" : ""}" data-action="switch-dispatch-job-tab" data-tab="${tab.id}">
-              ${escapeHtml(tab.label)}${tab.id === "summary" && alertTitle ? renderAlertDot(alertTitle) : ""}
+              ${escapeHtml(tab.label)}${tab.id === "summary" && alertTitle ? renderAlertDot(alertTitle) : ""}${tab.id === "closeout" && closeoutTitle ? renderAlertDot(closeoutTitle) : ""}
             </button>
           `,
         )
@@ -12274,6 +12445,8 @@ function renderDispatchJobTabBody(tab, job, readiness) {
       return renderDispatchJobDetailsTab(job);
     case "assignment":
       return renderDispatchJobAssignmentTab(job);
+    case "closeout":
+      return renderDispatchJobCloseoutTab(job);
     case "files-activity":
       return renderDispatchJobFilesActivityTab(job);
     case "summary":
@@ -12964,6 +13137,15 @@ function equipmentAlertTitle(asset) {
   if (asset.status === "Maintenance hold") return "On maintenance hold";
   if (asset.issue) return `Open issue: ${asset.issue}`;
   if (asset.maintenanceDue && daysUntil(asset.maintenanceDue) < 0) return "Maintenance overdue";
+  // Phase 11 (2026-09-23): meter-based due, alongside the date-based checks above. Unlike the
+  // date logic (whose <=7-day "due soon" band only colors the status badge and does not alert),
+  // a meter "due soon" (within 5% of the target) DOES alert here — meter creep between scheduled
+  // date-based inspections is easy to miss otherwise. getEquipmentStatus's statusTone is derived
+  // from this same getEquipmentMeterTone() call, so the two stay consistent.
+  const meterTone = getEquipmentMeterTone(asset);
+  const meterReadout = `${Number(asset.currentMeter || 0).toLocaleString()} of ${Number(asset.maintenanceDueMeter || 0).toLocaleString()} ${asset.meterUnit || ""}`.trim();
+  if (meterTone === "high") return `Maintenance overdue by meter (${meterReadout})`;
+  if (meterTone === "medium") return `Maintenance due soon by meter (${meterReadout})`;
   return "";
 }
 
@@ -12979,6 +13161,7 @@ function renderConsumableDetail() {
   const percentage = Math.min(100, Math.round((consumable.available / consumable.targetStock) * 100));
   const purchaseHistory = getPurchaseOrdersForItem(consumable.id);
   const totalPurchased = purchaseHistory.reduce((sum, order) => sum + Number(order.receivedQuantity || 0), 0);
+  const movements = getInventoryMovementsForItem(consumable.id);
 
   app.innerHTML = `
     <section class="view">
@@ -13023,6 +13206,30 @@ function renderConsumableDetail() {
             <div class="panel-header"><div><h3>Purchase history</h3><span>Every time this consumable has been ordered</span></div></div>
             <div class="panel-body record-list">
               ${purchaseHistory.map(renderPurchaseOrderCard).join("") || `<div class="empty-state">No purchase orders for this consumable yet.</div>`}
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header"><div><h3>Stock movements</h3><span>Every change to on-hand quantity, newest first</span></div></div>
+            <div class="panel-body">
+              ${
+                movements.length
+                  ? `<table class="data-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Reason</th>
+                          <th>Quantity</th>
+                          <th>Balance after</th>
+                          <th>Reference</th>
+                          <th>By</th>
+                          <th>Note</th>
+                        </tr>
+                      </thead>
+                      <tbody>${movements.map(renderInventoryMovementRow).join("")}</tbody>
+                    </table>`
+                  : `<div class="empty-state">No stock movements recorded yet.</div>`
+              }
             </div>
           </article>
         </div>
@@ -13169,7 +13376,7 @@ function renderInventoryEquipment() {
                 <td><button class="link-button" type="button" data-action="view-equipment-asset" data-asset-tag="${escapeAttribute(asset.assetTag)}">${equipmentAlertTitle(asset) ? withTrailingAlertDot(asset.assetTag, equipmentAlertTitle(asset)) : escapeHtml(asset.assetTag)}</button></td>
                 <td>${escapeHtml(asset.equipment)}</td>
                 <td><span class="risk-badge ${asset.statusTone}">${escapeHtml(asset.status)}${asset.issue ? " ⚠" : ""}</span></td>
-                <td>${formatDate(asset.maintenanceDue)}</td>
+                <td>${formatDate(asset.maintenanceDue)}${asset.meterDue ? ` (meter)` : ""}</td>
                 <td>${asset.lastUsed ? formatDate(asset.lastUsed) : "Not logged"}</td>
               </tr>
             `,
@@ -13193,9 +13400,16 @@ function renderEquipmentAssetDetail() {
   const specs = asset.specs || {};
   const job = findProject(asset.assignedProjectId);
   const maintenanceRecords = getEquipmentMaintenanceRecords(asset.assetTag);
+  const maintenanceTotals = getEquipmentMaintenanceTotals(asset.assetTag);
   const restockItems = getEquipmentRestockItems(asset.assetTag);
   const checkLogs = getEquipmentLogsForAsset(asset.assetTag);
   const restockStatusTone = { Needed: "high", Ordered: "medium", Stocked: "low" };
+  // Phase 11 (2026-09-23): red-dot rule — a dot on the header next to the asset tag/equipment
+  // name, plus the needs-attention outline on the Maintenance records panel, whenever
+  // equipmentAlertTitle() flags this asset (hold, issue, date-overdue, or meter due/due-soon).
+  const equipmentAlert = equipmentAlertTitle(asset);
+  const isDue = Boolean(equipmentAlert);
+  const hasPmPlan = Boolean(asset.pmIntervalDays || asset.pmIntervalMeter);
 
   app.innerHTML = `
     <section class="view">
@@ -13209,7 +13423,7 @@ function renderEquipmentAssetDetail() {
       <section class="employee-detail-header">
         <div>
           <p class="eyebrow">${escapeHtml(asset.category || "General equipment")}</p>
-          <h2>${escapeHtml(asset.assetTag)} - ${escapeHtml(asset.equipment)}</h2>
+          <h2>${isDue ? withTrailingAlertDot(`${asset.assetTag} - ${asset.equipment}`, equipmentAlert) : escapeHtml(`${asset.assetTag} - ${asset.equipment}`)}</h2>
           <p>${escapeHtml(asset.issue || `Assigned context: ${job?.name || "No active assignment"}`)}</p>
         </div>
         <div class="employee-header-status">
@@ -13226,6 +13440,15 @@ function renderEquipmentAssetDetail() {
                 <div><dt>Last used</dt><dd>${formatDate(asset.lastUsed)}</dd></div>
                 <div><dt>Maintenance due</dt><dd>${formatDate(asset.maintenanceDue)}</dd></div>
                 <div><dt>Assigned job</dt><dd>${escapeHtml(job?.name || "No active assignment")}</dd></div>
+                ${
+                  hasPmPlan
+                    ? `
+                <div><dt>PM interval</dt><dd>${asset.pmIntervalDays ? `${Number(asset.pmIntervalDays)} days` : ""}${asset.pmIntervalDays && asset.pmIntervalMeter ? " / " : ""}${asset.pmIntervalMeter ? `${Number(asset.pmIntervalMeter)} ${escapeHtml(asset.meterUnit || "")}` : ""}</dd></div>
+                <div><dt>Current meter</dt><dd>${asset.currentMeter != null ? `${Number(asset.currentMeter).toLocaleString()} ${escapeHtml(asset.meterUnit || "")}` : "Not recorded"}</dd></div>
+                <div><dt>Next due (meter)</dt><dd>${asset.maintenanceDueMeter != null ? `${Number(asset.maintenanceDueMeter).toLocaleString()} ${escapeHtml(asset.meterUnit || "")}` : "Not set"}</dd></div>
+                `
+                    : ""
+                }
                 ${config.specFields
                   .map(
                     (field) =>
@@ -13236,9 +13459,12 @@ function renderEquipmentAssetDetail() {
             </div>
           </article>
 
-          <article class="panel ${asset.maintenanceDue && daysUntil(asset.maintenanceDue) < 0 ? "panel-needs-attention" : ""}">
+          <article class="panel ${isDue ? "panel-needs-attention" : ""}">
             <div class="panel-header">
-              <div><h3>Maintenance records</h3><span>Next due ${formatDate(asset.maintenanceDue)}</span></div>
+              <div>
+                <h3>Maintenance records</h3>
+                <span>Next due ${formatDate(asset.maintenanceDue)}${asset.maintenanceDueMeter != null ? ` or ${Number(asset.maintenanceDueMeter).toLocaleString()} ${escapeHtml(asset.meterUnit || "")}` : ""} · ${money(maintenanceTotals.cost)} to date · ${maintenanceTotals.downtimeHours} hr downtime to date</span>
+              </div>
               <button class="mini-button" type="button" data-action="open-equipment-maintenance" data-asset-tag="${escapeAttribute(asset.assetTag)}">Log maintenance</button>
             </div>
             <div class="panel-body record-list">
@@ -13308,12 +13534,20 @@ function renderEquipmentAssetDetail() {
 }
 
 function renderEquipmentMaintenanceRow(record) {
+  const meta = [
+    `${escapeHtml(record.performedBy || "Unknown")}${record.vendor ? ` (${escapeHtml(record.vendor)})` : ""}`,
+    record.cost ? money(record.cost) : "",
+    record.meterReading != null && record.meterReading !== "" ? `${Number(record.meterReading).toLocaleString()} ${escapeHtml(record.meterUnit || "")}` : "",
+    Number(record.downtimeHours || 0) ? `${Number(record.downtimeHours)} hr downtime` : "",
+    record.workOrderNumber ? `WO ${escapeHtml(record.workOrderNumber)}` : "",
+  ].filter(Boolean);
   return `
     <article class="credential-row">
       <div>
         <span class="credential-type">${escapeHtml(record.type || "Maintenance")}</span>
+        <span class="risk-badge ${record.status === "Scheduled" ? "medium" : "low"}">${escapeHtml(record.status || "Completed")}</span>
         <strong>${escapeHtml(record.description || "No description")}</strong>
-        <span>${escapeHtml(record.performedBy || "Unknown")}${record.cost ? ` · ${money(record.cost)}` : ""}</span>
+        <span>${meta.join(" · ")}</span>
       </div>
       <div class="credential-dates">
         <span>Logged ${formatDate(record.date)}</span>
@@ -13440,15 +13674,16 @@ function renderPurchaseOrderCard(order) {
 
 function renderEquipmentAssetCard(asset) {
   const job = findProject(asset.assignedProjectId);
+  const alertTitle = equipmentAlertTitle(asset);
   return `
     <article class="inventory-card">
       <div class="race-card-main">
         <div>
-          <button class="link-button account-name" type="button" data-action="view-equipment-asset" data-asset-tag="${escapeAttribute(asset.assetTag)}">${escapeHtml(asset.assetTag)} - ${escapeHtml(asset.equipment)}</button>
+          <button class="link-button account-name" type="button" data-action="view-equipment-asset" data-asset-tag="${escapeAttribute(asset.assetTag)}">${alertTitle ? withTrailingAlertDot(`${asset.assetTag} - ${asset.equipment}`, alertTitle) : escapeHtml(`${asset.assetTag} - ${asset.equipment}`)}</button>
           <div class="row-meta">
             <span>${escapeHtml(asset.category || "General equipment")}</span>
             <span>Last used ${formatDate(asset.lastUsed)}</span>
-            <span>Maintenance ${formatDate(asset.maintenanceDue)}</span>
+            <span>Maintenance ${formatDate(asset.maintenanceDue)}${asset.meterDue ? " (meter)" : ""}</span>
           </div>
         </div>
         <button class="risk-badge ${asset.statusTone}" type="button" data-action="open-equipment-status" data-asset-tag="${escapeAttribute(asset.assetTag)}">${escapeHtml(asset.status)}</button>
@@ -13709,9 +13944,48 @@ function renderFinanceInvoices() {
   `;
 }
 
+// Phase 11 (2026-09-23): each row is the exact payload a real QBO Invoice-create call would send
+// (see buildQboInvoicePayload on the server), plus any validationIssues found while mapping it — a
+// missing customer/item name, or a line whose numbers don't add up. Real credentials would replace
+// "Queued" with an actual POST; nothing else about this view should need to change when that happens.
+function renderFinanceQboExportCard(item) {
+  const invoice = (state.backend.invoices || []).find((row) => row.id === item.invoiceId);
+  const issues = item.validationIssues || [];
+  const hasIssues = issues.length > 0;
+  return `
+    <article class="detail-card ${hasIssues ? "panel-needs-attention" : ""}">
+      <strong>${escapeHtml(invoice?.customer || item.payload?.CustomerRef?.name || item.invoiceId)}${hasIssues ? renderAlertDot(`${issues.length} export issue${issues.length === 1 ? "" : "s"}`) : ""}</strong>
+      <div class="row-meta">
+        <span>Invoice ${escapeHtml(item.invoiceId)}</span>
+        <span>${escapeHtml(item.status)}</span>
+        <span>${formatDate(item.createdAt)}</span>
+      </div>
+      ${
+        hasIssues
+          ? `<ul class="qbo-issue-list">${issues.map((issue) => `<li>${escapeHtml(issue)}</li>`).join("")}</ul>`
+          : ""
+      }
+      ${
+        item.payload
+          ? `
+            <details class="qbo-payload-details">
+              <summary>View payload</summary>
+              <pre class="qbo-payload-pre">${escapeHtml(JSON.stringify(item.payload, null, 2))}</pre>
+            </details>
+            <div class="inline-actions">
+              <button class="mini-button" type="button" data-action="download-qbo-payload" data-id="${escapeAttribute(item.id)}">Download JSON</button>
+            </div>
+          `
+          : ""
+      }
+    </article>
+  `;
+}
+
 function renderFinanceQbo() {
   const settings = state.backend.qboSettings || {};
   const exports = state.backend.qboExports || [];
+  const hasQueueIssues = exports.some((item) => (item.validationIssues || []).length);
 
   app.innerHTML = `
     <section class="view">
@@ -13731,29 +14005,29 @@ function renderFinanceQbo() {
             </dl>
           </div>
         </article>
-        <article class="panel">
-          <div class="panel-header"><h3>Export queue</h3></div>
+        <article class="panel ${hasQueueIssues ? "panel-needs-attention" : ""}">
+          <div class="panel-header"><h3>Export queue${hasQueueIssues ? renderAlertDot("One or more queued exports have mapping issues") : ""}</h3></div>
           <div class="panel-body record-list">
-            ${
-              exports
-                .map(
-                  (item) => `
-                    <article class="detail-card">
-                      <strong>${escapeHtml(item.invoiceId)}</strong>
-                      <div class="row-meta">
-                        <span>${escapeHtml(item.status)}</span>
-                        <span>${formatDate(item.createdAt)}</span>
-                      </div>
-                    </article>
-                  `,
-                )
-                .join("") || `<div class="empty-state">No QuickBooks exports queued.</div>`
-            }
+            ${exports.slice().reverse().map(renderFinanceQboExportCard).join("") || `<div class="empty-state">No QuickBooks exports queued.</div>`}
           </div>
         </article>
       </section>
     </section>
   `;
+}
+
+function downloadQboExportPayload(exportId) {
+  const item = (state.backend.qboExports || []).find((row) => row.id === exportId);
+  if (!item?.payload) return;
+  const blob = new Blob([JSON.stringify(item.payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `qbo-invoice-${item.invoiceId}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function renderClientDashboard() {
@@ -15157,6 +15431,8 @@ function renderFrontlineJobDetail() {
           <div class="work-plan-list">
             ${steps.map((step) => renderFrontlineWorkPlanStep(step, steps, job)).join("") || `<div class="empty-state">No execution plan instantiated.</div>`}
           </div>
+
+          ${renderFrontlineCloseout(job)}
 
           <h3>Additional activity</h3>
           <p class="help-text">Not on the template? Add a note, extra sample, signature, photo, or travel leg without waiting on a work-plan step.</p>
@@ -17090,7 +17366,7 @@ async function saveAccount(form) {
   const existing = existingId ? findAccount(existingId) : null;
   const now = new Date().toISOString();
   const businessDescription = data.get("businessDescription").toString().trim();
-  const ownerEmployeeId = data.get("ownerEmployeeId").toString();
+  const ownerEmployeeId = (data.get("ownerEmployeeId") || "").toString();
   const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
   const industryId = data.get("industryId").toString();
   const enteredCity = data.get("addressCity").toString().trim();
@@ -17112,6 +17388,9 @@ async function saveAccount(form) {
     addressOneCity: enteredCity || existing?.addressOneCity || "",
     addressOneState: enteredState || existing?.addressOneState || "",
     concern: data.get("concern").toString().trim(),
+    // Phase 11 (2026-09-23): optional override for the customer name a real QuickBooks export uses;
+    // blank means the export falls back to the account name.
+    qboCustomerName: data.get("qboCustomerName").toString().trim(),
     owner: ownerName || existing?.owner || "Unassigned",
     ownerEmployeeId: ownerEmployeeId === "system" ? "system" : ownerEmployeeId || existing?.ownerEmployeeId || "",
     lastContact: existing?.lastContact || todayIso(),
@@ -17297,7 +17576,7 @@ async function saveContactPersonal(form) {
 async function saveContactRole(form) {
   const data = new FormData(form);
   const contactId = data.get("id").toString();
-  const ownerEmployeeId = data.get("ownerEmployeeId").toString();
+  const ownerEmployeeId = (data.get("ownerEmployeeId") || "").toString();
   const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
   const patch = {
     accountRole: data.get("accountRole").toString(),
@@ -17382,6 +17661,15 @@ async function saveProjectAlert(form) {
   };
 
   await saveBackendRecord("projectAlerts", alert, { refresh: false });
+  // Phase 11: until now `notified` was recorded and nobody was told.
+  raiseNotification({
+    key: `project-alert-${alert.id}`,
+    title: `${alert.severity} field alert: ${job.name}`,
+    body: `${alert.alertType}: ${alert.description}`,
+    severity: /high|critical/i.test(alert.severity) ? "critical" : "warning",
+    audienceRoles: FIELD_ALERT_NOTIFY_ROLES,
+    link: `#view=project-detail&selectedProjectId=${encodeURIComponent(job.id)}`,
+  });
   await queueChange("Project Alert", "created", alert);
   closeDialogs();
   await refreshState();
@@ -17501,17 +17789,24 @@ async function saveRemediation(form) {
 async function saveInventoryItem(form) {
   const data = new FormData(form);
   try {
-    await saveBackendRecord("inventoryItems", {
-      id: data.get("id").toString() || "",
-      materialType: data.get("materialType").toString().trim(),
-      unit: data.get("unit").toString().trim(),
-      onHand: Number(data.get("onHand")),
-      reorderAt: Number(data.get("reorderAt")),
-      targetStock: Number(data.get("targetStock")),
-      buyer: data.get("buyer").toString().trim(),
-      barcode: data.get("barcode").toString().trim(),
-      productId: data.get("productId")?.toString() || "",
-    });
+    await saveBackendRecord(
+      "inventoryItems",
+      {
+        id: data.get("id").toString() || "",
+        materialType: data.get("materialType").toString().trim(),
+        unit: data.get("unit").toString().trim(),
+        onHand: Number(data.get("onHand")),
+        reorderAt: Number(data.get("reorderAt")),
+        targetStock: Number(data.get("targetStock")),
+        buyer: data.get("buyer").toString().trim(),
+        barcode: data.get("barcode").toString().trim(),
+        productId: data.get("productId")?.toString() || "",
+        // Phase 11 (2026-09-23): transient -- the server logs it on the stock-movement ledger row it
+        // writes when onHand changes, but never stores it on the inventory item itself.
+        adjustmentNote: data.get("adjustmentNote")?.toString().trim() || "",
+      },
+      { headers: { "X-CRM-User": state.currentUser?.name || "Local user" } },
+    );
     closeDialogs();
     render();
     showToast("Consumable saved on the backend.");
@@ -17590,6 +17885,14 @@ async function saveEquipmentAsset(form) {
       assignedProjectId: existing?.assignedProjectId || "",
       productId: data.get("productId")?.toString() || "",
       specs,
+      // Phase 11 (2026-09-23): PM interval + meter plan. This form is the only place a user can
+      // edit or clear these, so we read them straight from the form rather than falling back to
+      // `existing` (a fallback would make it impossible to ever clear a value here).
+      pmIntervalDays: numberOrNull(data.get("pmIntervalDays")),
+      pmIntervalMeter: numberOrNull(data.get("pmIntervalMeter")),
+      meterUnit: data.get("meterUnit")?.toString() || "",
+      currentMeter: numberOrNull(data.get("currentMeter")),
+      maintenanceDueMeter: numberOrNull(data.get("maintenanceDueMeter")),
     });
     closeDialogs();
     render();
@@ -17599,23 +17902,66 @@ async function saveEquipmentAsset(form) {
   }
 }
 
+// Phase 11 (2026-09-23): the dialog's Type options ("Scheduled service", "Repair", "Inspection",
+// "Decontamination", "Other") have no dedicated "Preventive maintenance" entry — "Scheduled
+// service" is the existing stand-in for it, so that's what qualifies a record for PM-interval math.
+const PM_MAINTENANCE_TYPE = "Scheduled service";
+
 async function saveEquipmentMaintenanceRecord(form) {
   const data = new FormData(form);
   const assetTag = data.get("assetTag").toString().trim();
-  const nextDueDate = data.get("nextDueDate").toString();
+  const type = data.get("type").toString();
+  const date = data.get("date").toString() || todayIso();
+  const status = data.get("status")?.toString() || "Completed";
+  const meterReading = numberOrNull(data.get("meterReading"));
+  const meterUnit = data.get("meterUnit")?.toString() || "hours";
+  let nextDueDate = data.get("nextDueDate").toString();
+  const asset = findEquipmentAssetByTag(assetTag);
+
+  // If this is a completed PM/service record on an asset with a PM interval configured, and the
+  // user left "Next due" blank, compute both the next due date and next due meter from the
+  // interval instead of leaving the asset's plan stale.
+  let nextDueMeter = asset?.maintenanceDueMeter ?? null;
+  if (asset && status === "Completed" && type === PM_MAINTENANCE_TYPE && !nextDueDate) {
+    if (asset.pmIntervalDays) nextDueDate = addDaysFrom(date, Number(asset.pmIntervalDays));
+    if (meterReading != null && asset.pmIntervalMeter) nextDueMeter = meterReading + Number(asset.pmIntervalMeter);
+  }
+
   try {
     await saveBackendRecord("equipmentMaintenanceRecords", {
       assetTag,
-      type: data.get("type").toString(),
-      date: data.get("date").toString() || todayIso(),
+      type,
+      date,
       description: data.get("description").toString().trim(),
       performedBy: data.get("performedBy").toString().trim() || state.currentUser?.name || "Local user",
       cost: Number(data.get("cost") || 0),
       nextDueDate,
+      vendor: data.get("vendor")?.toString().trim() || "",
+      workOrderNumber: data.get("workOrderNumber")?.toString().trim() || "",
+      meterReading,
+      meterUnit,
+      downtimeHours: Number(data.get("downtimeHours") || 0),
+      status,
     });
-    const asset = findEquipmentAssetByTag(assetTag);
-    if (asset && nextDueDate) {
-      await saveBackendRecord("equipmentAssets", { ...asset, maintenanceDue: nextDueDate });
+
+    if (asset) {
+      const assetUpdates = { ...asset };
+      let changed = false;
+      if (nextDueDate) {
+        assetUpdates.maintenanceDue = nextDueDate;
+        changed = true;
+      }
+      if (nextDueMeter != null && Number(nextDueMeter) !== Number(asset.maintenanceDueMeter ?? NaN)) {
+        assetUpdates.maintenanceDueMeter = nextDueMeter;
+        changed = true;
+      }
+      // Any record with a meter reading higher than the asset's current meter moves it forward,
+      // regardless of maintenance type/status — it's evidence of usage, not just PM bookkeeping.
+      if (meterReading != null && meterReading > Number(asset.currentMeter || 0)) {
+        assetUpdates.currentMeter = meterReading;
+        changed = true;
+      }
+      if (changed) await saveBackendRecord("equipmentAssets", assetUpdates);
     }
     closeDialogs();
     render();
@@ -18442,6 +18788,9 @@ async function submitEmergencyIntake(form) {
         { refresh: false },
       );
     }
+    // Phase 11, Q39: the incident weather snapshot is pulled now, while the time is fresh. It anchors
+    // to the spill-origin point just saved (or the intake pin); with neither it records "not captured".
+    captureWeatherInBackground({ projectId: project.id, kind: "incident" });
 
     const sequence = getDispatchJobs().length + 1;
     const now = new Date();
@@ -18881,6 +19230,12 @@ async function advanceDispatchJob(jobId, { silent = false } = {}) {
     showToast(gate.reason);
     return;
   }
+  // Phase 11: the post-job review (accidents, near misses, injuries) is part of the job's record, so
+  // the office can't close the job without it.
+  if (transition.status === "closed" && !postJobReviewComplete(job)) {
+    showToast("Answer the post-job review (accidents, near misses, injuries) on the Close-out tab before closing the job.");
+    return;
+  }
 
   try {
     const occurredAt = new Date().toISOString();
@@ -18890,6 +19245,8 @@ async function advanceDispatchJob(jobId, { silent = false } = {}) {
         ...job,
         status: transition.status,
         dispatchStatus: transition.dispatchStatus,
+        // Phase 09 Q5: the operational day is fixed when work starts and never recomputed.
+        operationalDate: transition.status === "in_progress" && !job.operationalDate ? localIsoDate(new Date(occurredAt)) : job.operationalDate || "",
         officeReviewStatus: transition.status === "office_review" ? "In review" : transition.status === "closed" ? "Closed" : job.officeReviewStatus,
         completionPercent: Math.max(Number(job.completionPercent || 0), transition.completionPercent),
         updatedAt: occurredAt,
@@ -18907,6 +19264,11 @@ async function advanceDispatchJob(jobId, { silent = false } = {}) {
       occurredAt,
       by: state.frontlineSession ? findEmployee(state.frontlineSession.employeeId)?.displayName || "Front Line" : state.currentUser?.name || "Local user",
     });
+    // Phase 11, Q40: "cleanup commenced" is this transition, so it stamps the second weather snapshot.
+    // Written after the status event, which the server reads as the observation time.
+    if (transition.status === "in_progress" && findProject(job.projectId)) {
+      captureWeatherInBackground({ projectId: job.projectId, dispatchJobId: job.id, kind: "response", observedFor: occurredAt });
+    }
     await advanceProjectStageFromDispatchStatus(job.projectId, transition.status);
     if (!silent) {
       render();
@@ -18949,6 +19311,1366 @@ async function advanceProjectStageFromDispatchStatus(projectId, dispatchStatus) 
     projectStage: targetStage,
     activePhase: targetStage,
   });
+}
+
+// ============================================================================================
+// Phase 11 (2026-09-23) — field ops depth: weather snapshots, the per-day case narrative and
+// post-job review, report photo curation, the post-work report, the permit registry and per-job
+// waste tracking, and in-app notifications. docs/roadmap/phase-11-field-ops-depth.md "Build plan".
+// ============================================================================================
+
+function currentActorName() {
+  return state.frontlineSession ? findEmployee(state.frontlineSession.employeeId)?.displayName || "Front Line" : state.currentUser?.name || "Local user";
+}
+
+// ---- Weather snapshots ----------------------------------------------------------------------
+//
+// Q39: pulled, never typed. Q40: the second snapshot is stamped when a dispatch job enters
+// in_progress ("Start work"). Q41: frozen once taken. The server does the fetching and writes the
+// rows (POST /api/weather-snapshots/capture); the client only asks and displays.
+
+function weatherSnapshotsForProject(projectId) {
+  return (state.backend.weatherSnapshots || []).filter((snapshot) => snapshot.projectId === projectId);
+}
+
+// A captured row wins; otherwise the newest failed attempt, so its reason stays on screen.
+function currentWeatherSnapshot(projectId, kind, dispatchJobId = "") {
+  const rows = weatherSnapshotsForProject(projectId)
+    .filter((snapshot) => snapshot.kind === kind && (kind === "incident" || snapshot.dispatchJobId === dispatchJobId))
+    .sort((a, b) => String(b.fetchedAt).localeCompare(String(a.fetchedAt)));
+  return rows.find((snapshot) => snapshot.status === "captured") || rows[0] || null;
+}
+
+function dispatchJobStartedWorkAt(jobId) {
+  return (
+    (state.backend.jobStatusEvents || [])
+      .filter((event) => event.jobId === jobId && event.toStatus === "in_progress")
+      .sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))[0]?.occurredAt || ""
+  );
+}
+
+// What a snapshot slot should say. Only "failed" is an alert: "n/a" and "pending" are the normal
+// state of a project with no incident time or a job that hasn't started work.
+function weatherSlot(project, kind, dispatchJob = null) {
+  const snapshot = currentWeatherSnapshot(project.id, kind, dispatchJob?.id || "");
+  if (snapshot?.status === "captured") return { state: "captured", snapshot };
+  if (kind === "incident" && !project.incidentReportedAt) return { state: "n/a", reason: "No incident time on this project." };
+  if (kind === "response" && !dispatchJobStartedWorkAt(dispatchJob.id)) {
+    return ["field_complete", "office_review", "closed", "cancelled"].includes(dispatchJob.status)
+      ? { state: "n/a", reason: "No start-work time was recorded for this job." }
+      : { state: "pending", reason: "Taken automatically when the crew taps Start work." };
+  }
+  return { state: "failed", snapshot, reason: snapshot?.error || "Not captured yet." };
+}
+
+function projectWeatherSlots(project) {
+  const slots = [{ label: "At the incident", kind: "incident", dispatchJob: null, slot: weatherSlot(project, "incident") }];
+  dispatchJobsForProject(project.id)
+    .slice()
+    .reverse()
+    .forEach((dispatchJob) =>
+      slots.push({ label: `Cleanup commenced (${dispatchJob.jobNumber})`, kind: "response", dispatchJob, slot: weatherSlot(project, "response", dispatchJob) }),
+    );
+  return slots;
+}
+
+function projectWeatherAlertTitle(project) {
+  const failed = projectWeatherSlots(project).filter((entry) => entry.slot.state === "failed").length;
+  return failed ? `${failed} weather snapshot${failed === 1 ? "" : "s"} not captured` : "";
+}
+
+function formatWeatherLine(snapshot) {
+  if (!snapshot || snapshot.status !== "captured") return "";
+  const parts = [snapshot.conditions];
+  if (snapshot.temperatureF != null) parts.push(`Temp: ${Number(snapshot.temperatureF).toFixed(1)}°F`);
+  if (snapshot.windSpeedMph != null) {
+    parts.push(`Wind: ${snapshot.windDirection ? `${snapshot.windDirection} ` : ""}@ ${Math.round(snapshot.windSpeedMph)} mph${snapshot.windGustMph ? `, gusts ${Math.round(snapshot.windGustMph)}` : ""}`);
+  }
+  if (snapshot.relativeHumidity != null) parts.push(`Humidity: ${Math.round(snapshot.relativeHumidity)}%`);
+  if (snapshot.precipitationIn != null) parts.push(`Precipitation: ${Number(snapshot.precipitationIn).toFixed(2)} in/hr`);
+  return parts.join(", ");
+}
+
+function weatherProvenance(snapshot) {
+  if (!snapshot) return "";
+  const place = snapshot.latitude != null ? `${Number(snapshot.latitude).toFixed(4)}, ${Number(snapshot.longitude).toFixed(4)}` : "";
+  const anchor = [snapshot.anchorSource, snapshot.anchorLabel].filter(Boolean).join(": ");
+  return snapshot.status === "captured"
+    ? `Hourly observation for ${formatDateTime(snapshot.observationTime)} at ${place}${anchor ? ` (${anchor})` : ""}. ${snapshot.provider}, fetched ${formatDateTime(snapshot.fetchedAt)}.`
+    : `Last tried ${formatDateTime(snapshot.fetchedAt)}${place ? ` at ${place}` : ""}.`;
+}
+
+function renderWeatherSlotRow(entry, project) {
+  const { slot } = entry;
+  let body;
+  if (slot.state === "captured") {
+    body = `<strong>${escapeHtml(formatWeatherLine(slot.snapshot))}</strong><small class="muted-text">${escapeHtml(weatherProvenance(slot.snapshot))}</small>`;
+  } else if (slot.state === "failed") {
+    body = `<span class="risk-badge high">Not captured</span> ${escapeHtml(slot.reason)}${slot.snapshot ? `<small class="muted-text">${escapeHtml(weatherProvenance(slot.snapshot))}</small>` : ""}
+      <div><button class="mini-button" type="button" data-action="capture-weather" data-project-id="${escapeAttribute(project.id)}" data-dispatch-job-id="${escapeAttribute(entry.dispatchJob?.id || "")}" data-kind="${entry.kind}">Try again</button></div>`;
+  } else {
+    body = `<span class="muted-text">${escapeHtml(slot.reason)}</span>`;
+  }
+  return `<div class="weather-slot"><dt>${slot.state === "failed" ? withTrailingAlertDot(entry.label, "Weather not captured") : escapeHtml(entry.label)}</dt><dd>${body}</dd></div>`;
+}
+
+function renderProjectWeatherPanel(project) {
+  const alert = projectWeatherAlertTitle(project);
+  return `
+    <article class="panel${alert ? " panel-needs-attention" : ""}">
+      <div class="panel-header"><div><h3>Weather at the scene${alert ? renderAlertDot(alert) : ""}</h3><span>Pulled automatically and frozen when taken. Nobody types these in.</span></div></div>
+      <div class="panel-body">
+        <dl class="detail-list weather-slot-list">${projectWeatherSlots(project).map((entry) => renderWeatherSlotRow(entry, project)).join("")}</dl>
+      </div>
+    </article>
+  `;
+}
+
+async function captureWeatherSnapshot({ projectId, dispatchJobId = "", kind, observedFor = "" }) {
+  const result = await apiRequest("/api/weather-snapshots/capture", {
+    method: "POST",
+    body: JSON.stringify({ projectId, dispatchJobId, kind, observedFor }),
+    headers: { "X-CRM-User": currentActorName() },
+  });
+  const snapshot = result.snapshot;
+  state.backend.weatherSnapshots = [...(state.backend.weatherSnapshots || []).filter((item) => item.id !== snapshot.id), snapshot];
+  if (snapshot.status !== "captured") {
+    const project = findProject(projectId);
+    raiseNotification({
+      key: `weather-${snapshot.id}`,
+      title: `Weather not captured: ${project?.name || "project"}`,
+      body: `${kind === "incident" ? "Incident" : "Start-of-work"} weather: ${snapshot.error}`,
+      audienceRoles: OPERATIONS_NOTIFY_ROLES,
+      link: `#view=project-detail&selectedProjectId=${encodeURIComponent(projectId)}`,
+    });
+  }
+  return snapshot;
+}
+
+// The two automatic trigger points (intake save, Start work) don't wait on the provider: the row
+// lands a few seconds later. Re-render only a screen that shows weather, and never under someone
+// who is typing.
+function captureWeatherInBackground(args) {
+  captureWeatherSnapshot(args)
+    .then(() => {
+      const typing = app.contains(document.activeElement) && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+      if (!typing && ["project-detail", "dispatch-job-detail"].includes(state.view)) render();
+    })
+    .catch(() => {});
+}
+
+// ---- Case narrative and post-job review (dispatch job close-out) ------------------------------
+
+const POST_JOB_REVIEW_QUESTIONS = [
+  { key: "accidents", label: "Were there any accidents?" },
+  { key: "nearMisses", label: "Were there any near misses?" },
+  { key: "injuries", label: "Were there any injuries?" },
+];
+
+// Phase 09 Q5 (owner, 2026-09-22): a usage record belongs to its dispatch job's operational day, not
+// the calendar date it was entered, so a technician logging material at 1am counts on the day the job
+// was worked. The day is fixed once per job: stamped when the crew taps Start work (Q40's "cleanup
+// commenced"), derived for older jobs from their first start-work or on-site event, then the schedule.
+function dispatchJobOperationalDate(job) {
+  if (!job) return "";
+  if (job.operationalDate) return job.operationalDate;
+  const events = (state.backend.jobStatusEvents || [])
+    .filter((event) => event.jobId === job.id)
+    .sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)));
+  const anchor = events.find((event) => event.toStatus === "in_progress") || events.find((event) => event.toStatus === "on_site");
+  if (anchor) return localIsoDate(parseDate(anchor.occurredAt));
+  return job.scheduledStart ? localIsoDate(parseDate(job.scheduledStart)) : "";
+}
+
+const FIELD_WORK_STATUSES = ["on_site", "in_progress", "field_complete", "office_review", "closed"];
+
+// A job's work days: its operational day once field work has begun, plus any day the field lead added
+// for a job that genuinely ran over several days.
+function dispatchJobWorkDays(job) {
+  const days = new Set((job.dailyNarratives || []).map((entry) => entry.date).filter(Boolean));
+  if (FIELD_WORK_STATUSES.includes(job.status)) {
+    const operationalDate = dispatchJobOperationalDate(job);
+    if (operationalDate) days.add(operationalDate);
+  }
+  return [...days].sort();
+}
+
+// Which work day a record counts on. Q5 rolls it to the operational day (the overnight case); a record
+// keeps its own calendar day only when that day was added to the job as a work day of its own.
+function dispatchRecordDay(job, timestamp, workDays = dispatchJobWorkDays(job)) {
+  const calendar = timestamp ? localIsoDate(parseDate(timestamp)) : "";
+  if (calendar && workDays.includes(calendar)) return calendar;
+  return dispatchJobOperationalDate(job) || calendar;
+}
+
+function narrativeForDay(job, date) {
+  return (job.dailyNarratives || []).find((entry) => entry.date === date) || null;
+}
+
+function narrativeComplete(entry) {
+  return Boolean(entry?.sceneDescription?.trim() && entry?.sceneActivities?.trim());
+}
+
+function postJobReviewComplete(job) {
+  const review = job.postJobReview || {};
+  return POST_JOB_REVIEW_QUESTIONS.every(({ key }) => review[key] === "Yes" || review[key] === "No");
+}
+
+function postJobReviewHasIncident(job) {
+  return POST_JOB_REVIEW_QUESTIONS.some(({ key }) => job.postJobReview?.[key] === "Yes");
+}
+
+// Close-out is owed from Field complete until the office closes the job.
+function closeoutOwed(job) {
+  return ["field_complete", "office_review"].includes(job.status);
+}
+
+function dispatchCloseoutGaps(job) {
+  const gaps = [];
+  const project = job.projectId ? findProject(job.projectId) : null;
+  if (project && weatherSlot(project, "response", job).state === "failed") gaps.push("Start-of-work weather not captured");
+  if (closeoutOwed(job)) {
+    const missing = dispatchJobWorkDays(job).filter((date) => !narrativeComplete(narrativeForDay(job, date))).length;
+    if (missing) gaps.push(`${missing} work day${missing === 1 ? "" : "s"} without a case narrative`);
+    if (!postJobReviewComplete(job)) gaps.push("Post-job review not answered");
+  }
+  return gaps;
+}
+
+function dispatchCloseoutAlertTitle(job) {
+  if (isTerminalDispatchStatus(job.status)) return "";
+  return dispatchCloseoutGaps(job).join("; ");
+}
+
+function formatLongDate(isoDate) {
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "2-digit", year: "numeric" }).format(parseDate(isoDate));
+}
+
+function renderNarrativeDayForm(job, date, index, { open = true } = {}) {
+  const entry = narrativeForDay(job, date);
+  const missing = closeoutOwed(job) && !narrativeComplete(entry);
+  return `
+    <details class="closeout-day" ${open ? "open" : ""}>
+      <summary>Day ${index + 1}: ${escapeHtml(formatLongDate(date))}${missing ? renderAlertDot("No narrative for this day") : ""}${narrativeComplete(entry) ? ` <span class="tag">Written</span>` : ""}</summary>
+      <form class="closeout-day-form" data-form="dispatch-narrative-day">
+        <input type="hidden" name="jobId" value="${escapeAttribute(job.id)}" />
+        <input type="hidden" name="date" value="${escapeAttribute(date)}" />
+        <label>Scene description
+          <textarea name="sceneDescription" rows="3" placeholder="What the crew found: the spill, its extent, what had already been done">${escapeHtml(entry?.sceneDescription || "")}</textarea>
+        </label>
+        <label>Scene activities
+          <textarea name="sceneActivities" rows="5" placeholder="What was done, in detail: PPE level, equipment used, drum counts, who took possession of the waste">${escapeHtml(entry?.sceneActivities || "")}</textarea>
+        </label>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="draft-narrative-day" data-job-id="${escapeAttribute(job.id)}" data-date="${escapeAttribute(date)}">Draft activities from field data</button>
+          <button class="primary-button" type="submit">Save day</button>
+          ${entry?.updatedAt ? `<span class="help-text">Saved by ${escapeHtml(entry.updatedBy || "unknown")}, ${formatDateTime(entry.updatedAt)}</span>` : ""}
+        </div>
+      </form>
+    </details>
+  `;
+}
+
+function renderPostJobReviewForm(job) {
+  const review = job.postJobReview || {};
+  const missing = closeoutOwed(job) && !postJobReviewComplete(job);
+  return `
+    <form class="closeout-review-form" data-form="dispatch-post-job-review">
+      <input type="hidden" name="jobId" value="${escapeAttribute(job.id)}" />
+      ${POST_JOB_REVIEW_QUESTIONS.map(
+        ({ key, label }) => `
+          <div class="review-question">
+            <span>${escapeHtml(label)}</span>
+            <span class="review-answers">
+              <label class="check-row"><input type="radio" name="${key}" value="No" ${review[key] === "No" ? "checked" : ""} required /> No</label>
+              <label class="check-row"><input type="radio" name="${key}" value="Yes" ${review[key] === "Yes" ? "checked" : ""} /> Yes</label>
+            </span>
+          </div>
+        `,
+      ).join("")}
+      <label>Details <small class="muted-text">Required when any answer is Yes</small>
+        <textarea name="notes" rows="3">${escapeHtml(review.notes || "")}</textarea>
+      </label>
+      <div class="inline-actions">
+        <button class="primary-button" type="submit">Save review</button>
+        ${review.answeredAt ? `<span class="help-text">Answered by ${escapeHtml(review.answeredBy || "unknown")}, ${formatDateTime(review.answeredAt)}</span>` : missing ? `<span class="help-text">Needed before the job can be closed.</span>` : ""}
+      </div>
+    </form>
+  `;
+}
+
+function renderDispatchJobCloseoutTab(job) {
+  const days = dispatchJobWorkDays(job);
+  const owed = closeoutOwed(job);
+  const missingDays = days.filter((date) => !narrativeComplete(narrativeForDay(job, date))).length;
+  const reviewMissing = owed && !postJobReviewComplete(job);
+  const project = job.projectId ? findProject(job.projectId) : null;
+  const weatherEntry = project ? { label: "When work started", kind: "response", dispatchJob: job, slot: weatherSlot(project, "response", job) } : null;
+  return `
+    <section class="job-detail-layout">
+      <div class="job-detail-main">
+        <article class="panel${owed && missingDays ? " panel-needs-attention" : ""}">
+          <div class="panel-header"><div><h3>Case narrative${owed && missingDays ? renderAlertDot(`${missingDays} work day${missingDays === 1 ? "" : "s"} without a narrative`) : ""}</h3><span>One entry per work day, written by the field lead at close-out. It becomes the day-by-day timeline of the post-work report.</span></div></div>
+          <div class="panel-body">
+            <form class="inline-actions closeout-operational-day" data-form="dispatch-operational-date">
+              <input type="hidden" name="jobId" value="${escapeAttribute(job.id)}" />
+              <label>Operational day <input type="date" name="operationalDate" value="${escapeAttribute(dispatchJobOperationalDate(job))}" required /></label>
+              <button class="mini-button" type="submit">Save</button>
+              <span class="help-text">${job.operationalDate ? "Set when work started" : "Not stamped yet; shown from the job's first on-site time or its schedule"}. Field records roll up to this day, including work that ran past midnight.</span>
+            </form>
+            ${days.map((date, index) => renderNarrativeDayForm(job, date, index, { open: !narrativeComplete(narrativeForDay(job, date)) })).join("") || `<div class="empty-state">No work days yet. A day appears once the crew is on site or submits field work.</div>`}
+            <form class="inline-actions closeout-add-day" data-form="dispatch-narrative-add-day">
+              <input type="hidden" name="jobId" value="${escapeAttribute(job.id)}" />
+              <label>Add a work day <input type="date" name="date" required /></label>
+              <button class="mini-button" type="submit">Add day</button>
+            </form>
+          </div>
+        </article>
+      </div>
+      <aside class="job-detail-sidebar">
+        <article class="panel${reviewMissing ? " panel-needs-attention" : ""}">
+          <div class="panel-header"><div><h3>Post-job review${reviewMissing ? renderAlertDot("Post-job review not answered") : ""}</h3><span>Answered at job close. Closing the job requires it.</span></div>${postJobReviewHasIncident(job) ? `<span class="risk-badge high">Safety event reported</span>` : ""}</div>
+          <div class="panel-body">${renderPostJobReviewForm(job)}</div>
+        </article>
+        ${
+          weatherEntry
+            ? `<article class="panel${weatherEntry.slot.state === "failed" ? " panel-needs-attention" : ""}">
+                <div class="panel-header"><h3>Weather when work started${weatherEntry.slot.state === "failed" ? renderAlertDot("Weather not captured") : ""}</h3></div>
+                <div class="panel-body"><dl class="detail-list weather-slot-list weather-slot-stacked">${renderWeatherSlotRow(weatherEntry, project)}</dl></div>
+              </article>`
+            : ""
+        }
+      </aside>
+    </section>
+  `;
+}
+
+// The field lead's side of the same record, on the Front Line job screen.
+function renderFrontlineCloseout(job) {
+  if (!["on_site", "in_progress", "field_complete"].includes(job.status)) return "";
+  const days = dispatchJobWorkDays(job);
+  if (!days.length) days.push(todayIso());
+  return `
+    <h3>Close-out</h3>
+    <p class="help-text">Write each day's narrative before you leave site. Answer the post-job review when the job is done.</p>
+    ${days.map((date, index) => renderNarrativeDayForm(job, date, index, { open: index === days.length - 1 })).join("")}
+    <h4>Post-job review</h4>
+    ${renderPostJobReviewForm(job)}
+  `;
+}
+
+const endSentence = (text) => (/[.!?]$/.test(text) ? text : `${text}.`);
+
+// A starting point, not the narrative: it lists what the system saw that day so the field lead can
+// turn it into prose. Lone Star's Scene Activities is written by a person, and so is this.
+function draftNarrativeActivities(job, date) {
+  const workDays = dispatchJobWorkDays(job);
+  const sameDay = (value) => value && dispatchRecordDay(job, value, workDays) === date;
+  const time = (value) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(parseDate(value));
+  const lines = [];
+  (state.backend.jobStatusEvents || [])
+    .filter((event) => event.jobId === job.id && sameDay(event.occurredAt))
+    .sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))
+    .forEach((event) => lines.push(endSentence(`${time(event.occurredAt)}: ${formatDispatchStatus(event.toStatus)}${event.by ? ` (${event.by})` : ""}`)));
+  submissionsForDispatchJob(job.id)
+    .filter((submission) => sameDay(submission.submittedAt))
+    .reverse()
+    .forEach((submission) => lines.push(endSentence(`${time(submission.submittedAt)}: ${submission.formName}${submission.summary ? `: ${submission.summary}` : ""}`)));
+  const resources = (state.backend.jobResources || []).filter((resource) => resource.jobId === job.id);
+  const consumed = resources.filter((resource) => resource.type === "Material" && resource.status === "Consumed" && sameDay(resource.consumedAt));
+  if (consumed.length) lines.push(`Materials used: ${consumed.map((resource) => `${resource.quantity} ${resource.unit || ""} ${resource.name}`.replace(/\s+/g, " ").trim()).join(", ")}.`);
+  const equipment = resources.filter((resource) => resource.type === "Equipment" && resource.status !== "Removed");
+  if (equipment.length) lines.push(`Equipment on the job: ${equipment.map((resource) => resource.name + (resource.assetTag ? ` (${resource.assetTag})` : "")).join(", ")}.`);
+  return lines.join("\n");
+}
+
+async function saveDispatchNarrativeDay(form) {
+  const data = new FormData(form);
+  const job = findDispatchJob(data.get("jobId").toString());
+  if (!job) return;
+  const date = data.get("date").toString();
+  const entry = {
+    date,
+    sceneDescription: data.get("sceneDescription").toString().trim(),
+    sceneActivities: data.get("sceneActivities").toString().trim(),
+    updatedBy: currentActorName(),
+    updatedAt: new Date().toISOString(),
+  };
+  const dailyNarratives = [...(job.dailyNarratives || []).filter((item) => item.date !== date), entry].sort((a, b) => a.date.localeCompare(b.date));
+  try {
+    await saveBackendRecord("dispatchJobs", { ...job, dailyNarratives });
+    render();
+    showToast(narrativeComplete(entry) ? "Day narrative saved." : "Saved. Both boxes need text before the day counts as written.");
+  } catch (error) {
+    showToast(error.message || "Narrative could not be saved.");
+  }
+}
+
+async function saveDispatchOperationalDate(form) {
+  const data = new FormData(form);
+  const job = findDispatchJob(data.get("jobId").toString());
+  const operationalDate = data.get("operationalDate").toString();
+  if (!job || !operationalDate) return;
+  // Moving the day carries a narrative written against the old day with it.
+  const previous = dispatchJobOperationalDate(job);
+  const dailyNarratives = (job.dailyNarratives || []).map((entry) => (entry.date === previous && !narrativeForDay(job, operationalDate) ? { ...entry, date: operationalDate } : entry));
+  try {
+    await saveBackendRecord("dispatchJobs", { ...job, operationalDate, dailyNarratives });
+    render();
+    showToast(`Operational day set to ${formatDate(operationalDate)}.`);
+  } catch (error) {
+    showToast(error.message || "Operational day could not be saved.");
+  }
+}
+
+async function addDispatchNarrativeDay(form) {
+  const data = new FormData(form);
+  const job = findDispatchJob(data.get("jobId").toString());
+  const date = data.get("date").toString();
+  if (!job || !date) return;
+  if (dispatchJobWorkDays(job).includes(date)) {
+    showToast("That day is already listed.");
+    return;
+  }
+  const entry = { date, sceneDescription: "", sceneActivities: "", updatedBy: currentActorName(), updatedAt: new Date().toISOString() };
+  try {
+    await saveBackendRecord("dispatchJobs", { ...job, dailyNarratives: [...(job.dailyNarratives || []), entry].sort((a, b) => a.date.localeCompare(b.date)) });
+    render();
+    showToast(`Added ${formatDate(date)}.`);
+  } catch (error) {
+    showToast(error.message || "Day could not be added.");
+  }
+}
+
+async function saveDispatchPostJobReview(form) {
+  const data = new FormData(form);
+  const job = findDispatchJob(data.get("jobId").toString());
+  if (!job) return;
+  const review = { notes: data.get("notes").toString().trim(), answeredBy: currentActorName(), answeredAt: new Date().toISOString() };
+  POST_JOB_REVIEW_QUESTIONS.forEach(({ key }) => {
+    review[key] = (data.get(key) || "").toString();
+  });
+  const yes = POST_JOB_REVIEW_QUESTIONS.filter(({ key }) => review[key] === "Yes");
+  if (yes.length && !review.notes) {
+    showToast("Describe what happened. Details are required when any answer is Yes.");
+    return;
+  }
+  try {
+    await saveBackendRecord("dispatchJobs", { ...job, postJobReview: review });
+    if (yes.length) {
+      raiseNotification({
+        key: `post-job-review-${job.id}-${yes.map(({ key }) => key).join("-")}`,
+        title: `Safety event reported on ${job.jobNumber}`,
+        body: `${yes.map(({ label }) => label.replace(/^Were there any /, "").replace(/\?$/, "")).join(", ").replace(/^./, (letter) => letter.toUpperCase())}: ${review.notes}`,
+        severity: "critical",
+        audienceRoles: OPERATIONS_NOTIFY_ROLES,
+        link: `#view=dispatch-job-detail&selectedDispatchJobId=${encodeURIComponent(job.id)}`,
+      });
+    }
+    render();
+    showToast("Post-job review saved.");
+  } catch (error) {
+    showToast(error.message || "Post-job review could not be saved.");
+  }
+}
+
+// ---- Report photos and the Report tab -------------------------------------------------------
+
+function projectReportAttachments(projectId, kind) {
+  const jobIds = new Set(dispatchJobsForProject(projectId).map((dispatchJob) => dispatchJob.id));
+  return (state.backend.jobTaskAttachments || [])
+    .filter((attachment) => jobIds.has(attachment.jobId) && attachment.kind === kind && !attachment.deletedAt)
+    .sort((a, b) => String(a.uploadedAt).localeCompare(String(b.uploadedAt)));
+}
+
+// The print window is an about:blank document, so images need absolute URLs.
+function attachmentViewUrl(attachment, absolute = false) {
+  return `${absolute ? window.location.origin : ""}/api/job-task-attachments/${encodeURIComponent(attachment.id)}/view`;
+}
+
+function projectReportReadiness(project) {
+  const dispatchJobs = dispatchJobsForProject(project.id);
+  const checks = [];
+  const incident = weatherSlot(project, "incident");
+  checks.push({
+    label: "Weather at the incident",
+    status: incident.state === "failed" ? "Warning" : "Pass",
+    detail: incident.state === "captured" ? formatWeatherLine(incident.snapshot) : incident.reason,
+  });
+  const started = dispatchJobs.filter((dispatchJob) => dispatchJobStartedWorkAt(dispatchJob.id));
+  const responseFailed = started.filter((dispatchJob) => weatherSlot(project, "response", dispatchJob).state === "failed").length;
+  checks.push({
+    label: "Weather when cleanup commenced",
+    status: responseFailed ? "Warning" : "Pass",
+    detail: !started.length ? "No dispatch job has started work yet." : responseFailed ? `${responseFailed} of ${started.length} not captured` : `${started.length} captured`,
+  });
+  const days = dispatchJobs.flatMap((dispatchJob) => dispatchJobWorkDays(dispatchJob).map((date) => narrativeForDay(dispatchJob, date)));
+  const missing = days.filter((entry) => !narrativeComplete(entry)).length;
+  checks.push({ label: "Case narrative", status: missing ? "Warning" : "Pass", detail: days.length ? `${days.length - missing} of ${days.length} work days written` : "No work days recorded yet." });
+  const owedReviews = dispatchJobs.filter((dispatchJob) => ["field_complete", "office_review", "closed"].includes(dispatchJob.status));
+  const unanswered = owedReviews.filter((dispatchJob) => !postJobReviewComplete(dispatchJob)).length;
+  checks.push({ label: "Post-job review", status: unanswered ? "Warning" : "Pass", detail: owedReviews.length ? `${owedReviews.length - unanswered} of ${owedReviews.length} finished jobs answered` : "No finished dispatch jobs yet." });
+  const photos = projectReportAttachments(project.id, "photo");
+  const selected = photos.filter((photo) => photo.includeInReport).length;
+  checks.push({ label: "Site photos", status: photos.length && !selected ? "Warning" : "Pass", detail: photos.length ? `${selected} of ${photos.length} selected below` : "No field photos yet." });
+  const signatures = projectReportAttachments(project.id, "signature").length;
+  checks.push({ label: "E-signatures", status: signatures ? "Pass" : "Warning", detail: signatures ? `${signatures} captured on Front Line` : "None captured yet." });
+  const waste = wasteRecordsForProject(project.id);
+  const open = waste.filter((record) => record.status !== "Disposed").length;
+  checks.push({ label: "Waste and disposal", status: open ? "Warning" : "Pass", detail: waste.length ? `${waste.length - open} of ${waste.length} records disposed` : "No waste records. The report says so." });
+  return checks;
+}
+
+function renderReportPhotoTile(photo) {
+  const dispatchJob = findDispatchJob(photo.jobId);
+  return `
+    <figure class="report-photo${photo.includeInReport ? " included" : ""}">
+      <a href="${attachmentViewUrl(photo)}" target="_blank" rel="noopener"><img src="${attachmentViewUrl(photo)}" alt="${escapeAttribute(photo.caption || photo.fileName)}" loading="lazy" /></a>
+      <label class="check-row"><input type="checkbox" data-action="toggle-report-photo" data-id="${escapeAttribute(photo.id)}" ${photo.includeInReport ? "checked" : ""} /> Include in report</label>
+      <input type="text" data-report-caption-id="${escapeAttribute(photo.id)}" value="${escapeAttribute(photo.reportCaption || "")}" placeholder="${escapeAttribute(photo.caption || "Caption for the report")}" maxlength="160" aria-label="Report caption" />
+      <figcaption>${escapeHtml(dispatchJob?.jobNumber || "")} · ${formatDateTime(photo.uploadedAt)}${photo.uploadedBy ? ` · ${escapeHtml(photo.uploadedBy)}` : ""}</figcaption>
+    </figure>
+  `;
+}
+
+function renderProjectReportTab(job) {
+  const photos = projectReportAttachments(job.id, "photo");
+  const selected = photos.filter((photo) => photo.includeInReport).length;
+  return `
+    <section class="detail-stack">
+      <article class="panel">
+        <div class="panel-header">
+          <div><h3>Post-work report</h3><span>Built on demand from this project's records. Weather snapshots are frozen; everything else reflects the data as it stands when you generate it.</span></div>
+          <button class="primary-button" type="button" data-action="print-post-work-report" data-id="${escapeAttribute(job.id)}">Generate report</button>
+        </div>
+        <div class="panel-body">
+          <div class="readiness-check-list">${projectReportReadiness(job).map(renderReadinessCheck).join("")}</div>
+          <p class="help-text">Gaps don't block the report. Each one prints as a visible "not recorded" instead of disappearing.</p>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><div><h3>Report photos</h3><span>${selected} of ${photos.length} selected. Tick the photos the report should carry and caption each one; they print in the order they were taken.</span></div></div>
+        <div class="panel-body">
+          ${photos.length ? `<div class="report-photo-grid">${photos.map(renderReportPhotoTile).join("")}</div>` : `<div class="empty-state">No field photos on this project's dispatch jobs yet.</div>`}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+async function toggleReportPhoto(attachmentId, include) {
+  const attachment = (state.backend.jobTaskAttachments || []).find((item) => item.id === attachmentId);
+  if (!attachment) return;
+  try {
+    await saveBackendRecord("jobTaskAttachments", { ...attachment, includeInReport: include }, { refresh: false });
+    attachment.includeInReport = include;
+    render();
+  } catch (error) {
+    showToast(error.message || "Photo selection could not be saved.");
+    render();
+  }
+}
+
+// No re-render: the person may tab straight into the next caption.
+async function saveReportPhotoCaption(attachmentId, caption) {
+  const attachment = (state.backend.jobTaskAttachments || []).find((item) => item.id === attachmentId);
+  if (!attachment || (attachment.reportCaption || "") === caption) return;
+  try {
+    await saveBackendRecord("jobTaskAttachments", { ...attachment, reportCaption: caption }, { refresh: false });
+    attachment.reportCaption = caption;
+    showToast("Caption saved.");
+  } catch (error) {
+    showToast(error.message || "Caption could not be saved.");
+  }
+}
+
+// ---- The post-work report (Q41: a print view generated on demand) ----------------------------
+//
+// Lone Star's structure: header, then a timeline of days (each with its narrative and its own
+// billables), photos, a billables summary, safety/JSA, the post-job review and e-signatures.
+// buildPostWorkReport() gathers the data and renderPostWorkReportHtml() lays it out, so a stored
+// artifact (Phase 13) or the Client Portal can reuse the first without the second.
+
+function buildPostWorkReport(project) {
+  const dispatchJobs = dispatchJobsForProject(project.id).slice().reverse();
+  const jobIds = new Set(dispatchJobs.map((dispatchJob) => dispatchJob.id));
+  const dayOf = (value) => (value ? localIsoDate(parseDate(value)) : "");
+  const gpsPoints = (state.backend.locations || []).filter((point) => point.projectId === project.id);
+  const gpsPoint = gpsPoints.find((point) => /spill origin/i.test(point.locationType || "")) || gpsPoints[0] || null;
+  const resources = (state.backend.jobResources || []).filter((resource) => jobIds.has(resource.jobId));
+
+  const dayMap = new Map();
+  const ensureDay = (date) => {
+    if (!dayMap.has(date)) dayMap.set(date, { date, narratives: [], manpower: new Map(), equipment: new Map(), materials: new Map() });
+    return dayMap.get(date);
+  };
+  const addQuantity = (map, key, fields, quantity) => {
+    const row = map.get(key) || { ...fields, quantity: 0 };
+    row.quantity += quantity;
+    map.set(key, row);
+  };
+  const workDaysByJob = new Map(dispatchJobs.map((dispatchJob) => [dispatchJob.id, dispatchJobWorkDays(dispatchJob)]));
+  dispatchJobs.forEach((dispatchJob) => workDaysByJob.get(dispatchJob.id).forEach((date) => ensureDay(date).narratives.push({ dispatchJob, entry: narrativeForDay(dispatchJob, date) })));
+  // Field records land on their dispatch job's work day (Q5); office logs have no job, so they keep
+  // their own date.
+  const fieldDay = (jobId, timestamp) => {
+    const dispatchJob = findDispatchJob(jobId);
+    return dispatchJob ? dispatchRecordDay(dispatchJob, timestamp, workDaysByJob.get(jobId) || dispatchJobWorkDays(dispatchJob)) : dayOf(timestamp);
+  };
+
+  // Manpower is Front Line timer hours (the same source as the cost report). Hours aren't split into
+  // regular/overtime here: that split is a pricing decision the invoice makes through Phase 08's
+  // rate tiers, and guessing it from clock times would put two answers in circulation.
+  laborHoursForProject(project.id).entries.forEach((entry) => {
+    const date = fieldDay(entry.dispatchJobId, entry.submittedAt);
+    if (!date) return;
+    const employee = (state.backend.employees || []).find((person) => person.displayName === entry.employee);
+    addQuantity(ensureDay(date).manpower, entry.employee, { name: entry.employee, role: employee?.jobTitle || "" }, entry.hours);
+  });
+  // Equipment: office logs count on their checkout day; equipment assigned on dispatch counts once
+  // for each work day of its job (it has no dates of its own), so a job that never reached the field
+  // bills none.
+  equipmentLogsForJob(project.id).forEach((log) => {
+    const date = dayOf(log.checkedOut);
+    if (date) addQuantity(ensureDay(date).equipment, log.assetTag || log.equipment, { name: log.equipment, assetTag: log.assetTag || "" }, 1);
+  });
+  resources
+    .filter((resource) => resource.type === "Equipment" && resource.status !== "Removed")
+    .forEach((resource) => {
+      (workDaysByJob.get(resource.jobId) || []).forEach((date) => addQuantity(ensureDay(date).equipment, resource.assetTag || resource.name, { name: resource.name, assetTag: resource.assetTag || "" }, Number(resource.quantity || 1)));
+    });
+  materialUsageForJob(project.id).forEach((usage) => {
+    const date = dayOf(usage.timestamp);
+    if (date) addQuantity(ensureDay(date).materials, `${usage.materialType}|${usage.unit}`, { name: usage.materialType, unit: usage.unit || "" }, Number(usage.quantity || 0));
+  });
+  resources
+    .filter((resource) => resource.type === "Material" && resource.status === "Consumed")
+    .forEach((resource) => {
+      const date = fieldDay(resource.jobId, resource.consumedAt);
+      if (date) addQuantity(ensureDay(date).materials, `${resource.name}|${resource.unit}`, { name: resource.name, unit: resource.unit || "" }, Number(resource.quantity || 0));
+    });
+
+  const days = [...dayMap.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((day) => ({ ...day, manpower: [...day.manpower.values()], equipment: [...day.equipment.values()], materials: [...day.materials.values()] }));
+  const rollUp = (rows, keyOf) => {
+    const map = new Map();
+    rows.forEach((row) => addQuantity(map, keyOf(row), row, row.quantity));
+    return [...map.values()];
+  };
+  const summary = {
+    manpower: rollUp(days.flatMap((day) => day.manpower), (row) => row.name),
+    equipment: rollUp(days.flatMap((day) => day.equipment), (row) => row.assetTag || row.name),
+    materials: rollUp(days.flatMap((day) => day.materials), (row) => `${row.name}|${row.unit}`),
+  };
+
+  const submissions = dispatchJobs
+    .flatMap((dispatchJob) => submissionsForDispatchJob(dispatchJob.id).map((submission) => ({ ...submission, dispatchJob })))
+    .sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)));
+  const safety = submissions.filter((submission) => submission.payload?.options?.length || /safety|jsa|jha|ppe|tailgate|hazard/i.test(submission.formName || ""));
+  const signatures = projectReportAttachments(project.id, "signature").map((attachment) => {
+    const submission = submissions.find((item) => item.actionId === attachment.actionId);
+    return {
+      attachment,
+      signedBy: submission?.payload?.signedBy || attachment.caption || "Unnamed signer",
+      signerRole: submission?.payload?.signerRole || "",
+      signedAt: attachment.uploadedAt,
+      dispatchJob: findDispatchJob(attachment.jobId),
+    };
+  });
+  const samples = samplesForJob(project.id);
+  const sampleIds = new Set(samples.map((sample) => sample.id));
+  return {
+    project,
+    account: findAccount(project.accountId),
+    facility: findFacility(project.facilityId),
+    generator: getProjectGenerator(project),
+    dispatchJobs,
+    gpsPoint,
+    days,
+    summary,
+    safety,
+    signatures,
+    photos: projectReportAttachments(project.id, "photo").filter((photo) => photo.includeInReport),
+    samples,
+    sampleResults: (state.backend.sampleResults || []).filter((row) => !row.deletedAt && sampleIds.has(row.sampleId)),
+    waste: wasteRecordsForProject(project.id),
+    firstStart: dispatchJobs.map((dispatchJob) => dispatchJobStartedWorkAt(dispatchJob.id)).filter(Boolean).sort()[0] || "",
+    weather: projectWeatherSlots(project),
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+function renderPostWorkReportHtml(report) {
+  const { project, facility, generator } = report;
+  const title = project.jobClass === "Emergency Response" ? "Response summary" : "Post-work report";
+  const gap = (text) => `<em class="gap">${escapeHtml(text)}</em>`;
+  const value = (text, fallback = "Not recorded") => (text ? escapeHtml(text) : gap(fallback));
+  const field = (label, html) => `<div><dt>${escapeHtml(label)}</dt><dd>${html}</dd></div>`;
+  const hours = (amount) => String(Math.round(amount * 100) / 100);
+  const weatherHtml = (entry) =>
+    entry.slot.state === "captured"
+      ? `${escapeHtml(formatWeatherLine(entry.slot.snapshot))}<br /><small>${escapeHtml(weatherProvenance(entry.slot.snapshot))}</small>`
+      : entry.slot.state === "failed"
+        ? gap(`Not captured: ${entry.slot.reason}`)
+        : `<small>${escapeHtml(entry.slot.reason)}</small>`;
+  const table = (headers, rows, empty) =>
+    rows.length
+      ? `<table><thead><tr>${headers.map(([label, num]) => `<th class="${num ? "num" : ""}">${escapeHtml(label)}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table>`
+      : `<p class="gap-line">${escapeHtml(empty)}</p>`;
+  const billables = (group, equipmentLabel) => `
+    <h4>Manpower</h4>
+    ${table([["Name"], ["Role"], ["Hours", true]], group.manpower.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.role)}</td><td class="num">${hours(row.quantity)}</td></tr>`), "No field hours logged.")}
+    <h4>Equipment</h4>
+    ${table([["Item"], ["Asset"], [equipmentLabel, true]], group.equipment.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.assetTag)}</td><td class="num">${hours(row.quantity)}</td></tr>`), "No equipment logged.")}
+    <h4>Material</h4>
+    ${table([["Item"], ["Quantity", true]], group.materials.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td class="num">${hours(row.quantity)} ${escapeHtml(row.unit)}</td></tr>`), "No material logged.")}
+  `;
+  const address = [facility?.address, facility?.city].filter(Boolean).join(", ") || report.dispatchJobs.find((dispatchJob) => dispatchJob.addressText)?.addressText || "";
+  const gps = report.gpsPoint ? `GPS: ${Number(report.gpsPoint.latitude).toFixed(7)}, ${Number(report.gpsPoint.longitude).toFixed(7)}` : project.incidentLatitude ? `GPS: ${project.incidentLatitude}, ${project.incidentLongitude}` : "";
+  const agencies = [
+    project.lawEnforcementStatus && project.lawEnforcementStatus !== "Not involved" ? `Law enforcement: ${project.lawEnforcementStatus}` : "",
+    project.fireDepartmentStatus && project.fireDepartmentStatus !== "Not involved" ? `Fire department: ${project.fireDepartmentStatus}` : "",
+    project.otherEmergencyServicesStatus && project.otherEmergencyServicesStatus !== "Not involved" ? `Other: ${project.otherEmergencyServicesStatus}` : "",
+    project.agencyIncidentNumber ? `Incident #${project.agencyIncidentNumber}` : "",
+  ].filter(Boolean);
+  const description = [
+    project.spillMaterial ? `${project.spillMaterial}${project.spillQuantity ? ` (${project.spillQuantity})` : ""}` : "",
+    project.spillSurface ? `on ${project.spillSurface}` : "",
+    project.stormDrainInvolved === "Yes" ? "storm drain involved" : "",
+    project.offRoadDischarge === "Yes" ? "off-road discharge" : "",
+  ].filter(Boolean).join(", ");
+  const incidentWeather = report.weather.find((entry) => entry.kind === "incident");
+  const responseWeather = report.weather.filter((entry) => entry.kind === "response" && ["captured", "failed"].includes(entry.slot.state));
+  const multipleJobs = report.dispatchJobs.length > 1;
+
+  const body = `
+    <div class="print-doc-header">
+      <div>
+        <h1>${escapeHtml(title)}</h1>
+        <div>${escapeHtml(project.name)}</div>
+        <div>Status: ${escapeHtml(project.status || "")}${project.projectStage ? ` &middot; ${escapeHtml(project.projectStage)}` : ""}</div>
+      </div>
+      <div class="print-doc-meta">
+        <div><strong>BioRemedy</strong></div>
+        <div>Generated ${escapeHtml(formatDateTime(report.generatedAt))}</div>
+      </div>
+    </div>
+
+    <dl class="report-header-grid">
+      ${field("Incident date/time", project.incidentReportedAt ? escapeHtml(formatDateTime(project.incidentReportedAt)) : `<small>${escapeHtml(project.jobClass === "Emergency Response" ? "Not recorded" : "Not an incident response")}</small>`)}
+      ${field("Cleanup commenced", report.firstStart ? escapeHtml(formatDateTime(report.firstStart)) : gap("Work has not started"))}
+      ${field("Weather at incident", weatherHtml(incidentWeather))}
+      ${field("Weather when cleanup commenced", responseWeather.length ? responseWeather.map((entry) => `${multipleJobs ? `<strong>${escapeHtml(entry.dispatchJob.jobNumber)}:</strong> ` : ""}${weatherHtml(entry)}`).join("<br />") : `<small>Taken when a crew starts work.</small>`)}
+      ${field("Responsible party", `${value(generator.name)}${generator.siteName ? `<br />${escapeHtml(generator.siteName)}` : ""}`)}
+      ${field("Responsible party contact", `${value(generator.contactName)}${generator.contactPhone ? `<br />${escapeHtml(formatPhoneNumber(generator.contactPhone))}` : ""}`)}
+      ${field("Reported by", project.callerName ? `${escapeHtml(project.callerName)}${project.callerRelationship ? ` (${escapeHtml(project.callerRelationship)})` : ""}${project.callerPhone ? `<br />${escapeHtml(formatPhoneNumber(project.callerPhone))}` : ""}` : `<small>Not an intake call</small>`)}
+      ${field("Project manager", value(project.projectManager))}
+      ${field("Sales representative", value(project.salesLead || report.account?.owner))}
+      ${field("Reported location", `${gps ? `${escapeHtml(gps)}<br />` : ""}${value(address, "No street address")}`)}
+      ${field("Government agency", agencies.length ? escapeHtml(agencies.join("; ")) : `<small>None recorded</small>`)}
+      ${field("Reported incident description", description ? escapeHtml(description) : value(project.serviceProfile || generator.serviceProfile))}
+    </dl>
+
+    <h2>Timeline</h2>
+    ${
+      report.days
+        .map(
+          (day, index) => `
+        <section class="report-day">
+          <h3>Day ${index + 1}: ${escapeHtml(formatLongDate(day.date))}</h3>
+          ${
+            day.narratives
+              .map(
+                ({ dispatchJob, entry }) => `
+              ${multipleJobs ? `<h5>${escapeHtml(dispatchJob.jobNumber)} &middot; ${escapeHtml(dispatchJob.jobName)}</h5>` : ""}
+              <p class="report-label">Scene details as reported by the field lead${entry?.updatedBy ? ` (${escapeHtml(entry.updatedBy)})` : ""}</p>
+              <h4>Scene description</h4>
+              <p class="prose">${entry?.sceneDescription ? escapeHtml(entry.sceneDescription) : gap("No scene description recorded for this day.")}</p>
+              <h4>Scene activities</h4>
+              <p class="prose">${entry?.sceneActivities ? escapeHtml(entry.sceneActivities) : gap("No scene activities recorded for this day.")}</p>
+            `,
+              )
+              .join("") || `<p class="gap-line">Office-logged usage only; no dispatch job was on site this day.</p>`
+          }
+          <h4 class="billables-title">Billables for the day</h4>
+          ${billables(day, "Qty")}
+        </section>
+      `,
+        )
+        .join("") || `<p class="gap-line">No work days recorded yet.</p>`
+    }
+
+    <h2>Site photos</h2>
+    ${
+      report.photos.length
+        ? `<div class="photo-grid">${report.photos
+            .map(
+              (photo) => `<figure><img src="${attachmentViewUrl(photo, true)}" alt="" /><figcaption>${escapeHtml(photo.reportCaption || photo.caption || "")}<br /><small>${escapeHtml(findDispatchJob(photo.jobId)?.jobNumber || "")} &middot; ${escapeHtml(formatDateTime(photo.uploadedAt))}</small></figcaption></figure>`,
+            )
+            .join("")}</div>`
+        : `<p class="gap-line">No photos were selected for this report.</p>`
+    }
+
+    <h2>Billables summary</h2>
+    ${billables(report.summary, "Days")}
+
+    ${
+      report.samples.length
+        ? `
+      <h2>Samples</h2>
+      ${table(
+        [["Sample"], ["Location"], ["Matrix"], ["Collected"], ["Lab"], ["Status"]],
+        report.samples.map(
+          (sample) => `<tr><td>${escapeHtml(sample.sampleId || sample.id)}</td><td>${escapeHtml(sample.sampleLocation || "")}</td><td>${escapeHtml(sample.sampleMatrix || sample.sampleType || "")}</td><td>${escapeHtml(sample.collectionTime ? formatDateTime(sample.collectionTime) : "")}</td><td>${escapeHtml(sample.labName || "")}</td><td>${escapeHtml(sample.labStatus || "")}</td></tr>`,
+        ),
+        "",
+      )}
+      ${
+        report.sampleResults.length
+          ? table(
+              [["Sample"], ["Analyte"], ["Method"], ["Result", true], ["Action level", true], ["Flag"]],
+              report.sampleResults.map((row) => {
+                const sample = report.samples.find((item) => item.id === row.sampleId);
+                return `<tr><td>${escapeHtml(sample?.sampleId || "")}</td><td>${escapeHtml(row.analyte || "")}</td><td>${escapeHtml(row.method || "")}</td><td class="num">${escapeHtml(`${row.resultValue ?? ""} ${row.units || ""}`.trim())}${row.qualifier ? ` ${escapeHtml(row.qualifier)}` : ""}</td><td class="num">${row.actionLevel != null ? escapeHtml(`${row.actionLevel} ${row.units || ""}`.trim()) : ""}</td><td>${row.exceedsActionLevel ? "<strong>Exceeds</strong>" : ""}</td></tr>`;
+              }),
+              "",
+            )
+          : ""
+      }
+    `
+        : ""
+    }
+
+    <h2>Waste and disposal</h2>
+    ${table(
+      [["Waste"], ["Class"], ["Quantity"], ["Permit"], ["Status"], ["Manifest"], ["Disposed"]],
+      report.waste.map(
+        (record) =>
+          `<tr><td>${escapeHtml(record.description || "")}</td><td>${escapeHtml(record.classification || "")}</td><td>${escapeHtml(formatWasteQuantity(record))}</td><td>${escapeHtml(findPermit(record.permitId)?.name || "")}</td><td>${escapeHtml(record.status || "")}</td><td>${escapeHtml(record.manifestNumber || "")}</td><td>${escapeHtml(record.disposedOn ? formatDate(record.disposedOn) : "")}${record.disposalFacility ? `<br /><small>${escapeHtml(record.disposalFacility)}</small>` : ""}</td></tr>`,
+      ),
+      "No waste records on this project.",
+    )}
+
+    <h2>Safety / JSA acknowledgements</h2>
+    ${
+      report.safety
+        .map(
+          (submission) => `
+        <div class="safety-block">
+          <strong>${escapeHtml(submission.formName)}</strong> <small>${escapeHtml(submission.submittedBy || "")} &middot; ${escapeHtml(formatDateTime(submission.submittedAt))}${multipleJobs ? ` &middot; ${escapeHtml(submission.dispatchJob.jobNumber)}` : ""}</small>
+          ${submission.payload?.options?.length ? `<ul class="checklist">${submission.payload.options.map((option) => `<li>${(submission.payload.checked || []).includes(option) ? "Yes" : "<em class=\"gap\">No</em>"} &mdash; ${escapeHtml(option)}</li>`).join("")}</ul>` : ""}
+          ${submission.summary ? `<p class="prose">${escapeHtml(submission.summary)}</p>` : ""}
+        </div>
+      `,
+        )
+        .join("") || `<p class="gap-line">No safety checklists were submitted on Front Line.</p>`
+    }
+
+    <h2>Post-job review</h2>
+    ${table(
+      [["Job"], ["Accidents"], ["Near misses"], ["Injuries"], ["Details"], ["Answered by"]],
+      report.dispatchJobs.map((dispatchJob) => {
+        const review = dispatchJob.postJobReview;
+        const answer = (key) => (review?.[key] ? escapeHtml(review[key]) : gap("Not answered"));
+        return `<tr><td>${escapeHtml(dispatchJob.jobNumber)}</td><td>${answer("accidents")}</td><td>${answer("nearMisses")}</td><td>${answer("injuries")}</td><td>${escapeHtml(review?.notes || "")}</td><td>${review?.answeredBy ? `${escapeHtml(review.answeredBy)}<br /><small>${escapeHtml(formatDateTime(review.answeredAt))}</small>` : ""}</td></tr>`;
+      }),
+      "No dispatch jobs on this project.",
+    )}
+
+    <h2>E-signatures</h2>
+    ${
+      report.signatures
+        .map(
+          (signature) => `
+        <div class="signature-block">
+          <img src="${attachmentViewUrl(signature.attachment, true)}" alt="Signature of ${escapeAttribute(signature.signedBy)}" />
+          <div>Signed by <strong>${escapeHtml(signature.signedBy)}</strong>${signature.signerRole ? ` (${escapeHtml(signature.signerRole)})` : ""} on ${escapeHtml(formatDateTime(signature.signedAt))}${multipleJobs && signature.dispatchJob ? ` &middot; ${escapeHtml(signature.dispatchJob.jobNumber)}` : ""}</div>
+        </div>
+      `,
+        )
+        .join("") || `<p class="gap-line">No signatures were captured.</p>`
+    }
+
+    <p class="report-footer">Generated ${escapeHtml(formatDateTime(report.generatedAt))} from the project's records as they stood then. Weather snapshots are frozen when captured and are never re-fetched.</p>
+  `;
+
+  const extraStyles = `
+    .report-header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin: 0 0 12px; }
+    .report-header-grid dt { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
+    .report-header-grid dd { margin: 0 0 6px; font-size: 0.88rem; }
+    .print-doc h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #1a1f26; padding-bottom: 4px; margin: 28px 0 10px; break-after: avoid; }
+    .print-doc h3 { font-size: 0.95rem; text-transform: none; letter-spacing: 0; color: #1a1f26; margin: 18px 0 6px; }
+    .print-doc h4 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; margin: 12px 0 4px; }
+    .print-doc h5 { font-size: 0.85rem; margin: 12px 0 2px; }
+    .report-day { border-left: 3px solid #d8dee6; padding-left: 12px; margin-bottom: 18px; }
+    .report-label { font-size: 0.75rem; color: #666; margin: 0; }
+    .prose { white-space: pre-wrap; font-size: 0.88rem; margin: 0 0 6px; }
+    .gap, .gap-line { color: #9b2c22; font-style: italic; }
+    .gap-line { font-size: 0.85rem; }
+    .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .photo-grid figure { margin: 0; break-inside: avoid; }
+    .photo-grid img { width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #d8dee6; background: #f4f6f8; }
+    .photo-grid figcaption { font-size: 0.8rem; margin-top: 4px; }
+    .safety-block { margin-bottom: 10px; break-inside: avoid; }
+    .checklist { margin: 4px 0; padding-left: 18px; font-size: 0.85rem; }
+    .signature-block { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; break-inside: avoid; font-size: 0.88rem; }
+    .signature-block img { height: 64px; max-width: 220px; object-fit: contain; border-bottom: 1px solid #1a1f26; }
+    .report-footer { margin-top: 28px; font-size: 0.75rem; color: #666; border-top: 1px solid #d8dee6; padding-top: 8px; }
+    @media (max-width: 640px) { .report-header-grid, .photo-grid { grid-template-columns: 1fr; } }
+  `;
+  return renderPrintShell({ title: `${title}: ${project.name}`, body, extraStyles });
+}
+
+function printPostWorkReport(projectId) {
+  const project = findProject(projectId);
+  if (!project) return;
+  openPrintWindow(renderPostWorkReportHtml(buildPostWorkReport(project)), "report");
+}
+
+// ---- Permit registry --------------------------------------------------------------------------
+//
+// The permits the company holds (the owner named the 10-day storage permit and the oily waste
+// handler permit). A storage limit on a permit turns every waste record stored under it into a
+// deadline.
+
+const PERMIT_TYPES = ["Waste storage", "Waste handler", "Transporter", "Air", "Stormwater", "Other"];
+const PERMIT_STATUSES = ["Active", "Renewal submitted", "Suspended", "Expired", "Inactive"];
+
+function getPermits() {
+  return (state.backend.permits || []).filter((permit) => !permit.deletedAt).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+function findPermit(permitId) {
+  return permitId ? getPermits().find((permit) => permit.id === permitId) || null : null;
+}
+
+// Flagged when the record is incomplete, expired, or inside its renewal lead time (unless a renewal
+// is already in). An inactive permit raises nothing.
+function permitAlertTitle(permit) {
+  if (permit.status === "Inactive") return "";
+  if (!permit.permitNumber || !permit.expiresOn) return "Permit number or expiry date not on file";
+  const expiry = isExpiringOrExpired(permit.expiresOn, Number(permit.renewalLeadDays ?? 60));
+  if (expiry === "expired") return `Expired ${formatDate(permit.expiresOn)}`;
+  if (expiry === "expiring" && permit.status !== "Renewal submitted") return `Renewal due: expires ${formatDate(permit.expiresOn)}`;
+  return "";
+}
+
+function renderPermitsPanel() {
+  const permits = getPermits();
+  const flagged = permits.filter(permitAlertTitle).length;
+  return `
+    <article class="panel${flagged ? " panel-needs-attention" : ""}">
+      <div class="panel-header">
+        <div><h3>Company permits${flagged ? renderAlertDot(`${flagged} permit${flagged === 1 ? "" : "s"} need attention`) : ""}</h3><span>Permits BioRemedy holds. A storage limit here sets the ship-by date on every waste record stored under the permit.</span></div>
+        <button class="mini-button" type="button" data-action="open-permit">Add permit</button>
+      </div>
+      <div class="panel-body">
+        ${renderDataTable({
+          tableId: "office-permits",
+          columns: [
+            { key: "name", label: "Permit", sortValue: (permit) => permit.name || "" },
+            { key: "type", label: "Type", sortValue: (permit) => permit.permitType || "" },
+            { key: "number", label: "Number", sortValue: (permit) => permit.permitNumber || "" },
+            { key: "agency", label: "Agency", sortValue: (permit) => permit.issuingAgency || "" },
+            { key: "expires", label: "Expires", sortValue: (permit) => permit.expiresOn || "9999" },
+            { key: "storage", label: "Storage limit", sortValue: (permit) => Number(permit.storageLimitDays || 0) },
+            { key: "status", label: "Status", sortValue: (permit) => permit.status || "" },
+            { key: "edit", label: "", sortable: false },
+          ],
+          rows: permits,
+          searchFields: [(permit) => permit.name, (permit) => permit.permitNumber, (permit) => permit.issuingAgency],
+          searchPlaceholder: "Search permits",
+          emptyText: "No permits recorded yet.",
+          renderRow: (permit) => {
+            const alert = permitAlertTitle(permit);
+            return `
+              <tr>
+                <td><strong>${alert ? withTrailingAlertDot(permit.name, alert) : escapeHtml(permit.name)}</strong>${alert ? `<br /><small class="muted-text">${escapeHtml(alert)}</small>` : ""}</td>
+                <td>${escapeHtml(permit.permitType || "")}</td>
+                <td>${escapeHtml(permit.permitNumber || "Not on file")}</td>
+                <td>${escapeHtml(permit.issuingAgency || "Not on file")}</td>
+                <td>${permit.expiresOn ? formatDate(permit.expiresOn) : "Not on file"}</td>
+                <td>${permit.storageLimitDays ? `${Number(permit.storageLimitDays)} days` : "None"}</td>
+                <td>${escapeHtml(permit.status || "Active")}</td>
+                <td><button class="mini-button" type="button" data-action="open-permit" data-id="${escapeAttribute(permit.id)}">Edit</button></td>
+              </tr>
+            `;
+          },
+        })}
+      </div>
+    </article>
+  `;
+}
+
+function fillSelect(select, values, selected = "", blankLabel = null) {
+  select.innerHTML = `${blankLabel != null ? `<option value="">${escapeHtml(blankLabel)}</option>` : ""}${values
+    .map((item) => {
+      const [optionValue, label] = Array.isArray(item) ? item : [item, item];
+      return `<option value="${escapeAttribute(optionValue)}">${escapeHtml(label)}</option>`;
+    })
+    .join("")}`;
+  select.value = selected || (blankLabel != null ? "" : select.options[0]?.value || "");
+}
+
+function openPermitDialog(permitId = "") {
+  const dialog = document.querySelector("#permitDialog");
+  const form = dialog.querySelector("form");
+  const permit = findPermit(permitId);
+  form.reset();
+  fillSelect(form.elements.permitType, PERMIT_TYPES, permit?.permitType || "Waste storage");
+  fillSelect(form.elements.status, PERMIT_STATUSES, permit?.status || "Active");
+  form.elements.id.value = permit?.id || "";
+  ["name", "permitNumber", "issuingAgency", "issuedOn", "expiresOn", "wasteTypesCovered", "notes"].forEach((name) => {
+    form.elements[name].value = permit?.[name] || "";
+  });
+  form.elements.renewalLeadDays.value = permit?.renewalLeadDays ?? 60;
+  form.elements.storageLimitDays.value = permit?.storageLimitDays ?? "";
+  dialog.querySelector("[data-permit-title]").textContent = permit ? `Edit ${permit.name}` : "Add permit";
+  dialog.showModal();
+}
+
+async function savePermit(form) {
+  const data = new FormData(form);
+  const existing = findPermit(data.get("id").toString());
+  const text = (name) => data.get(name).toString().trim();
+  const record = {
+    ...(existing || {}),
+    id: existing?.id || makeId("permit"),
+    name: text("name"),
+    permitType: text("permitType"),
+    permitNumber: text("permitNumber"),
+    issuingAgency: text("issuingAgency"),
+    issuedOn: text("issuedOn"),
+    expiresOn: text("expiresOn"),
+    renewalLeadDays: numberOrNull(data.get("renewalLeadDays")) ?? 60,
+    storageLimitDays: numberOrNull(data.get("storageLimitDays")),
+    wasteTypesCovered: text("wasteTypesCovered"),
+    status: text("status") || "Active",
+    notes: text("notes"),
+    updatedBy: currentActorName(),
+  };
+  try {
+    await saveBackendRecord("permits", record);
+    closeDialogs();
+    render();
+    sweepDeadlineNotifications();
+    showToast("Permit saved.");
+  } catch (error) {
+    showToast(error.message || "Permit could not be saved.");
+  }
+}
+
+// ---- Per-job waste tracking --------------------------------------------------------------------
+
+const WASTE_CLASSIFICATIONS = ["Non-hazardous (Class 2)", "Non-hazardous (Class 1)", "Hazardous (RCRA)", "Used oil", "Oily water / oily waste", "Universal waste", "Pending profile"];
+const WASTE_CONTAINER_TYPES = ["55-gal drum", "Tote", "Roll-off box", "Vacuum truck (bulk)", "Frac tank", "Bags / supersacks", "Other"];
+const WASTE_UNITS = ["gal", "yd³", "lb", "ton", "drums", "bags"];
+const WASTE_STATUSES = ["Accumulating", "Disposal requested", "Shipped", "Disposed"];
+
+function wasteRecordsForProject(projectId) {
+  return (state.backend.wasteRecords || [])
+    .filter((record) => record.projectId === projectId && !record.deletedAt)
+    .sort((a, b) => String(a.accumulationStartedOn || a.createdAt).localeCompare(String(b.accumulationStartedOn || b.createdAt)));
+}
+
+// A permit with a storage limit (the 10-day storage permit) makes accumulation a countdown; once the
+// waste has shipped the clock stops.
+function wasteStorageDeadline(record) {
+  const permit = findPermit(record.permitId);
+  const limit = Number(permit?.storageLimitDays);
+  if (!permit || !(limit > 0) || !record.accumulationStartedOn) return null;
+  const deadline = addDaysFrom(record.accumulationStartedOn, limit);
+  const daysLeft = Math.round((parseDate(deadline) - parseDate(todayIso())) / 86400000);
+  return { deadline, daysLeft, limit, permit };
+}
+
+function wasteAlertTitle(record) {
+  if (["Shipped", "Disposed"].includes(record.status)) return "";
+  const clock = wasteStorageDeadline(record);
+  if (!clock) return "";
+  if (clock.daysLeft < 0) return `Storage limit passed on ${formatDate(clock.deadline)} (${clock.limit}-day permit)`;
+  if (clock.daysLeft <= 2) return `Must ship by ${formatDate(clock.deadline)} (${clock.limit}-day permit)`;
+  return "";
+}
+
+function projectWasteAlertTitle(projectId) {
+  const flagged = wasteRecordsForProject(projectId).filter(wasteAlertTitle).length;
+  return flagged ? `${flagged} waste record${flagged === 1 ? "" : "s"} at or past the storage limit` : "";
+}
+
+function formatWasteQuantity(record) {
+  const parts = [];
+  if (record.containerCount) parts.push(`${record.containerCount} × ${record.containerType || "container"}`);
+  if (record.quantity) parts.push(`${record.quantity} ${record.unit || ""}`.trim());
+  return parts.join(" · ") || "Quantity not entered";
+}
+
+function renderWasteRecordCard(record) {
+  const permit = findPermit(record.permitId);
+  const clock = wasteStorageDeadline(record);
+  const alert = wasteAlertTitle(record);
+  const tone = record.status === "Disposed" ? "low" : alert ? "high" : "medium";
+  const vendor = findAccount(record.disposalVendorAccountId);
+  return `
+    <article class="detail-card">
+      <div class="inline-actions"><strong>${alert ? withTrailingAlertDot(record.description || "Waste", alert) : escapeHtml(record.description || "Waste")}</strong><span class="risk-badge ${tone}">${escapeHtml(record.status || "Accumulating")}</span></div>
+      <div class="row-meta">
+        <span>${escapeHtml(record.classification || "Unclassified")}</span>
+        <span>${escapeHtml(formatWasteQuantity(record))}</span>
+        ${permit ? `<span>Under ${escapeHtml(permit.name)}</span>` : ""}
+        ${clock && !["Shipped", "Disposed"].includes(record.status) ? `<span>Ship by ${formatDate(clock.deadline)}</span>` : ""}
+        ${vendor ? `<span>${escapeHtml(vendor.name)}</span>` : ""}
+        ${record.manifestNumber ? `<span>Manifest ${escapeHtml(record.manifestNumber)}</span>` : ""}
+        ${Number(record.disposalCost) ? `<span>${money(record.disposalCost)}</span>` : ""}
+      </div>
+      ${alert ? `<p class="help-text">${escapeHtml(alert)}</p>` : ""}
+      <div class="inline-actions"><button class="mini-button" type="button" data-action="open-waste-record" data-project-id="${escapeAttribute(record.projectId)}" data-id="${escapeAttribute(record.id)}">Edit</button></div>
+    </article>
+  `;
+}
+
+function renderProjectWastePanel(job) {
+  const records = wasteRecordsForProject(job.id);
+  const alert = projectWasteAlertTitle(job.id);
+  const total = roundCents(records.reduce((sum, record) => sum + Number(record.disposalCost || 0), 0));
+  return `
+    <article class="panel${alert ? " panel-needs-attention" : ""}">
+      <div class="panel-header">
+        <div><h3>Waste &amp; disposal${alert ? renderAlertDot(alert) : ""}</h3><span>${records.length} record${records.length === 1 ? "" : "s"} · ${money(total)} disposal cost, which feeds the cost report</span></div>
+        <button class="mini-button" type="button" data-action="open-waste-record" data-project-id="${escapeAttribute(job.id)}">Add waste</button>
+      </div>
+      <div class="panel-body record-list">
+        ${records.map(renderWasteRecordCard).join("") || `<div class="empty-state">No waste tracked on this project. Add a record for anything stored under a permit or sent for disposal.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function openWasteRecordDialog(projectId, recordId = "") {
+  const dialog = document.querySelector("#wasteRecordDialog");
+  const form = dialog.querySelector("form");
+  const record = recordId ? wasteRecordsForProject(projectId).find((item) => item.id === recordId) : null;
+  form.reset();
+  form.elements.id.value = record?.id || "";
+  form.elements.projectId.value = projectId;
+  fillSelect(form.elements.dispatchJobId, dispatchJobsForProject(projectId).map((dispatchJob) => [dispatchJob.id, `${dispatchJob.jobNumber} · ${dispatchJob.jobName}`]), record?.dispatchJobId || "", "Not tied to one dispatch job");
+  fillSelect(form.elements.classification, WASTE_CLASSIFICATIONS, record?.classification || "Pending profile");
+  fillSelect(form.elements.containerType, WASTE_CONTAINER_TYPES, record?.containerType || "55-gal drum");
+  fillSelect(form.elements.unit, WASTE_UNITS, record?.unit || "gal");
+  fillSelect(form.elements.status, WASTE_STATUSES, record?.status || "Accumulating");
+  fillSelect(
+    form.elements.permitId,
+    getPermits()
+      .filter((permit) => permit.status !== "Inactive" || permit.id === record?.permitId)
+      .map((permit) => [permit.id, `${permit.name}${permit.storageLimitDays ? ` (${permit.storageLimitDays}-day limit)` : ""}`]),
+    record?.permitId || "",
+    "No permit",
+  );
+  ["description", "wasteCode", "storageLocation", "accumulationStartedOn", "disposalRequestedOn", "disposalFacility", "manifestNumber", "shippedOn", "disposedOn", "notes"].forEach((name) => {
+    form.elements[name].value = record?.[name] || "";
+  });
+  if (!record) form.elements.accumulationStartedOn.value = todayIso();
+  form.elements.containerCount.value = record?.containerCount ?? "";
+  form.elements.quantity.value = record?.quantity ?? "";
+  form.elements.disposalCost.value = record?.disposalCost ?? "";
+  setRecordLookupValue(form.querySelector('.record-lookup[data-lookup-name="disposalVendorAccountId"]'), record?.disposalVendorAccountId || "");
+  dialog.querySelector("[data-waste-title]").textContent = record ? "Edit waste record" : "Add waste record";
+  dialog.showModal();
+}
+
+async function saveWasteRecord(form) {
+  const data = new FormData(form);
+  const projectId = data.get("projectId").toString();
+  const existing = wasteRecordsForProject(projectId).find((item) => item.id === data.get("id").toString());
+  const text = (name) => (data.get(name) || "").toString().trim();
+  const status = text("status") || "Accumulating";
+  // Moving the status forward stamps its date if nobody entered one, so the record keeps a timeline.
+  const stamp = (field, from) => text(field) || (WASTE_STATUSES.indexOf(status) >= WASTE_STATUSES.indexOf(from) ? existing?.[field] || todayIso() : "");
+  const record = {
+    ...(existing || {}),
+    id: existing?.id || makeId("waste"),
+    projectId,
+    dispatchJobId: text("dispatchJobId"),
+    description: text("description"),
+    classification: text("classification"),
+    wasteCode: text("wasteCode"),
+    containerType: text("containerType"),
+    containerCount: numberOrNull(data.get("containerCount")),
+    quantity: numberOrNull(data.get("quantity")),
+    unit: text("unit"),
+    permitId: text("permitId"),
+    storageLocation: text("storageLocation"),
+    accumulationStartedOn: text("accumulationStartedOn"),
+    status,
+    disposalRequestedOn: stamp("disposalRequestedOn", "Disposal requested"),
+    disposalVendorAccountId: text("disposalVendorAccountId"),
+    disposalFacility: text("disposalFacility"),
+    manifestNumber: text("manifestNumber"),
+    shippedOn: stamp("shippedOn", "Shipped"),
+    disposedOn: stamp("disposedOn", "Disposed"),
+    disposalCost: numberOrNull(data.get("disposalCost")),
+    notes: text("notes"),
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    createdBy: existing?.createdBy || currentActorName(),
+    updatedBy: currentActorName(),
+  };
+  try {
+    await saveBackendRecord("wasteRecords", record);
+    closeDialogs();
+    render();
+    sweepDeadlineNotifications();
+    showToast("Waste record saved.");
+  } catch (error) {
+    showToast(error.message || "Waste record could not be saved.");
+  }
+}
+
+// ---- Notifications ---------------------------------------------------------------------------
+//
+// In-app only: email/Teams delivery waits for Phase 19 (Graph), and named recipients wait for Phase
+// 12's real identities, so for now a notification is addressed to roles and "read" is tracked per
+// user name.
+
+const OPERATIONS_NOTIFY_ROLES = ["Admin", "Office Manager", "Operations Manager"];
+const OFFICE_NOTIFY_ROLES = ["Admin", "Office Manager"];
+// saveProjectAlert has always recorded notified: ["Project Manager", "Sales Lead"] without telling
+// anyone. Those aren't roles in this app; these are the roles that hold those jobs.
+const FIELD_ALERT_NOTIFY_ROLES = ["Admin", "Office Manager", "Operations Manager", "Sales Manager", "Account Manager"];
+
+function notificationsForCurrentUser() {
+  const role = state.currentUser?.role || "";
+  return (state.backend.notifications || [])
+    .filter((notification) => !notification.deletedAt && (role === "Admin" || !notification.audienceRoles?.length || notification.audienceRoles.includes(role)))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+function notificationIsUnread(notification) {
+  return !(notification.readBy || []).includes(currentActorName());
+}
+
+// Ids are derived from the condition, so raising is idempotent: a condition already announced is
+// skipped, and two clients racing to announce it write the same row.
+async function raiseNotification({ key, title, body = "", severity = "warning", audienceRoles = OFFICE_NOTIFY_ROLES, link = "" }) {
+  const id = `notif-${String(key).toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 140)}`;
+  if ((state.backend.notifications || []).some((notification) => notification.id === id)) return null;
+  const record = { id, dedupeKey: key, title, body, severity, audienceRoles, recipientUserId: "", link, createdAt: new Date().toISOString(), readBy: [] };
+  state.backend.notifications = [...(state.backend.notifications || []), record];
+  try {
+    await saveBackendRecord("notifications", record, { refresh: false });
+  } catch {
+    state.backend.notifications = state.backend.notifications.filter((notification) => notification.id !== id);
+  }
+  renderNotificationBell();
+  return record;
+}
+
+// Deadlines have no save event to hang a notification on, so they're swept after data loads and
+// after permit/waste saves. Keys carry the date, so a renewed permit or a new deadline announces
+// again. Incomplete permit records are flagged on the Compliance page rather than announced.
+function sweepDeadlineNotifications() {
+  if (!state.currentUser || /client/i.test(state.currentUser.role || "")) return;
+  getPermits().forEach((permit) => {
+    const title = permitAlertTitle(permit);
+    if (!title || !permit.expiresOn || !permit.permitNumber) return;
+    const expired = title.startsWith("Expired");
+    raiseNotification({
+      key: `permit-${permit.id}-${permit.expiresOn}-${expired ? "expired" : "renewal"}`,
+      title: `${permit.name}: ${title}`,
+      severity: expired ? "critical" : "warning",
+      audienceRoles: OFFICE_NOTIFY_ROLES,
+      link: "#view=office-compliance",
+    });
+  });
+  (state.backend.wasteRecords || [])
+    .filter((record) => !record.deletedAt)
+    .forEach((record) => {
+      const title = wasteAlertTitle(record);
+      if (!title) return;
+      const clock = wasteStorageDeadline(record);
+      raiseNotification({
+        key: `waste-${record.id}-${clock.deadline}-${clock.daysLeft < 0 ? "passed" : "soon"}`,
+        title: `Waste storage limit: ${findProject(record.projectId)?.name || "project"}`,
+        body: `${record.description || "Waste"}: ${title}`,
+        severity: clock.daysLeft < 0 ? "critical" : "warning",
+        audienceRoles: OPERATIONS_NOTIFY_ROLES,
+        link: `#view=project-detail&selectedProjectId=${encodeURIComponent(record.projectId)}`,
+      });
+    });
+}
+
+function renderNotificationBell() {
+  const slot = document.querySelector("#notificationBell");
+  if (!slot) return;
+  const unread = notificationsForCurrentUser().filter(notificationIsUnread).length;
+  slot.innerHTML = `
+    <button class="icon-button notification-button" type="button" data-action="open-notifications" aria-label="Notifications${unread ? `, ${unread} unread` : ""}" title="Notifications">
+      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+      ${unread ? `<span class="notification-count">${unread > 99 ? "99+" : unread}</span>` : ""}
+    </button>
+  `;
+}
+
+function renderNotificationList() {
+  const list = document.querySelector("#notificationsDialog [data-notification-list]");
+  if (!list) return;
+  const rows = notificationsForCurrentUser().slice(0, 100);
+  list.innerHTML =
+    rows
+      .map((notification) => {
+        const unread = notificationIsUnread(notification);
+        return `
+          <article class="notification-row${unread ? " unread" : ""} severity-${escapeAttribute(notification.severity || "info")}">
+            <div>
+              <strong>${unread ? withTrailingAlertDot(notification.title, "Unread") : escapeHtml(notification.title)}</strong>
+              ${notification.body ? `<p>${escapeHtml(notification.body)}</p>` : ""}
+              <small class="muted-text">${formatDateTime(notification.createdAt)}</small>
+            </div>
+            <div class="inline-actions">
+              ${notification.link ? `<button class="mini-button" type="button" data-action="open-notification" data-id="${escapeAttribute(notification.id)}">Open</button>` : ""}
+              ${unread ? `<button class="mini-button" type="button" data-action="mark-notification-read" data-id="${escapeAttribute(notification.id)}">Mark read</button>` : ""}
+            </div>
+          </article>
+        `;
+      })
+      .join("") || `<div class="empty-state">Nothing to report.</div>`;
+}
+
+function openNotificationsDialog() {
+  renderNotificationList();
+  document.querySelector("#notificationsDialog").showModal();
+}
+
+async function markNotificationsRead(ids) {
+  const actor = currentActorName();
+  for (const id of ids) {
+    const notification = (state.backend.notifications || []).find((item) => item.id === id);
+    if (!notification || (notification.readBy || []).includes(actor)) continue;
+    const updated = { ...notification, readBy: [...(notification.readBy || []), actor] };
+    try {
+      await saveBackendRecord("notifications", updated, { refresh: false });
+      Object.assign(notification, updated);
+    } catch (error) {
+      showToast(error.message || "Could not mark as read.");
+      break;
+    }
+  }
+  renderNotificationList();
+  renderNotificationBell();
+}
+
+async function openNotification(id) {
+  const notification = (state.backend.notifications || []).find((item) => item.id === id);
+  if (!notification?.link) return;
+  await markNotificationsRead([id]);
+  const params = new URLSearchParams(String(notification.link).replace(/^#/, ""));
+  if (!params.get("view")) return;
+  state.view = params.get("view");
+  ROUTE_ID_FIELDS.forEach((field) => {
+    if (params.has(field)) state[field] = params.get(field);
+  });
+  closeDialogs();
+  render();
 }
 
 // ---- Phase 09: Billing & Invoicing — project close, cost report, and P&L ----
@@ -19094,7 +20816,14 @@ function buildProjectCostReport(project) {
   }));
   const expensesTotal = roundCents(expenseItems.reduce((sum, item) => sum + item.amount, 0));
 
-  const costsTotal = materialsTotal + equipmentTotal + laborTotal + expensesTotal;
+  // Phase 11 (2026-09-23): disposal cost from the project's waste log, also actual money spent. It
+  // lives only on the waste record, never as a field receipt too, so it can't be counted twice.
+  const wasteItems = wasteRecordsForProject(project.id)
+    .filter((record) => Number(record.disposalCost) > 0)
+    .map((record) => ({ id: record.id, description: record.description, classification: record.classification, manifestNumber: record.manifestNumber || "", amount: Number(record.disposalCost) }));
+  const wasteTotal = roundCents(wasteItems.reduce((sum, item) => sum + item.amount, 0));
+
+  const costsTotal = materialsTotal + equipmentTotal + laborTotal + expensesTotal + wasteTotal;
 
   const existingInvoice = (state.backend.invoices || []).find((invoice) => invoice.projectId === project.id);
   const quotedRevenue = docRef.total || Number(opportunity?.value || project.budget || project.notToExceed || 0);
@@ -19110,6 +20839,7 @@ function buildProjectCostReport(project) {
       equipment: { unitCost: equipmentRate.amount, rateSource: equipmentRate.source, items: equipmentItems, total: equipmentTotal },
       labor: { unitCost: laborRate.amount, rateSource: laborRate.source, hours: labor.hours, entries: labor.entries, total: laborTotal },
       expenses: { items: expenseItems, total: expensesTotal },
+      waste: { items: wasteItems, total: wasteTotal },
       total: costsTotal,
     },
     revenue: {
@@ -19119,10 +20849,6 @@ function buildProjectCostReport(project) {
     },
     margin,
     marginPercent,
-    // Explicitly deferred, not forgotten (owner decision 2026-09-17): waste-disposal cost tracking
-    // (permits, disposal manifests/receipts — Phase 11/Field Ops Depth) does not feed this P&L. That
-    // phase hasn't been built yet, so there is no fourth cost bucket here for it. Add one once Phase
-    // 11's waste-tracking data exists rather than stubbing it out now.
   };
 }
 
@@ -21389,6 +23115,61 @@ async function markEstimateCurrent(opportunityId, estimateId) {
 // PDF export library isn't available in this environment; browser print-to-PDF covers the same
 // need for a prototype.
 
+// One print shell for every printable document: quotes, estimates and the Phase 11 post-work report
+// ("three bespoke print layouts is two too many"). The stylesheet is self-contained on purpose so the
+// window renders a clean customer-presentable page instead of inheriting the app shell's theme or
+// depending on styles.css being reachable.
+const PRINT_BASE_STYLES = `
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #fff; }
+    .print-doc { max-width: 780px; margin: 32px auto; padding: 0 24px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a1f26; }
+    .print-doc h1 { font-size: 1.5rem; margin-bottom: 2px; }
+    .print-doc h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; margin-bottom: 4px; }
+    .print-doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1f26; padding-bottom: 12px; margin-bottom: 16px; }
+    .print-doc-meta { text-align: right; font-size: 0.85rem; }
+    .print-doc-parties { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .print-doc table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    .print-doc th, .print-doc td { border-bottom: 1px solid #d8dee6; padding: 6px 8px; text-align: left; font-size: 0.88rem; }
+    .print-doc th { background: #f4f6f8; }
+    .print-doc td.num, .print-doc th.num { text-align: right; }
+    .print-doc-total-row td { font-weight: 700; border-top: 2px solid #1a1f26; border-bottom: none; }
+    .print-doc-notes { margin-top: 20px; padding-top: 12px; border-top: 1px solid #d8dee6; white-space: pre-wrap; font-size: 0.88rem; }
+    .print-doc-actions { margin-bottom: 20px; }
+    .print-doc-actions button { font: inherit; padding: 6px 14px; cursor: pointer; }
+    @media print { .print-doc-actions { display: none; } }
+  `;
+
+function renderPrintShell({ title, body, extraStyles = "" }) {
+  return `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>${PRINT_BASE_STYLES}${extraStyles}</style>
+      </head>
+      <body>
+        <div class="print-doc">
+          <div class="print-doc-actions">
+            <button type="button" onclick="window.print()">Print / Save as PDF</button>
+          </div>
+          ${body}
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function openPrintWindow(html, what) {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    showToast(`Pop-up blocked — allow pop-ups to print this ${what}.`);
+    return;
+  }
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
 function renderPrintableDocHtml({ docType, doc, lines, opportunity, account, isCurrent }) {
   const facility = findFacility(opportunity?.facilityId);
   const billingAddress = doc.billingAddressId ? getAddresses().find((item) => item.id === doc.billingAddressId) : null;
@@ -21426,42 +23207,9 @@ function renderPrintableDocHtml({ docType, doc, lines, opportunity, account, isC
 
   const docNumber = docType === "Quote" ? doc.quoteNumber : doc.estimateNumber;
 
-  // Self-contained print stylesheet — deliberately not linking the full app styles.css, so this
-  // window renders a clean customer-presentable document instead of inheriting the app shell's
-  // background pattern/theme and depending on the app's stylesheet path being reachable.
-  const printStyles = `
-    * { box-sizing: border-box; }
-    body { margin: 0; background: #fff; }
-    .print-doc { max-width: 780px; margin: 32px auto; padding: 0 24px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a1f26; }
-    .print-doc h1 { font-size: 1.5rem; margin-bottom: 2px; }
-    .print-doc h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #666; margin-bottom: 4px; }
-    .print-doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1f26; padding-bottom: 12px; margin-bottom: 16px; }
-    .print-doc-meta { text-align: right; font-size: 0.85rem; }
-    .print-doc-parties { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-    .print-doc table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-    .print-doc th, .print-doc td { border-bottom: 1px solid #d8dee6; padding: 6px 8px; text-align: left; font-size: 0.88rem; }
-    .print-doc th { background: #f4f6f8; }
-    .print-doc td.num, .print-doc th.num { text-align: right; }
-    .print-doc-total-row td { font-weight: 700; border-top: 2px solid #1a1f26; border-bottom: none; }
-    .print-doc-notes { margin-top: 20px; padding-top: 12px; border-top: 1px solid #d8dee6; white-space: pre-wrap; font-size: 0.88rem; }
-    .print-doc-actions { margin-bottom: 20px; }
-    .print-doc-actions button { font: inherit; padding: 6px 14px; cursor: pointer; }
-    @media print { .print-doc-actions { display: none; } }
-  `;
-
-  return `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${escapeHtml(doc.name || docType)}</title>
-        <style>${printStyles}</style>
-      </head>
-      <body>
-        <div class="print-doc">
-          <div class="print-doc-actions">
-            <button type="button" onclick="window.print()">Print / Save as PDF</button>
-          </div>
+  return renderPrintShell({
+    title: doc.name || docType,
+    body: `
           <div class="print-doc-header">
             <div>
               <h1>${escapeHtml(doc.name || docType)}</h1>
@@ -21538,10 +23286,8 @@ function renderPrintableDocHtml({ docType, doc, lines, opportunity, account, isC
               : ""
           }
           ${doc.notes ? `<div class="print-doc-notes"><strong>Notes:</strong><br />${escapeHtml(doc.notes)}</div>` : ""}
-        </div>
-      </body>
-    </html>
-  `;
+    `,
+  });
 }
 
 function printOpportunityQuote(opportunityId, quoteId) {
@@ -21558,13 +23304,7 @@ function printOpportunityQuote(opportunityId, quoteId) {
     account,
     isCurrent: quote.id === opportunity.quoteId,
   });
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) {
-    showToast("Pop-up blocked — allow pop-ups to print this quote.");
-    return;
-  }
-  printWindow.document.write(html);
-  printWindow.document.close();
+  openPrintWindow(html, "quote");
 }
 
 function printOpportunityEstimate(opportunityId, estimateId) {
@@ -21581,13 +23321,7 @@ function printOpportunityEstimate(opportunityId, estimateId) {
     account,
     isCurrent: estimate.id === opportunity.estimateId,
   });
-  const printWindow = window.open("", "_blank");
-  if (!printWindow) {
-    showToast("Pop-up blocked — allow pop-ups to print this estimate.");
-    return;
-  }
-  printWindow.document.write(html);
-  printWindow.document.close();
+  openPrintWindow(html, "estimate");
 }
 
 // --- Rate card admin ------------------------------------------------------------------------
@@ -22051,6 +23785,7 @@ function openRateCardProductDialog(id = "") {
     form.elements.subcategory.value = product.subcategory || "";
     form.elements.fuelSurchargeApplies.checked = Boolean(product.fuelSurchargeApplies);
     form.elements.minimumQuantity.value = product.minimumAppliesWhen === "emergency" ? product.minimumQuantity || 0 : 0;
+    form.elements.qboItemName.value = product.qboItemName || "";
   } else {
     form.elements.id.value = "";
     form.elements.minimumQuantity.value = 0;
@@ -22084,6 +23819,9 @@ async function saveRateCardProduct(form) {
     fuelSurchargeApplies: form.elements.fuelSurchargeApplies.checked,
     minimumQuantity,
     minimumAppliesWhen: minimumQuantity > 0 ? "emergency" : "",
+    // Phase 11 (2026-09-23): optional override for the item name a real QuickBooks export uses;
+    // blank means the export falls back to `name` above.
+    qboItemName: data.get("qboItemName").toString().trim(),
   };
   const costPlus = data.get("pricingMethodCode").toString() === COST_PLUS_METHOD;
   try {
@@ -22191,7 +23929,7 @@ function openAccountDialog(accountId = "") {
     form.elements.fax.value = account.faxNumber || "";
     form.elements.parentAccountId.value = account.parentAccountId || "";
     const matchingOwnerEmployee = getEmployees().find((employee) => employee.displayName === core.owner);
-    form.elements.ownerEmployeeId.value = account.ownerEmployeeId || (core.owner === "System" ? "system" : matchingOwnerEmployee?.id || "");
+    setEmployeeSelectValue(form.elements.ownerEmployeeId, account.ownerEmployeeId || (core.owner === "System" ? "system" : matchingOwnerEmployee?.id || ""));
     const primaryIndustryLink = industriesForAccount(account.id).find((link) => link.isPrimary) || industriesForAccount(account.id)[0];
     form.elements.industryId.value = primaryIndustryLink?.industryId || "";
     const primaryAddress = addressesForAccount(account.id).find((address) => address.isPrimary);
@@ -22202,6 +23940,7 @@ function openAccountDialog(accountId = "") {
     form.elements.addressCountry.value = primaryAddress?.countryOrRegion || "";
     form.elements.concern.value = account.concern || "";
     form.elements.businessDescription.value = relationshipExtensionForAccount(account.id)?.businessDescription || "";
+    form.elements.qboCustomerName.value = account.qboCustomerName || "";
   } else {
     form.elements.id.value = "";
   }
@@ -22232,7 +23971,7 @@ function openAccountOwnerDialog(accountId) {
   populateEmployeeSelect(dialog, "ownerEmployeeId", "Unassigned", [{ value: "system", label: "System" }], SALES_OWNER_JOB_TITLES);
   populateContactSelect(dialog, accountId);
   const matchingEmployee = getEmployees().find((employee) => employee.displayName === account.owner);
-  form.elements.ownerEmployeeId.value = account.ownerEmployeeId || (account.owner === "System" ? "system" : matchingEmployee?.id || "");
+  setEmployeeSelectValue(form.elements.ownerEmployeeId, account.ownerEmployeeId || (account.owner === "System" ? "system" : matchingEmployee?.id || ""));
   const matchingContact = account.primaryContactId
     ? findContact(account.primaryContactId)
     : contactsForAccount(account.id).find((contact) => contact.name === account.contact);
@@ -22245,7 +23984,7 @@ async function saveAccountOwner(form) {
   const accountId = data.get("id").toString();
   const existing = findAccount(accountId);
   if (!existing) return;
-  const ownerEmployeeId = data.get("ownerEmployeeId").toString();
+  const ownerEmployeeId = (data.get("ownerEmployeeId") || "").toString();
   const ownerName = ownerEmployeeId === "system" ? "System" : ownerEmployeeId ? findEmployee(ownerEmployeeId)?.displayName || "" : "";
   const contactId = data.get("contactId").toString();
   const contact = contactId ? findContact(contactId) : null;
@@ -23812,6 +25551,11 @@ function openEquipmentAssetDialog(assetTag = "") {
     form.elements.lastUsed.value = asset.lastUsed || "";
     form.elements.maintenanceDue.value = asset.maintenanceDue || todayIso();
     form.elements.issue.value = asset.issue || "";
+    form.elements.pmIntervalDays.value = asset.pmIntervalDays ?? "";
+    form.elements.pmIntervalMeter.value = asset.pmIntervalMeter ?? "";
+    form.elements.meterUnit.value = asset.meterUnit || "";
+    form.elements.currentMeter.value = asset.currentMeter ?? "";
+    form.elements.maintenanceDueMeter.value = asset.maintenanceDueMeter ?? "";
     renderEquipmentSpecFieldGrid(asset.category || "General equipment", asset.specs || {});
   } else {
     form.elements.id.value = "";
@@ -23882,6 +25626,13 @@ async function clearEquipmentAlert(assetTag) {
       assignedProjectId: asset.assignedProjectId || "",
       productId: asset.productId || "",
       specs: asset.specs || {},
+      // Phase 11 (2026-09-23): carry the PM plan through — this save builds its record explicitly
+      // rather than spreading `asset`, so any field left out here would otherwise be wiped.
+      pmIntervalDays: asset.pmIntervalDays ?? null,
+      pmIntervalMeter: asset.pmIntervalMeter ?? null,
+      meterUnit: asset.meterUnit || "",
+      currentMeter: asset.currentMeter ?? null,
+      maintenanceDueMeter: asset.maintenanceDueMeter ?? null,
     });
     closeDialogs();
     render();
@@ -23895,9 +25646,15 @@ function openEquipmentMaintenanceDialog(assetTag = "") {
   const dialog = document.querySelector("#equipmentMaintenanceDialog");
   const form = dialog.querySelector("form");
   form.reset();
-  form.elements.assetTag.value = assetTag || state.selectedEquipmentAssetTag || "";
+  const tag = assetTag || state.selectedEquipmentAssetTag || "";
+  const asset = tag ? findEquipmentAssetByTag(tag) : null;
+  form.elements.assetTag.value = tag;
   form.elements.date.value = todayIso();
-  form.elements.nextDueDate.value = addDays(90);
+  form.elements.status.value = "Completed";
+  form.elements.meterUnit.value = asset?.meterUnit || "hours";
+  // Phase 11 (2026-09-23): when the asset has a PM interval configured, leave Next due blank so
+  // saveEquipmentMaintenanceRecord's auto-calc kicks in; otherwise keep the old flat +90-day default.
+  form.elements.nextDueDate.value = asset?.pmIntervalDays || asset?.pmIntervalMeter ? "" : addDays(90);
   dialog.showModal();
 }
 
@@ -24093,6 +25850,108 @@ async function saveSampleLabInfo(form) {
     showToast("Sample lab information saved.");
   } catch (error) {
     showToast(error.message || "Sample lab information could not be saved.");
+  }
+}
+
+// Phase 11 (2026-09-23) — Add/Edit for a single structured analytical result row. The linked lab
+// report select only lists files already uploaded for this sample (sampleLabReportsForSample);
+// most samples have none yet, which is why "No file linked" is always the first option.
+function openSampleResultDialog(sampleId, resultId = "") {
+  const sample = findSample(sampleId);
+  if (!sample) {
+    showToast("That sample record could not be found.");
+    return;
+  }
+  const dialog = document.querySelector("#sampleResultDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.sampleId.value = sample.id;
+  form.elements.projectId.value = sample.projectId || "";
+
+  const reports = sampleLabReportsForSample(sample.id);
+  form.elements.labReportId.innerHTML = `<option value="">No file linked</option>${reports
+    .map((report) => `<option value="${escapeAttribute(report.id)}">${escapeHtml(report.fileName)}</option>`)
+    .join("")}`;
+
+  const result = resultId ? (state.backend.sampleResults || []).find((item) => item.id === resultId) : null;
+  if (result) {
+    form.elements.id.value = result.id;
+    form.elements.analyte.value = result.analyte || "";
+    form.elements.method.value = result.method || "";
+    form.elements.resultValue.value = result.resultValue || "";
+    form.elements.units.value = result.units || "";
+    form.elements.qualifier.value = result.qualifier || "";
+    form.elements.reportedOn.value = result.reportedOn ? result.reportedOn.slice(0, 10) : "";
+    form.elements.detectionLimit.value = result.detectionLimit ?? "";
+    form.elements.reportingLimit.value = result.reportingLimit ?? "";
+    form.elements.actionLevel.value = result.actionLevel ?? "";
+    form.elements.actionLevelSource.value = result.actionLevelSource || "";
+    form.elements.labReportId.value = result.labReportId || "";
+    form.elements.enteredBy.value = result.enteredBy || "";
+  } else {
+    form.elements.id.value = "";
+    form.elements.reportedOn.value = todayIso();
+    form.elements.enteredBy.value = state.currentUser?.name || "";
+  }
+  dialog.showModal();
+}
+
+async function saveSampleResult(form) {
+  const data = new FormData(form);
+  const sampleId = data.get("sampleId").toString();
+  const sample = findSample(sampleId);
+  if (!sample) {
+    showToast("That sample record could not be found.");
+    return;
+  }
+  const id = data.get("id").toString();
+  // Preserve the original createdAt on an edit — same convention as every other edit-in-place
+  // dialog in this app (e.g. saveEquipmentAsset's purchase-order branch); without it, editing a
+  // row would silently reset its creation time to "now" on every save.
+  const existing = id ? (state.backend.sampleResults || []).find((item) => item.id === id) : null;
+  const record = {
+    id: id || makeId("sample-result"),
+    sampleId,
+    projectId: data.get("projectId").toString() || sample.projectId || "",
+    analyte: data.get("analyte").toString().trim(),
+    method: data.get("method").toString().trim(),
+    resultValue: data.get("resultValue").toString().trim(),
+    units: data.get("units").toString().trim(),
+    qualifier: data.get("qualifier").toString().trim(),
+    detectionLimit: data.get("detectionLimit").toString(),
+    reportingLimit: data.get("reportingLimit").toString(),
+    actionLevel: data.get("actionLevel").toString(),
+    actionLevelSource: data.get("actionLevelSource").toString().trim(),
+    labReportId: data.get("labReportId").toString(),
+    reportedOn: data.get("reportedOn").toString(),
+    createdAt: existing?.createdAt || "",
+    enteredBy: data.get("enteredBy").toString().trim() || state.currentUser?.name || "Local user",
+  };
+
+  try {
+    // resultNumeric and exceedsActionLevel are derived server-side from resultValue/actionLevel
+    // (normalizeRecord in server.mjs) so the computed fields can't drift from a stale client.
+    await saveBackendRecord("sampleResults", record);
+    closeDialogs();
+    render();
+    showToast("Analytical result saved.");
+  } catch (error) {
+    showToast(error.message || "Analytical result could not be saved.");
+  }
+}
+
+async function deleteSampleResult(resultId) {
+  const result = (state.backend.sampleResults || []).find((item) => item.id === resultId);
+  if (!result) return;
+  if (!confirm("Delete this analytical result?")) return;
+  try {
+    // Soft delete, the convention every other removal in this app uses (deletedAt, filtered out
+    // by sampleResultsForSample) — there is no hard-delete path for this collection.
+    await saveBackendRecord("sampleResults", { ...result, deletedAt: new Date().toISOString() });
+    render();
+    showToast("Analytical result deleted.");
+  } catch (error) {
+    showToast(error.message || "Analytical result could not be deleted.");
   }
 }
 
@@ -24406,6 +26265,20 @@ function populateAccountSelect(root, blankLabel = "") {
 }
 
 const SALES_OWNER_JOB_TITLES = ["Sales Manager", "Account Manager"];
+
+// The account owner pickers list sales job titles only, so an owner with any other title (a project
+// manager who owns a municipal account, say) had no option: the select fell back to nothing
+// selected, FormData dropped the field and the save threw (found 2026-09-23 on City of Georgetown).
+// Keep the current owner selectable instead.
+function setEmployeeSelectValue(select, employeeId) {
+  if (employeeId && ![...select.options].some((option) => option.value === employeeId)) {
+    const employee = findEmployee(employeeId);
+    if (employee) {
+      select.insertAdjacentHTML("beforeend", `<option value="${escapeAttribute(employee.id)}">${escapeHtml(employee.displayName)} - ${escapeHtml(employee.jobTitle || "")} (current owner)</option>`);
+    }
+  }
+  select.value = employeeId || "";
+}
 
 function populateEmployeeSelect(root, fieldName, blankLabel = "", extraOptions = [], jobTitleFilter = null) {
   root.querySelectorAll(`select[name='${fieldName}']`).forEach((select) => {
@@ -26303,16 +28176,34 @@ function getConsumableStatus() {
   });
 }
 
+// Phase 11 (2026-09-23): meter-based due tone (used by both getEquipmentStatus and
+// equipmentAlertTitle, above). Overdue (current meter at or past the PM meter target) is "high";
+// within 5% of it is "medium" ("due soon"). Higher number = more severe here — the inverse order
+// of the pre-existing equipmentToneRank (used only for sorting, where "high" should sort first).
+const equipmentToneSeverity = { high: 3, medium: 2, low: 1 };
+
+function getEquipmentMeterTone(asset) {
+  const dueMeter = Number(asset.maintenanceDueMeter || 0);
+  if (!dueMeter) return "low";
+  const current = Number(asset.currentMeter || 0);
+  if (current >= dueMeter) return "high";
+  if (current >= dueMeter * 0.95) return "medium";
+  return "low";
+}
+
 function getEquipmentStatus() {
   const assets = state.backend.equipmentAssets?.length ? state.backend.equipmentAssets : equipmentAssets;
   return assets.map((asset) => {
     const relatedLog = state.equipmentLogs.find((log) => log.assetTag === asset.assetTag);
-    const statusTone =
+    const dateTone =
       asset.status === "Maintenance hold" || asset.issue ? "high" : daysUntil(asset.maintenanceDue) <= 7 ? "medium" : "low";
+    const meterTone = getEquipmentMeterTone(asset);
+    const statusTone = equipmentToneSeverity[meterTone] > equipmentToneSeverity[dateTone] ? meterTone : dateTone;
     return {
       ...asset,
       lastUsed: relatedLog?.checkedOut?.slice(0, 10) || asset.lastUsed,
       statusTone,
+      meterDue: meterTone !== "low",
     };
   });
 }
@@ -26335,6 +28226,51 @@ function getPurchaseOrders() {
   return state.backend.purchaseOrders || [];
 }
 
+// Phase 11 (2026-09-23): read-only stock-movement ledger -- every onHand change on an inventory item
+// (PO receipt, Front Line material consumption, manual on-hand edit) writes one of these server-side.
+function getInventoryMovementsForItem(itemId) {
+  return (state.backend.inventoryMovements || [])
+    .filter((movement) => movement.inventoryItemId === itemId)
+    .sort((a, b) => parseDate(b.occurredAt) - parseDate(a.occurredAt));
+}
+
+const inventoryMovementReasonLabels = {
+  receipt: "Receipt",
+  "field-usage": "Field usage",
+  adjustment: "Adjustment",
+  return: "Return",
+};
+
+function renderInventoryMovementReference(movement) {
+  if (movement.refType === "purchaseOrder") {
+    const order = getPurchaseOrders().find((item) => item.id === movement.refId);
+    return order ? `PO &middot; ${escapeHtml(order.vendor || "vendor")}` : "Purchase order";
+  }
+  if (movement.refType === "jobAction") {
+    const dispatchJob = (state.backend.dispatchJobs || []).find((job) => job.id === movement.dispatchJobId);
+    return dispatchJob
+      ? `<button class="link-button" type="button" data-action="view-dispatch-job" data-id="${escapeAttribute(dispatchJob.id)}">${escapeHtml(dispatchJob.jobNumber)}</button>`
+      : "Field usage";
+  }
+  return "Manual adjustment";
+}
+
+function renderInventoryMovementRow(movement) {
+  const delta = Number(movement.quantityDelta || 0);
+  const deltaText = `${delta > 0 ? "+" : ""}${delta}`;
+  return `
+    <tr>
+      <td data-label="Date">${formatDate(movement.occurredAt)}</td>
+      <td data-label="Reason">${escapeHtml(inventoryMovementReasonLabels[movement.reason] || movement.reason || "")}</td>
+      <td data-label="Quantity">${escapeHtml(deltaText)}</td>
+      <td data-label="Balance after">${escapeHtml(String(Number(movement.balanceAfter || 0)))}</td>
+      <td data-label="Reference">${renderInventoryMovementReference(movement)}</td>
+      <td data-label="By">${escapeHtml(movement.by || "")}</td>
+      <td data-label="Note">${movement.note ? escapeHtml(movement.note) : ""}</td>
+    </tr>
+  `;
+}
+
 function getInventoryItemById(itemId) {
   const items = state.backend.inventoryItems?.length ? state.backend.inventoryItems : consumableInventory;
   return items.find((item) => item.id === itemId);
@@ -26354,6 +28290,19 @@ function getEquipmentMaintenanceRecords(assetTag) {
   return (state.backend.equipmentMaintenanceRecords || [])
     .filter((record) => record.assetTag === assetTag)
     .sort((a, b) => parseDate(b.date) - parseDate(a.date));
+}
+
+// Phase 11 (2026-09-23): maintenance/repair cost and downtime to date, for the asset detail panel.
+// Counts every logged record (Completed and Scheduled) since a Scheduled record's cost is usually
+// an estimate the shop already committed to, not money that hasn't happened yet.
+function getEquipmentMaintenanceTotals(assetTag) {
+  return getEquipmentMaintenanceRecords(assetTag).reduce(
+    (totals, record) => ({
+      cost: totals.cost + Number(record.cost || 0),
+      downtimeHours: totals.downtimeHours + Number(record.downtimeHours || 0),
+    }),
+    { cost: 0, downtimeHours: 0 },
+  );
 }
 
 function getEquipmentRestockItems(assetTag) {
@@ -26698,6 +28647,14 @@ function sampleLabReportsForSample(sampleId) {
   return (state.backend.sampleLabReports || [])
     .filter((report) => report.sampleId === sampleId)
     .sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+}
+
+// Phase 11 (2026-09-23) — structured analytical result rows per sample (sampleResults), one row
+// per analyte. Soft-deleted rows are filtered out here so every caller gets the live set.
+function sampleResultsForSample(sampleId) {
+  return (state.backend.sampleResults || [])
+    .filter((result) => result.sampleId === sampleId && !result.deletedAt)
+    .sort((a, b) => new Date(b.reportedOn || b.createdAt || 0) - new Date(a.reportedOn || a.createdAt || 0));
 }
 
 // A lab report reference is free text historically -- it may hold a real URL (a lab portal link) or
