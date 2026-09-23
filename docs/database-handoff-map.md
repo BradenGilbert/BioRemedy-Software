@@ -49,7 +49,7 @@ yet have a deployed production relational database.
 |---|---|
 | PostgreSQL design | 28 ordered SQL files defining **141 tables** and **27 views** |
 | Laravel conversion | Only the first **12 tables** have Laravel migrations, models, and basic Filament resources |
-| Running prototype server | Node server using `data/backend.json` with **88 collections** (counted directly from `server.mjs`'s `collectionAccess` map, September 17, 2026 -- the prior "76" here had drifted stale across several phases) |
+| Running prototype server | Node server using `data/backend.json` with **96 collections** (recounted directly from `server.mjs`'s `collectionAccess` map, September 23, 2026, after Phase 08 round two added `pricingSettings`; the September 17 count of 88 and this section's "86" header had both drifted) |
 | Browser CRM storage | IndexedDB with **2 object stores** (`syncQueue`, `settings`) -- every core CRM collection moved to the shared JSON backend in Phase 01 (complete September 16, 2026); IndexedDB is now genuinely just the local cache/outbox |
 | Uploaded files | Local filesystem under `data/uploads`; metadata is in the JSON backend |
 | Front Line | Database and sync schema defined; no standalone iOS/Android app built (that decision is explicitly deferred -- see `docs/roadmap/phase-10-frontline.md`). A web-hosted phone-frame simulator exists inside the CRM web app (`app.js`, `renderFrontline*` functions, reachable from the CRM home screen) — fake login (field-lead picker, no real auth), a 3x3 tile launcher, and **eight real tiles** (all of Phase 10) that read/write the shared JSON backend through the same `/api/backend` endpoints the desktop uses: Job Book (work plan / typed task capture against `dispatchJobs`/`jobSteps`/`jobActions`/`jobFormSubmissions`, including a repeatable "+ Activity" ad hoc path and an `"Odometer"` task type), Time Sheet (clock-in/out against `timeEntries`), Trips (mileage against `jobMileageEntries`), Settings (real session/employee/device/connection state plus a persisted notification-preferences setting), Forms (a small standalone form catalog against `jobFormSubmissions`), Messaging (new `messages` collection, threaded by job or general), Location (the `locations` GPS collection plus a Leaflet satellite map, reused from the Facility detail page), and Invoices (read-only, reusing Phase 09's finance rows). It validates the data model and UX end-to-end but is not the real mobile app. |
@@ -487,6 +487,49 @@ billing/shipping address, required line items + total, optional/write-in lines, 
 `docs/roadmap/phase-08-quotes-estimates.md`'s "Live bug report follow-up" section for the full
 writeup.
 
+**Phase 08 round two: the rate-card rework (2026-09-23, sprint Wave 1)** modelled BioRemedy's real
+`2026 RATES.xlsx`. One new collection and new fields on existing ones:
+
+- **New collection `pricingSettings`** (gated `salesDocuments`; one row, `pricing-settings-default`):
+  `fuelSurchargePercent` (null until the owner sets it), `fuelSurchargeUpdatedAt`,
+  `fuelSurchargeNote` (e.g. which DOE fuel average), `energySecurityFeePercent` (default 18). New
+  documents snapshot both percentages, and each document can override them.
+- **`priceLevels` are now rate sheets:** `isDefault`, `sourceFile`, `sourceSheet`. The existing
+  `price-standard-2026` row became "2026 Rate Sheet" (the workbook's "Rate Sheet" tab, the default)
+  so existing references needed no migration. `price-sheet5-2026` is the workbook's second tab.
+- **`productPriceLevels`** (product x rate sheet, still one row each) gained `amountOtEmergency` and
+  `amountDoubleTime` beside the existing `amount` (= Standard). `null` means N/A on the sheet, which
+  bills at Standard. Also gained `markupPercent` (with `pricingMethodCode: "PercentMarkupCurrentCost"`
+  for cost-plus rows, where `amount` is null), `rateNote`, `sheetItemName` and `importSource`. SQL
+  impact: three numeric columns and two text columns on `product_price_levels`. No new table.
+- **`products`** gained `category` and `subcategory` (rate-sheet sections), `fuelSurchargeApplies`,
+  `minimumQuantity` with `minimumAppliesWhen: "emergency"` (4 on every hourly item), and
+  `importSource`.
+- **`quotes` / `estimates`** gained `rateTier` (document default), `isEmergencyCallout`,
+  `fuelSurchargePercent`, `energySecurityFeePercent`, `subtotalAmount`, `fuelSurchargeAmount` and
+  `energySecurityFeeAmount`. `totalAmount` remains the grand total (items + surcharge + fee).
+  Documents saved before the rework have no fee field and keep a 0% fee.
+- **`quoteLines` / `estimateLines`** gained `lineKind` (`item` | `fuel_surcharge` |
+  `energy_security_fee`; the last two are generated on save and never hand-edited), `sequenceNumber`,
+  `rateTier`, `pricingMethod` (`rate` | `cost_plus`), `unitCost` and `markupPercent` (cost-plus
+  lines; `pricePerUnit` holds the marked-up price), `minimumQuantity`, `billableQuantity` (what's
+  billed: max(quantity, minimum) on an emergency call-out), `minimumApplied`, and
+  `fuelSurchargeApplies`.
+- **`equipmentAssets.productId` / `inventoryItems.productId`:** the rate-card line an asset or
+  consumable bills as (many assets to one product). Both collections are whitelisted in
+  `server.mjs` `normalizeRecord()`, and `productId` was added there.
+- **Units of measure:** 17 new `unitsOfMeasure` rows (each, per man per day, per foot, per foot per
+  day, per 100 ft per day, per test/suit/pair/bale/bag/section/gallon/pail/roll/load/sample/sq ft)
+  in a new `unit-group-rate-sheet` group.
+- **Import:** `scripts/import-rate-sheet.mjs` is re-runnable and upserts through the API with IDs
+  derived from item names (`prod-rs-*`, `ppl-rs-*` / `ppl-s5-*`). A re-run updates prices in place
+  and keeps admin edits to product flags.
+
+Also in this session: `server.mjs` now serializes API requests and writes `backend.json`
+atomically (temp file + rename), after a live concurrent-save collision. See
+`docs/roadmap/phase-08-quotes-estimates.md`, "Rate-card rework: design" and its 2026-09-23
+corrections.
+
 **Phase 07 live-bug-report follow-up (2026-09-17, second session)** added a handful of small fields
 while fixing 8 owner-reported live bugs in the Dispatch/Operations area; no new collections. `projectAlerts`
 and `jobConflicts` both gained `resolvedAt` / `resolvedBy` (both records previously had a `status` field
@@ -558,7 +601,7 @@ gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
 was retired the same way, same day: removed from `server.mjs` entirely and
 deleted from `data/backend.json`.
 
-### Node JSON Backend - 86 collections
+### Node JSON Backend - 96 collections
 
 > The count was previously documented as 72, then 76, then 82, then 83, then 84.
 > Recounted directly from both `data/backend.json`'s top-level keys and
@@ -730,7 +773,7 @@ deleted from `data/backend.json`.
   (`renderSamplePhotoThumb`) instead of introducing a second photo field.
 - Sales/reference: `businessUnits`, `systemUsers`, `teams`,
   `transactionCurrencies`, `unitGroups`, `unitsOfMeasure`, `priceLevels`,
-  `products`, `productPriceLevels`, `leads`, `opportunityContacts`,
+  `products`, `productPriceLevels`, `pricingSettings`, `leads`, `opportunityContacts`,
   `opportunityProducts`, `quotes`, `quoteLines`, `estimates`, `estimateLines`, `salesOrders`,
   `salesOrderLines`, `competitors`, `opportunityCompetitors`, `annotations`,
   `connectionRoles`, `connections`, `activityParties`,

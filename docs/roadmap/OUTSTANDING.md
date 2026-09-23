@@ -80,13 +80,13 @@ Two answers from that second round changed earlier entries and are already corre
 **Shipped 2026-09-23:** intake feed now empties (open-only by default, toggle for converted/closed); Job Register gained search + sortable columns (adopted Phase 17's shared `renderDataTable()`); dispatch schedule is a real 7-day window, no skip-ahead; conflicts gained a "Go to blocker" button (employee-credential conflicts only — no equipment/material reference field exists yet to jump to) with a transient red-outline highlight (`state.highlightPanel`, shared mechanism Phase 06 item 32 can reuse).
 **Verified live 2026-09-23:** Front Line Timer hours reach the employee's tracked hours (22 → 24.5 after a 2.5 h submission). **Still open:** item 4 (job-centric resource-planning UI per Q33), item 7 (photo capture, which may already be covered by Phase 10's typed capture), and item 8 (template rebuild, deferred per Q34). All three are sprint Wave 4.
 
-### Phase 08 — Quotes & Estimates · *second round, 2 of 6 shipped 2026-09-23*
-**Shipped 2026-09-23:** Estimates → "Estimation Tool" (dropped effective dates, renamed, Convert-to-Quote added, linked via `quotes.sourceEstimateId`); Quote "Effective to" defaults to +30 days (live recompute unless hand-edited).
-**Still open (the larger items):**
-- **Rate card rework to match the real 2026 rate sheet**: three tiers (Standard/OT & Emergency/Double Time — corrected from four), four-hour emergency minimums, fuel surcharge, cost+28% margin lines, real units (Per Man Per Day, Per Foot Per Day), catalog sections. Needs its own session — new `productPrices` shape, not an incremental change.
-- Itemized lines sourced from labor roles, equipment, consumables and lab tests — not one lumpy service row (depends on the rate card rework above)
-- Estimation tool pulls from Resource Needs (site notes half blocked on Phase 06)
-- ~~Tick off the five definition-of-done boxes from round one~~: 4 of 5 ticked 2026-09-23 from recorded live evidence. The fifth (Phase 04 panels read the same rate data) is code-trace only and gets re-verified during the rate-card rework, which replaces that read path
+### Phase 08 — Quotes & Estimates · ✅ round two shipped 2026-09-23 (sprint Wave 1)
+**Shipped:** the rate-card rework. Both tabs of `2026 RATES.xlsx` were imported as rate sheets (owner: both, "Rate Sheet" default) with three tier prices, cost-plus rows, 4-hour emergency minimums and fuel-surcharge flags. The 18% Energy/Security/Insurance fee (owner: automatic, removable) and the fuel surcharge are generated as real lines. A per-line tier, section-grouped pickers filtered to the document's sheet, a rebuilt Rate Card screen with catalog alignment, equipment and consumables linked to their rate line, and the Estimation Tool drafting lines from Resource Needs. All five round-one boxes are ticked. Also fixed app-wide: whole-dollar rounding of every amount.
+**Still open:**
+- Link employees to their labor-role rate line (Section I roles vs `employees.jobTitle`), so Phase 09 can price labor per role
+- Owner to confirm "Cost + 28%" means markup (cost × 1.28), as built, rather than margin (cost ÷ 0.72)
+- Owner to enter the current fuel surcharge % (Rate Card → Pricing settings); it starts unset
+- Phase 09's close report prices usage at sell rates (now visible, flagged in both phase docs)
 
 ### Phase 10 — Front Line · *2 new*
 - Fix the broken map marker (it is the only map in the app using Leaflet's default icon — the other four use `divIcon`)
@@ -142,7 +142,7 @@ Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enfo
 
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
-**Now:** Phase 08's rate-card rework — the one large item left in Stage B, needs its own dedicated session (new `productPrices` shape, three rate tiers, minimums, surcharges, cost-plus margin, importing the real `2026 RATES.xlsx`).
+**Now (2026-09-23 sprint):** Wave 1 (Phase 08 rate-card rework, plus the Phase 06 scope generator and Phase 17 equipment categories) shipped. Next is Wave 2: the quick independents (Phase 10 map marker and receipts, Phase 05 phone formatter, Phase 03 industries, the app-wide red-dot sweep, the Phase 04 filterable list). See the sprint plan in the session record.
 **Before real users:** Phase 12, then Phase 13.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 

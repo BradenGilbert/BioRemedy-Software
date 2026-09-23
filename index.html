@@ -674,10 +674,32 @@
             <input name="effectiveTo" type="date" />
           </label>
           <label>
-            Rate card / price level
+            Rate sheet
             <select name="priceLevelId" data-doc-price-level></select>
           </label>
         </div>
+        <div class="form-grid doc-pricing-controls">
+          <label>
+            Default rate tier
+            <select name="rateTier" data-doc-tier>
+              <option value="standard">Standard</option>
+              <option value="ot_emergency">OT / Emergency</option>
+              <option value="double_time">Double time</option>
+            </select>
+          </label>
+          <label>
+            Fuel surcharge %
+            <input name="fuelSurchargePercent" type="number" min="0" step="0.01" data-doc-fuel-pct placeholder="Not set" />
+          </label>
+          <label>
+            Energy, Security &amp; Insurance fee %
+            <input name="energySecurityFeePercent" type="number" min="0" step="0.01" data-doc-fee-pct />
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="isEmergencyCallout" data-doc-emergency />
+          <span>Emergency call-out (bills the rate sheet's 4-hour minimum on hourly labor, trucks and equipment)</span>
+        </label>
         <div class="form-grid">
           <label>
             Billing address
@@ -695,6 +717,7 @@
             <span>Description</span>
             <span>Qty</span>
             <span>Unit</span>
+            <span>Tier</span>
             <span>Rate</span>
             <span>Line total</span>
             <span>Option</span>
@@ -704,10 +727,16 @@
           <button class="mini-button" type="button" data-action="add-doc-line">Add line</button>
           <p class="help-text">Check "Option" for a write-in choice the customer can accept or decline — it prints separately and is not included in the total.</p>
         </fieldset>
-        <label class="doc-total-field">
-          Total amount (computed, required lines only)
-          <input name="totalAmount" type="number" readonly data-doc-total />
-        </label>
+        <div class="doc-totals">
+          <div class="doc-totals-row"><span>Subtotal</span><strong data-doc-subtotal>$0.00</strong></div>
+          <div class="doc-totals-row"><span>Fuel surcharge</span><strong data-doc-fuel-amount>$0.00</strong></div>
+          <div class="doc-totals-row"><span>Energy, Security &amp; Insurance</span><strong data-doc-fee-amount>$0.00</strong></div>
+          <p class="help-text" data-doc-pricing-hint></p>
+          <label class="doc-total-field">
+            Total (required lines, surcharge and fee)
+            <input name="totalAmount" type="number" readonly data-doc-total />
+          </label>
+        </div>
         <label>
           Notes
           <textarea name="notes" rows="3" placeholder="Internal or customer-facing notes for this quote"></textarea>
@@ -746,10 +775,32 @@
         </div>
         <div class="form-grid">
           <label>
-            Rate card / price level
+            Rate sheet
             <select name="priceLevelId" data-doc-price-level></select>
           </label>
         </div>
+        <div class="form-grid doc-pricing-controls">
+          <label>
+            Default rate tier
+            <select name="rateTier" data-doc-tier>
+              <option value="standard">Standard</option>
+              <option value="ot_emergency">OT / Emergency</option>
+              <option value="double_time">Double time</option>
+            </select>
+          </label>
+          <label>
+            Fuel surcharge %
+            <input name="fuelSurchargePercent" type="number" min="0" step="0.01" data-doc-fuel-pct placeholder="Not set" />
+          </label>
+          <label>
+            Energy, Security &amp; Insurance fee %
+            <input name="energySecurityFeePercent" type="number" min="0" step="0.01" data-doc-fee-pct />
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="isEmergencyCallout" data-doc-emergency />
+          <span>Emergency call-out (bills the rate sheet's 4-hour minimum on hourly labor, trucks and equipment)</span>
+        </label>
         <div class="form-grid">
           <label>
             Billing address
@@ -767,6 +818,7 @@
             <span>Description</span>
             <span>Qty</span>
             <span>Unit</span>
+            <span>Tier</span>
             <span>Rate</span>
             <span>Line total</span>
             <span>Option</span>
@@ -774,12 +826,19 @@
           </div>
           <div class="doc-line-items" data-line-container></div>
           <button class="mini-button" type="button" data-action="add-doc-line">Add line</button>
+          <button class="mini-button" type="button" data-action="add-lines-from-needs">Add lines from Resource Needs</button>
           <p class="help-text">Check "Option" for a write-in choice the customer can accept or decline — it prints separately and is not included in the total.</p>
         </fieldset>
-        <label class="doc-total-field">
-          Total amount (computed, required lines only)
-          <input name="totalAmount" type="number" readonly data-doc-total />
-        </label>
+        <div class="doc-totals">
+          <div class="doc-totals-row"><span>Subtotal</span><strong data-doc-subtotal>$0.00</strong></div>
+          <div class="doc-totals-row"><span>Fuel surcharge</span><strong data-doc-fuel-amount>$0.00</strong></div>
+          <div class="doc-totals-row"><span>Energy, Security &amp; Insurance</span><strong data-doc-fee-amount>$0.00</strong></div>
+          <p class="help-text" data-doc-pricing-hint></p>
+          <label class="doc-total-field">
+            Total (required lines, surcharge and fee)
+            <input name="totalAmount" type="number" readonly data-doc-total />
+          </label>
+        </div>
         <label>
           Notes
           <textarea name="notes" rows="3" placeholder="Internal or customer-facing notes for this estimate"></textarea>
@@ -795,12 +854,12 @@
       <form method="dialog" class="modal-panel" data-form="rate-card-price-level">
         <input name="id" type="hidden" />
         <div class="modal-header">
-          <h2>Price level</h2>
+          <h2>Rate sheet</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
           Name
-          <input name="name" required maxlength="100" placeholder="2026 standard environmental services" />
+          <input name="name" required maxlength="100" placeholder="2026 Rate Sheet" />
         </label>
         <div class="form-grid">
           <label>
@@ -816,9 +875,13 @@
           Currency
           <select name="transactionCurrencyId"></select>
         </label>
+        <label class="check-row">
+          <input type="checkbox" name="isDefault" />
+          <span>Default rate sheet (new quotes and estimates start on it)</span>
+        </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
-          <button class="primary-button" type="submit">Save price level</button>
+          <button class="primary-button" type="submit">Save rate sheet</button>
         </menu>
       </form>
     </dialog>
@@ -868,27 +931,106 @@
             <input name="productNumber" maxlength="40" placeholder="ENV-UST-REM" />
           </label>
         </div>
-        <label>
-          Description
-          <textarea name="description" rows="2"></textarea>
-        </label>
         <div class="form-grid">
+          <label>
+            Section
+            <input name="category" list="rateCardCategoryOptions" maxlength="80" placeholder="Heavy Equipment" />
+            <datalist id="rateCardCategoryOptions"></datalist>
+          </label>
+          <label>
+            Sub-section
+            <input name="subcategory" maxlength="80" placeholder="Optional, e.g. Gloves" />
+          </label>
           <label>
             Default unit of measure
             <select name="defaultUomId"></select>
           </label>
+        </div>
+        <label>
+          Description
+          <textarea name="description" rows="2"></textarea>
+        </label>
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Price on a rate sheet</legend>
+          <div class="form-grid">
+            <label>
+              Rate sheet
+              <select name="priceLevelId"></select>
+            </label>
+            <label>
+              Pricing method
+              <select name="pricingMethodCode">
+                <option value="CurrencyAmount">Fixed rate</option>
+                <option value="PercentMarkupCurrentCost">Cost plus markup</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-grid" data-rate-fields>
+            <label>
+              Standard
+              <input name="rateAmount" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              OT / Emergency
+              <input name="rateAmountOtEmergency" type="number" min="0" step="0.01" placeholder="Blank = Standard" />
+            </label>
+            <label>
+              Double time
+              <input name="rateAmountDoubleTime" type="number" min="0" step="0.01" placeholder="Blank = Standard" />
+            </label>
+          </div>
+          <div class="form-grid" data-cost-plus-fields hidden>
+            <label>
+              Markup % on cost
+              <input name="markupPercent" type="number" min="0" step="0.01" placeholder="28" />
+            </label>
+          </div>
           <label>
-            Price level
-            <select name="priceLevelId"></select>
+            Rate note
+            <input name="rateNote" maxlength="200" placeholder="e.g. Plus pump rebuild at cost + 25% if damaged" />
           </label>
+        </fieldset>
+        <div class="form-grid">
           <label>
-            Rate for this price level
-            <input name="rateAmount" type="number" min="0" step="0.01" />
+            Emergency call-out minimum (quantity, 0 = none)
+            <input name="minimumQuantity" type="number" min="0" step="0.25" />
+          </label>
+          <label class="check-row">
+            <input type="checkbox" name="fuelSurchargeApplies" />
+            <span>Fuel-burning: subject to the fuel surcharge</span>
           </label>
         </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save product</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="pricingSettingsDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="pricing-settings">
+        <div class="modal-header">
+          <h2>Pricing settings</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">New quotes and estimates copy these rates when created. Each document can override them, and existing documents keep the rates they were saved with.</p>
+        <div class="form-grid">
+          <label>
+            Fuel surcharge %
+            <input name="fuelSurchargePercent" type="number" min="0" step="0.01" placeholder="Not set" />
+          </label>
+          <label>
+            Energy, Security &amp; Insurance fee %
+            <input name="energySecurityFeePercent" type="number" min="0" step="0.01" />
+          </label>
+        </div>
+        <label>
+          Fuel surcharge basis
+          <input name="fuelSurchargeNote" maxlength="200" placeholder="e.g. DOE diesel average, week of Sep 21" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save pricing settings</button>
         </menu>
       </form>
     </dialog>
@@ -1889,6 +2031,10 @@
           Material
           <input name="materialType" required maxlength="80" placeholder="PPE kits" />
         </label>
+        <label>
+          Bills as (rate card line)
+          <select name="productId"></select>
+        </label>
         <div class="form-grid">
           <label>
             Unit
@@ -1998,6 +2144,10 @@
             </select>
           </label>
         </div>
+        <label>
+          Bills as (rate card line)
+          <select name="productId"></select>
+        </label>
         <div class="form-grid">
           <label>
             Last used

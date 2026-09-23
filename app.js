@@ -1532,6 +1532,46 @@ const equipmentCategoryConfig = {
   },
 };
 
+// Phase 17 item 7, finished in the Phase 08 rate-card rework (2026-09-23): the rate sheet's
+// equipment sections are equipment categories too, so the equipment table groups the way the rate
+// sheet reads. Each borrows the closest existing spec/checklist profile. The original five stay,
+// because existing assets and their checklists use them.
+Object.assign(equipmentCategoryConfig, {
+  "Vehicles & Response Units": equipmentCategoryConfig.Vehicle,
+  Trailers: equipmentCategoryConfig.Vehicle,
+  "Heavy Equipment": {
+    ...equipmentCategoryConfig["General equipment"],
+    specFields: [
+      ...equipmentCategoryConfig["General equipment"].specFields,
+      { key: "engineHours", label: "Engine hours", placeholder: "812" },
+    ],
+  },
+  "Pumps & Accessories": equipmentCategoryConfig.Pump,
+  "Generators & Air Compressors": {
+    ...equipmentCategoryConfig["General equipment"],
+    specFields: [
+      ...equipmentCategoryConfig["General equipment"].specFields,
+      { key: "engineHours", label: "Engine hours", placeholder: "812" },
+      { key: "output", label: "Output", placeholder: "8 kW / 185 cfm" },
+    ],
+  },
+  "Pressure Washers & Hydro Blasting": equipmentCategoryConfig["General equipment"],
+  "Marine Equipment": equipmentCategoryConfig["General equipment"],
+  "Flood Water Removal": equipmentCategoryConfig["Air Filtration"],
+  "Hoses & Fittings": equipmentCategoryConfig["General equipment"],
+  "Safety Support Equipment": equipmentCategoryConfig["General equipment"],
+  "Atmospheric Testing & Communication": {
+    specFields: [
+      { key: "serialNumber", label: "Serial number", placeholder: "SN-0000" },
+      { key: "lastCalibration", label: "Last calibration", type: "date" },
+      { key: "calibrationDue", label: "Calibration due", type: "date" },
+    ],
+    checklist: ["Bump test before use", "Confirm calibration is current", "Check battery and sensors"],
+    maintenanceGuide: ["Calibrate on the manufacturer's interval and record the date here.", "Do not use a monitor that fails a bump test."],
+  },
+  "Miscellaneous Equipment": equipmentCategoryConfig["General equipment"],
+});
+
 function getEquipmentCategoryNames() {
   return Object.keys(equipmentCategoryConfig);
 }
@@ -1582,6 +1622,9 @@ const state = {
   // Phase 17 — shared data-table search/sort state, keyed by table id, plus map filters and the
   // calendar's visible month (defaults to the current month, "today" is always in view first load).
   tables: {},
+  // Rate Card screen: which rate sheet's prices the product table shows, and the section filter.
+  rateCardSheetId: "",
+  rateCardCategoryFilter: "",
   opsMapFilters: { jobClass: "", status: "", alertsOnly: false, dateFrom: "", dateTo: "", accountId: "", pointType: "" },
   opsCalendarMonth: "",
   opsCalendarSelectedDate: "",
@@ -2204,10 +2247,12 @@ async function handleClick(event) {
     const dialog = actionButton.closest("dialog");
     const container = dialog?.querySelector("[data-line-container]");
     if (container) {
-      container.insertAdjacentHTML("beforeend", renderDocLineRowHtml({}));
+      const settings = readDocSettings(dialog);
+      container.insertAdjacentHTML("beforeend", renderDocLineRowHtml({}, settings.priceLevelId, settings.rateTier));
       recomputeDocTotal(dialog);
     }
   }
+  if (action === "add-lines-from-needs") addDocLinesFromNeeds(actionButton.closest("dialog"));
   if (action === "remove-doc-line") {
     const dialog = actionButton.closest("dialog");
     actionButton.closest(".doc-line-row")?.remove();
@@ -2216,6 +2261,7 @@ async function handleClick(event) {
   if (action === "open-rate-card-price-level") openRateCardPriceLevelDialog(id);
   if (action === "open-rate-card-uom") openRateCardUomDialog(id);
   if (action === "open-rate-card-product") openRateCardProductDialog(id);
+  if (action === "open-pricing-settings") openPricingSettingsDialog();
   if (action === "open-account") openAccountDialog(id);
   if (action === "open-account-owner") openAccountOwnerDialog(id);
   if (action === "open-account-billing") openAccountBillingDialog(id);
@@ -2624,6 +2670,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "rate-card-price-level") await saveRateCardPriceLevel(form);
   if (form.dataset.form === "rate-card-uom") await saveRateCardUom(form);
   if (form.dataset.form === "rate-card-product") await saveRateCardProduct(form);
+  if (form.dataset.form === "pricing-settings") await savePricingSettings(form);
   if (form.dataset.form === "project-from-opportunity") await saveProjectFromOpportunity(form);
   if (form.dataset.form === "project-intake") await saveProjectIntake(form);
   if (form.dataset.form === "account") await saveAccount(form);
@@ -2757,18 +2804,53 @@ function handleInputInner(event) {
     applyPriceLevelToAllLines(event.target.closest("dialog"));
     return;
   }
+  // Rate-card rework: the document's default tier re-applies to every line; a line's own tier
+  // re-prices just that line; emergency / fuel % / fee % only change the totals.
+  if (event.target.matches("[data-doc-tier]")) {
+    applyDocTierToAllLines(event.target.closest("dialog"));
+    return;
+  }
+  if (event.target.matches("[data-line-tier]")) {
+    const dialog = event.target.closest("dialog");
+    repriceDocLine(event.target.closest(".doc-line-row"), readDocSettings(dialog).priceLevelId);
+    recomputeDocTotal(dialog);
+    return;
+  }
+  if (event.target.matches("[data-doc-emergency], [data-doc-fuel-pct], [data-doc-fee-pct]")) {
+    recomputeDocTotal(event.target.closest("dialog"));
+    return;
+  }
   if (
     event.target.closest(".doc-line-row") &&
-    (event.target.matches("[data-line-quantity]") || event.target.matches("[data-line-rate]") || event.target.matches("[data-line-optional]"))
+    (event.target.matches("[data-line-quantity]") ||
+      event.target.matches("[data-line-rate]") ||
+      event.target.matches("[data-line-cost]") ||
+      event.target.matches("[data-line-optional]"))
   ) {
     recomputeDocTotal(event.target.closest("dialog"));
     return;
   }
   if (event.target.closest("#rateCardProductDialog") && event.target.name === "priceLevelId") {
     const form = event.target.closest("form");
-    const productId = form.elements.id.value;
-    const ppl = productId ? productPriceLevelRate(productId, event.target.value) : null;
-    form.elements.rateAmount.value = ppl ? ppl.amount : "";
+    fillRateCardProductPrices(form, form.elements.id.value, event.target.value);
+  }
+  if (event.target.closest("#rateCardProductDialog") && event.target.name === "pricingMethodCode") {
+    syncRateCardProductMethod(event.target.closest("form"));
+  }
+  if (event.target.id === "rateCardSheetSelect") {
+    state.rateCardSheetId = event.target.value;
+    renderRateCard();
+    return;
+  }
+  if (event.target.id === "rateCardCategoryFilter") {
+    state.rateCardCategoryFilter = event.target.value;
+    renderRateCard();
+    return;
+  }
+  if (event.target.matches("[data-link-rate-line]")) {
+    // A select fires both "input" and "change", and both route here; save once.
+    if (event.type === "change") saveCatalogRateLink(event.target);
+    return;
   }
 
   // Changing a task's type swaps which config controls belong on the card, so the editor has to
@@ -4077,7 +4159,7 @@ function renderOpportunityDevelopPlanningTab(opportunity, missingFields = []) {
         </div>
         <div class="panel-body">
           <dl class="detail-list">
-            <div><dt>Proposed solution</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "proposedSolution") || "Not captured")}</dd></div>
+            <div><dt>Proposed solution</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "proposedSolution") || "Not captured")}${renderOpportunityScopeSummary(opportunity)}</dd></div>
             <div>
               <dt>Site walk</dt>
               <dd>
@@ -8342,7 +8424,9 @@ function renderProjectPricedBaselinePanel(job) {
   const estimate = !quote && job.estimateId ? (state.backend.estimates || []).find((item) => item.id === job.estimateId && !item.deletedAt) : null;
   const lines = quote ? quoteLinesForQuote(quote.id) : estimate ? estimateLinesForEstimate(estimate.id) : [];
   const docLabel = quote ? "Quote" : estimate ? "Estimate" : "";
-  const total = lines.reduce((sum, line) => sum + Number(line.extendedAmount || 0), 0);
+  // The document's own total: summing every line would count optional/write-in lines the customer
+  // never accepted (a bug until 2026-09-23). Since the rate-card rework it also includes surcharge/fee.
+  const total = Number((quote || estimate)?.totalAmount || 0);
 
   return `
     <article class="panel">
@@ -12412,10 +12496,8 @@ function renderPurchaseOrderTableRow(order) {
 
 // Phase 17 item 7 — searchable, sortable, categorised table (sorted by category by default so the
 // heavy-equipment/PPE/testing-equipment grouping the owner asked for reads naturally). Categories
-// are today's existing `equipmentCategoryConfig` set (Vehicle, Vacuum / Vactron, Pump, Air
-// Filtration, General equipment) — aligning them to the 2026 rate sheet's sections is deferred to
-// Phase 08's rate-card rework, which already owns importing that sheet; see the phase doc's
-// corrections.
+// come from `equipmentCategoryConfig`, which since the Phase 08 rate-card rework (2026-09-23) also
+// holds the 2026 rate sheet's equipment sections alongside the original five.
 function renderInventoryEquipment() {
   const equipment = getEquipmentStatus();
 
@@ -16564,6 +16646,7 @@ async function saveInventoryItem(form) {
       targetStock: Number(data.get("targetStock")),
       buyer: data.get("buyer").toString().trim(),
       barcode: data.get("barcode").toString().trim(),
+      productId: data.get("productId")?.toString() || "",
     });
     closeDialogs();
     render();
@@ -16641,6 +16724,7 @@ async function saveEquipmentAsset(form) {
       maintenanceDue: data.get("maintenanceDue").toString(),
       issue: data.get("issue").toString().trim(),
       assignedProjectId: existing?.assignedProjectId || "",
+      productId: data.get("productId")?.toString() || "",
       specs,
     });
     closeDialogs();
@@ -19581,11 +19665,16 @@ function productPriceLevelRate(productId, priceLevelId) {
 
 function defaultPriceLevelId() {
   const levels = activePriceLevels();
-  return levels.find((level) => level.statusCode === "Active")?.id || levels[0]?.id || "";
+  return levels.find((level) => level.isDefault)?.id || levels.find((level) => level.statusCode === "Active")?.id || levels[0]?.id || "";
+}
+
+// Lines saved since the rate-card rework carry a sequenceNumber; older ones keep their stored order.
+function sortDocLines(lines) {
+  return lines.slice().sort((a, b) => Number(a.sequenceNumber || 0) - Number(b.sequenceNumber || 0));
 }
 
 function quoteLinesForQuote(quoteId) {
-  return (state.backend.quoteLines || []).filter((line) => line.quoteId === quoteId && !line.deletedAt);
+  return sortDocLines((state.backend.quoteLines || []).filter((line) => line.quoteId === quoteId && !line.deletedAt));
 }
 
 function estimatesForOpportunity(opportunityId) {
@@ -19593,126 +19682,528 @@ function estimatesForOpportunity(opportunityId) {
 }
 
 function estimateLinesForEstimate(estimateId) {
-  return (state.backend.estimateLines || []).filter((line) => line.estimateId === estimateId && !line.deletedAt);
+  return sortDocLines((state.backend.estimateLines || []).filter((line) => line.estimateId === estimateId && !line.deletedAt));
 }
 
-function computeDocLinesTotal(lines) {
-  // Optional ("write-in option") lines are choices the customer can accept or decline — they do
-  // not count toward the document total until/unless the customer picks them.
-  return lines
-    .filter((line) => !line.isOptional)
-    .reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.pricePerUnit || 0), 0);
+// --- Rate-card pricing (Phase 08 rate-card rework, 2026-09-23) ----------------------------------
+//
+// A rate sheet (a `priceLevels` row) prices a product on its `productPriceLevels` row at up to three
+// tiers: `amount` (Standard), `amountOtEmergency`, `amountDoubleTime`. A null tier is "N/A" on the
+// sheet and bills at Standard. Cost-plus rows (`pricingMethodCode: "PercentMarkupCurrentCost"`)
+// carry `markupPercent` instead of amounts, and the line supplies the cost. Design and assumptions:
+// docs/roadmap/phase-08-quotes-estimates.md, "Rate-card rework: design".
+
+const RATE_TIERS = [
+  { value: "standard", label: "Standard" },
+  { value: "ot_emergency", label: "OT / Emergency" },
+  { value: "double_time", label: "Double time" },
+];
+const COST_PLUS_METHOD = "PercentMarkupCurrentCost";
+
+function rateTierLabel(tier) {
+  return RATE_TIERS.find((item) => item.value === tier)?.label || "Standard";
 }
 
-function renderDocLineRowHtml(line = {}) {
-  const products = getProducts();
+function getPricingSettings() {
+  const row = (state.backend.pricingSettings || []).find((item) => !item.deletedAt) || {};
+  return {
+    id: row.id || "pricing-settings-default",
+    fuelSurchargePercent: row.fuelSurchargePercent ?? null,
+    fuelSurchargeUpdatedAt: row.fuelSurchargeUpdatedAt || "",
+    fuelSurchargeNote: row.fuelSurchargeNote || "",
+    energySecurityFeePercent: row.energySecurityFeePercent ?? 18,
+  };
+}
+
+function isCostPlusPrice(ppl) {
+  return ppl?.pricingMethodCode === COST_PLUS_METHOD;
+}
+
+function tierAmount(ppl, tier) {
+  if (!ppl || isCostPlusPrice(ppl)) return null;
+  const standard = ppl.amount == null ? null : Number(ppl.amount);
+  if (tier === "ot_emergency") return ppl.amountOtEmergency == null ? standard : Number(ppl.amountOtEmergency);
+  if (tier === "double_time") return ppl.amountDoubleTime == null ? standard : Number(ppl.amountDoubleTime);
+  return standard;
+}
+
+function roundCents(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function numberOrNull(value) {
+  return value === "" || value == null || !Number.isFinite(Number(value)) ? null : Number(value);
+}
+
+// One line's billable numbers. Cost-plus prices at cost × (1 + markup); the sheet's "Cost + 28%
+// Margin" is read as a markup (the design doc flags this for owner confirmation). The emergency
+// minimum bills max(quantity, minimum) but keeps the entered quantity on the line.
+function computeLineAmounts(line, isEmergencyCallout) {
+  const quantity = Number(line.quantity || 0);
+  const unitPrice =
+    line.pricingMethod === "cost_plus"
+      ? roundCents(Number(line.unitCost || 0) * (1 + Number(line.markupPercent || 0) / 100))
+      : Number(line.pricePerUnit || 0);
+  const minimum = Number(line.minimumQuantity || 0);
+  const minimumApplied = Boolean(isEmergencyCallout && minimum > 0 && quantity > 0 && quantity < minimum);
+  const billableQuantity = minimumApplied ? minimum : quantity;
+  return { unitPrice, billableQuantity, minimumApplied, extendedAmount: roundCents(billableQuantity * unitPrice) };
+}
+
+// The fuel surcharge applies to fuel-burning item lines. The energy/security fee is a percentage of
+// the item subtotal, taken before the surcharge (the sheet: "fuel is excluded from this fee").
+// Optional/write-in lines count toward none of it.
+function computeDocumentTotals(itemLines, settings) {
+  const counted = itemLines.filter((line) => !line.isOptional);
+  const subtotal = roundCents(counted.reduce((sum, line) => sum + Number(line.extendedAmount || 0), 0));
+  const fuelBase = roundCents(counted.filter((line) => line.fuelSurchargeApplies).reduce((sum, line) => sum + Number(line.extendedAmount || 0), 0));
+  const fuelPercent = Number(settings.fuelSurchargePercent || 0);
+  const feePercent = Number(settings.energySecurityFeePercent || 0);
+  const fuelSurcharge = roundCents((fuelBase * fuelPercent) / 100);
+  const fee = roundCents((subtotal * feePercent) / 100);
+  return { subtotal, fuelBase, fuelPercent, fuelSurcharge, feePercent, fee, total: roundCents(subtotal + fuelSurcharge + fee) };
+}
+
+function isGeneratedDocLine(line) {
+  return line.lineKind === "fuel_surcharge" || line.lineKind === "energy_security_fee";
+}
+
+// The surcharge and the fee are stored as real lines, regenerated on every save, so they print and
+// audit as lines instead of being folded silently into the total.
+function buildGeneratedDocLines(totals) {
+  const generated = (lineKind, productName, productDescription, amount) => ({
+    lineKind,
+    productId: "",
+    productName,
+    productDescription,
+    isProductOverridden: true,
+    uomId: "",
+    quantity: 1,
+    billableQuantity: 1,
+    pricePerUnit: amount,
+    extendedAmount: amount,
+    manualDiscountAmount: 0,
+    tax: 0,
+    isOptional: false,
+  });
+  const lines = [];
+  if (totals.fuelSurcharge > 0) {
+    lines.push(generated("fuel_surcharge", `Fuel surcharge (${totals.fuelPercent}%)`, `${totals.fuelPercent}% of ${moneyExact(totals.fuelBase)} in fuel-burning equipment`, totals.fuelSurcharge));
+  }
+  if (totals.fee > 0) {
+    lines.push(
+      generated(
+        "energy_security_fee",
+        `Energy, Security & Insurance (${totals.feePercent}%)`,
+        `${totals.feePercent}% of the ${moneyExact(totals.subtotal)} subtotal; fuel surcharge excluded`,
+        totals.fee,
+      ),
+    );
+  }
+  return lines;
+}
+
+function productCategoryLabel(product) {
+  if (!product.category) return "Other services";
+  return product.subcategory ? `${product.category}: ${product.subcategory}` : product.category;
+}
+
+// Only products priced on the document's rate sheet, grouped by the sheet's sections, so the
+// near-duplicate items two sheets word differently never sit side by side. The line's current
+// product always stays listed, even if the sheet changed under it.
+function docLineProductOptions(priceLevelId, selectedId) {
+  const priced = new Set(
+    (state.backend.productPriceLevels || []).filter((ppl) => ppl.priceLevelId === priceLevelId && !ppl.deletedAt).map((ppl) => ppl.productId),
+  );
+  const groups = new Map();
+  getProducts()
+    .filter((product) => priced.has(product.id) || product.id === selectedId)
+    .forEach((product) => {
+      const label = productCategoryLabel(product);
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label).push(product);
+    });
+  return [...groups.entries()]
+    .sort(([a], [b]) => (a === "Other services") - (b === "Other services"))
+    .map(
+      ([label, products]) => `
+        <optgroup label="${escapeAttribute(label)}">
+          ${products
+            .map((product) => `<option value="${escapeAttribute(product.id)}" ${product.id === selectedId ? "selected" : ""}>${escapeHtml(product.name)}</option>`)
+            .join("")}
+        </optgroup>
+      `,
+    )
+    .join("");
+}
+
+function renderDocLineRowHtml(line = {}, priceLevelId = defaultPriceLevelId(), defaultTier = "standard") {
   const uoms = getUnitsOfMeasure();
+  const tier = line.rateTier || defaultTier;
+  const costPlus = line.pricingMethod === "cost_plus";
   const qty = line.quantity ?? 1;
   const rate = line.pricePerUnit ?? "";
-  const total = Number(qty || 0) * Number(rate || 0);
   return `
-    <div class="doc-line-row" data-line-row>
+    <div class="doc-line-row" data-line-row data-line-method="${costPlus ? "cost_plus" : "rate"}" data-line-markup="${escapeAttribute(line.markupPercent ?? "")}" data-line-min="${escapeAttribute(line.minimumQuantity || 0)}" data-line-fuel="${line.fuelSurchargeApplies ? "1" : ""}">
       <select data-line-product>
         <option value="">Custom / free text</option>
-        ${products
-          .map(
-            (product) =>
-              `<option value="${escapeAttribute(product.id)}" ${product.id === line.productId ? "selected" : ""}>${escapeHtml(product.name)}</option>`,
-          )
-          .join("")}
+        ${docLineProductOptions(priceLevelId, line.productId)}
       </select>
       <input type="text" data-line-description placeholder="Description" value="${escapeAttribute(line.productDescription || (!line.productId ? line.productName || "" : ""))}" />
       <input type="number" min="0" step="0.01" data-line-quantity value="${escapeAttribute(qty)}" />
       <select data-line-uom>
         <option value="">Unit</option>
-        ${uoms
-          .map((uom) => `<option value="${escapeAttribute(uom.id)}" ${uom.id === line.uomId ? "selected" : ""}>${escapeHtml(uom.name)}</option>`)
-          .join("")}
+        ${uoms.map((uom) => `<option value="${escapeAttribute(uom.id)}" ${uom.id === line.uomId ? "selected" : ""}>${escapeHtml(uom.name)}</option>`).join("")}
       </select>
-      <input type="number" min="0" step="0.01" data-line-rate value="${escapeAttribute(rate)}" />
-      <span class="doc-line-total" data-line-total>${money(total)}</span>
-      <input type="checkbox" class="doc-line-optional" data-line-optional title="Write-in option — customer can accept or decline; excluded from the total" ${line.isOptional ? "checked" : ""} />
+      <select data-line-tier title="Rate tier">
+        ${RATE_TIERS.map((item) => `<option value="${item.value}" ${item.value === tier ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("")}
+      </select>
+      <span class="doc-line-rate-cell">
+        <input type="number" min="0" step="0.01" data-line-rate value="${escapeAttribute(rate)}" ${costPlus ? "hidden" : ""} />
+        <span class="doc-line-cost" ${costPlus ? "" : "hidden"}>
+          <input type="number" min="0" step="0.01" data-line-cost placeholder="Cost" value="${escapeAttribute(line.unitCost ?? "")}" title="Your cost; the markup is added on top" />
+          <small data-line-markup-label>+${escapeHtml(line.markupPercent ?? 0)}%</small>
+        </span>
+      </span>
+      <span class="doc-line-total" data-line-total>${moneyExact(Number(line.extendedAmount || 0))}</span>
+      <input type="checkbox" class="doc-line-optional" data-line-optional title="Write-in option: the customer can accept or decline it; excluded from the total" ${line.isOptional ? "checked" : ""} />
       <button type="button" class="icon-button" data-action="remove-doc-line" aria-label="Remove line">&times;</button>
     </div>
   `;
 }
 
+function readDocSettings(dialog) {
+  return {
+    priceLevelId: dialog.querySelector("[data-doc-price-level]")?.value || defaultPriceLevelId(),
+    rateTier: dialog.querySelector("[data-doc-tier]")?.value || "standard",
+    isEmergencyCallout: Boolean(dialog.querySelector("[data-doc-emergency]")?.checked),
+    fuelSurchargePercent: numberOrNull(dialog.querySelector("[data-doc-fuel-pct]")?.value),
+    energySecurityFeePercent: Number(dialog.querySelector("[data-doc-fee-pct]")?.value || 0),
+  };
+}
+
+function readDocLineRow(row) {
+  const pricingMethod = row.dataset.lineMethod === "cost_plus" ? "cost_plus" : "rate";
+  return {
+    productId: row.querySelector("[data-line-product]")?.value || "",
+    description: row.querySelector("[data-line-description]")?.value.trim() || "",
+    quantity: Number(row.querySelector("[data-line-quantity]")?.value || 0),
+    uomId: row.querySelector("[data-line-uom]")?.value || "",
+    rateTier: row.querySelector("[data-line-tier]")?.value || "standard",
+    pricingMethod,
+    pricePerUnit: Number(row.querySelector("[data-line-rate]")?.value || 0),
+    unitCost: Number(row.querySelector("[data-line-cost]")?.value || 0),
+    markupPercent: Number(row.dataset.lineMarkup || 0),
+    minimumQuantity: Number(row.dataset.lineMin || 0),
+    fuelSurchargeApplies: row.dataset.lineFuel === "1",
+    isOptional: Boolean(row.querySelector("[data-line-optional]")?.checked),
+  };
+}
+
+function populateDocPricingControls(dialog, doc) {
+  const settings = getPricingSettings();
+  const tier = dialog.querySelector("[data-doc-tier]");
+  const emergency = dialog.querySelector("[data-doc-emergency]");
+  const fuel = dialog.querySelector("[data-doc-fuel-pct]");
+  const fee = dialog.querySelector("[data-doc-fee-pct]");
+  if (tier) tier.value = doc?.rateTier || "standard";
+  if (emergency) emergency.checked = Boolean(doc?.isEmergencyCallout);
+  // A new document snapshots the admin-maintained rates; an existing one keeps what it was saved
+  // with. Documents saved before the rework have no fee field and keep a 0% fee, so re-saving an old
+  // quote never silently adds 18% to a total the customer has already seen.
+  if (fuel) fuel.value = doc ? doc.fuelSurchargePercent ?? "" : settings.fuelSurchargePercent ?? "";
+  if (fee) fee.value = doc ? doc.energySecurityFeePercent ?? 0 : settings.energySecurityFeePercent;
+}
+
 function populateDocLineContainer(dialog, lines) {
   const container = dialog.querySelector("[data-line-container]");
   if (!container) return;
-  container.innerHTML = (lines.length ? lines : [{}]).map((line) => renderDocLineRowHtml(line)).join("");
+  const settings = readDocSettings(dialog);
+  const itemLines = lines.filter((line) => !isGeneratedDocLine(line));
+  container.innerHTML = (itemLines.length ? itemLines : [{}]).map((line) => renderDocLineRowHtml(line, settings.priceLevelId, settings.rateTier)).join("");
   recomputeDocTotal(dialog);
 }
 
 function recomputeDocTotal(dialog) {
-  if (!dialog) return;
-  const rows = dialog.querySelectorAll(".doc-line-row");
-  let total = 0;
-  rows.forEach((row) => {
-    const qty = Number(row.querySelector("[data-line-quantity]")?.value || 0);
-    const rate = Number(row.querySelector("[data-line-rate]")?.value || 0);
-    const isOptional = Boolean(row.querySelector("[data-line-optional]")?.checked);
-    const lineTotal = qty * rate;
-    if (!isOptional) total += lineTotal;
+  if (!dialog) return null;
+  const settings = readDocSettings(dialog);
+  const lines = [];
+  dialog.querySelectorAll(".doc-line-row").forEach((row) => {
+    const line = readDocLineRow(row);
+    const amounts = computeLineAmounts(line, settings.isEmergencyCallout);
+    lines.push({ ...line, ...amounts });
+    const flags = [
+      amounts.minimumApplied ? `${line.minimumQuantity} minimum billed` : "",
+      line.pricingMethod === "cost_plus" ? `cost +${line.markupPercent}% = ${moneyExact(amounts.unitPrice)}` : "",
+      line.fuelSurchargeApplies ? "fuel surcharge" : "",
+    ].filter(Boolean);
     const totalEl = row.querySelector("[data-line-total]");
-    if (totalEl) totalEl.textContent = `${money(lineTotal)}${isOptional ? " (option)" : ""}`;
+    if (totalEl) {
+      totalEl.innerHTML = `${moneyExact(amounts.extendedAmount)}${line.isOptional ? " (option)" : ""}${flags.length ? `<small>${escapeHtml(flags.join(" · "))}</small>` : ""}`;
+    }
   });
+  const totals = computeDocumentTotals(lines, settings);
+  const setText = (selector, text) => {
+    const el = dialog.querySelector(selector);
+    if (el) el.textContent = text;
+  };
+  setText("[data-doc-subtotal]", moneyExact(totals.subtotal));
+  setText("[data-doc-fuel-amount]", moneyExact(totals.fuelSurcharge));
+  setText("[data-doc-fee-amount]", moneyExact(totals.fee));
+  setText(
+    "[data-doc-pricing-hint]",
+    totals.fuelBase > 0 && settings.fuelSurchargePercent == null
+      ? `${moneyExact(totals.fuelBase)} of fuel-burning equipment on this document, but no fuel surcharge % is set. Set it here, or maintain it on the Rate Card screen.`
+      : "",
+  );
   const totalField = dialog.querySelector("[data-doc-total]");
-  if (totalField) totalField.value = total.toFixed(2);
+  if (totalField) totalField.value = totals.total.toFixed(2);
+  return { settings, lines, totals };
+}
+
+function toggleDocLineCostInputs(row) {
+  const costPlus = row.dataset.lineMethod === "cost_plus";
+  const rateField = row.querySelector("[data-line-rate]");
+  const costWrap = row.querySelector(".doc-line-cost");
+  if (rateField) rateField.hidden = costPlus;
+  if (costWrap) costWrap.hidden = !costPlus;
+  const markupLabel = row.querySelector("[data-line-markup-label]");
+  if (markupLabel) markupLabel.textContent = `+${row.dataset.lineMarkup || 0}%`;
+}
+
+// Re-prices one line from the document's rate sheet and the line's tier, without touching its
+// description or quantity. A product the sheet doesn't price keeps whatever rate the line had.
+function repriceDocLine(row, priceLevelId) {
+  const productId = row.querySelector("[data-line-product]")?.value || "";
+  const product = productId ? getProducts().find((item) => item.id === productId) : null;
+  if (!product) {
+    row.dataset.lineMethod = "rate";
+    row.dataset.lineMin = "0";
+    row.dataset.lineFuel = "";
+    toggleDocLineCostInputs(row);
+    return;
+  }
+  const ppl = productPriceLevelRate(product.id, priceLevelId);
+  row.dataset.lineFuel = product.fuelSurchargeApplies ? "1" : "";
+  row.dataset.lineMin = product.minimumAppliesWhen === "emergency" ? String(product.minimumQuantity || 0) : "0";
+  if (isCostPlusPrice(ppl)) {
+    row.dataset.lineMethod = "cost_plus";
+    row.dataset.lineMarkup = String(ppl.markupPercent ?? 0);
+  } else {
+    row.dataset.lineMethod = "rate";
+    const amount = tierAmount(ppl, row.querySelector("[data-line-tier]")?.value || "standard");
+    const rateField = row.querySelector("[data-line-rate]");
+    if (rateField && amount != null) rateField.value = amount;
+  }
+  row.querySelector("[data-line-product]").title = ppl?.rateNote || "";
+  toggleDocLineCostInputs(row);
 }
 
 function applyLineProductDefaults(select) {
   const row = select.closest(".doc-line-row");
   const dialog = select.closest("dialog");
   if (!row || !dialog) return;
-  const productId = select.value;
-  if (!productId) return;
-  const priceLevelId = dialog.querySelector("[data-doc-price-level]")?.value || defaultPriceLevelId();
-  const product = getProducts().find((item) => item.id === productId);
-  if (!product) return;
-  const descriptionField = row.querySelector("[data-line-description]");
-  const uomField = row.querySelector("[data-line-uom]");
-  const rateField = row.querySelector("[data-line-rate]");
-  if (descriptionField) descriptionField.value = product.description || product.name;
-  if (uomField && product.defaultUomId) uomField.value = product.defaultUomId;
-  const ppl = productPriceLevelRate(productId, priceLevelId);
-  if (rateField && ppl) rateField.value = ppl.amount;
+  const settings = readDocSettings(dialog);
+  const product = select.value ? getProducts().find((item) => item.id === select.value) : null;
+  if (product) {
+    const ppl = productPriceLevelRate(product.id, settings.priceLevelId);
+    const descriptionField = row.querySelector("[data-line-description]");
+    const uomField = row.querySelector("[data-line-uom]");
+    if (descriptionField) descriptionField.value = product.description || product.name;
+    if (uomField) uomField.value = ppl?.uomId || product.defaultUomId || "";
+  }
+  repriceDocLine(row, settings.priceLevelId);
   recomputeDocTotal(dialog);
 }
 
+// Switching the document's rate sheet re-lists each line's picker against the new sheet and
+// re-prices every picked product from it.
 function applyPriceLevelToAllLines(dialog) {
-  dialog.querySelectorAll("[data-line-product]").forEach((select) => {
-    if (select.value) applyLineProductDefaults(select);
+  const { priceLevelId } = readDocSettings(dialog);
+  dialog.querySelectorAll(".doc-line-row").forEach((row) => {
+    const select = row.querySelector("[data-line-product]");
+    const current = select.value;
+    select.innerHTML = `<option value="">Custom / free text</option>${docLineProductOptions(priceLevelId, current)}`;
+    select.value = current;
+    repriceDocLine(row, priceLevelId);
   });
   recomputeDocTotal(dialog);
 }
 
-function collectDocLines(dialog) {
-  const rows = Array.from(dialog.querySelectorAll(".doc-line-row"));
-  return rows
+function applyDocTierToAllLines(dialog) {
+  const { priceLevelId, rateTier } = readDocSettings(dialog);
+  dialog.querySelectorAll(".doc-line-row").forEach((row) => {
+    const tier = row.querySelector("[data-line-tier]");
+    if (tier) tier.value = rateTier;
+    repriceDocLine(row, priceLevelId);
+  });
+  recomputeDocTotal(dialog);
+}
+
+// Everything a save needs from a quote/estimate dialog: the item lines, the generated surcharge and
+// fee lines, and the document-level pricing fields.
+function collectDocPricing(dialog) {
+  const settings = readDocSettings(dialog);
+  const itemLines = Array.from(dialog.querySelectorAll(".doc-line-row"))
     .map((row) => {
-      const productId = row.querySelector("[data-line-product]")?.value || "";
-      const product = productId ? getProducts().find((item) => item.id === productId) : null;
-      const quantity = Number(row.querySelector("[data-line-quantity]")?.value || 0);
-      const pricePerUnit = Number(row.querySelector("[data-line-rate]")?.value || 0);
-      const uomId = row.querySelector("[data-line-uom]")?.value || "";
-      const description = row.querySelector("[data-line-description]")?.value.trim() || "";
-      const isOptional = Boolean(row.querySelector("[data-line-optional]")?.checked);
+      const line = readDocLineRow(row);
+      const product = line.productId ? getProducts().find((item) => item.id === line.productId) : null;
+      const amounts = computeLineAmounts(line, settings.isEmergencyCallout);
+      const costPlus = line.pricingMethod === "cost_plus";
       return {
-        productId,
-        productName: product ? product.name : description || "Custom line",
-        productDescription: description || product?.description || "",
-        isProductOverridden: !productId,
-        uomId,
-        quantity,
-        pricePerUnit,
-        extendedAmount: quantity * pricePerUnit,
+        lineKind: "item",
+        productId: line.productId,
+        productName: product ? product.name : line.description || "Custom line",
+        productDescription: line.description || product?.description || "",
+        isProductOverridden: !line.productId,
+        uomId: line.uomId,
+        quantity: line.quantity,
+        billableQuantity: amounts.billableQuantity,
+        minimumQuantity: line.minimumQuantity,
+        minimumApplied: amounts.minimumApplied,
+        rateTier: line.rateTier,
+        pricingMethod: line.pricingMethod,
+        unitCost: costPlus ? line.unitCost : null,
+        markupPercent: costPlus ? line.markupPercent : null,
+        pricePerUnit: amounts.unitPrice,
+        extendedAmount: amounts.extendedAmount,
+        fuelSurchargeApplies: line.fuelSurchargeApplies,
         manualDiscountAmount: 0,
         tax: 0,
-        isOptional,
+        isOptional: line.isOptional,
       };
     })
-    .filter((line) => line.quantity > 0 || line.pricePerUnit > 0 || line.productDescription);
+    .filter((line) => line.quantity > 0 || line.pricePerUnit > 0 || line.unitCost > 0 || line.productDescription);
+  const totals = computeDocumentTotals(itemLines, settings);
+  const generatedLines = buildGeneratedDocLines(totals);
+  return {
+    lines: [...itemLines, ...generatedLines].map((line, index) => ({ ...line, sequenceNumber: index + 1 })),
+    docFields: {
+      rateTier: settings.rateTier,
+      isEmergencyCallout: settings.isEmergencyCallout,
+      fuelSurchargePercent: settings.fuelSurchargePercent,
+      energySecurityFeePercent: settings.energySecurityFeePercent,
+      subtotalAmount: totals.subtotal,
+      fuelSurchargeAmount: totals.fuelSurcharge,
+      energySecurityFeeAmount: totals.fee,
+      totalAmount: totals.total,
+      totalAmountBase: totals.total,
+    },
+  };
+}
+
+// --- Scope generator (Phase 06 item 35 + Phase 08 item 8: one generator, two uses) --------------
+//
+// Assembles what sales already knows about an opportunity from real records: its sites, the site
+// walk, the three needs lists, and the lines of its current quote (else estimate). Proposed Solution
+// shows it live under the editable narrative (never a stored copy that can go stale), and the
+// Estimation Tool turns the needs into draft lines to price.
+
+function composeOpportunityScope(opportunity) {
+  const sites = opportunityLocationsForOpportunity(opportunity.id).map((entry) => {
+    const facility = entry.facilityId ? findFacility(entry.facilityId) : null;
+    const gps = entry.locationId ? (state.backend.locations || []).find((location) => location.id === entry.locationId) : null;
+    return { label: facility?.name || gps?.label || "Site", role: entry.role || "", note: entry.note || "" };
+  });
+  if (!sites.length && opportunity.facilityId) {
+    const facility = findFacility(opportunity.facilityId);
+    if (facility) sites.push({ label: facility.name, role: "Primary site", note: "" });
+  }
+  const needs = Object.values(OPPORTUNITY_NEEDS_LIST_CONFIG)
+    .map((config) => ({ title: config.title, items: opportunity[config.field] || [] }))
+    .filter((group) => group.items.length);
+  const docRef = currentQuoteOrEstimateForOpportunity(opportunity);
+  const docLines = docRef.document ? (docRef.type === "quote" ? quoteLinesForQuote(docRef.document.id) : estimateLinesForEstimate(docRef.document.id)) : [];
+  const lines = docLines.filter((line) => !isGeneratedDocLine(line) && !line.isOptional);
+  return { sites, siteWalkStatus: opportunity.siteWalkStatus || "Incomplete", needs, docRef, lines };
+}
+
+function renderOpportunityScopeSummary(opportunity) {
+  const scope = composeOpportunityScope(opportunity);
+  const needItem = (item) => `${escapeHtml(item.name)}${item.note ? ` <small>(${escapeHtml(item.note)})</small>` : ""}`;
+  const docLabel = scope.docRef.type === "quote" ? "Quote" : scope.docRef.type === "estimate" ? "Estimate" : "";
+  return `
+    <div class="scope-summary">
+      <p class="eyebrow">Scope summary, assembled from this opportunity's records</p>
+      <dl class="detail-list">
+        <div><dt>Sites</dt><dd>${scope.sites.length ? scope.sites.map((site) => `${escapeHtml(site.label)}${site.role ? ` <small>(${escapeHtml(site.role)})</small>` : ""}`).join("<br />") : "No sites linked"}</dd></div>
+        <div><dt>Site walk</dt><dd>${escapeHtml(scope.siteWalkStatus)}</dd></div>
+        ${scope.needs.map((group) => `<div><dt>${escapeHtml(group.title)}</dt><dd>${group.items.map(needItem).join("<br />")}</dd></div>`).join("")}
+        <div>
+          <dt>Priced scope</dt>
+          <dd>${
+            docLabel
+              ? `${escapeHtml(docLabel)} "${escapeHtml(scope.docRef.document.name || "")}", ${money(scope.docRef.total)}${scope.lines.length ? `<br /><small>${scope.lines
+                  .slice(0, 6)
+                  .map((line) => escapeHtml(line.productName || line.productDescription || "Line"))
+                  .join(" · ")}${scope.lines.length > 6 ? ` · +${scope.lines.length - 6} more` : ""}</small>` : ""}`
+              : "No quote or estimate yet"
+          }</dd>
+        </div>
+      </dl>
+    </div>
+  `;
+}
+
+// A needs-list entry is free text ("Mini excavator", "Vac truck"). Only an unambiguous match to a
+// product priced on the sheet is accepted; anything else stays a free-text line to price by hand,
+// because a wrong guess on a quote is worse than an unpriced line.
+function matchRateLineForNeed(name, priceLevelId) {
+  const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const key = normalize(name);
+  if (key.length < 3) return null;
+  const priced = new Set((state.backend.productPriceLevels || []).filter((ppl) => ppl.priceLevelId === priceLevelId && !ppl.deletedAt).map((ppl) => ppl.productId));
+  const products = getProducts().filter((product) => priced.has(product.id));
+  const exact = products.filter((product) => normalize(product.name) === key);
+  if (exact.length === 1) return exact[0];
+  const partial = products.filter((product) => {
+    const productKey = normalize(product.name.replace(/\([^)]*\)/g, " "));
+    return productKey.includes(key) || key.includes(productKey);
+  });
+  return partial.length === 1 ? partial[0] : null;
+}
+
+function addDocLinesFromNeeds(dialog) {
+  const opportunity = findOpportunity(dialog.querySelector("form").elements.opportunityId.value);
+  const container = dialog.querySelector("[data-line-container]");
+  if (!opportunity || !container) return;
+  const settings = readDocSettings(dialog);
+  const rows = [...container.querySelectorAll(".doc-line-row")];
+  // Replace the single blank starter row rather than leaving it above the draft lines.
+  if (rows.length === 1) {
+    const only = readDocLineRow(rows[0]);
+    if (!only.productId && !only.description) rows[0].remove();
+  }
+  const existing = new Set([...container.querySelectorAll("[data-line-description]")].map((input) => input.value.trim().toLowerCase()));
+  let added = 0;
+  let matched = 0;
+  composeOpportunityScope(opportunity).needs.forEach((group) => {
+    group.items.forEach((item) => {
+      const description = `${item.name}${item.note ? `: ${item.note}` : ""}`;
+      if (existing.has(description.toLowerCase())) return;
+      const product = matchRateLineForNeed(item.name, settings.priceLevelId);
+      const ppl = product ? productPriceLevelRate(product.id, settings.priceLevelId) : null;
+      container.insertAdjacentHTML(
+        "beforeend",
+        renderDocLineRowHtml(
+          { productId: product?.id || "", productName: description, productDescription: description, uomId: ppl?.uomId || product?.defaultUomId || "", quantity: 1 },
+          settings.priceLevelId,
+          settings.rateTier,
+        ),
+      );
+      if (product) {
+        repriceDocLine(container.lastElementChild, settings.priceLevelId);
+        matched += 1;
+      }
+      added += 1;
+    });
+  });
+  recomputeDocTotal(dialog);
+  showToast(
+    added
+      ? `Added ${added} draft line${added === 1 ? "" : "s"} from Resource Needs. ${matched} matched a rate-sheet item; price the rest.`
+      : "Nothing new to add: the needs lists are empty or already on this estimate.",
+  );
 }
 
 function openOpportunityQuoteDialog(opportunityId, quoteId = "") {
@@ -19736,6 +20227,7 @@ function openOpportunityQuoteDialog(opportunityId, quoteId = "") {
     form.elements.billingAddressId.value = quote.billingAddressId || "";
     form.elements.shippingAddressId.value = quote.shippingAddressId || "";
     form.elements.notes.value = quote.notes || "";
+    populateDocPricingControls(dialog, quote);
     populateDocLineContainer(dialog, quoteLinesForQuote(quote.id));
   } else {
     form.elements.id.value = "";
@@ -19744,6 +20236,7 @@ function openOpportunityQuoteDialog(opportunityId, quoteId = "") {
     // Item 7 — "Effective to" defaults to +30 days from "Effective from", not blank.
     form.elements.effectiveTo.value = addDays(30);
     form.elements.priceLevelId.value = defaultPriceLevelId();
+    populateDocPricingControls(dialog, null);
     populateDocLineContainer(dialog, []);
   }
   delete form.elements.effectiveTo.dataset.touched;
@@ -19758,8 +20251,7 @@ async function saveOpportunityQuote(form) {
   if (!opportunity) return;
   const isNewQuote = !data.get("id").toString();
   const quoteId = data.get("id").toString() || makeId("quote");
-  const lines = collectDocLines(dialog);
-  const totalAmount = computeDocLinesTotal(lines);
+  const { lines, docFields } = collectDocPricing(dialog);
   const quote = {
     id: quoteId,
     opportunityId,
@@ -19767,8 +20259,7 @@ async function saveOpportunityQuote(form) {
     customerLogicalName: "account",
     priceLevelId: data.get("priceLevelId").toString(),
     name: data.get("name").toString().trim(),
-    totalAmount,
-    totalAmountBase: totalAmount,
+    ...docFields,
     statusCode: data.get("statusCode").toString(),
     stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
     effectiveFrom: data.get("effectiveFrom").toString(),
@@ -19824,11 +20315,13 @@ function openOpportunityEstimateDialog(opportunityId, estimateId = "") {
     form.elements.billingAddressId.value = estimate.billingAddressId || "";
     form.elements.shippingAddressId.value = estimate.shippingAddressId || "";
     form.elements.notes.value = estimate.notes || "";
+    populateDocPricingControls(dialog, estimate);
     populateDocLineContainer(dialog, estimateLinesForEstimate(estimate.id));
   } else {
     form.elements.id.value = "";
     form.elements.name.value = `${getCoreOpportunity(opportunity).opportunityName} estimate`;
     form.elements.priceLevelId.value = defaultPriceLevelId();
+    populateDocPricingControls(dialog, null);
     populateDocLineContainer(dialog, []);
   }
   dialog.showModal();
@@ -19846,8 +20339,7 @@ async function saveOpportunityEstimate(form) {
   // not a customer-facing document), but an existing row's dates are carried forward untouched
   // rather than dropped on save — "leave the data on existing rows rather than deleting it."
   const existingEstimate = !isNewEstimate ? estimatesForOpportunity(opportunityId).find((item) => item.id === estimateId) : null;
-  const lines = collectDocLines(dialog);
-  const totalAmount = computeDocLinesTotal(lines);
+  const { lines, docFields } = collectDocPricing(dialog);
   const estimate = {
     id: estimateId,
     opportunityId,
@@ -19855,8 +20347,7 @@ async function saveOpportunityEstimate(form) {
     customerLogicalName: "account",
     priceLevelId: data.get("priceLevelId").toString(),
     name: data.get("name").toString().trim(),
-    totalAmount,
-    totalAmountBase: totalAmount,
+    ...docFields,
     statusCode: data.get("statusCode").toString(),
     stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
     effectiveFrom: existingEstimate?.effectiveFrom || "",
@@ -19906,6 +20397,13 @@ async function convertEstimateToQuote(opportunityId, estimateId) {
     name: estimate.name ? estimate.name.replace(/\bestimate\b/i, "quote") : `${getCoreOpportunity(opportunity).opportunityName} quote`,
     totalAmount: Number(estimate.totalAmount || 0),
     totalAmountBase: Number(estimate.totalAmountBase || estimate.totalAmount || 0),
+    rateTier: estimate.rateTier || "standard",
+    isEmergencyCallout: Boolean(estimate.isEmergencyCallout),
+    fuelSurchargePercent: estimate.fuelSurchargePercent ?? null,
+    energySecurityFeePercent: estimate.energySecurityFeePercent ?? 0,
+    subtotalAmount: estimate.subtotalAmount ?? Number(estimate.totalAmount || 0),
+    fuelSurchargeAmount: estimate.fuelSurchargeAmount ?? 0,
+    energySecurityFeeAmount: estimate.energySecurityFeeAmount ?? 0,
     statusCode: "Draft",
     stateCode: "Active",
     effectiveFrom: todayIso(),
@@ -19918,26 +20416,10 @@ async function convertEstimateToQuote(opportunityId, estimateId) {
 
   try {
     await saveBackendRecord("quotes", quote, { refresh: false });
-    for (const line of estimateLinesForEstimate(estimateId)) {
-      await saveBackendRecord(
-        "quoteLines",
-        {
-          id: makeId("quote-line"),
-          quoteId,
-          productId: line.productId || "",
-          productName: line.productName || "",
-          productDescription: line.productDescription || "",
-          isProductOverridden: line.isProductOverridden,
-          uomId: line.uomId || "",
-          quantity: line.quantity,
-          pricePerUnit: line.pricePerUnit,
-          extendedAmount: line.extendedAmount,
-          manualDiscountAmount: line.manualDiscountAmount || 0,
-          tax: line.tax || 0,
-          isOptional: Boolean(line.isOptional),
-        },
-        { refresh: false },
-      );
+    // Every line field carries over (tier, cost-plus, minimums, and the generated surcharge/fee
+    // lines), so the new quote prices exactly as the estimate did.
+    for (const { id, estimateId: _estimateId, createdAt, updatedAt, deletedAt, ...line } of estimateLinesForEstimate(estimateId)) {
+      await saveBackendRecord("quoteLines", { ...line, id: makeId("quote-line"), quoteId }, { refresh: false });
     }
     if (!opportunity.quoteId) {
       const updated = buildCoreOpportunityRecord({ ...opportunity, quoteId, updatedAt: new Date().toISOString() });
@@ -20008,18 +20490,28 @@ function renderPrintableDocHtml({ docType, doc, lines, opportunity, account, isC
           .join("<br />")
       : "<em>Not set</em>";
 
-  const requiredLines = lines.filter((line) => !line.isOptional);
-  const optionalLines = lines.filter((line) => line.isOptional);
+  const itemLines = lines.filter((line) => !isGeneratedDocLine(line));
+  const generatedLines = lines.filter(isGeneratedDocLine);
+  const requiredLines = itemLines.filter((line) => !line.isOptional);
+  const optionalLines = itemLines.filter((line) => line.isOptional);
+  const uomName = (uomId) => getUnitsOfMeasure().find((uom) => uom.id === uomId)?.name || "";
 
-  const lineRow = (line) => `
-    <tr>
-      <td>${escapeHtml(line.productName || "")}</td>
-      <td>${escapeHtml(line.productDescription || "")}</td>
-      <td class="num">${escapeHtml(line.quantity)}</td>
-      <td class="num">${money(Number(line.pricePerUnit || 0))}</td>
-      <td class="num">${money(Number(line.quantity || 0) * Number(line.pricePerUnit || 0))}</td>
-    </tr>
-  `;
+  // Quantity shows what's billed: an emergency minimum bills more than was entered and says so.
+  const lineRow = (line) => {
+    const billed = line.billableQuantity ?? line.quantity;
+    const unit = uomName(line.uomId);
+    const tier = line.rateTier && line.rateTier !== "standard" ? ` (${rateTierLabel(line.rateTier)})` : "";
+    return `
+      <tr>
+        <td>${escapeHtml(line.productName || "")}${escapeHtml(tier)}</td>
+        <td>${escapeHtml(line.productDescription || "")}${line.minimumApplied ? `<br /><small>Emergency call-out minimum: ${escapeHtml(billed)} ${escapeHtml(unit)} billed (${escapeHtml(line.quantity)} entered)</small>` : ""}</td>
+        <td class="num">${escapeHtml(billed)}${unit ? ` ${escapeHtml(unit)}` : ""}</td>
+        <td class="num">${moneyExact(Number(line.pricePerUnit || 0))}</td>
+        <td class="num">${moneyExact(Number(line.extendedAmount ?? Number(billed || 0) * Number(line.pricePerUnit || 0)))}</td>
+      </tr>
+    `;
+  };
+  const subtotal = doc.subtotalAmount ?? requiredLines.reduce((sum, line) => sum + Number(line.extendedAmount || 0), 0);
 
   const docNumber = docType === "Quote" ? doc.quoteNumber : doc.estimateNumber;
 
@@ -20097,9 +20589,19 @@ function renderPrintableDocHtml({ docType, doc, lines, opportunity, account, isC
             </thead>
             <tbody>
               ${requiredLines.map(lineRow).join("") || `<tr><td colspan="5">No line items.</td></tr>`}
+              ${
+                generatedLines.length
+                  ? `
+                <tr><td colspan="4">Subtotal</td><td class="num">${moneyExact(Number(subtotal || 0))}</td></tr>
+                ${generatedLines
+                  .map((line) => `<tr><td colspan="4">${escapeHtml(line.productName)}<br /><small>${escapeHtml(line.productDescription || "")}</small></td><td class="num">${moneyExact(Number(line.extendedAmount || 0))}</td></tr>`)
+                  .join("")}
+              `
+                  : ""
+              }
               <tr class="print-doc-total-row">
                 <td colspan="4">Total</td>
-                <td class="num">${money(Number(doc.totalAmount || 0))}</td>
+                <td class="num">${moneyExact(Number(doc.totalAmount || 0))}</td>
               </tr>
             </tbody>
           </table>
@@ -20179,84 +20681,260 @@ function printOpportunityEstimate(opportunityId, estimateId) {
 
 // --- Rate card admin ------------------------------------------------------------------------
 //
-// Phase 08 item 2: the "2026 Standard Environmental Services" rate card was referenced from three
-// places (quote/estimate line items above, Phase 04's vendor compliance panel, and Phase 04's
-// service-agreement panel) with no screen to author it. This is that screen — it reads and writes
-// the same products/priceLevels/unitsOfMeasure/productPriceLevels collections all three read from,
-// so there is exactly one source of truth instead of a hardcoded label repeated three times.
+// Phase 08 item 2 built this screen as the single source of truth for products, units and rates;
+// quote/estimate lines, Phase 04's vendor compliance panel and service agreements all read the same
+// collections. The 2026-09-23 rework made it model the real rate sheet: several rate sheets
+// (priceLevels), three tier prices per product per sheet, cost-plus rows, emergency minimums, fuel
+// surcharge flags, the admin-maintained surcharge/fee rates, and a catalog-alignment view that links
+// operational equipment/consumables to the rate line they bill as.
+
+// Rate-sheet sections whose items are physical equipment or stocked consumables, i.e. the ones an
+// `equipmentAssets` / `inventoryItems` row can bill as.
+const EQUIPMENT_RATE_CATEGORIES = [
+  "Vehicles & Response Units",
+  "Heavy Equipment",
+  "Trailers",
+  "Flood Water Removal",
+  "Marine Equipment",
+  "Pumps & Accessories",
+  "Hoses & Fittings",
+  "Generators & Air Compressors",
+  "Pressure Washers & Hydro Blasting",
+  "Miscellaneous Equipment",
+  "Safety Support Equipment",
+  "Atmospheric Testing & Communication",
+];
+const CONSUMABLE_RATE_CATEGORIES = [
+  "Waste Containers",
+  "Decontamination Equipment",
+  "Personal Protective Equipment",
+  "Absorbent Materials",
+  "Chemicals & Consumables",
+];
+
+function productCategories() {
+  return [...new Set(getProducts().map((product) => product.category).filter(Boolean))];
+}
+
+function catalogLinksForProduct(productId) {
+  return [
+    ...getEquipmentStatus().filter((asset) => asset.productId === productId).map((asset) => asset.assetTag),
+    ...getConsumableStatus().filter((item) => item.productId === productId).map((item) => item.materialType),
+  ];
+}
+
+// <option>s for a "bills as" picker on an equipment asset or consumable, grouped by section.
+function rateLineOptions(kind, selectedId) {
+  const categories = kind === "equipment" ? EQUIPMENT_RATE_CATEGORIES : CONSUMABLE_RATE_CATEGORIES;
+  const groups = categories
+    .map((category) => [category, getProducts().filter((product) => product.category === category)])
+    .filter(([, products]) => products.length);
+  return `
+    <option value="">Not linked to the rate card</option>
+    ${groups
+      .map(
+        ([category, products]) => `
+          <optgroup label="${escapeAttribute(category)}">
+            ${products
+              .map((product) => `<option value="${escapeAttribute(product.id)}" ${product.id === selectedId ? "selected" : ""}>${escapeHtml(product.name)}</option>`)
+              .join("")}
+          </optgroup>
+        `,
+      )
+      .join("")}
+  `;
+}
+
+function rateCardPriceCell(ppl, tier) {
+  if (!ppl) return `<span class="muted-text">Not on this sheet</span>`;
+  if (isCostPlusPrice(ppl)) return tier === "standard" ? `Cost +${escapeHtml(ppl.markupPercent ?? 0)}%` : "";
+  const amount = tierAmount(ppl, tier);
+  if (amount == null) return "Not set";
+  const isFallback = tier !== "standard" && (tier === "ot_emergency" ? ppl.amountOtEmergency == null : ppl.amountDoubleTime == null);
+  return isFallback ? `<span class="muted-text" title="N/A on the sheet: bills at Standard">${moneyExact(amount)}</span>` : moneyExact(amount);
+}
 
 function renderRateCard() {
   const priceLevels = activePriceLevels();
-  const products = getProducts();
-  const unitGroups = getUnitGroups();
   const uoms = getUnitsOfMeasure();
+  const settings = getPricingSettings();
+  if (!priceLevels.some((level) => level.id === state.rateCardSheetId)) state.rateCardSheetId = defaultPriceLevelId();
+  const sheetId = state.rateCardSheetId;
+  const categoryFilter = state.rateCardCategoryFilter || "";
+  const allPrices = (state.backend.productPriceLevels || []).filter((ppl) => !ppl.deletedAt);
+  const pricedAnywhere = new Set(allPrices.map((ppl) => ppl.productId));
+  const onSheet = new Map(allPrices.filter((ppl) => ppl.priceLevelId === sheetId).map((ppl) => [ppl.productId, ppl]));
+  // Items priced on this sheet, plus anything priced on no sheet at all so it can still be found.
+  const rows = getProducts()
+    .filter((product) => onSheet.has(product.id) || !pricedAnywhere.has(product.id))
+    .filter((product) => !categoryFilter || (product.category || "Other services") === categoryFilter)
+    .map((product) => ({ product, ppl: onSheet.get(product.id) || null }));
+  const fuelUnset = settings.fuelSurchargePercent == null;
+
+  const unlinkedAssets = getEquipmentStatus().filter((asset) => !asset.productId);
+  const unlinkedConsumables = getConsumableStatus().filter((item) => !item.productId);
+  const unmatchedRateLines = getProducts().filter(
+    (product) => [...EQUIPMENT_RATE_CATEGORIES, ...CONSUMABLE_RATE_CATEGORIES].includes(product.category) && !catalogLinksForProduct(product.id).length,
+  );
 
   app.innerHTML = `
     <section class="view">
       ${renderWorkspaceHeader(
         "sales",
         "Rate Card",
-        "The single source of truth for products, units of measure, and price-level rates. Quote and estimate line items, vendor compliance, and service agreements all read from this data.",
-        `<button class="secondary-button" type="button" data-action="open-rate-card-price-level">Add price level</button>
+        "The single source of truth for what BioRemedy charges: rate sheets, three rate tiers per item, cost-plus items, emergency minimums, the fuel surcharge and the energy/security fee. Quotes, estimates, vendor compliance and service agreements all read from here.",
+        `<button class="secondary-button" type="button" data-action="open-pricing-settings">Pricing settings</button>
+         <button class="secondary-button" type="button" data-action="open-rate-card-price-level">Add rate sheet</button>
          <button class="secondary-button" type="button" data-action="open-rate-card-uom">Add unit of measure</button>
          <button class="primary-button" type="button" data-action="open-rate-card-product">Add product</button>`,
       )}
 
-      <article class="panel">
-        <div class="panel-header"><h3>Price levels</h3></div>
-        <div class="panel-body record-list">
-          ${
-            priceLevels
-              .map(
-                (level) => `
-                  <div class="row-meta">
-                    <div>
-                      <strong>${escapeHtml(level.name)}</strong>
-                      <span>${formatDate(level.beginDate)} to ${formatDate(level.endDate)}</span>
+      <section class="detail-grid">
+        <article class="${fuelUnset ? "panel panel-needs-attention" : "panel"}">
+          <div class="panel-header">
+            <h3>Pricing settings${fuelUnset ? renderAlertDot("Fuel surcharge % is not set") : ""}</h3>
+            <button class="mini-button" type="button" data-action="open-pricing-settings">Edit</button>
+          </div>
+          <div class="panel-body">
+            <dl class="detail-list">
+              <div>
+                <dt>Fuel surcharge</dt>
+                <dd>
+                  <strong>${fuelUnset ? "Not set" : `${escapeHtml(settings.fuelSurchargePercent)}%`}</strong>
+                  ${settings.fuelSurchargeUpdatedAt ? ` · updated ${formatDate(settings.fuelSurchargeUpdatedAt)}${settings.fuelSurchargeNote ? ` (${escapeHtml(settings.fuelSurchargeNote)})` : ""}` : ""}
+                  <br /><small class="muted-text">Applied to fuel-burning equipment lines, from the DOE average fuel price. Overridable per quote.</small>
+                </dd>
+              </div>
+              <div>
+                <dt>Energy, Security &amp; Insurance fee</dt>
+                <dd>
+                  <strong>${escapeHtml(settings.energySecurityFeePercent)}%</strong>
+                  <br /><small class="muted-text">Percent of the item subtotal, fuel surcharge excluded. Added to every new quote and estimate; removable per document.</small>
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header"><h3>Rate sheets</h3></div>
+          <div class="panel-body record-list">
+            ${
+              priceLevels
+                .map((level) => {
+                  const count = allPrices.filter((ppl) => ppl.priceLevelId === level.id).length;
+                  return `
+                    <div class="row-meta">
+                      <div>
+                        <strong>${escapeHtml(level.name)}</strong>${level.isDefault ? ` <span class="risk-badge low">Default</span>` : ""}
+                        <span>${count} priced item${count === 1 ? "" : "s"}${level.sourceSheet ? ` · from ${escapeHtml(level.sourceFile || "")} / ${escapeHtml(level.sourceSheet)}` : ""}${level.beginDate ? ` · ${formatDate(level.beginDate)} to ${formatDate(level.endDate)}` : ""}</span>
+                      </div>
+                      <button class="mini-button" type="button" data-action="open-rate-card-price-level" data-id="${escapeAttribute(level.id)}">Edit</button>
                     </div>
-                    <button class="mini-button" type="button" data-action="open-rate-card-price-level" data-id="${escapeAttribute(level.id)}">Edit</button>
-                  </div>
-                `,
-              )
-              .join("") || `<div class="empty-state">No price levels yet.</div>`
-          }
+                  `;
+                })
+                .join("") || `<div class="empty-state">No rate sheets yet.</div>`
+            }
+          </div>
+        </article>
+      </section>
+
+      <article class="panel">
+        <div class="panel-header">
+          <h3>Products &amp; rates</h3>
+          <div class="inline-actions">
+            <label class="compact-label">Rate sheet
+              <select id="rateCardSheetSelect">
+                ${priceLevels.map((level) => `<option value="${escapeAttribute(level.id)}" ${level.id === sheetId ? "selected" : ""}>${escapeHtml(level.name)}</option>`).join("")}
+              </select>
+            </label>
+            <label class="compact-label">Section
+              <select id="rateCardCategoryFilter">
+                <option value="">All sections</option>
+                ${[...productCategories(), "Other services"].map((category) => `<option ${category === categoryFilter ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${renderDataTable({
+            tableId: "rate-card-products",
+            columns: [
+              { key: "name", label: "Product", sortValue: (row) => row.product.name },
+              { key: "category", label: "Section", sortValue: (row) => productCategoryLabel(row.product) },
+              { key: "unit", label: "Unit", sortable: false },
+              { key: "standard", label: "Standard", sortValue: (row) => tierAmount(row.ppl, "standard") },
+              { key: "ot", label: "OT / Emergency", sortValue: (row) => tierAmount(row.ppl, "ot_emergency") },
+              { key: "dt", label: "Double time", sortValue: (row) => tierAmount(row.ppl, "double_time") },
+              { key: "flags", label: "Rules", sortable: false },
+              { key: "catalog", label: "Catalog", sortValue: (row) => catalogLinksForProduct(row.product.id).length },
+              { key: "edit", label: "", sortable: false },
+            ],
+            rows,
+            searchFields: [(row) => row.product.name, (row) => row.product.productNumber, (row) => row.product.category, (row) => row.ppl?.rateNote],
+            searchPlaceholder: "Search products",
+            emptyText: "No products on this sheet in this section.",
+            renderRow: ({ product, ppl }) => {
+              const links = catalogLinksForProduct(product.id);
+              const rules = [
+                product.minimumAppliesWhen === "emergency" && product.minimumQuantity ? `${product.minimumQuantity} min on emergency` : "",
+                product.fuelSurchargeApplies ? "Fuel surcharge" : "",
+              ].filter(Boolean);
+              return `
+                <tr>
+                  <td><strong>${escapeHtml(product.name)}</strong><br /><small>${escapeHtml(product.productNumber || "")}${ppl?.rateNote ? ` · ${escapeHtml(ppl.rateNote)}` : ""}</small></td>
+                  <td>${escapeHtml(productCategoryLabel(product))}</td>
+                  <td>${escapeHtml(uoms.find((uom) => uom.id === (ppl?.uomId || product.defaultUomId))?.name || "Not set")}</td>
+                  <td>${rateCardPriceCell(ppl, "standard")}</td>
+                  <td>${rateCardPriceCell(ppl, "ot_emergency")}</td>
+                  <td>${rateCardPriceCell(ppl, "double_time")}</td>
+                  <td>${rules.map((rule) => `<span class="risk-badge medium">${escapeHtml(rule)}</span>`).join(" ")}</td>
+                  <td>${links.length ? escapeHtml(links.join(", ")) : `<span class="muted-text">—</span>`}</td>
+                  <td><button class="mini-button" type="button" data-action="open-rate-card-product" data-id="${escapeAttribute(product.id)}">Edit</button></td>
+                </tr>
+              `;
+            },
+          })}
         </div>
       </article>
 
       <article class="panel">
-        <div class="panel-header"><h3>Products &amp; rates</h3></div>
+        <div class="panel-header"><h3>Catalog alignment</h3></div>
         <div class="panel-body">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Default unit</th>
-                ${priceLevels.map((level) => `<th>${escapeHtml(level.name)}</th>`).join("")}
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                products
-                  .map(
-                    (product) => `
-                      <tr>
-                        <td><strong>${escapeHtml(product.name)}</strong><br /><small>${escapeHtml(product.productNumber || "")}</small></td>
-                        <td>${escapeHtml(uoms.find((uom) => uom.id === product.defaultUomId)?.name || "Not set")}</td>
-                        ${priceLevels
-                          .map((level) => {
-                            const ppl = productPriceLevelRate(product.id, level.id);
-                            return `<td>${ppl ? money(Number(ppl.amount || 0)) : "Not set"}</td>`;
-                          })
-                          .join("")}
-                        <td><button class="mini-button" type="button" data-action="open-rate-card-product" data-id="${escapeAttribute(product.id)}">Edit</button></td>
-                      </tr>
-                    `,
-                  )
-                  .join("") || `<tr><td colspan="${3 + priceLevels.length}">No products yet.</td></tr>`
-              }
-            </tbody>
-          </table>
+          <p class="help-text">Link each piece of equipment and each stocked consumable to the rate-card line it bills as. The rate sheet and the operational catalogs won't line up at first: items on one side can be missing from the other, so both lists below stay visible until they're reconciled.</p>
+          <section class="detail-grid">
+            <div class="record-list">
+              <h4>Equipment (${getEquipmentStatus().length - unlinkedAssets.length} of ${getEquipmentStatus().length} linked)</h4>
+              ${getEquipmentStatus()
+                .map(
+                  (asset) => `
+                    <label class="compact-label">${escapeHtml(asset.assetTag)} · ${escapeHtml(asset.equipment || "")}
+                      <select data-link-rate-line="equipmentAssets" data-id="${escapeAttribute(asset.id)}">${rateLineOptions("equipment", asset.productId || "")}</select>
+                    </label>
+                  `,
+                )
+                .join("") || `<div class="empty-state">No equipment assets.</div>`}
+            </div>
+            <div class="record-list">
+              <h4>Consumables (${getConsumableStatus().length - unlinkedConsumables.length} of ${getConsumableStatus().length} linked)</h4>
+              ${getConsumableStatus()
+                .map(
+                  (item) => `
+                    <label class="compact-label">${escapeHtml(item.materialType)} (${escapeHtml(item.unit || "")})
+                      <select data-link-rate-line="inventoryItems" data-id="${escapeAttribute(item.id)}">${rateLineOptions("consumable", item.productId || "")}</select>
+                    </label>
+                  `,
+                )
+                .join("") || `<div class="empty-state">No consumables.</div>`}
+            </div>
+          </section>
+          <details>
+            <summary>${unmatchedRateLines.length} equipment and consumable rate lines have no catalog item yet</summary>
+            <p class="help-text">These are priced on a rate sheet but nothing in Inventory bills as them. That's expected for items BioRemedy rents or buys per job; add them to Inventory when they're stocked.</p>
+            <ul class="compact-list">
+              ${unmatchedRateLines.map((product) => `<li>${escapeHtml(product.name)} <small>${escapeHtml(productCategoryLabel(product))}</small></li>`).join("")}
+            </ul>
+          </details>
         </div>
       </article>
 
@@ -20270,7 +20948,7 @@ function renderRateCard() {
                   <div class="row-meta">
                     <div>
                       <strong>${escapeHtml(uom.name)}</strong>
-                      <span>${escapeHtml(unitGroups.find((group) => group.id === uom.unitGroupId)?.name || "Ungrouped")}</span>
+                      <span>${escapeHtml(getUnitGroups().find((group) => group.id === uom.unitGroupId)?.name || "Ungrouped")}</span>
                     </div>
                     <button class="mini-button" type="button" data-action="open-rate-card-uom" data-id="${escapeAttribute(uom.id)}">Edit</button>
                   </div>
@@ -20282,6 +20960,52 @@ function renderRateCard() {
       </article>
     </section>
   `;
+}
+
+async function saveCatalogRateLink(select) {
+  const collection = select.dataset.linkRateLine;
+  // The stored record, not getEquipmentStatus()/getConsumableStatus()'s derived copies (which add
+  // computed status/tone/availability fields and can overwrite lastUsed from the logs).
+  const stored = (state.backend[collection] || []).find((item) => item.id === select.dataset.id);
+  if (!stored) return;
+  try {
+    await saveBackendRecord(collection, { ...stored, productId: select.value });
+    render();
+    showToast(select.value ? "Linked to the rate card." : "Rate card link removed.");
+  } catch (error) {
+    showToast(error.message || "Link could not be saved.");
+  }
+}
+
+function openPricingSettingsDialog() {
+  const dialog = document.querySelector("#pricingSettingsDialog");
+  const form = dialog.querySelector("form");
+  const settings = getPricingSettings();
+  form.reset();
+  form.elements.fuelSurchargePercent.value = settings.fuelSurchargePercent ?? "";
+  form.elements.fuelSurchargeNote.value = settings.fuelSurchargeNote || "";
+  form.elements.energySecurityFeePercent.value = settings.energySecurityFeePercent ?? 18;
+  dialog.showModal();
+}
+
+async function savePricingSettings(form) {
+  const data = new FormData(form);
+  const previous = getPricingSettings();
+  const fuelSurchargePercent = numberOrNull(data.get("fuelSurchargePercent"));
+  try {
+    await saveBackendRecord("pricingSettings", {
+      id: previous.id,
+      fuelSurchargePercent,
+      fuelSurchargeNote: data.get("fuelSurchargeNote").toString().trim(),
+      fuelSurchargeUpdatedAt: fuelSurchargePercent !== previous.fuelSurchargePercent ? new Date().toISOString() : previous.fuelSurchargeUpdatedAt,
+      energySecurityFeePercent: Number(data.get("energySecurityFeePercent") || 0),
+    });
+    closeDialogs();
+    render();
+    showToast("Pricing settings saved. New quotes and estimates use them; existing ones keep their own.");
+  } catch (error) {
+    showToast(error.message || "Pricing settings could not be saved.");
+  }
 }
 
 function openRateCardPriceLevelDialog(id = "") {
@@ -20296,6 +21020,7 @@ function openRateCardPriceLevelDialog(id = "") {
     form.elements.beginDate.value = level.beginDate || "";
     form.elements.endDate.value = level.endDate || "";
     form.elements.transactionCurrencyId.value = level.transactionCurrencyId || "";
+    form.elements.isDefault.checked = Boolean(level.isDefault);
   } else {
     form.elements.id.value = "";
   }
@@ -20304,22 +21029,34 @@ function openRateCardPriceLevelDialog(id = "") {
 
 async function saveRateCardPriceLevel(form) {
   const data = new FormData(form);
+  const id = data.get("id").toString() || makeId("price-level");
+  const existing = activePriceLevels().find((item) => item.id === id);
+  const isDefault = form.elements.isDefault.checked;
   const record = {
-    id: data.get("id").toString() || makeId("price-level"),
+    ...(existing || {}),
+    id,
     name: data.get("name").toString().trim(),
     beginDate: data.get("beginDate").toString(),
     endDate: data.get("endDate").toString(),
     transactionCurrencyId: data.get("transactionCurrencyId").toString(),
     stateCode: "Active",
     statusCode: "Active",
+    isDefault,
   };
   try {
-    await saveBackendRecord("priceLevels", record);
+    await saveBackendRecord("priceLevels", record, { refresh: false });
+    // Exactly one default: new quotes and estimates start on it.
+    if (isDefault) {
+      for (const other of activePriceLevels().filter((level) => level.id !== id && level.isDefault)) {
+        await saveBackendRecord("priceLevels", { ...other, isDefault: false }, { refresh: false });
+      }
+    }
+    await refreshState();
     closeDialogs();
     render();
-    showToast("Price level saved.");
+    showToast("Rate sheet saved.");
   } catch (error) {
-    showToast(error.message || "Price level could not be saved.");
+    showToast(error.message || "Rate sheet could not be saved.");
   }
 }
 
@@ -20362,6 +21099,24 @@ async function saveRateCardUom(form) {
   }
 }
 
+// Fills the product dialog's price fields from the selected sheet's row for this product.
+function fillRateCardProductPrices(form, productId, priceLevelId) {
+  const ppl = productId ? productPriceLevelRate(productId, priceLevelId) : null;
+  form.elements.pricingMethodCode.value = isCostPlusPrice(ppl) ? COST_PLUS_METHOD : "CurrencyAmount";
+  form.elements.rateAmount.value = ppl?.amount ?? "";
+  form.elements.rateAmountOtEmergency.value = ppl?.amountOtEmergency ?? "";
+  form.elements.rateAmountDoubleTime.value = ppl?.amountDoubleTime ?? "";
+  form.elements.markupPercent.value = ppl?.markupPercent ?? (isCostPlusPrice(ppl) ? 28 : "");
+  form.elements.rateNote.value = ppl?.rateNote || "";
+  syncRateCardProductMethod(form);
+}
+
+function syncRateCardProductMethod(form) {
+  const costPlus = form.elements.pricingMethodCode.value === COST_PLUS_METHOD;
+  form.querySelectorAll("[data-rate-fields]").forEach((el) => (el.hidden = costPlus));
+  form.querySelectorAll("[data-cost-plus-fields]").forEach((el) => (el.hidden = !costPlus));
+}
+
 function openRateCardProductDialog(id = "") {
   const dialog = document.querySelector("#rateCardProductDialog");
   const form = dialog.querySelector("form");
@@ -20370,43 +21125,56 @@ function openRateCardProductDialog(id = "") {
   form.elements.defaultUomId.innerHTML = getUnitsOfMeasure()
     .map((uom) => `<option value="${escapeAttribute(uom.id)}">${escapeHtml(uom.name)}</option>`)
     .join("");
+  const categoryList = dialog.querySelector("#rateCardCategoryOptions");
+  if (categoryList) categoryList.innerHTML = productCategories().map((category) => `<option value="${escapeAttribute(category)}"></option>`).join("");
   const product = id ? getProducts().find((item) => item.id === id) : null;
-  const priceLevelId = defaultPriceLevelId();
+  const priceLevelId = state.rateCardSheetId || defaultPriceLevelId();
+  form.elements.priceLevelId.value = priceLevelId;
   if (product) {
     form.elements.id.value = product.id;
     form.elements.name.value = product.name || "";
     form.elements.productNumber.value = product.productNumber || "";
     form.elements.description.value = product.description || "";
     form.elements.defaultUomId.value = product.defaultUomId || "";
-    form.elements.priceLevelId.value = priceLevelId;
-    const ppl = productPriceLevelRate(product.id, priceLevelId);
-    form.elements.rateAmount.value = ppl ? ppl.amount : "";
+    form.elements.category.value = product.category || "";
+    form.elements.subcategory.value = product.subcategory || "";
+    form.elements.fuelSurchargeApplies.checked = Boolean(product.fuelSurchargeApplies);
+    form.elements.minimumQuantity.value = product.minimumAppliesWhen === "emergency" ? product.minimumQuantity || 0 : 0;
   } else {
     form.elements.id.value = "";
-    form.elements.priceLevelId.value = priceLevelId;
+    form.elements.minimumQuantity.value = 0;
   }
+  fillRateCardProductPrices(form, product?.id || "", priceLevelId);
   dialog.showModal();
 }
 
 async function saveRateCardProduct(form) {
   const data = new FormData(form);
   const productId = data.get("id").toString() || makeId("product");
+  const existing = getProducts().find((item) => item.id === productId);
   const priceLevelId = data.get("priceLevelId").toString();
   const defaultUomId = data.get("defaultUomId").toString();
+  const minimumQuantity = Number(data.get("minimumQuantity") || 0);
   const record = {
+    ...(existing || {}),
     id: productId,
     name: data.get("name").toString().trim(),
     productNumber: data.get("productNumber").toString().trim(),
     description: data.get("description").toString().trim(),
+    category: data.get("category").toString().trim(),
+    subcategory: data.get("subcategory").toString().trim(),
     defaultUomId,
     defaultUnitGroupId: getUnitsOfMeasure().find((uom) => uom.id === defaultUomId)?.unitGroupId || "",
-    priceLevelId,
+    priceLevelId: existing?.priceLevelId || priceLevelId,
     transactionCurrencyId: "currency-usd",
-    productStructure: "Service",
+    productStructure: existing?.productStructure || "Service",
     stateCode: "Active",
     statusCode: "Active",
+    fuelSurchargeApplies: form.elements.fuelSurchargeApplies.checked,
+    minimumQuantity,
+    minimumAppliesWhen: minimumQuantity > 0 ? "emergency" : "",
   };
-  const rateAmount = Number(data.get("rateAmount") || 0);
+  const costPlus = data.get("pricingMethodCode").toString() === COST_PLUS_METHOD;
   try {
     await saveBackendRecord("products", record, { refresh: false });
     if (priceLevelId) {
@@ -20414,14 +21182,19 @@ async function saveRateCardProduct(form) {
       await saveBackendRecord(
         "productPriceLevels",
         {
+          ...(existingPpl || {}),
           id: existingPpl?.id || makeId("ppl"),
           productId,
           priceLevelId,
           uomId: defaultUomId,
           unitGroupId: record.defaultUnitGroupId,
           transactionCurrencyId: "currency-usd",
-          amount: rateAmount,
-          pricingMethodCode: "CurrencyAmount",
+          pricingMethodCode: costPlus ? COST_PLUS_METHOD : "CurrencyAmount",
+          markupPercent: costPlus ? Number(data.get("markupPercent") || 0) : null,
+          amount: costPlus ? null : numberOrNull(data.get("rateAmount")),
+          amountOtEmergency: costPlus ? null : numberOrNull(data.get("rateAmountOtEmergency")),
+          amountDoubleTime: costPlus ? null : numberOrNull(data.get("rateAmountDoubleTime")),
+          rateNote: data.get("rateNote").toString().trim(),
         },
         { refresh: false },
       );
@@ -22044,6 +22817,7 @@ function openInventoryItemDialog(itemId = "") {
   const form = dialog.querySelector("form");
   form.reset();
   const item = itemId ? getInventoryItemById(itemId) : null;
+  form.elements.productId.innerHTML = rateLineOptions("consumable", item?.productId || "");
   if (item) {
     form.elements.id.value = item.id;
     form.elements.materialType.value = item.materialType || "";
@@ -22100,6 +22874,8 @@ function openEquipmentAssetDialog(assetTag = "") {
   const form = dialog.querySelector("form");
   form.reset();
   const asset = getEquipmentStatus().find((item) => item.assetTag === assetTag);
+  form.elements.productId.innerHTML = rateLineOptions("equipment", asset?.productId || "");
+  form.elements.category.innerHTML = getEquipmentCategoryNames().map((name) => `<option>${escapeHtml(name)}</option>`).join("");
   if (asset) {
     form.elements.id.value = asset.id || "";
     form.elements.assetTag.value = asset.assetTag || "";
@@ -22177,6 +22953,7 @@ async function clearEquipmentAlert(assetTag) {
       maintenanceDue: asset.maintenanceDue,
       issue: "",
       assignedProjectId: asset.assignedProjectId || "",
+      productId: asset.productId || "",
       specs: asset.specs || {},
     });
     closeDialogs();
@@ -25315,12 +26092,25 @@ function timeInputValue(value) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+// Whole-dollar amounts print without cents; anything with cents shows them. Rounding every amount
+// to the dollar (the behaviour until 2026-09-23) made printed quotes disagree with their own math
+// ($112.50 × 4 shown as "$113 … $450") and contradicted the owner's Q6 decision: cents allowed
+// everywhere, no rounding to dollars.
 function money(value) {
+  const amount = Number(value) || 0;
+  const hasCents = Math.round(amount * 100) % 100 !== 0;
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0);
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0,
+  }).format(amount);
+}
+
+// Always two decimals: for priced documents (quotes, estimates, rate cards) where a column of
+// amounts should line up.
+function moneyExact(value) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0);
 }
 
 function formatDate(value) {

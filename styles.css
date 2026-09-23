@@ -3256,6 +3256,12 @@ textarea {
   width: min(920px, calc(100vw - 28px));
 }
 
+/* Quote / estimate builder: nine line columns need more room than other wide dialogs. */
+#opportunityQuoteDialog .modal-panel.wide-modal-panel,
+#opportunityEstimateDialog .modal-panel.wide-modal-panel {
+  width: min(1180px, calc(100vw - 28px));
+}
+
 .doc-line-items-fieldset {
   border: 1px solid var(--border, #d8dee6);
   border-radius: 8px;
@@ -3273,7 +3279,8 @@ textarea {
 .doc-line-row,
 .doc-line-items-header {
   display: grid;
-  grid-template-columns: 1.6fr 1.6fr 0.7fr 0.9fr 0.9fr 0.9fr 0.6fr auto;
+  /* product, description, qty, unit, tier, rate, line total, option, remove */
+  grid-template-columns: 1.7fr 1.3fr 0.55fr 0.85fr 1.05fr 0.9fr 1.1fr 0.35fr auto;
   gap: 8px;
   align-items: center;
 }
@@ -3290,12 +3297,58 @@ textarea {
   text-align: right;
 }
 
+/* Why a line bills what it does: emergency minimum, cost-plus math, fuel surcharge. */
+.doc-line-row .doc-line-total small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--muted-text, #6b7684);
+}
+
+.doc-line-cost {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.doc-line-cost[hidden] {
+  display: none;
+}
+
+.doc-line-cost input {
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-line-cost small {
+  white-space: nowrap;
+  color: var(--muted-text, #6b7684);
+}
+
+.doc-totals {
+  margin-left: auto;
+  max-width: 360px;
+  display: grid;
+  gap: 4px;
+}
+
+.doc-totals-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.doc-totals [data-doc-pricing-hint]:empty {
+  display: none;
+}
+
 .doc-line-row .doc-line-optional {
   justify-self: center;
 }
 
 .doc-total-field {
-  max-width: 320px;
+  max-width: 360px;
   margin-left: auto;
 }
 
@@ -5960,4 +6013,59 @@ body[data-theme="dark"] .frontline-device {
 
 .template-task-config select[multiple] {
   min-height: 84px;
+}
+
+/* Rate Card screen (Phase 08 rate-card rework). */
+.muted-text {
+  color: var(--muted-text, #6b7684);
+}
+
+.compact-label {
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.compact-label select {
+  font-weight: 400;
+}
+
+.compact-list {
+  columns: 2;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+}
+
+.compact-list small {
+  color: var(--muted-text, #6b7684);
+}
+
+@media (max-width: 720px) {
+  .compact-list {
+    columns: 1;
+  }
+}
+
+/* Phase 06 item 35: live scope summary under the Proposed Solution narrative. */
+.scope-summary {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border, #d8dee6);
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.scope-summary .eyebrow {
+  margin: 0 0 6px;
+}
+
+[data-table-id="rate-card-products"] td:first-child {
+  min-width: 14rem;
+  overflow-wrap: normal;
+}
+
+[data-table-id="rate-card-products"] .risk-badge {
+  white-space: normal;
 }

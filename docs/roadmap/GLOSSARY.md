@@ -62,7 +62,9 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 | Account | `accounts` | `accounts` | *(dead)* | ✅ Moved to server, Phase 01 (2026-09-16). IndexedDB store no longer declared. |
 | Contact | `contacts` | `contacts` | *(dead)* | ✅ Moved to server, Phase 01 (2026-09-16). IndexedDB store no longer declared. |
 | Opportunity | `opportunities` | `opportunities` | *(dead)* | Already on the server as of 2026-08-10; the IndexedDB store declaration was removed in Phase 01. |
-| Quote / Estimate | `quotes` | `quotes` + `quoteLines` | — | **Naming question, not yet resolved:** the 2026-09-16 notes use "Quote" and "Estimate" interchangeably throughout. A bare quote header (name, one lump-sum total) already has minimal UI; a real line-item builder does not exist yet — see Phase 08. Decide whether Quote and Estimate are one document type or two before building further. |
+| Quote | `quotes` + `quote_lines` | `quotes` + `quoteLines` | — | Customer-facing priced document. **Resolved 2026-09-17: Quote and Estimate are two separate documents**, not one type with a status flag. Lines carry `lineKind`: `item`, or the generated `fuel_surcharge` / `energy_security_fee` lines (Phase 08 round two). |
+| Estimate (UI: "Estimation Tool") | *(no table yet)* | `estimates` + `estimateLines` | — | Internal working draft, same line shape as quotes. Converts into a quote (`quotes.sourceEstimateId`); converting twice is allowed. The collection is still named `estimates`; only the label changed. |
+| Rate sheet | `price_levels` | `priceLevels` | — | **Naming hazard:** a "rate sheet" in the UI and in the owner's words is a `priceLevels` row (the Dataverse name). There is one per workbook tab ("2026 Rate Sheet", "2026 Rate Sheet (Sheet5)"), and exactly one has `isDefault`. A product's three tier prices on a sheet live on its `productPriceLevels` row: `amount` = Standard, `amountOtEmergency`, `amountDoubleTime`. "Rate card" is the admin *screen*, not a record. |
 | Lead | `leads` | `leads` | — | |
 
 ---

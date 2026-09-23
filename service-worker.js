@@ -1,4 +1,4 @@
-const CACHE_NAME = "environmental-crm-shell-v41";
+const CACHE_NAME = "environmental-crm-shell-v42";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -18,6 +18,9 @@ data/uploads/
 # Data backups (the rolling snapshots, not the live file)
 data/backups/
 
+# Transient atomic-write file (saveBackend writes here, then renames over backend.json)
+data/backend.json.tmp
+
 # Environment and secrets
 .env*
 *.pem

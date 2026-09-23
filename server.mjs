@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFile, mkdir, writeFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -119,6 +119,8 @@ const collectionAccess = {
   priceLevels: "salesDocuments",
   products: "salesDocuments",
   productPriceLevels: "salesDocuments",
+  // Phase 08 rate-card rework — admin-maintained fuel surcharge % and the 18% energy/security fee.
+  pricingSettings: "salesDocuments",
   opportunities: "sales",
   leads: "sales",
   opportunityContacts: "sales",
@@ -1559,6 +1561,15 @@ const defaultBackend = {
       statusCode: "Active",
     },
   ],
+  pricingSettings: [
+    {
+      id: "pricing-settings-default",
+      fuelSurchargePercent: null,
+      fuelSurchargeUpdatedAt: "",
+      fuelSurchargeNote: "",
+      energySecurityFeePercent: 18,
+    },
+  ],
   productPriceLevels: [
     {
       id: "ppl-ust-standard",
@@ -2244,9 +2255,32 @@ async function loadBackend() {
   return data;
 }
 
+// Atomic write: a reader sees the old file or the new one, never a half-written one. Windows can
+// briefly refuse the rename while another process (a backup, an editor) has the file open, so retry.
 async function saveBackend(data) {
   await mkdir(dataDir, { recursive: true });
-  await writeFile(dataFile, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  const tempFile = `${dataFile}.tmp`;
+  await writeFile(tempFile, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(tempFile, dataFile);
+      return;
+    } catch (error) {
+      if (attempt >= 5 || !["EPERM", "EBUSY", "EACCES"].includes(error.code)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 40 * (attempt + 1)));
+    }
+  }
+}
+
+// Every API request reads the whole JSON file, may change it, and writes it back. Two overlapping
+// requests could read a half-written file (seen live 2026-09-23: "Expected double-quoted property
+// name" while a rate-sheet import ran during a save) or silently lose one request's change. One
+// API request at a time closes both; it costs little at prototype scale.
+let apiQueue = Promise.resolve();
+function serializeApi(task) {
+  const run = apiQueue.then(task, task);
+  apiQueue = run.catch(() => {});
+  return run;
 }
 
 function makeId(prefix) {
@@ -2315,6 +2349,7 @@ function filterBackendForRole(data, role) {
     priceLevels: canAccess(role, "salesDocuments") ? data.priceLevels : [],
     products: canAccess(role, "salesDocuments") ? data.products : [],
     productPriceLevels: canAccess(role, "salesDocuments") ? data.productPriceLevels : [],
+    pricingSettings: canAccess(role, "salesDocuments") ? data.pricingSettings : [],
     opportunities: canAccess(role, "sales") ? data.opportunities : [],
     leads: canAccess(role, "sales") ? data.leads : [],
     opportunityContacts: canAccess(role, "sales") ? data.opportunityContacts : [],
@@ -2426,6 +2461,8 @@ function normalizeRecord(collection, payload, data) {
       maintenanceDue: payload.maintenanceDue || now.slice(0, 10),
       lastUsed: payload.lastUsed || "",
       assignedProjectId: payload.assignedProjectId || payload.assignedJobId || "",
+      // Phase 08 — the rate-card line this asset bills as (many assets -> one product).
+      productId: payload.productId || "",
       issue: payload.issue || "",
       specs: payload.specs && typeof payload.specs === "object" ? payload.specs : {},
     };
@@ -2490,6 +2527,8 @@ function normalizeRecord(collection, payload, data) {
       targetStock: Number(payload.targetStock || 0),
       buyer: payload.buyer || "",
       barcode: payload.barcode || "",
+      // Phase 08 — the rate-card line this consumable bills as.
+      productId: payload.productId || "",
     };
   }
 
@@ -3097,7 +3136,7 @@ const server = createServer(async (request, response) => {
     let pathname = decodeURIComponent(requestUrl.pathname);
 
     if (pathname.startsWith("/api/")) {
-      await handleApi(request, response, pathname);
+      await serializeApi(() => handleApi(request, response, pathname));
       return;
     }
 

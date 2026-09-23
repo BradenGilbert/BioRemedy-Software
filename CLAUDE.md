@@ -39,7 +39,7 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 
 **Where data lives (updated 2026-09-22):**
 
-- **JSON backend** (`data/backend.json`, server, shared) — **everything.** ~85 collections. Phase 01 (2026-09-16) migrated every core CRM collection here from browser storage.
+- **JSON backend** (`data/backend.json`, server, shared) — **everything.** ~96 collections. Phase 01 (2026-09-16) migrated every core CRM collection here from browser storage.
 - **IndexedDB** — device-scoped state only: `syncQueue` and `settings`. Nothing else. If you find yourself writing a record to IndexedDB, you are doing something wrong.
 - **PostgreSQL** — designed (`crm-schema/`), never deployed. Phase 14, after the pilot.
 
@@ -61,7 +61,7 @@ These have already caused planning errors. Confirm before acting:
 
 **Verify before you trust a plan.** Plan documents here have been wrong at implementation time before — `projectStage` was assumed to be read by the stage ladder (it never was), and `crewMemberships` was assumed to be a live join table (it was frozen at 4 seed rows). Trace the actual code. When the plan turns out to be wrong, **fix the plan document**, in the `## Corrections found during implementation` section — don't leave the correction in chat.
 
-**Click-test UI work.** Playwright and Chromium **are** available in this environment despite not being on `PATH`. Don't reason about whether the UI works — drive it.
+**Click-test UI work.** Playwright and Chromium **are** available in this environment despite not being on `PATH`. Don't reason about whether the UI works — drive it. Test against a **scratch copy**, not the live data: run a second server with `PORT` and `CRM_DATA_DIR` pointing at a copied `backend.json` (command in `README.md`). The owner uses the live server while sessions run.
 
 **Keep docs in sync in the same session.** If you add or change a field or collection, update `docs/database-handoff-map.md` before the session ends. Not in chat, not in memory — in the doc.
 
