@@ -1,6 +1,6 @@
 # Phase 04 — Vendor & Subcontractor
 
-**Status:** 🟢 **Most items done, 2026-09-17 session.** Items 1, 2, 3 (core build), 6, 10, 11, and 13 (documentation) done and click-tested live. Item 4 partially done (header badge shipped; the filterable list view was not). Items 7, 8 (vocab only, not upload+review), 9 (vocab only, not upload+review), 12, 14 not started — mostly blocked on Phase 08 (rate cards) or Phase 13 (document storage) per this doc's own dependency notes. Item 5 not started — bigger than the doc originally implied, see its corrected section below.
+**Status:** 🟢 **Most items done.** Items 1, 2, 3, 6, 10, 11 and 13 (documentation) were done 2026-09-17. **2026-09-23:** item 4 is complete (the Office → Compliance list view joins the header badge); the customer-approval expiry alert was reconciled with Q23; item 7 (rate card structure and origin) is resolved by Phase 08 round two, since vendor compliance, service agreements and quotes all read the same imported rate sheets. **Unblocked, sprint Wave 4:** item 5 (dispatch-time approval check + vendor FK) and item 14 (subcontractor-assignment rate fields, now that rate sheets exist). **Blocked on Phase 13:** items 8, 9 and 12 (upload + review workflows).
 **Depends on:** Phase 02 (vendor dispatch/billing address types), Phase 03 (account type classification)
 **Soft dependency:** items 7, 13, and 14 (rate-card questions) need Phase 08's rate/pricing foundation to exist first — sequence those three after Phase 08, or expect to redo them. Items 1–6 and 8–12 do not depend on Phase 08 and can proceed independently.
 **Estimated sessions:** 2–3
@@ -89,6 +89,8 @@ Compliance and customer approvals both expire. Surface them:
 
 **🟡 Partially done 2026-09-17.** The account header badge shipped: `accountVendorExpiryWarning()` checks both this account's own vendor-insurance expiration and any `accountApprovedSubcontractors` approvals it grants, using a new shared `isExpiringOrExpired(dateString, withinDays = 30)` helper — shows "Compliance expired" (red) or "Compliance expiring soon" (amber) next to the existing Paused/Account-status badges. Verified live on a seed account with an already-expired insurance date. **Not done:** the filterable Sales/Office-workspace list view — that's a new list page, not a quick addition, and wasn't started this session.
 
+**✅ List view shipped 2026-09-23 (sprint Wave 2): Office → Compliance** (`renderOfficeCompliance()`). Every vendor profile's certificate of insurance is in one searchable, sortable table. Four clickable status cards (Expired / Expiring within 30 days / Current / No date on file) filter it. Alert rows carry the red dot, and the panel is outlined while anything is expired or expiring. An Open button goes straight to the account's Vendor & Subcontractor tab. Customer approvals are not listed (Q23: they don't expire). A profile whose status field still says "Valid" after its date has passed is **flagged in the row rather than rewritten**, since the office may be mid-renewal. On 2026-09-23 all three vendor profiles were in that state.
+
 ### 5. Close the known dispatch gap
 
 From `docs/erp-operational-architecture.md` and `docs/dataverse-relationship-architecture.md`:
@@ -113,7 +115,7 @@ Same class of bug as the Account/Contact owner-field problems in Phases 03/05/06
 
 > *"On Vendor compliance it asks for rate card and lists 2026 standard environmental services, we need to figure out where/how we want this created. I think it should be tied to items able to be listed on estimates and quote forms."*
 
-**Do not solve this independently of Phase 08 (Quotes & Estimates).** The owner's own instinct is correct — this rate card should be the same underlying rate/price data quote line items pull from (`priceLevels`/`products`), not a separately typed value. Phase 08's item 2 covers this from the quoting side; this item is the vendor-compliance-side half of the same fix.
+**✅ Resolved 2026-09-23 by Phase 08 round two.** The rate card is now BioRemedy's imported rate sheets (`priceLevels` = rate sheets, three tier prices per product on `productPriceLevels`). The vendor-compliance `defaultPriceLevelId` select lists them, which was verified live. **Do not solve this independently of Phase 08 (Quotes & Estimates).** The owner's own instinct is correct — this rate card should be the same underlying rate/price data quote line items pull from (`priceLevels`/`products`), not a separately typed value. Phase 08's item 2 covers this from the quoting side; this item is the vendor-compliance-side half of the same fix.
 
 ### 8. W-9 upload + review workflow
 

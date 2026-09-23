@@ -268,7 +268,7 @@
         <button class="mini-button" type="button" data-action="open-facility" data-account-id="">+ Add new facility</button>
         <label>
           Industry
-          <input name="industry" maxlength="60" placeholder="Manufacturing" />
+          <select name="industry"></select>
         </label>
         <label>
           Contamination
@@ -1118,7 +1118,7 @@
           </label>
           <label>
             Contact phone
-            <input name="generatorContactPhone" maxlength="30" />
+            <input name="generatorContactPhone" type="tel" maxlength="30" />
           </label>
         </div>
         <div class="form-grid">
@@ -1210,7 +1210,7 @@
         <div class="form-grid">
           <label>
             Phone
-            <input name="phone" maxlength="40" placeholder="(816) 555-0147" />
+            <input name="phone" type="tel" maxlength="40" placeholder="816-555-0147" />
           </label>
           <label>
             Email
@@ -1220,7 +1220,7 @@
         <div class="form-grid">
           <label>
             Fax
-            <input name="fax" maxlength="40" placeholder="(816) 555-0148" />
+            <input name="fax" type="tel" maxlength="40" placeholder="816-555-0148" />
           </label>
           <label>
             Parent account
@@ -1421,7 +1421,7 @@
           </label>
           <label>
             Phone
-            <input name="phone" maxlength="40" placeholder="(314) 555-0182" />
+            <input name="phone" type="tel" maxlength="40" placeholder="314-555-0182" />
           </label>
         </div>
         <div class="form-grid">
@@ -1503,16 +1503,16 @@
         <div class="form-grid">
           <label>
             Business phone
-            <input name="businessPhone" maxlength="40" placeholder="(314) 555-0182" />
+            <input name="businessPhone" type="tel" maxlength="40" placeholder="314-555-0182" />
           </label>
           <label>
             Mobile phone
-            <input name="mobilePhone" maxlength="40" />
+            <input name="mobilePhone" type="tel" maxlength="40" />
           </label>
         </div>
         <label>
           Fax
-          <input name="fax" maxlength="40" />
+          <input name="fax" type="tel" maxlength="40" />
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
@@ -1713,17 +1713,17 @@
         <div class="form-grid">
           <label>
             Phone
-            <input name="addressOneTelephoneOne" maxlength="40" />
+            <input name="addressOneTelephoneOne" type="tel" maxlength="40" />
           </label>
           <label>
             Telephone two
-            <input name="addressOneTelephoneTwo" maxlength="40" />
+            <input name="addressOneTelephoneTwo" type="tel" maxlength="40" />
           </label>
         </div>
         <div class="form-grid">
           <label>
             Telephone three
-            <input name="addressOneTelephoneThree" maxlength="40" />
+            <input name="addressOneTelephoneThree" type="tel" maxlength="40" />
           </label>
           <label>
             UPS zone
@@ -1795,21 +1795,21 @@
         <div class="form-grid">
           <label>
             Telephone one
-            <input name="addressTwoTelephoneOne" maxlength="40" />
+            <input name="addressTwoTelephoneOne" type="tel" maxlength="40" />
           </label>
           <label>
             Telephone two
-            <input name="addressTwoTelephoneTwo" maxlength="40" />
+            <input name="addressTwoTelephoneTwo" type="tel" maxlength="40" />
           </label>
         </div>
         <div class="form-grid">
           <label>
             Telephone three
-            <input name="addressTwoTelephoneThree" maxlength="40" />
+            <input name="addressTwoTelephoneThree" type="tel" maxlength="40" />
           </label>
           <label>
             Fax
-            <input name="addressTwoFax" maxlength="40" />
+            <input name="addressTwoFax" type="tel" maxlength="40" />
           </label>
         </div>
         <menu class="modal-actions">
@@ -2660,7 +2660,7 @@
           </label>
           <label>
             Phone number
-            <input name="phoneNumber" maxlength="40" placeholder="(816) 555-0147" />
+            <input name="phoneNumber" type="tel" maxlength="40" placeholder="816-555-0147" />
           </label>
         </div>
         <div class="form-grid">
@@ -3250,7 +3250,7 @@
             </label>
             <label>
               Callback number
-              <input name="callerPhone" required maxlength="40" />
+              <input name="callerPhone" type="tel" required maxlength="40" />
             </label>
           </div>
           <label>
@@ -3993,7 +3993,7 @@
           </label>
           <label>
             Phone
-            <input name="phone" maxlength="40" />
+            <input name="phone" type="tel" maxlength="40" />
           </label>
         </div>
         <div class="form-grid">
@@ -4836,7 +4836,7 @@
         <div class="form-grid">
           <label>
             Phone
-            <input name="phone" maxlength="40" />
+            <input name="phone" type="tel" maxlength="40" />
           </label>
           <label>
             Badge
@@ -4868,6 +4868,21 @@
         <label>
           Access notes
           <textarea name="access" maxlength="300" placeholder="Badge access and escort required"></textarea>
+        </label>
+        <div class="form-grid">
+          <label>
+            Environmental risk
+            <select name="environmentalRisk">
+              <option value="">Not assessed</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Risk notes
+          <textarea name="environmentalRiskNotes" maxlength="300" placeholder="e.g. storm drain 20 ft downgradient; shallow groundwater"></textarea>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>

@@ -49,7 +49,7 @@ yet have a deployed production relational database.
 |---|---|
 | PostgreSQL design | 28 ordered SQL files defining **141 tables** and **27 views** |
 | Laravel conversion | Only the first **12 tables** have Laravel migrations, models, and basic Filament resources |
-| Running prototype server | Node server using `data/backend.json` with **96 collections** (recounted directly from `server.mjs`'s `collectionAccess` map, September 23, 2026, after Phase 08 round two added `pricingSettings`; the September 17 count of 88 and this section's "86" header had both drifted) |
+| Running prototype server | Node server using `data/backend.json` with **97 collections** (recounted directly from `server.mjs`'s `collectionAccess` map, September 23, 2026: 96 after Phase 08 round two added `pricingSettings`, then 97 with Phase 10's `jobExpenses`; the September 17 count of 88 and this section's "86" header had both drifted) |
 | Browser CRM storage | IndexedDB with **2 object stores** (`syncQueue`, `settings`) -- every core CRM collection moved to the shared JSON backend in Phase 01 (complete September 16, 2026); IndexedDB is now genuinely just the local cache/outbox |
 | Uploaded files | Local filesystem under `data/uploads`; metadata is in the JSON backend |
 | Front Line | Database and sync schema defined; no standalone iOS/Android app built (that decision is explicitly deferred -- see `docs/roadmap/phase-10-frontline.md`). A web-hosted phone-frame simulator exists inside the CRM web app (`app.js`, `renderFrontline*` functions, reachable from the CRM home screen) — fake login (field-lead picker, no real auth), a 3x3 tile launcher, and **eight real tiles** (all of Phase 10) that read/write the shared JSON backend through the same `/api/backend` endpoints the desktop uses: Job Book (work plan / typed task capture against `dispatchJobs`/`jobSteps`/`jobActions`/`jobFormSubmissions`, including a repeatable "+ Activity" ad hoc path and an `"Odometer"` task type), Time Sheet (clock-in/out against `timeEntries`), Trips (mileage against `jobMileageEntries`), Settings (real session/employee/device/connection state plus a persisted notification-preferences setting), Forms (a small standalone form catalog against `jobFormSubmissions`), Messaging (new `messages` collection, threaded by job or general), Location (the `locations` GPS collection plus a Leaflet satellite map, reused from the Facility detail page), and Invoices (read-only, reusing Phase 09's finance rows). It validates the data model and UX end-to-end but is not the real mobile app. |
@@ -525,6 +525,16 @@ writeup.
   derived from item names (`prod-rs-*`, `ppl-rs-*` / `ppl-s5-*`). A re-run updates prices in place
   and keeps admin edits to product flags.
 
+**Sprint Wave 2 (2026-09-23):**
+- **New collection `jobExpenses`** (Phase 10 receipts; gated `dispatch`, readable by operations and finance): `dispatchJobId`, `projectId`, `employeeId`, `incurredOn`, `amount`, `vendor`, `category`, `paymentMethod`, `reimbursable`, `billable`, `note`, `status`, `receiptAttachmentId`, `submittedAt`.
+- The receipt file is a `jobTaskAttachments` row with `kind: "receipt"` and a new `expenseId` (`actionId` empty), uploaded via `POST /api/job-expenses/:id/receipt`.
+- `projects.closeReport.costs` gained `expenses: { items, total }`.
+- **`facilities`** gained `environmentalRisk` (Low / Medium / High, blank = not assessed) and `environmentalRiskNotes` (Phase 03 Q55). `accounts.risk` is now only a fallback for accounts whose sites are all unassessed.
+- **`industries`** gained `naicsCode`. Three rows were added (`industry-environmental`, `industry-utilities-infrastructure`, `industry-education`) and `industry-municipal-government` was renamed "Municipal / Government / DOT", in both the `server.mjs` seed and the live data (upserted via the API).
+- `accountIndustries` is the authoritative account industry; `accounts.industry` is dead (0 rows populated).
+- `opportunities.industry` still stores an industry *name*, now picked from the curated list.
+- No schema change for phone numbers: they're stored formatted (`555-123-4567`, `1-555-123-4567 x204`), and old rows are formatted at display time.
+
 Also in this session: `server.mjs` now serializes API requests and writes `backend.json`
 atomically (temp file + rename), after a live concurrent-save collision. See
 `docs/roadmap/phase-08-quotes-estimates.md`, "Rate-card rework: design" and its 2026-09-23
@@ -601,7 +611,7 @@ gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
 was retired the same way, same day: removed from `server.mjs` entirely and
 deleted from `data/backend.json`.
 
-### Node JSON Backend - 96 collections
+### Node JSON Backend - 97 collections
 
 > The count was previously documented as 72, then 76, then 82, then 83, then 84.
 > Recounted directly from both `data/backend.json`'s top-level keys and

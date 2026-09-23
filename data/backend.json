@@ -3325,7 +3325,130 @@
       "claimNumber": "",
       "serviceProfile": "",
       "createdAt": "2026-09-23T17:19:46.960Z",
-      "updatedAt": "2026-09-23T17:42:52.467Z"
+      "updatedAt": "2026-09-23T19:09:00.146Z",
+      "closedAt": "2026-09-23T19:05:25.733Z",
+      "closeReport": {
+        "priceLevelId": "price-standard-2026",
+        "costs": {
+          "materials": {
+            "unitCost": 42,
+            "rateSource": "rate-card",
+            "items": [
+              {
+                "id": "job-resource-muegjne5-bkkbl0",
+                "materialType": "absorbent test",
+                "quantity": 1,
+                "unit": "unit",
+                "unitCost": 42,
+                "lineCost": 42,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-muegjne5-usqguq",
+                "materialType": "test",
+                "quantity": 0.1,
+                "unit": "unit",
+                "unitCost": 42,
+                "lineCost": 4.2,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-muegjne5-02kjgq",
+                "materialType": "steel drum",
+                "quantity": 3,
+                "unit": "unit",
+                "unitCost": 42,
+                "lineCost": 126,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-muegxvab-wp6uhe",
+                "materialType": "PPE kits",
+                "quantity": 34,
+                "unit": "kits",
+                "unitCost": 42,
+                "lineCost": 1428,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-muegxvab-g7cceg",
+                "materialType": "Flaming underwear",
+                "quantity": 2,
+                "unit": "unit",
+                "unitCost": 42,
+                "lineCost": 84,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "job-resource-muegys8c-obr3mg",
+                "materialType": "Sampling containers",
+                "quantity": 2,
+                "unit": "jars",
+                "unitCost": 42,
+                "lineCost": 84,
+                "source": "field-dispatch"
+              }
+            ],
+            "total": 1768.2
+          },
+          "equipment": {
+            "unitCost": 650,
+            "rateSource": "rate-card",
+            "items": [
+              {
+                "id": "resource-muedip6f-aucij3",
+                "assetTag": "TRK-18",
+                "equipment": "Response truck",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-muefgdiz-t61w3l",
+                "assetTag": "VAC TRAILER - 204",
+                "equipment": "Vacuum trailer",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-muefggax-5brdyy",
+                "assetTag": "PMP-077",
+                "equipment": "Transfer pump",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              },
+              {
+                "id": "resource-muefgj8n-6t93nv",
+                "assetTag": "AIR-112",
+                "equipment": "Negative air machine",
+                "unitCost": 650,
+                "lineCost": 650,
+                "source": "field-dispatch"
+              }
+            ],
+            "total": 2600
+          },
+          "labor": {
+            "unitCost": 95,
+            "rateSource": "rate-card",
+            "hours": 0,
+            "entries": [],
+            "total": 0
+          },
+          "total": 4368.2
+        },
+        "revenue": {
+          "quoted": 1967,
+          "quotedSource": "quote",
+          "invoiced": null
+        },
+        "margin": -2401.2,
+        "marginPercent": -122.07422470767666,
+        "generatedAt": "2026-09-23T19:05:25.733Z",
+        "regeneratedAt": "2026-09-23T19:09:00.073Z"
+      }
     }
   ],
   "tasks": [
@@ -4174,6 +4297,40 @@
       "completedAt": "",
       "priority": "",
       "updatedAt": "2026-09-23T16:42:27.517Z"
+    },
+    {
+      "id": "act-muegc1ph-pvvqf5",
+      "createdAt": "2026-09-23T18:44:02.597Z",
+      "owner": "Olivia Grant",
+      "accountId": "acct-riverbend",
+      "contactIds": [
+        "cont-marcus-hill"
+      ],
+      "opportunityId": "opp-riverbend-ust",
+      "activityType": "Meeting",
+      "subject": "Site walk — UST removal and soil remediation",
+      "body": "test",
+      "direction": "Internal",
+      "channel": "In person",
+      "activityDate": "2026-09-23",
+      "meetingTime": "14:43",
+      "meetingFormat": "Offline",
+      "meetingPlatform": "",
+      "meetingLink": "",
+      "meetingLocation": "tes",
+      "status": "Scheduled",
+      "tags": [
+        "Site Visit"
+      ],
+      "contactId": "cont-marcus-hill",
+      "kind": "Meeting",
+      "description": "test",
+      "dueDate": "",
+      "author": "Olivia Grant",
+      "createdBy": "Olivia Grant",
+      "completedAt": "",
+      "priority": "",
+      "updatedAt": "2026-09-23T18:44:02.669Z"
     }
   ],
   "projectAssignments": [
@@ -4291,6 +4448,46 @@
       "createdAt": "2026-09-17T22:46:20.340Z",
       "updatedAt": "2026-09-18T00:58:34.511Z",
       "resolvedAt": "2026-09-18T00:58:34.505Z",
+      "resolvedBy": "Olivia Grant"
+    },
+    {
+      "id": "alert-muegrf9r-k6ghv3",
+      "projectId": "proj-muedbopd-kmyuz8",
+      "accountId": "acct-mueb5kgm-32xzk6",
+      "facilityId": "loc-mueb81uc-k4eroc",
+      "alertType": "Safety Hazard",
+      "severity": "High",
+      "description": "Zeke taste metal and the rocks look hot!",
+      "reportedBy": "Olivia Grant",
+      "reportedAt": "2026-09-23T18:56:00.015Z",
+      "status": "Resolved",
+      "notified": [
+        "Project Manager",
+        "Sales Lead"
+      ],
+      "createdAt": "2026-09-23T18:56:00.277Z",
+      "updatedAt": "2026-09-23T19:02:57.363Z",
+      "resolvedAt": "2026-09-23T19:02:57.286Z",
+      "resolvedBy": "Olivia Grant"
+    },
+    {
+      "id": "alert-mueh2fcj-s4k9qq",
+      "projectId": "proj-muedbopd-kmyuz8",
+      "accountId": "acct-mueb5kgm-32xzk6",
+      "facilityId": "loc-mueb81uc-k4eroc",
+      "alertType": "Regulatory Concern",
+      "severity": "Low",
+      "description": "this stuff is HOT",
+      "reportedBy": "Olivia Grant",
+      "reportedAt": "2026-09-23T19:04:33.331Z",
+      "status": "Resolved",
+      "notified": [
+        "Project Manager",
+        "Sales Lead"
+      ],
+      "createdAt": "2026-09-23T19:04:33.571Z",
+      "updatedAt": "2026-09-23T19:05:00.097Z",
+      "resolvedAt": "2026-09-23T19:05:00.017Z",
       "resolvedBy": "Olivia Grant"
     }
   ],
@@ -4641,6 +4838,24 @@
       "retainUntil": "2028-09-22",
       "retentionReason": "Emergency response record retention",
       "reportedByEmployeeId": ""
+    },
+    {
+      "id": "location-mueglwy0-hlu13d",
+      "projectId": "proj-muedbopd-kmyuz8",
+      "scheduleEventId": "",
+      "label": "Field check-in",
+      "latitude": 30.66089427657082,
+      "longitude": -97.68304881495438,
+      "assetTags": [],
+      "status": "Field ping",
+      "lastPingAt": "2026-09-23T18:51:42.984Z",
+      "source": "Manual",
+      "locationType": "",
+      "linearReference": "",
+      "isTemporary": false,
+      "retainUntil": "",
+      "retentionReason": "",
+      "reportedByEmployeeId": "emp-mu6e7iib-4oz5uk"
     }
   ],
   "inventoryItems": [
@@ -4652,13 +4867,14 @@
       "reorderAt": 30,
       "targetStock": 80,
       "buyer": "Operations buyer",
-      "barcode": "8412007723019"
+      "barcode": "8412007723019",
+      "productId": "prod-rs-floor-dry-stay-dry-clay-absorbent-40-lb-bag"
     },
     {
       "id": "inv-sampling-jars",
       "materialType": "Sampling containers",
       "unit": "jars",
-      "onHand": 76,
+      "onHand": 74,
       "reorderAt": 36,
       "targetStock": 120,
       "buyer": "Operations buyer"
@@ -4667,10 +4883,12 @@
       "id": "inv-ppe-kits",
       "materialType": "PPE kits",
       "unit": "kits",
-      "onHand": 31,
+      "onHand": -3,
       "reorderAt": 18,
       "targetStock": 50,
-      "buyer": "Safety buyer"
+      "buyer": "Safety buyer",
+      "barcode": "",
+      "productId": "prod-rs-level-d-ppe-package-hard-hat-safety-glasses-and-safety-vest"
     },
     {
       "id": "inv-disposal-drums",
@@ -4679,16 +4897,20 @@
       "onHand": 28,
       "reorderAt": 12,
       "targetStock": 35,
-      "buyer": "Operations buyer"
+      "buyer": "Operations buyer",
+      "barcode": "",
+      "productId": "prod-rs-55-gal-open-top-steel-drum"
     },
     {
       "id": "inventory-items-mrbaue1b-x2619v",
       "materialType": "Flaming underwear",
       "unit": "unit",
-      "onHand": 16,
+      "onHand": 14,
       "reorderAt": 10,
       "targetStock": 50,
-      "buyer": "Operations Buyer"
+      "buyer": "Operations Buyer",
+      "barcode": "",
+      "productId": "prod-rs-acid-corrosive-slicker-suit"
     }
   ],
   "purchaseOrders": [
@@ -4815,11 +5037,14 @@
       "id": "asset-vac-204",
       "assetTag": "VAC TRAILER - 204",
       "equipment": "Vacuum trailer",
+      "category": "General equipment",
       "status": "In service",
       "maintenanceDue": "2026-07-18",
       "lastUsed": "2026-07-03",
+      "assignedProjectId": "",
+      "productId": "prod-rs-vactron",
       "issue": "",
-      "assignedProjectId": ""
+      "specs": {}
     },
     {
       "id": "asset-pmp-077",
@@ -4830,6 +5055,7 @@
       "maintenanceDue": "2026-08-04",
       "lastUsed": "2026-07-02",
       "assignedProjectId": "job-riverbend-ust",
+      "productId": "prod-rs-dura-transfer-pump",
       "issue": "",
       "specs": {}
     },
@@ -4841,12 +5067,13 @@
       "status": "Ready",
       "maintenanceDue": "2026-10-26",
       "lastUsed": "2026-07-03",
+      "assignedProjectId": "",
+      "productId": "prod-rs-3-4-ton-or-1-ton-pick-up-truck",
       "issue": "",
       "specs": {
         "vin": "1FT7X2B69JEA14207",
         "mileage": "58,410"
-      },
-      "assignedProjectId": ""
+      }
     },
     {
       "id": "asset-air-112",
@@ -4857,6 +5084,7 @@
       "maintenanceDue": "2026-07-30",
       "lastUsed": "2026-06-27",
       "assignedProjectId": "job-clearwater-abatement",
+      "productId": "prod-rs-shop-vac",
       "issue": "",
       "specs": {}
     },
@@ -4868,6 +5096,8 @@
       "status": "Ready",
       "maintenanceDue": "2026-11-14",
       "lastUsed": "2026-01-01",
+      "assignedProjectId": "",
+      "productId": "prod-rs-pick-up-truck-1-2-or-smaller",
       "issue": "",
       "specs": {
         "vin": "1vin123456789",
@@ -4876,8 +5106,7 @@
         "fuelType": "Gas",
         "insurancePolicy": "123412341234",
         "registrationExpires": "2027-12-01"
-      },
-      "assignedProjectId": ""
+      }
     }
   ],
   "equipmentMaintenanceRecords": [
@@ -5357,20 +5586,20 @@
       "primaryEmail": "luis.romero@example.com",
       "mobilePhone": "",
       "managerEmployeeId": "",
-      "businessUnit": "BioRemedy Sales and Operations",
+      "businessUnit": "Central Texas Operations",
       "teamId": "",
       "crewId": "",
-      "homeBase": "",
-      "availabilitySummary": "",
+      "homeBase": "moon",
+      "availabilitySummary": "Standard calendar not assigned",
       "hoursWorked": 0,
-      "capacity": 0,
+      "capacity": 40,
       "dispatchEligible": false,
       "frontlineEnabled": false,
       "readinessStatus": "Office",
       "hireDate": "2022-03-01",
       "skills": [],
       "createdAt": "2026-09-16T00:00:00.000Z",
-      "updatedAt": "2026-09-16T00:00:00.000Z"
+      "updatedAt": "2026-09-23T18:21:13.582Z"
     },
     {
       "id": "emp-mu6e7iib-4oz5uk",
@@ -6110,6 +6339,19 @@
       "source": "frontline-timesheet",
       "createdAt": "2026-09-22T23:25:31.442Z",
       "updatedAt": "2026-09-22T23:26:05.848Z"
+    },
+    {
+      "id": "time-entry-muegl6bx-lwmznv",
+      "employeeId": "emp-mu6e7iib-4oz5uk",
+      "dispatchJobId": "dispatch-job-mueexr7l-fanmqu",
+      "entryType": "work",
+      "startedAt": "2026-09-23T18:51:08.493Z",
+      "endedAt": "2026-09-23T19:02:37.926Z",
+      "durationMinutes": 11,
+      "notes": "",
+      "source": "frontline-timesheet",
+      "createdAt": "2026-09-23T18:51:08.714Z",
+      "updatedAt": "2026-09-23T19:02:37.986Z"
     }
   ],
   "jobMileageEntries": [
@@ -6190,6 +6432,19 @@
       "notes": "lab drop off — we drove 6 miles hahahaha",
       "createdAt": "2026-09-23T17:42:02.588Z",
       "updatedAt": "2026-09-23T17:42:02.588Z"
+    },
+    {
+      "id": "mileage-muegocql-cugb0j",
+      "employeeId": "emp-mu6e7iib-4oz5uk",
+      "dispatchJobId": "dispatch-job-mueexr7l-fanmqu",
+      "mileageType": "other",
+      "beginningOdometer": 4200,
+      "endingOdometer": 4300,
+      "calculatedDistance": 100,
+      "capturedAt": "2026-09-23T18:53:36.765Z",
+      "notes": "drove in circles due to Plumbus juice chasing me",
+      "createdAt": "2026-09-23T18:53:37.045Z",
+      "updatedAt": "2026-09-23T18:53:37.045Z"
     }
   ],
   "messages": [
@@ -6250,9 +6505,53 @@
       "readAt": null,
       "createdAt": "2026-09-22T23:26:36.219Z",
       "updatedAt": "2026-09-22T23:26:36.219Z"
+    },
+    {
+      "id": "message-mueglkfq-31y7ks",
+      "threadKey": "general",
+      "dispatchJobId": "",
+      "senderId": "emp-mu6e7iib-4oz5uk",
+      "senderName": "Zeke bowser",
+      "senderRole": "field",
+      "recipientId": "office",
+      "recipientName": "Dispatch",
+      "body": "test test",
+      "sentAt": "2026-09-23T18:51:26.774Z",
+      "readAt": null,
+      "createdAt": "2026-09-23T18:51:26.856Z",
+      "updatedAt": "2026-09-23T18:51:26.856Z"
+    },
+    {
+      "id": "message-muegloxm-kld43b",
+      "threadKey": "dispatch-job-mueexr7l-fanmqu",
+      "dispatchJobId": "dispatch-job-mueexr7l-fanmqu",
+      "senderId": "emp-mu6e7iib-4oz5uk",
+      "senderName": "Zeke bowser",
+      "senderRole": "field",
+      "recipientId": "office",
+      "recipientName": "Dispatch (JOB-2026-0923-50)",
+      "body": "its broken",
+      "sentAt": "2026-09-23T18:51:32.602Z",
+      "readAt": null,
+      "createdAt": "2026-09-23T18:51:32.677Z",
+      "updatedAt": "2026-09-23T18:51:32.677Z"
     }
   ],
-  "inventoryAlerts": [],
+  "inventoryAlerts": [
+    {
+      "id": "inventory-alert-muegxvab-nvfwwr",
+      "inventoryItemId": "inv-ppe-kits",
+      "materialType": "PPE kits",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexvtf-97xutk",
+      "requestedQuantity": 34,
+      "onHandAtRequest": 31,
+      "resultingBalance": -3,
+      "requestedBy": "Zeke bowser",
+      "status": "Open",
+      "createdAt": "2026-09-23T19:01:00.707Z"
+    }
+  ],
   "jobRequests": [
     {
       "id": "req-georgetown-072426",
@@ -9149,9 +9448,9 @@
       "jobType": "Remediation Field Work",
       "jobTypeCode": "REMED",
       "jobTypeVersion": 1,
-      "status": "draft",
-      "dispatchStatus": "Unassigned",
-      "officeReviewStatus": "Not ready",
+      "status": "closed",
+      "dispatchStatus": "Closed",
+      "officeReviewStatus": "Closed",
       "priority": "High",
       "requestedServiceAt": "2026-09-23T18:01:00.000Z",
       "scheduledStart": "2026-09-23T18:01:00.000Z",
@@ -9171,8 +9470,8 @@
       "laborNotes": "your mom",
       "vendorNotes": "Balfour",
       "readinessStatus": "Blocked",
-      "completionPercent": 0,
-      "updatedAt": "2026-09-23T18:04:56.493Z",
+      "completionPercent": 100,
+      "updatedAt": "2026-09-23T19:02:33.152Z",
       "createdAt": "2026-09-23T18:04:56.493Z"
     }
   ],
@@ -9858,6 +10157,36 @@
       "plannedEnd": "2026-09-23T18:20:00.000Z",
       "createdAt": "2026-09-23T17:25:08.997Z",
       "updatedAt": "2026-09-23T17:27:54.416Z"
+    },
+    {
+      "id": "assignment-mueffc5l-bvszmb",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "employeeId": "emp-mu6e7iib-4oz5uk",
+      "crewId": "",
+      "role": "mooo",
+      "isFieldLead": false,
+      "status": "Assigned",
+      "eligibilityStatus": "Eligible",
+      "eligibilityNote": "",
+      "plannedStart": "2026-09-23T18:18:36.489Z",
+      "plannedEnd": "",
+      "createdAt": "2026-09-23T18:18:36.723Z",
+      "updatedAt": "2026-09-23T18:18:36.723Z"
+    },
+    {
+      "id": "assignment-muefg9tj-2f03rn",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "employeeId": "emp-renee",
+      "crewId": "",
+      "role": "no clue",
+      "isFieldLead": false,
+      "status": "Assigned",
+      "eligibilityStatus": "Eligible",
+      "eligibilityNote": "",
+      "plannedStart": "2026-09-23T18:19:20.119Z",
+      "plannedEnd": "",
+      "createdAt": "2026-09-23T18:19:20.223Z",
+      "updatedAt": "2026-09-23T18:19:20.223Z"
     }
   ],
   "jobScheduleSegments": [
@@ -10882,6 +11211,158 @@
       "status": "Reserved",
       "createdAt": "2026-09-23T17:25:33.471Z",
       "updatedAt": "2026-09-23T17:25:33.471Z"
+    },
+    {
+      "id": "resource-muefgdiz-t61w3l",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "type": "Equipment",
+      "name": "Vacuum trailer",
+      "assetTag": "VAC TRAILER - 204",
+      "inventoryItemId": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Reserved",
+      "createdAt": "2026-09-23T18:19:24.969Z",
+      "updatedAt": "2026-09-23T18:19:24.969Z"
+    },
+    {
+      "id": "resource-muefggax-5brdyy",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "type": "Equipment",
+      "name": "Transfer pump",
+      "assetTag": "PMP-077",
+      "inventoryItemId": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Reserved",
+      "createdAt": "2026-09-23T18:19:28.588Z",
+      "updatedAt": "2026-09-23T18:19:28.588Z"
+    },
+    {
+      "id": "resource-muefgj8n-6t93nv",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "type": "Equipment",
+      "name": "Negative air machine",
+      "assetTag": "AIR-112",
+      "inventoryItemId": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Reserved",
+      "createdAt": "2026-09-23T18:19:32.387Z",
+      "updatedAt": "2026-09-23T18:19:32.387Z"
+    },
+    {
+      "id": "resource-muefgmwt-gko0mp",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "type": "Material",
+      "name": "PPE kits",
+      "assetTag": "",
+      "inventoryItemId": "inv-ppe-kits",
+      "quantity": 3,
+      "unit": "kits",
+      "status": "Reserved",
+      "createdAt": "2026-09-23T18:19:37.155Z",
+      "updatedAt": "2026-09-23T18:19:37.155Z"
+    },
+    {
+      "id": "resource-muefgrzi-59oj1c",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "type": "Material",
+      "name": "Disposal drums",
+      "assetTag": "",
+      "inventoryItemId": "inv-disposal-drums",
+      "quantity": 7,
+      "unit": "drums",
+      "status": "Reserved",
+      "createdAt": "2026-09-23T18:19:43.850Z",
+      "updatedAt": "2026-09-23T18:19:43.850Z"
+    },
+    {
+      "id": "job-resource-muegjne5-bkkbl0",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueextf1-seavgq",
+      "inventoryItemId": "",
+      "type": "Material",
+      "name": "absorbent test",
+      "assetTag": "",
+      "quantity": 1,
+      "unit": "unit",
+      "status": "Consumed",
+      "writeIn": true,
+      "consumedAt": "2026-09-23T18:49:57.293Z",
+      "consumedBy": "Zeke bowser"
+    },
+    {
+      "id": "job-resource-muegjne5-usqguq",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueextf1-seavgq",
+      "inventoryItemId": "",
+      "type": "Material",
+      "name": "test",
+      "assetTag": "",
+      "quantity": 0.1,
+      "unit": "unit",
+      "status": "Consumed",
+      "writeIn": true,
+      "consumedAt": "2026-09-23T18:49:57.293Z",
+      "consumedBy": "Zeke bowser"
+    },
+    {
+      "id": "job-resource-muegjne5-02kjgq",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueextf1-seavgq",
+      "inventoryItemId": "",
+      "type": "Material",
+      "name": "steel drum",
+      "assetTag": "",
+      "quantity": 3,
+      "unit": "unit",
+      "status": "Consumed",
+      "writeIn": true,
+      "consumedAt": "2026-09-23T18:49:57.293Z",
+      "consumedBy": "Zeke bowser"
+    },
+    {
+      "id": "job-resource-muegxvab-wp6uhe",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexvtf-97xutk",
+      "inventoryItemId": "inv-ppe-kits",
+      "type": "Material",
+      "name": "PPE kits",
+      "assetTag": "",
+      "quantity": 34,
+      "unit": "kits",
+      "status": "Consumed",
+      "consumedAt": "2026-09-23T19:01:00.707Z",
+      "consumedBy": "Zeke bowser"
+    },
+    {
+      "id": "job-resource-muegxvab-g7cceg",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexvtf-97xutk",
+      "inventoryItemId": "inventory-items-mrbaue1b-x2619v",
+      "type": "Material",
+      "name": "Flaming underwear",
+      "assetTag": "",
+      "quantity": 2,
+      "unit": "unit",
+      "status": "Consumed",
+      "consumedAt": "2026-09-23T19:01:00.707Z",
+      "consumedBy": "Zeke bowser"
+    },
+    {
+      "id": "job-resource-muegys8c-obr3mg",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexwfy-01r8xz",
+      "inventoryItemId": "inv-sampling-jars",
+      "type": "Material",
+      "name": "Sampling containers",
+      "assetTag": "",
+      "quantity": 2,
+      "unit": "jars",
+      "status": "Consumed",
+      "consumedAt": "2026-09-23T19:01:43.404Z",
+      "consumedBy": "Zeke bowser"
     }
   ],
   "jobConflicts": [
@@ -12725,10 +13206,10 @@
       "key": "mobilize",
       "name": "Mobilize",
       "sequence": 1,
-      "status": "Available",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-09-23T18:04:57.353Z",
-      "updatedAt": "2026-09-23T18:04:57.353Z"
+      "updatedAt": "2026-09-23T19:00:20.501Z"
     },
     {
       "id": "step-mueexul1-wt6jg0",
@@ -12736,10 +13217,10 @@
       "key": "site_setup",
       "name": "Site Setup",
       "sequence": 2,
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-09-23T18:05:00.622Z",
-      "updatedAt": "2026-09-23T18:05:00.622Z"
+      "updatedAt": "2026-09-23T19:00:40.539Z"
     },
     {
       "id": "step-mueexvke-v68wn1",
@@ -12747,10 +13228,10 @@
       "key": "perform_work",
       "name": "Perform Work",
       "sequence": 3,
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-09-23T18:05:01.882Z",
-      "updatedAt": "2026-09-23T18:05:01.882Z"
+      "updatedAt": "2026-09-23T19:01:43.755Z"
     },
     {
       "id": "step-mueexwpe-8nrglb",
@@ -12758,10 +13239,10 @@
       "key": "document",
       "name": "Document Work",
       "sequence": 4,
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-09-23T18:05:03.373Z",
-      "updatedAt": "2026-09-23T18:05:03.373Z"
+      "updatedAt": "2026-09-23T19:01:59.015Z"
     },
     {
       "id": "step-mueexx97-45sjyv",
@@ -12769,10 +13250,10 @@
       "key": "closeout",
       "name": "Field Closeout",
       "sequence": 5,
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-09-23T18:05:04.093Z",
-      "updatedAt": "2026-09-23T18:05:04.093Z"
+      "updatedAt": "2026-09-23T19:02:25.371Z"
     }
   ],
   "jobActions": [
@@ -18084,13 +18565,13 @@
       "name": "Acknowledge dispatch",
       "sequence": 1,
       "type": "Status transition",
-      "status": "Available",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "All assigned workers",
       "formName": "",
       "config": {},
       "createdAt": "2026-09-23T18:04:57.939Z",
-      "updatedAt": "2026-09-23T18:04:57.939Z"
+      "updatedAt": "2026-09-23T18:45:39.295Z"
     },
     {
       "id": "action-mueexsu4-8g7rm1",
@@ -18100,7 +18581,7 @@
       "name": "Capture travel and truck time",
       "sequence": 2,
       "type": "Timer",
-      "status": "Blocked",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Each worker",
       "formName": "Capture travel and truck time",
@@ -18108,7 +18589,7 @@
         "anchor": "en_route"
       },
       "createdAt": "2026-09-23T18:04:58.345Z",
-      "updatedAt": "2026-09-23T18:04:58.345Z"
+      "updatedAt": "2026-09-23T18:47:00.685Z"
     },
     {
       "id": "action-mueext41-c2liuh",
@@ -18118,13 +18599,13 @@
       "name": "Arrive and verify site contact",
       "sequence": 3,
       "type": "Form",
-      "status": "Blocked",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Arrive and verify site contact",
       "config": {},
       "createdAt": "2026-09-23T18:04:58.750Z",
-      "updatedAt": "2026-09-23T18:04:58.750Z"
+      "updatedAt": "2026-09-23T18:47:05.686Z"
     },
     {
       "id": "action-mueextf1-seavgq",
@@ -18134,7 +18615,7 @@
       "name": "test martials edit",
       "sequence": 4,
       "type": "Material",
-      "status": "Blocked",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "test martials edit",
@@ -18142,7 +18623,7 @@
         "suggestedItemIds": []
       },
       "createdAt": "2026-09-23T18:04:59.117Z",
-      "updatedAt": "2026-09-23T18:04:59.117Z"
+      "updatedAt": "2026-09-23T18:49:57.478Z"
     },
     {
       "id": "action-mueextow-cj25gk",
@@ -18152,7 +18633,7 @@
       "name": "test sig",
       "sequence": 5,
       "type": "Signature",
-      "status": "Blocked",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "test sig",
@@ -18160,7 +18641,7 @@
         "signerRole": "Customer"
       },
       "createdAt": "2026-09-23T18:04:59.471Z",
-      "updatedAt": "2026-09-23T18:04:59.471Z"
+      "updatedAt": "2026-09-23T18:50:11.383Z"
     },
     {
       "id": "action-mueextzm-7cmuyf",
@@ -18170,7 +18651,7 @@
       "name": "test photo",
       "sequence": 6,
       "type": "Photo",
-      "status": "Blocked",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "test photo",
@@ -18178,7 +18659,7 @@
         "minPhotos": 1
       },
       "createdAt": "2026-09-23T18:04:59.856Z",
-      "updatedAt": "2026-09-23T18:04:59.856Z"
+      "updatedAt": "2026-09-23T18:50:34.360Z"
     },
     {
       "id": "action-mueexu9l-i7k3q2",
@@ -18188,7 +18669,7 @@
       "name": "test sample",
       "sequence": 7,
       "type": "Sample",
-      "status": "Blocked",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "test sample",
@@ -18198,7 +18679,7 @@
         "defaultAnalyses": []
       },
       "createdAt": "2026-09-23T18:05:00.205Z",
-      "updatedAt": "2026-09-23T18:05:00.205Z"
+      "updatedAt": "2026-09-23T19:00:20.386Z"
     },
     {
       "id": "action-mueexuwx-pvopqh",
@@ -18208,13 +18689,13 @@
       "name": "Complete site safety assessment",
       "sequence": 1,
       "type": "Form",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Complete site safety assessment",
       "config": {},
       "createdAt": "2026-09-23T18:05:01.046Z",
-      "updatedAt": "2026-09-23T18:05:01.046Z"
+      "updatedAt": "2026-09-23T19:00:33.436Z"
     },
     {
       "id": "action-mueexv9a-kdb08q",
@@ -18224,7 +18705,7 @@
       "name": "Deploy containment and exclusion zones",
       "sequence": 2,
       "type": "Checklist",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "Deploy containment and exclusion zones",
@@ -18232,7 +18713,7 @@
         "options": []
       },
       "createdAt": "2026-09-23T18:05:01.515Z",
-      "updatedAt": "2026-09-23T18:05:01.515Z"
+      "updatedAt": "2026-09-23T19:00:40.366Z"
     },
     {
       "id": "action-mueexvtf-97xutk",
@@ -18242,7 +18723,7 @@
       "name": "Log material and equipment use",
       "sequence": 1,
       "type": "Material",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "Log material and equipment use",
@@ -18250,7 +18731,7 @@
         "suggestedItemIds": []
       },
       "createdAt": "2026-09-23T18:05:02.210Z",
-      "updatedAt": "2026-09-23T18:05:02.210Z"
+      "updatedAt": "2026-09-23T19:01:01.007Z"
     },
     {
       "id": "action-mueexw43-d1gdf4",
@@ -18260,7 +18741,7 @@
       "name": "Capture before, progress, and after photos",
       "sequence": 2,
       "type": "Photo",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "Capture before, progress, and after photos",
@@ -18268,7 +18749,7 @@
         "minPhotos": 1
       },
       "createdAt": "2026-09-23T18:05:02.594Z",
-      "updatedAt": "2026-09-23T18:05:02.594Z"
+      "updatedAt": "2026-09-23T19:01:19.441Z"
     },
     {
       "id": "action-mueexwfy-01r8xz",
@@ -18278,7 +18759,7 @@
       "name": "Track recovered material and waste generated",
       "sequence": 3,
       "type": "Material",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Track recovered material and waste generated",
@@ -18286,7 +18767,7 @@
         "suggestedItemIds": []
       },
       "createdAt": "2026-09-23T18:05:03.022Z",
-      "updatedAt": "2026-09-23T18:05:03.022Z"
+      "updatedAt": "2026-09-23T19:01:43.656Z"
     },
     {
       "id": "action-mueexwzc-az2623",
@@ -18296,13 +18777,13 @@
       "name": "Document soil or groundwater impact findings",
       "sequence": 1,
       "type": "Form",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Document soil or groundwater impact findings",
       "config": {},
       "createdAt": "2026-09-23T18:05:03.723Z",
-      "updatedAt": "2026-09-23T18:05:03.723Z"
+      "updatedAt": "2026-09-23T19:01:58.853Z"
     },
     {
       "id": "action-mueexxjs-2aas92",
@@ -18312,13 +18793,13 @@
       "name": "Complete job recap",
       "sequence": 1,
       "type": "Form",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Complete job recap",
       "config": {},
       "createdAt": "2026-09-23T18:05:04.466Z",
-      "updatedAt": "2026-09-23T18:05:04.466Z"
+      "updatedAt": "2026-09-23T19:02:04.794Z"
     },
     {
       "id": "action-mueexxtj-gddflr",
@@ -18328,7 +18809,7 @@
       "name": "Capture customer completion signature",
       "sequence": 2,
       "type": "Signature",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Capture customer completion signature",
@@ -18336,7 +18817,7 @@
         "signerRole": "Customer"
       },
       "createdAt": "2026-09-23T18:05:04.807Z",
-      "updatedAt": "2026-09-23T18:05:04.807Z"
+      "updatedAt": "2026-09-23T19:02:25.273Z"
     }
   ],
   "jobFormSubmissions": [
@@ -19841,6 +20322,381 @@
       "adHoc": true,
       "createdAt": "2026-09-23T17:42:43.636Z",
       "updatedAt": "2026-09-23T17:42:43.636Z"
+    },
+    {
+      "id": "form-sub-muegfuvy-hbqp6p",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexsu4-8g7rm1",
+      "formName": "Capture travel and truck time",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T18:47:00.382Z",
+      "summary": "yep",
+      "payload": {
+        "hours": 0,
+        "computedHours": 0,
+        "anchor": "en_route"
+      },
+      "createdAt": "2026-09-23T18:47:00.602Z",
+      "updatedAt": "2026-09-23T18:47:00.602Z"
+    },
+    {
+      "id": "form-sub-muegfyun-o3d2g5",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueext41-c2liuh",
+      "formName": "Arrive and verify site contact",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T18:47:05.519Z",
+      "summary": "fujtf",
+      "payload": {},
+      "createdAt": "2026-09-23T18:47:05.581Z",
+      "updatedAt": "2026-09-23T18:47:05.581Z"
+    },
+    {
+      "id": "form-sub-muegjnf9-njy3za",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueextf1-seavgq",
+      "formName": "test martials edit",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T18:49:57.333Z",
+      "summary": "test",
+      "payload": {
+        "materials": [
+          {
+            "writeInName": "absorbent test",
+            "unit": "unit",
+            "quantity": 1
+          },
+          {
+            "writeInName": "test",
+            "unit": "unit",
+            "quantity": 0.1
+          },
+          {
+            "writeInName": "steel drum",
+            "unit": "unit",
+            "quantity": 3
+          }
+        ],
+        "lines": [
+          {
+            "writeInName": "absorbent test",
+            "unit": "unit",
+            "quantity": 1,
+            "name": "absorbent test"
+          },
+          {
+            "writeInName": "test",
+            "unit": "unit",
+            "quantity": 0.1,
+            "name": "test"
+          },
+          {
+            "writeInName": "steel drum",
+            "unit": "unit",
+            "quantity": 3,
+            "name": "steel drum"
+          }
+        ]
+      },
+      "createdAt": "2026-09-23T18:49:57.387Z",
+      "updatedAt": "2026-09-23T18:49:57.387Z"
+    },
+    {
+      "id": "form-sub-muegjy5j-5pbve9",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueextow-cj25gk",
+      "formName": "test sig",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T18:50:11.239Z",
+      "summary": "test for plumbus",
+      "payload": {
+        "signerRole": "Customer",
+        "signedBy": "plumbus"
+      },
+      "createdAt": "2026-09-23T18:50:11.290Z",
+      "updatedAt": "2026-09-23T18:50:11.290Z"
+    },
+    {
+      "id": "form-sub-muegkfvw-p5l27g",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueextzm-7cmuyf",
+      "formName": "test photo",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T18:50:34.220Z",
+      "summary": "send backup!",
+      "payload": {
+        "photoCount": 1,
+        "minPhotos": 1
+      },
+      "createdAt": "2026-09-23T18:50:34.268Z",
+      "updatedAt": "2026-09-23T18:50:34.268Z"
+    },
+    {
+      "id": "form-sub-muegmlz9-gmc03y",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "",
+      "formName": "Daily Safety Checklist",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedByEmployeeId": "emp-mu6e7iib-4oz5uk",
+      "submittedAt": "2026-09-23T18:52:15.429Z",
+      "summary": "we did everything right for sure!",
+      "payload": {
+        "options": [
+          "PPE inspected and worn",
+          "Vehicle pre-trip inspection complete",
+          "Site hazards reviewed with crew",
+          "Emergency contacts confirmed"
+        ],
+        "checked": [
+          "PPE inspected and worn",
+          "Vehicle pre-trip inspection complete",
+          "Site hazards reviewed with crew",
+          "Emergency contacts confirmed"
+        ],
+        "unchecked": []
+      },
+      "standalone": true,
+      "createdAt": "2026-09-23T18:52:15.647Z",
+      "updatedAt": "2026-09-23T18:52:15.647Z"
+    },
+    {
+      "id": "form-sub-muegmxnk-1w77wn",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "",
+      "formName": "Vehicle Inspection",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedByEmployeeId": "emp-mu6e7iib-4oz5uk",
+      "submittedAt": "2026-09-23T18:52:30.560Z",
+      "summary": "truck has tires and they go roundy round",
+      "payload": {
+        "options": [
+          "Tires and brakes checked",
+          "Fluids checked",
+          "Lights and signals working",
+          "No visible damage"
+        ],
+        "checked": [
+          "Tires and brakes checked",
+          "Fluids checked",
+          "Lights and signals working",
+          "No visible damage"
+        ],
+        "unchecked": []
+      },
+      "standalone": true,
+      "createdAt": "2026-09-23T18:52:30.639Z",
+      "updatedAt": "2026-09-23T18:52:30.639Z"
+    },
+    {
+      "id": "form-sub-muegn64d-1dacct",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "",
+      "formName": "Near-Miss Report",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedByEmployeeId": "emp-mu6e7iib-4oz5uk",
+      "submittedAt": "2026-09-23T18:52:41.533Z",
+      "summary": "a cow tried to eat us!!!",
+      "payload": {
+        "note": "a cow tried to eat us!!!"
+      },
+      "standalone": true,
+      "createdAt": "2026-09-23T18:52:41.615Z",
+      "updatedAt": "2026-09-23T18:52:41.615Z"
+    },
+    {
+      "id": "form-sub-muegnh2i-ov4zpj",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "",
+      "formName": "Incident Report",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedByEmployeeId": "emp-mu6e7iib-4oz5uk",
+      "submittedAt": "2026-09-23T18:52:55.722Z",
+      "summary": "almost got arrested by the galactic police",
+      "payload": {
+        "note": "almost got arrested by the galactic police"
+      },
+      "standalone": true,
+      "createdAt": "2026-09-23T18:52:55.782Z",
+      "updatedAt": "2026-09-23T18:52:55.782Z"
+    },
+    {
+      "id": "form-sub-muegx01p-d409ie",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexu9l-i7k3q2",
+      "formName": "test sample",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:00:20.221Z",
+      "summary": "test",
+      "payload": {
+        "sampleId": "JOB-2026-0923-50-01"
+      },
+      "createdAt": "2026-09-23T19:00:20.283Z",
+      "updatedAt": "2026-09-23T19:00:20.283Z"
+    },
+    {
+      "id": "form-sub-muegxa3f-pcglga",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexuwx-pvopqh",
+      "formName": "Complete site safety assessment",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:00:33.243Z",
+      "summary": "oof",
+      "payload": {},
+      "createdAt": "2026-09-23T19:00:33.334Z",
+      "updatedAt": "2026-09-23T19:00:33.334Z"
+    },
+    {
+      "id": "form-sub-muegxfe4-gpsd4j",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexv9a-kdb08q",
+      "formName": "Deploy containment and exclusion zones",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:00:40.108Z",
+      "summary": "yep",
+      "payload": {
+        "options": [],
+        "checked": [],
+        "unchecked": []
+      },
+      "createdAt": "2026-09-23T19:00:40.216Z",
+      "updatedAt": "2026-09-23T19:00:40.216Z"
+    },
+    {
+      "id": "form-sub-muegxvb9-0xclhd",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexvtf-97xutk",
+      "formName": "Log material and equipment use",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:01:00.741Z",
+      "summary": "34 kits PPE kits, 2 unit Flaming underwear.",
+      "payload": {
+        "materials": [
+          {
+            "inventoryItemId": "inv-ppe-kits",
+            "quantity": 34,
+            "force": true
+          },
+          {
+            "inventoryItemId": "inventory-items-mrbaue1b-x2619v",
+            "quantity": 2
+          }
+        ],
+        "lines": [
+          {
+            "inventoryItemId": "inv-ppe-kits",
+            "quantity": 34,
+            "name": "PPE kits",
+            "unit": "kits"
+          },
+          {
+            "inventoryItemId": "inventory-items-mrbaue1b-x2619v",
+            "quantity": 2,
+            "name": "Flaming underwear",
+            "unit": "unit"
+          }
+        ]
+      },
+      "createdAt": "2026-09-23T19:01:00.864Z",
+      "updatedAt": "2026-09-23T19:01:00.864Z"
+    },
+    {
+      "id": "form-sub-muegy9ln-mdi9sm",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexw43-d1gdf4",
+      "formName": "Capture before, progress, and after photos",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:01:19.259Z",
+      "summary": "tadaaa",
+      "payload": {
+        "photoCount": 1,
+        "minPhotos": 1
+      },
+      "createdAt": "2026-09-23T19:01:19.336Z",
+      "updatedAt": "2026-09-23T19:01:19.336Z"
+    },
+    {
+      "id": "form-sub-muegys9i-jrvbpx",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexwfy-01r8xz",
+      "formName": "Track recovered material and waste generated",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:01:43.446Z",
+      "summary": "ssamples are hewre we smaple the sample to show plumbus juice is gone, yeahh!!!!",
+      "payload": {
+        "materials": [
+          {
+            "inventoryItemId": "inv-sampling-jars",
+            "quantity": 2
+          }
+        ],
+        "lines": [
+          {
+            "inventoryItemId": "inv-sampling-jars",
+            "quantity": 2,
+            "name": "Sampling containers",
+            "unit": "jars"
+          }
+        ]
+      },
+      "createdAt": "2026-09-23T19:01:43.543Z",
+      "updatedAt": "2026-09-23T19:01:43.543Z"
+    },
+    {
+      "id": "form-sub-muegz3yb-nsil1g",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexwzc-az2623",
+      "formName": "Document soil or groundwater impact findings",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:01:58.595Z",
+      "summary": "everything is impacted. life sucks go to chilis",
+      "payload": {},
+      "createdAt": "2026-09-23T19:01:58.736Z",
+      "updatedAt": "2026-09-23T19:01:58.736Z"
+    },
+    {
+      "id": "form-sub-muegz8jh-u405aa",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexxjs-2aas92",
+      "formName": "Complete job recap",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:02:04.541Z",
+      "summary": "dun",
+      "payload": {},
+      "createdAt": "2026-09-23T19:02:04.675Z",
+      "updatedAt": "2026-09-23T19:02:04.675Z"
+    },
+    {
+      "id": "form-sub-muegzofh-yp2l6n",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexxtj-gddflr",
+      "formName": "Capture customer completion signature",
+      "status": "Submitted",
+      "submittedBy": "Zeke bowser",
+      "submittedAt": "2026-09-23T19:02:25.133Z",
+      "summary": "still taste metal",
+      "payload": {
+        "signerRole": "Customer",
+        "signedBy": "Jeebus"
+      },
+      "createdAt": "2026-09-23T19:02:25.180Z",
+      "updatedAt": "2026-09-23T19:02:25.180Z"
     }
   ],
   "jobTypeTemplates": [
@@ -21422,6 +22278,106 @@
       "by": "Logan Gallman",
       "createdAt": "2026-09-23T17:44:15.983Z",
       "updatedAt": "2026-09-23T17:44:15.983Z"
+    },
+    {
+      "id": "job-status-event-muegdyu0-1hsyns",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "draft",
+      "toStatus": "ready",
+      "occurredAt": "2026-09-23T18:45:31.809Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T18:45:32.256Z",
+      "updatedAt": "2026-09-23T18:45:32.256Z"
+    },
+    {
+      "id": "job-status-event-muege0cw-xbk91p",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "ready",
+      "toStatus": "scheduled",
+      "occurredAt": "2026-09-23T18:45:34.051Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T18:45:34.213Z",
+      "updatedAt": "2026-09-23T18:45:34.213Z"
+    },
+    {
+      "id": "job-status-event-muege1ol-bubud5",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "scheduled",
+      "toStatus": "dispatched",
+      "occurredAt": "2026-09-23T18:45:35.781Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T18:45:35.929Z",
+      "updatedAt": "2026-09-23T18:45:35.929Z"
+    },
+    {
+      "id": "job-status-event-muege4so-lr8p4l",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "dispatched",
+      "toStatus": "acknowledged",
+      "occurredAt": "2026-09-23T18:45:39.827Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T18:45:39.956Z",
+      "updatedAt": "2026-09-23T18:45:39.956Z"
+    },
+    {
+      "id": "job-status-event-muegebzp-tbrfxl",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "acknowledged",
+      "toStatus": "en_route",
+      "occurredAt": "2026-09-23T18:45:49.126Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T18:45:49.294Z",
+      "updatedAt": "2026-09-23T18:45:49.294Z"
+    },
+    {
+      "id": "job-status-event-muegsqo2-92bkyi",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "en_route",
+      "toStatus": "on_site",
+      "occurredAt": "2026-09-23T18:57:01.134Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T18:57:01.495Z",
+      "updatedAt": "2026-09-23T18:57:01.495Z"
+    },
+    {
+      "id": "job-status-event-muegzat7-w81ux9",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "on_site",
+      "toStatus": "in_progress",
+      "occurredAt": "2026-09-23T19:02:07.363Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T19:02:07.570Z",
+      "updatedAt": "2026-09-23T19:02:07.570Z"
+    },
+    {
+      "id": "job-status-event-muegzpuh-iysfch",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "in_progress",
+      "toStatus": "field_complete",
+      "occurredAt": "2026-09-23T19:02:26.857Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T19:02:27.011Z",
+      "updatedAt": "2026-09-23T19:02:27.011Z"
+    },
+    {
+      "id": "job-status-event-muegztd8-syqtd0",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "field_complete",
+      "toStatus": "office_review",
+      "occurredAt": "2026-09-23T19:02:31.435Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T19:02:31.582Z",
+      "updatedAt": "2026-09-23T19:02:31.582Z"
+    },
+    {
+      "id": "job-status-event-muegzuni-c23dc9",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "fromStatus": "office_review",
+      "toStatus": "closed",
+      "occurredAt": "2026-09-23T19:02:33.087Z",
+      "by": "Zeke bowser",
+      "createdAt": "2026-09-23T19:02:33.258Z",
+      "updatedAt": "2026-09-23T19:02:33.258Z"
     }
   ],
   "jobTaskAttachments": [
@@ -21801,8 +22757,100 @@
       "caption": "Mr Plumbus",
       "uploadedAt": "2026-09-23T17:42:43.574Z",
       "uploadedBy": "Olivia Grant"
+    },
+    {
+      "id": "job-task-attachment-muegjy49-8zolpr",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueextow-cj25gk",
+      "kind": "signature",
+      "fileName": "signature-action-mueextow-cj25gk.png",
+      "storageName": "job-task-attachment-muegjy49-8zolpr.png",
+      "mimeType": "image/png",
+      "sizeBytes": 18242,
+      "caption": "plumbus",
+      "uploadedAt": "2026-09-23T18:50:11.193Z",
+      "uploadedBy": "Olivia Grant"
+    },
+    {
+      "id": "job-task-attachment-muegkfue-1xqo6j",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueextzm-7cmuyf",
+      "kind": "photo",
+      "fileName": "Group 2-3-cloud-standard-max-1x.png",
+      "storageName": "job-task-attachment-muegkfue-1xqo6j.png",
+      "mimeType": "image/png",
+      "sizeBytes": 15298053,
+      "caption": "send backup!",
+      "uploadedAt": "2026-09-23T18:50:34.166Z",
+      "uploadedBy": "Olivia Grant"
+    },
+    {
+      "id": "job-task-attachment-muegwzlu-nkbpc5",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexu9l-i7k3q2",
+      "kind": "photo",
+      "fileName": "acid _ solvent.png",
+      "storageName": "job-task-attachment-muegwzlu-nkbpc5.png",
+      "mimeType": "image/png",
+      "sizeBytes": 161864,
+      "caption": "North view",
+      "uploadedAt": "2026-09-23T19:00:19.650Z",
+      "uploadedBy": "Olivia Grant"
+    },
+    {
+      "id": "job-task-attachment-muegwzru-4wdgim",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexu9l-i7k3q2",
+      "kind": "photo",
+      "fileName": "tph.png",
+      "storageName": "job-task-attachment-muegwzru-4wdgim.png",
+      "mimeType": "image/png",
+      "sizeBytes": 186679,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-23T19:00:19.866Z",
+      "uploadedBy": "Olivia Grant"
+    },
+    {
+      "id": "job-task-attachment-muegwzxg-1ooj7l",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexu9l-i7k3q2",
+      "kind": "photo",
+      "fileName": "food.png",
+      "storageName": "job-task-attachment-muegwzxg-1ooj7l.png",
+      "mimeType": "image/png",
+      "sizeBytes": 242525,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-23T19:00:20.068Z",
+      "uploadedBy": "Olivia Grant"
+    },
+    {
+      "id": "job-task-attachment-muegy9kf-j8ops7",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexw43-d1gdf4",
+      "kind": "photo",
+      "fileName": "3.-RAE-Covered-Lagoon-at-Ruckman-Farm-56d1bb4a386b442f958c0b8d5404375a.jpg",
+      "storageName": "job-task-attachment-muegy9kf-j8ops7.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 132668,
+      "caption": "tadaaa",
+      "uploadedAt": "2026-09-23T19:01:19.215Z",
+      "uploadedBy": "Olivia Grant"
+    },
+    {
+      "id": "job-task-attachment-muegzoel-tvlqtu",
+      "jobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexxtj-gddflr",
+      "kind": "signature",
+      "fileName": "signature-action-mueexxtj-gddflr.png",
+      "storageName": "job-task-attachment-muegzoel-tvlqtu.png",
+      "mimeType": "image/png",
+      "sizeBytes": 21418,
+      "caption": "Jeebus",
+      "uploadedAt": "2026-09-23T19:02:25.101Z",
+      "uploadedBy": "Olivia Grant"
     }
   ],
+  "jobExpenses": [],
   "laborAssignments": [],
   "sampleLabReports": [],
   "sampleRecords": [
@@ -22218,12 +23266,15 @@
       ],
       "fieldNotes": "the plumbus juice has turned outside into the amazon river it seems.",
       "chainOfCustody": "COC 1-544",
-      "labName": "",
+      "labName": "Plumbonian Gorlock analyicxal",
       "labStatus": "Logged in field",
-      "labResults": "",
+      "labResults": "o.00",
       "photos": [],
       "createdAt": "2026-09-23T17:37:59.227Z",
-      "updatedAt": "2026-09-23T17:37:59.227Z"
+      "updatedAt": "2026-09-23T19:07:03.058Z",
+      "labReceivedAt": "2026-09-24T00:00:00.000Z",
+      "reviewedBy": "john",
+      "labReportUri": ""
     },
     {
       "id": "sample-muee27gx-sb717t",
@@ -22252,12 +23303,52 @@
       ],
       "fieldNotes": "the plumbus juice is def here.",
       "chainOfCustody": "coc-654",
-      "labName": "",
+      "labName": "Plumboenian Labs",
       "labStatus": "Logged in field",
-      "labResults": "",
+      "labResults": "all clear",
       "photos": [],
       "createdAt": "2026-09-23T17:40:24.311Z",
-      "updatedAt": "2026-09-23T17:40:24.311Z"
+      "updatedAt": "2026-09-23T19:06:21.106Z",
+      "labReceivedAt": "2026-09-24T00:00:00.000Z",
+      "reviewedBy": "tommy tomson",
+      "labReportUri": "www.plumbus.com"
+    },
+    {
+      "id": "sample-muegwzyr-hvlb28",
+      "sampleId": "JOB-2026-0923-50-01",
+      "samplingSessionId": "",
+      "samplingSessionName": "Plumbus Machine Leaking Plumbus juice — Closeout - we are not at closeout",
+      "projectId": "proj-muedbopd-kmyuz8",
+      "dispatchJobId": "dispatch-job-mueexr7l-fanmqu",
+      "actionId": "action-mueexu9l-i7k3q2",
+      "accountId": "acct-mueb5kgm-32xzk6",
+      "facilityId": "loc-mueb81uc-k4eroc",
+      "sampleLocation": "sdfg",
+      "sampleType": "dfg",
+      "sampleMatrix": "dsfg",
+      "collectionMethod": "sdfg",
+      "depthInterval": "sdfg",
+      "collectionTime": "2026-09-23T18:59:00.000Z",
+      "collector": "Zeke bowser",
+      "gpsAccuracyMeters": 141,
+      "latitude": 30.66089427657082,
+      "longitude": -97.68304881495438,
+      "containerSummary": "sdfg",
+      "preservation": "sdfg",
+      "requestedAnalyses": [
+        "sdfg"
+      ],
+      "fieldNotes": "test",
+      "chainOfCustody": "sdfg",
+      "labName": "general electirc security",
+      "labStatus": "Logged in field",
+      "labResults": "0.0",
+      "photos": [],
+      "createdAt": "2026-09-23T19:00:20.172Z",
+      "updatedAt": "2026-09-23T19:08:20.674Z",
+      "labReceivedAt": "2026-09-25T00:00:00.000Z",
+      "reviewedBy": "it boke",
+      "labReportUri": ""
     }
   ],
   "invoices": [
@@ -22307,6 +23398,18 @@
       "status": "Ready",
       "dueDate": "2026-10-18",
       "notes": "Ready for invoice prep",
+      "qboStatus": "Not exported"
+    },
+    {
+      "id": "invoices-mueh9kuh-cey9ci",
+      "projectId": "proj-muedbopd-kmyuz8",
+      "customer": "Shmitties bitties and parts",
+      "quotedAmount": 196700,
+      "fieldExpenses": 0,
+      "invoiceAmount": 196700,
+      "status": "Ready",
+      "dueDate": "2026-10-23",
+      "notes": "Cost report generated Sep 23, 2026 — costs $4,368.20, margin -$2,401.20",
       "qboStatus": "Not exported"
     }
   ],
@@ -28425,10 +29528,12 @@
   "pricingSettings": [
     {
       "id": "pricing-settings-default",
-      "fuelSurchargePercent": null,
-      "fuelSurchargeUpdatedAt": "",
+      "fuelSurchargePercent": 10,
       "fuelSurchargeNote": "",
-      "energySecurityFeePercent": 18
+      "fuelSurchargeUpdatedAt": "2026-09-23T18:36:44.246Z",
+      "energySecurityFeePercent": 18,
+      "createdAt": "2026-09-23T18:36:44.327Z",
+      "updatedAt": "2026-09-23T18:36:44.327Z"
     }
   ],
   "productPriceLevels": [
@@ -37808,7 +38913,7 @@
       "stage": "Proposal",
       "serviceType": "Scheduled Environmental Service",
       "nextStep": "Price alternate disposal option after lab report",
-      "updatedAt": "2026-09-23T14:08:23.656Z",
+      "updatedAt": "2026-09-23T18:36:29.660Z",
       "createdAt": "2026-08-10T21:17:28.877Z",
       "facilityId": "",
       "industry": "",
@@ -37866,7 +38971,60 @@
       "recordSource": "Local CRM",
       "estimateId": "",
       "closeBand": "61-90",
-      "closeBandSetAt": "2026-09-23T14:08:23.646Z"
+      "closeBandSetAt": "2026-09-23T14:08:23.646Z",
+      "equipmentNeeds": [
+        {
+          "name": "f250",
+          "note": ""
+        },
+        {
+          "name": "pickup",
+          "note": ""
+        },
+        {
+          "name": "level d ppe",
+          "note": ""
+        },
+        {
+          "name": "Foreman",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "Micro-Bac",
+          "note": ""
+        },
+        {
+          "name": "Foreman",
+          "note": ""
+        },
+        {
+          "name": "Wooden posts/stakes",
+          "note": ""
+        },
+        {
+          "name": "Wooken stakes",
+          "note": ""
+        },
+        {
+          "name": "2x Forman",
+          "note": ""
+        },
+        {
+          "name": "2x formen",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Balfour",
+          "note": ""
+        }
+      ],
+      "proposalDevelopedStatus": "Complete",
+      "internalReviewStatus": "Complete",
+      "proposalPresentedStatus": "Complete"
     },
     {
       "id": "opp-north-river-stormwater",
@@ -38842,6 +40000,72 @@
       "proposalDevelopedStatus": "Complete",
       "internalReviewStatus": "Complete",
       "proposalPresentedStatus": "Complete"
+    },
+    {
+      "id": "opp-mueguvi7-5j9wzc",
+      "accountId": "acct-mueb5kgm-32xzk6",
+      "name": "dsthdsh",
+      "opportunityName": "dsthdsh",
+      "value": 85000,
+      "amount": 85000,
+      "closeBand": "",
+      "closeBandSetAt": "",
+      "stage": "Lead",
+      "dealStage": "Lead",
+      "probability": 15,
+      "closeProbability": 15,
+      "serviceType": "Emergency Spill Response",
+      "status": "Open",
+      "nextStep": "sdfhdfh",
+      "customerNeed": "",
+      "weightedAmount": 12750,
+      "forecastAmount": 12750,
+      "rating": "No target set",
+      "updatedAt": "2026-09-23T18:58:41.145Z",
+      "opportunityId": "opp-mueguvi7-5j9wzc",
+      "opportunityUniqueIdentifier": "opp-mueguvi7-5j9wzc",
+      "accountName": "Shmitties bitties and parts",
+      "primaryContact": "Jeebus Jock Jr",
+      "owner": "System",
+      "hubspotOwnerId": "",
+      "dealType": "New Business",
+      "sourceCampaign": "",
+      "originatingLeadId": "",
+      "pipeline": "Sales Pipeline",
+      "forecastCategory": "Pipeline",
+      "priority": "Normal",
+      "initialCommunication": "Contacted",
+      "currentSituation": "",
+      "industry": "",
+      "proposedSolution": "",
+      "amountInCompanyCurrency": 85000,
+      "estimatedValue": 85000,
+      "annualRecurringRevenue": 0,
+      "totalContractValue": 85000,
+      "budgetAmount": 0,
+      "notToExceed": "",
+      "currency": "USD",
+      "exchangeRate": "1.00",
+      "isRevenueSystemCalculated": false,
+      "actualCloseDate": "",
+      "createdOn": "2026-09-23T18:58:41.023Z",
+      "createdBy": "Olivia Grant",
+      "lastModifiedDate": "2026-09-23T18:58:41.023Z",
+      "lastContacted": "2026-09-23",
+      "nextActivityDate": "",
+      "numberOfSalesActivities": 0,
+      "numberOfAssociatedContacts": 0,
+      "stageAgeDays": 0,
+      "competitor": "",
+      "decisionMaker": "",
+      "purchaseProcess": "",
+      "purchaseTimeframe": "",
+      "quoteId": "",
+      "estimateId": "",
+      "priceList": "",
+      "recordSource": "Local CRM",
+      "description": "",
+      "createdAt": "2026-09-23T18:58:41.145Z"
     }
   ],
   "opportunityAssignments": [
@@ -39159,6 +40383,17 @@
       "note": "",
       "createdAt": "2026-09-23T16:44:22.297Z",
       "updatedAt": "2026-09-23T16:44:22.366Z"
+    },
+    {
+      "id": "opp-location-muefpphn-t1z781",
+      "opportunityId": "opp-riverbend-ust",
+      "type": "Facility",
+      "facilityId": "loc-muefp6em-egcit5",
+      "locationId": "",
+      "role": "main base",
+      "note": "",
+      "createdAt": "2026-09-23T18:26:40.331Z",
+      "updatedAt": "2026-09-23T18:26:40.451Z"
     }
   ],
   "opportunityProducts": [
@@ -39201,14 +40436,24 @@
       "customerLogicalName": "account",
       "priceLevelId": "price-standard-2026",
       "name": "Riverbend UST removal revised disposal alternate",
-      "totalAmount": 171500,
-      "totalAmountBase": 171500,
+      "rateTier": "ot_emergency",
+      "isEmergencyCallout": true,
+      "fuelSurchargePercent": 18,
+      "energySecurityFeePercent": 15,
+      "subtotalAmount": 42143.5,
+      "fuelSurchargeAmount": 223.2,
+      "energySecurityFeeAmount": 6321.53,
+      "totalAmount": 48688.23,
+      "totalAmountBase": 48688.23,
       "statusCode": "Won",
       "stateCode": "Closed",
       "effectiveFrom": "2026-07-01",
       "effectiveTo": "2026-07-31",
-      "createdAt": "2026-09-17T23:13:32.460Z",
-      "updatedAt": "2026-09-17T23:13:32.460Z"
+      "billingAddressId": "address-muefrgvn-h125xw",
+      "shippingAddressId": "address-muefrgvn-h125xw",
+      "notes": "lets see",
+      "createdAt": "2026-09-23T18:28:25.736Z",
+      "updatedAt": "2026-09-23T18:28:25.736Z"
     },
     {
       "id": "quote-clearwater-night-shift",
@@ -39478,7 +40723,8 @@
       "manualDiscountAmount": 0,
       "tax": 0,
       "createdAt": "2026-09-17T23:13:32.533Z",
-      "updatedAt": "2026-09-17T23:13:32.533Z"
+      "updatedAt": "2026-09-23T18:25:18.649Z",
+      "deletedAt": "2026-09-23T18:25:18.495Z"
     },
     {
       "id": "quote-line-mu65biil-zdvk9w",
@@ -39494,7 +40740,8 @@
       "manualDiscountAmount": 0,
       "tax": 0,
       "createdAt": "2026-09-17T23:13:32.554Z",
-      "updatedAt": "2026-09-17T23:13:32.554Z"
+      "updatedAt": "2026-09-23T18:25:18.749Z",
+      "deletedAt": "2026-09-23T18:25:18.691Z"
     },
     {
       "id": "quote-line-mu65c5az-qjy7s7",
@@ -39823,6 +41070,748 @@
       "isOptional": true,
       "createdAt": "2026-09-23T17:18:09.945Z",
       "updatedAt": "2026-09-23T17:18:09.945Z"
+    },
+    {
+      "id": "quote-line-muefnyko-rig567",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-foreman",
+      "productName": "Foreman",
+      "productDescription": "Foreman",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 8,
+      "billableQuantity": 8,
+      "minimumQuantity": 4,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 112.5,
+      "extendedAmount": 900,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 1,
+      "createdAt": "2026-09-23T18:25:18.838Z",
+      "updatedAt": "2026-09-23T18:28:25.828Z",
+      "deletedAt": "2026-09-23T18:28:25.775Z"
+    },
+    {
+      "id": "quote-line-muefnyn1-xm3n94",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-supervisor",
+      "productName": "Supervisor",
+      "productDescription": "Supervisor",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 300,
+      "billableQuantity": 300,
+      "minimumQuantity": 4,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 127.5,
+      "extendedAmount": 38250,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 2,
+      "createdAt": "2026-09-23T18:25:18.921Z",
+      "updatedAt": "2026-09-23T18:28:25.927Z",
+      "deletedAt": "2026-09-23T18:28:25.869Z"
+    },
+    {
+      "id": "quote-line-muefnypb-h87m54",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-vactron",
+      "productName": "Vactron",
+      "productDescription": "Vactron",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 4,
+      "minimumQuantity": 4,
+      "minimumApplied": true,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 80,
+      "extendedAmount": 320,
+      "fuelSurchargeApplies": true,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 3,
+      "createdAt": "2026-09-23T18:25:19.023Z",
+      "updatedAt": "2026-09-23T18:28:26.014Z",
+      "deletedAt": "2026-09-23T18:28:25.962Z"
+    },
+    {
+      "id": "quote-line-muefnys1-rebmi6",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-bioremedy-bobtail-roll-off-truck-driver-includes-operator",
+      "productName": "BIOREMEDY Bobtail Roll-Off Truck/Driver (Includes Operator)",
+      "productDescription": "BIOREMEDY Bobtail Roll-Off Truck/Driver (Includes Operator)",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 4,
+      "minimumQuantity": 4,
+      "minimumApplied": true,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 185,
+      "extendedAmount": 740,
+      "fuelSurchargeApplies": true,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 4,
+      "createdAt": "2026-09-23T18:25:19.110Z",
+      "updatedAt": "2026-09-23T18:28:26.101Z",
+      "deletedAt": "2026-09-23T18:28:26.052Z"
+    },
+    {
+      "id": "quote-line-muefnyud-rl5df9",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-microbial-consultant",
+      "productName": "Microbial Consultant",
+      "productDescription": "Microbial Consultant",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 4,
+      "minimumQuantity": 4,
+      "minimumApplied": true,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 154.5,
+      "extendedAmount": 618,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 5,
+      "createdAt": "2026-09-23T18:25:19.187Z",
+      "updatedAt": "2026-09-23T18:28:26.193Z",
+      "deletedAt": "2026-09-23T18:28:26.135Z"
+    },
+    {
+      "id": "quote-line-muefnywl-ufwmci",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-pick-up-truck-1-2-or-smaller",
+      "productName": "Pick-Up Truck (1/2 or smaller)",
+      "productDescription": "Pick-Up Truck (1/2 or smaller)",
+      "isProductOverridden": false,
+      "uomId": "uom-day",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 180,
+      "extendedAmount": 180,
+      "fuelSurchargeApplies": true,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 6,
+      "createdAt": "2026-09-23T18:25:19.267Z",
+      "updatedAt": "2026-09-23T18:28:26.321Z",
+      "deletedAt": "2026-09-23T18:28:26.231Z"
+    },
+    {
+      "id": "quote-line-muefnyyz-g64jhg",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-55-gal-open-top-steel-drum",
+      "productName": "55-Gal Open Top Steel Drum",
+      "productDescription": "55-Gal Open Top Steel Drum",
+      "isProductOverridden": false,
+      "uomId": "uom-each",
+      "quantity": 6,
+      "billableQuantity": 6,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 110,
+      "extendedAmount": 660,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 7,
+      "createdAt": "2026-09-23T18:25:19.363Z",
+      "updatedAt": "2026-09-23T18:28:26.446Z",
+      "deletedAt": "2026-09-23T18:28:26.368Z"
+    },
+    {
+      "id": "quote-line-muefnz1o-73oyf7",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-sampling-supplies",
+      "productName": "Sampling Supplies",
+      "productDescription": "Sampling Supplies",
+      "isProductOverridden": false,
+      "uomId": "uom-per-sample",
+      "quantity": 7,
+      "billableQuantity": 7,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 12,
+      "extendedAmount": 84,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 8,
+      "createdAt": "2026-09-23T18:25:19.460Z",
+      "updatedAt": "2026-09-23T18:28:26.544Z",
+      "deletedAt": "2026-09-23T18:28:26.485Z"
+    },
+    {
+      "id": "quote-line-muefnz46-ceqzea",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-level-d-ppe-package-hard-hat-safety-glasses-and-safety-vest",
+      "productName": "Level D PPE Package (Hard Hat, Safety Glasses and Safety Vest)",
+      "productDescription": "Level D PPE Package (Hard Hat, Safety Glasses and Safety Vest)",
+      "isProductOverridden": false,
+      "uomId": "uom-per-man-per-day",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 41.5,
+      "extendedAmount": 41.5,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 9,
+      "createdAt": "2026-09-23T18:25:19.557Z",
+      "updatedAt": "2026-09-23T18:28:26.641Z",
+      "deletedAt": "2026-09-23T18:28:26.578Z"
+    },
+    {
+      "id": "quote-line-muefnz6y-chz1op",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-hazardous-waste-management-profiling-fee",
+      "productName": "Hazardous Waste Management/ Profiling Fee",
+      "productDescription": "Hazardous Waste Management/ Profiling Fee",
+      "isProductOverridden": false,
+      "uomId": "uom-each",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 350,
+      "extendedAmount": 350,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 10,
+      "createdAt": "2026-09-23T18:25:19.642Z",
+      "updatedAt": "2026-09-23T18:28:26.733Z",
+      "deletedAt": "2026-09-23T18:28:26.679Z"
+    },
+    {
+      "id": "quote-line-muefnz98-qz3y5b",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-agri-bac",
+      "productName": "Agri-Bac",
+      "productDescription": "Agri-Bac",
+      "isProductOverridden": false,
+      "uomId": "uom-per-gallon",
+      "quantity": 69,
+      "billableQuantity": 69,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 240,
+      "extendedAmount": 16560,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": true,
+      "sequenceNumber": 11,
+      "createdAt": "2026-09-23T18:25:19.728Z",
+      "updatedAt": "2026-09-23T18:28:26.825Z",
+      "deletedAt": "2026-09-23T18:28:26.765Z"
+    },
+    {
+      "id": "quote-line-muefnzbk-0e91eq",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "",
+      "productName": "Custom line",
+      "productDescription": "",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 0,
+      "extendedAmount": 0,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 12,
+      "createdAt": "2026-09-23T18:25:19.801Z",
+      "updatedAt": "2026-09-23T18:28:26.924Z",
+      "deletedAt": "2026-09-23T18:28:26.863Z"
+    },
+    {
+      "id": "quote-line-muefnzdn-fgr9zj",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "fuel_surcharge",
+      "productId": "",
+      "productName": "Fuel surcharge (18%)",
+      "productDescription": "18% of $1,240.00 in fuel-burning equipment",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "pricePerUnit": 223.2,
+      "extendedAmount": 223.2,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 13,
+      "createdAt": "2026-09-23T18:25:19.885Z",
+      "updatedAt": "2026-09-23T18:28:27.009Z",
+      "deletedAt": "2026-09-23T18:28:26.960Z"
+    },
+    {
+      "id": "quote-line-muefnzfy-wmhuir",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "energy_security_fee",
+      "productId": "",
+      "productName": "Energy, Security & Insurance (15%)",
+      "productDescription": "15% of the $42,143.50 subtotal; fuel surcharge excluded",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "pricePerUnit": 6321.53,
+      "extendedAmount": 6321.53,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 14,
+      "createdAt": "2026-09-23T18:25:19.967Z",
+      "updatedAt": "2026-09-23T18:28:27.094Z",
+      "deletedAt": "2026-09-23T18:28:27.042Z"
+    },
+    {
+      "id": "quote-line-muefrzw6-fxy073",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-foreman",
+      "productName": "Foreman",
+      "productDescription": "Foreman",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 8,
+      "billableQuantity": 8,
+      "minimumQuantity": 4,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 112.5,
+      "extendedAmount": 900,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 1,
+      "createdAt": "2026-09-23T18:28:27.176Z",
+      "updatedAt": "2026-09-23T18:28:27.176Z"
+    },
+    {
+      "id": "quote-line-muefrzyp-q7iptg",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-supervisor",
+      "productName": "Supervisor",
+      "productDescription": "Supervisor",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 300,
+      "billableQuantity": 300,
+      "minimumQuantity": 4,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 127.5,
+      "extendedAmount": 38250,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 2,
+      "createdAt": "2026-09-23T18:28:27.268Z",
+      "updatedAt": "2026-09-23T18:28:27.268Z"
+    },
+    {
+      "id": "quote-line-muefs018-ssbd4d",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-vactron",
+      "productName": "Vactron",
+      "productDescription": "Vactron",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 4,
+      "minimumQuantity": 4,
+      "minimumApplied": true,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 80,
+      "extendedAmount": 320,
+      "fuelSurchargeApplies": true,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 3,
+      "createdAt": "2026-09-23T18:28:27.359Z",
+      "updatedAt": "2026-09-23T18:28:27.359Z"
+    },
+    {
+      "id": "quote-line-muefs03k-p1jpzq",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-bioremedy-bobtail-roll-off-truck-driver-includes-operator",
+      "productName": "BIOREMEDY Bobtail Roll-Off Truck/Driver (Includes Operator)",
+      "productDescription": "BIOREMEDY Bobtail Roll-Off Truck/Driver (Includes Operator)",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 4,
+      "minimumQuantity": 4,
+      "minimumApplied": true,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 185,
+      "extendedAmount": 740,
+      "fuelSurchargeApplies": true,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 4,
+      "createdAt": "2026-09-23T18:28:27.446Z",
+      "updatedAt": "2026-09-23T18:28:27.446Z"
+    },
+    {
+      "id": "quote-line-muefs061-b83f7g",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-microbial-consultant",
+      "productName": "Microbial Consultant",
+      "productDescription": "Microbial Consultant",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 4,
+      "minimumQuantity": 4,
+      "minimumApplied": true,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 154.5,
+      "extendedAmount": 618,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 5,
+      "createdAt": "2026-09-23T18:28:27.528Z",
+      "updatedAt": "2026-09-23T18:28:27.528Z"
+    },
+    {
+      "id": "quote-line-muefs08a-f5qq6v",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-pick-up-truck-1-2-or-smaller",
+      "productName": "Pick-Up Truck (1/2 or smaller)",
+      "productDescription": "Pick-Up Truck (1/2 or smaller)",
+      "isProductOverridden": false,
+      "uomId": "uom-day",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 180,
+      "extendedAmount": 180,
+      "fuelSurchargeApplies": true,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 6,
+      "createdAt": "2026-09-23T18:28:27.612Z",
+      "updatedAt": "2026-09-23T18:28:27.612Z"
+    },
+    {
+      "id": "quote-line-muefs0am-xupg6u",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-55-gal-open-top-steel-drum",
+      "productName": "55-Gal Open Top Steel Drum",
+      "productDescription": "55-Gal Open Top Steel Drum",
+      "isProductOverridden": false,
+      "uomId": "uom-each",
+      "quantity": 6,
+      "billableQuantity": 6,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 110,
+      "extendedAmount": 660,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 7,
+      "createdAt": "2026-09-23T18:28:27.701Z",
+      "updatedAt": "2026-09-23T18:28:27.701Z"
+    },
+    {
+      "id": "quote-line-muefs0d3-qdss39",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-sampling-supplies",
+      "productName": "Sampling Supplies",
+      "productDescription": "Sampling Supplies",
+      "isProductOverridden": false,
+      "uomId": "uom-per-sample",
+      "quantity": 7,
+      "billableQuantity": 7,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 12,
+      "extendedAmount": 84,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 8,
+      "createdAt": "2026-09-23T18:28:27.789Z",
+      "updatedAt": "2026-09-23T18:28:27.789Z"
+    },
+    {
+      "id": "quote-line-muefs0fl-u6gewv",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-level-d-ppe-package-hard-hat-safety-glasses-and-safety-vest",
+      "productName": "Level D PPE Package (Hard Hat, Safety Glasses and Safety Vest)",
+      "productDescription": "Level D PPE Package (Hard Hat, Safety Glasses and Safety Vest)",
+      "isProductOverridden": false,
+      "uomId": "uom-per-man-per-day",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 41.5,
+      "extendedAmount": 41.5,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 9,
+      "createdAt": "2026-09-23T18:28:27.878Z",
+      "updatedAt": "2026-09-23T18:28:27.878Z"
+    },
+    {
+      "id": "quote-line-muefs0hw-0ilwe7",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-hazardous-waste-management-profiling-fee",
+      "productName": "Hazardous Waste Management/ Profiling Fee",
+      "productDescription": "Hazardous Waste Management/ Profiling Fee",
+      "isProductOverridden": false,
+      "uomId": "uom-each",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 350,
+      "extendedAmount": 350,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 10,
+      "createdAt": "2026-09-23T18:28:27.959Z",
+      "updatedAt": "2026-09-23T18:28:27.959Z"
+    },
+    {
+      "id": "quote-line-muefs0ki-n73lzu",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "prod-rs-agri-bac",
+      "productName": "Agri-Bac",
+      "productDescription": "Agri-Bac",
+      "isProductOverridden": false,
+      "uomId": "uom-per-gallon",
+      "quantity": 69,
+      "billableQuantity": 69,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 240,
+      "extendedAmount": 16560,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": true,
+      "sequenceNumber": 11,
+      "createdAt": "2026-09-23T18:28:28.052Z",
+      "updatedAt": "2026-09-23T18:28:28.052Z"
+    },
+    {
+      "id": "quote-line-muefs0mx-ravyc9",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "item",
+      "productId": "",
+      "productName": "Custom line",
+      "productDescription": "Custom line",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 0,
+      "extendedAmount": 0,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 12,
+      "createdAt": "2026-09-23T18:28:28.140Z",
+      "updatedAt": "2026-09-23T18:28:28.140Z"
+    },
+    {
+      "id": "quote-line-muefs0pe-8ctne9",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "fuel_surcharge",
+      "productId": "",
+      "productName": "Fuel surcharge (18%)",
+      "productDescription": "18% of $1,240.00 in fuel-burning equipment",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "pricePerUnit": 223.2,
+      "extendedAmount": 223.2,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 13,
+      "createdAt": "2026-09-23T18:28:28.225Z",
+      "updatedAt": "2026-09-23T18:28:28.225Z"
+    },
+    {
+      "id": "quote-line-muefs0ro-jenufw",
+      "quoteId": "quote-riverbend-revision",
+      "lineKind": "energy_security_fee",
+      "productId": "",
+      "productName": "Energy, Security & Insurance (15%)",
+      "productDescription": "15% of the $42,143.50 subtotal; fuel surcharge excluded",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "pricePerUnit": 6321.53,
+      "extendedAmount": 6321.53,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 14,
+      "createdAt": "2026-09-23T18:28:28.308Z",
+      "updatedAt": "2026-09-23T18:28:28.308Z"
     }
   ],
   "estimates": [
@@ -40342,76 +42331,136 @@
   ],
   "industries": [
     {
+      "parentIndustryId": "",
+      "industryCategory": "",
+      "description": "",
       "id": "industry-oil-gas",
       "industryName": "Oil & Gas",
       "industryCode": "OILGAS",
+      "displayOrder": 1,
+      "naicsCode": "211",
+      "createdAt": "2026-09-23T19:10:52.180Z",
+      "updatedAt": "2026-09-23T19:10:52.180Z"
+    },
+    {
       "parentIndustryId": "",
       "industryCategory": "",
       "description": "",
-      "displayOrder": 1
-    },
-    {
       "id": "industry-agriculture",
       "industryName": "Agriculture",
       "industryCode": "AG",
+      "displayOrder": 2,
+      "naicsCode": "11",
+      "createdAt": "2026-09-23T19:10:52.211Z",
+      "updatedAt": "2026-09-23T19:10:52.211Z"
+    },
+    {
       "parentIndustryId": "",
       "industryCategory": "",
       "description": "",
-      "displayOrder": 2
-    },
-    {
       "id": "industry-wastewater",
       "industryName": "Wastewater",
       "industryCode": "WASTEWATER",
+      "displayOrder": 3,
+      "naicsCode": "221320",
+      "createdAt": "2026-09-23T19:10:52.239Z",
+      "updatedAt": "2026-09-23T19:10:52.239Z"
+    },
+    {
       "parentIndustryId": "",
       "industryCategory": "",
       "description": "",
-      "displayOrder": 3
-    },
-    {
       "id": "industry-manufacturing",
       "industryName": "Manufacturing",
       "industryCode": "MFG",
+      "displayOrder": 4,
+      "naicsCode": "31-33",
+      "createdAt": "2026-09-23T19:10:52.267Z",
+      "updatedAt": "2026-09-23T19:10:52.267Z"
+    },
+    {
       "parentIndustryId": "",
       "industryCategory": "",
       "description": "",
-      "displayOrder": 4
-    },
-    {
       "id": "industry-municipal-government",
-      "industryName": "Municipal / Government",
+      "industryName": "Municipal / Government / DOT",
       "industryCode": "GOVT",
+      "displayOrder": 5,
+      "naicsCode": "92",
+      "createdAt": "2026-09-23T19:10:52.295Z",
+      "updatedAt": "2026-09-23T19:10:52.295Z"
+    },
+    {
       "parentIndustryId": "",
       "industryCategory": "",
       "description": "",
-      "displayOrder": 5
-    },
-    {
       "id": "industry-healthcare",
       "industryName": "Healthcare",
       "industryCode": "HEALTH",
+      "displayOrder": 6,
+      "naicsCode": "62",
+      "createdAt": "2026-09-23T19:10:52.321Z",
+      "updatedAt": "2026-09-23T19:10:52.321Z"
+    },
+    {
       "parentIndustryId": "",
       "industryCategory": "",
       "description": "",
-      "displayOrder": 6
-    },
-    {
       "id": "industry-construction",
       "industryName": "Construction",
       "industryCode": "CONSTRUCTION",
+      "displayOrder": 7,
+      "naicsCode": "23",
+      "createdAt": "2026-09-23T19:10:52.349Z",
+      "updatedAt": "2026-09-23T19:10:52.349Z"
+    },
+    {
       "parentIndustryId": "",
       "industryCategory": "",
       "description": "",
-      "displayOrder": 7
-    },
-    {
       "id": "industry-transportation-logistics",
       "industryName": "Transportation / Logistics",
       "industryCode": "TRANSPORT",
+      "displayOrder": 8,
+      "naicsCode": "48-49",
+      "createdAt": "2026-09-23T19:10:52.379Z",
+      "updatedAt": "2026-09-23T19:10:52.379Z"
+    },
+    {
       "parentIndustryId": "",
       "industryCategory": "",
       "description": "",
-      "displayOrder": 8
+      "id": "industry-environmental",
+      "industryName": "Environmental",
+      "industryCode": "ENV",
+      "naicsCode": "562",
+      "displayOrder": 9,
+      "createdAt": "2026-09-23T19:10:52.409Z",
+      "updatedAt": "2026-09-23T19:10:52.409Z"
+    },
+    {
+      "parentIndustryId": "",
+      "industryCategory": "",
+      "description": "",
+      "id": "industry-utilities-infrastructure",
+      "industryName": "Utilities / Infrastructure",
+      "industryCode": "UTIL",
+      "naicsCode": "22",
+      "displayOrder": 10,
+      "createdAt": "2026-09-23T19:10:52.438Z",
+      "updatedAt": "2026-09-23T19:10:52.438Z"
+    },
+    {
+      "parentIndustryId": "",
+      "industryCategory": "",
+      "description": "",
+      "id": "industry-education",
+      "industryName": "Education",
+      "industryCode": "EDU",
+      "naicsCode": "61",
+      "displayOrder": 11,
+      "createdAt": "2026-09-23T19:10:52.467Z",
+      "updatedAt": "2026-09-23T19:10:52.467Z"
     }
   ],
   "accountIndustries": [
@@ -40833,6 +42882,31 @@
       "deliveryInstructions": "between there and not here",
       "createdAt": "2026-09-23T16:22:44.073Z",
       "updatedAt": "2026-09-23T16:22:44.073Z"
+    },
+    {
+      "id": "address-muefrgvn-h125xw",
+      "accountId": "acct-riverbend",
+      "addressName": "AP office",
+      "addressType": "Bill To",
+      "isPrimary": false,
+      "suiteNumber": "300",
+      "street1": "500 Corporate Parkway",
+      "street2": "",
+      "street3": "",
+      "city": "St. Louis",
+      "county": "",
+      "stateOrProvince": "Missouri",
+      "postalCode": "69696",
+      "countryOrRegion": "USA",
+      "phone": "",
+      "latitude": null,
+      "longitude": null,
+      "freightTerms": "net 30",
+      "shippingMethod": "FOB",
+      "contactId": "cont-alicia-moreno",
+      "deliveryInstructions": "saghashgasdhsdafgb;khas;glhaslkghkl;'asgh",
+      "createdAt": "2026-09-23T18:28:02.675Z",
+      "updatedAt": "2026-09-23T18:28:02.675Z"
     }
   ],
   "facilityContacts": [
@@ -41170,6 +43244,26 @@
       "access": "knock and tell them gate code 6969696969699696969 yes there is a missing 6",
       "createdAt": "2026-09-23T16:20:58.332Z",
       "updatedAt": "2026-09-23T16:20:58.332Z"
+    },
+    {
+      "id": "loc-muefp6em-egcit5",
+      "accountId": "acct-riverbend",
+      "name": "the north base",
+      "street1": "205 golden oaks",
+      "street2": "",
+      "address": "205 golden oaks",
+      "city": "georgetown",
+      "stateOrProvince": "texas",
+      "postalCode": "78628",
+      "countryOrRegion": "usa",
+      "phone": "555-555-5555",
+      "category": "Job Site / Field Location",
+      "categoryOther": "",
+      "badge": "drop yard",
+      "concern": "USt location",
+      "access": "its broken",
+      "createdAt": "2026-09-23T18:26:15.674Z",
+      "updatedAt": "2026-09-23T18:26:15.674Z"
     }
   ],
   "salesTasks": [
@@ -41463,7 +43557,27 @@
       "businessDescription": "they make the plumbus",
       "workingRelationshipNotes": "we don't reallly, they have a big environmental lacking department, but due to the lacking we lack business. maybe they will start an environmental caring department soon?",
       "createdAt": "2026-09-23T16:19:02.946Z",
-      "updatedAt": "2026-09-23T16:29:02.437Z"
+      "updatedAt": "2026-09-23T19:03:07.159Z",
+      "isPaused": false,
+      "pausedByName": "",
+      "pausedReason": "",
+      "pausedAt": "",
+      "pauseOpportunities": true,
+      "pauseProjects": true,
+      "pauseScheduling": true,
+      "pauseFieldWork": true,
+      "pauseInvoicing": true,
+      "pauseServiceAgreements": true,
+      "pauseSubcontractorWork": true,
+      "pauseSampleProcessing": true,
+      "pauseMarketing": true,
+      "notifyOwner": true,
+      "notifySalesManager": true,
+      "notifyOperationsManager": true,
+      "notifyDispatch": true,
+      "notifyFinance": true,
+      "notifyFieldLeads": true,
+      "notifyPrimaryContact": true
     }
   ],
   "accountComments": [

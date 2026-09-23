@@ -445,7 +445,7 @@ All three were reproduced against real code before fixing, per this phase doc's 
 
 # 2026-09-22 feedback pass
 
-**Source:** `docs/roadmap/notes-2026-09-22.md` items 42–43. Both verified 2026-09-22. **Status:** Not started.
+**Source:** `docs/roadmap/notes-2026-09-22.md` items 42–43. Both verified 2026-09-22. **Status:** ✅ **Both shipped 2026-09-23 (sprint Wave 2)**, verified live via Playwright against a scratch data copy. See "2026-09-22 pass: implementation notes" at the end of this doc.
 
 ### Broken map marker on the Location tile
 
@@ -467,3 +467,12 @@ New Front Line tile, plus a layout change:
 **Storage dependency.** Receipt photos are binary attachments, which is **Phase 13**. The existing Front Line photo-capture tasks are the precedent to follow — reuse whatever they do today rather than inventing a second store, and note in the phase doc which one won.
 
 **Expense categories should map to whatever Phase 08's rate card ends up calling reimbursables** (travel, lodging, per diem, subcontracted services all bill at cost + margin per the 2026 rate sheet), so a captured expense can become a billable line instead of being re-keyed.
+
+### 2026-09-22 pass: implementation notes (shipped 2026-09-23, sprint Wave 2)
+
+- **Map marker.** New shared `gpsPointIcon(leaflet)` (a `divIcon`, the same `leaflet-type-marker` style the operations and sample maps use). **Correction:** the Location tile was *not* the only default-marker map. The Phase 03 Facility detail satellite map (`initializeFacilityMap()`) had the same broken `leaflet.marker(latLng, { title })`, and it's fixed too. All six `.marker(` calls in `app.js` now pass an icon. Verified: both maps render `.leaflet-type-marker` elements and no `img.leaflet-marker-icon`.
+- **Receipts tile + Exit bar.** Exit left the tile grid and became a short full-width bar under it (`.frontline-exit-bar`, in normal flow after the grid, so it can't cover the last row). **Receipts** took its cell. The tile captures job (required, from the worker's own jobs), a receipt photo or PDF (required; `capture="environment"` opens the camera on a phone), amount, date, vendor, category, payment method and note.
+  - **Storage, and which precedent won:** a new `jobExpenses` collection (gated `dispatch`; readable by operations and finance). The receipt file goes into the **existing `jobTaskAttachments` store** (`kind: "receipt"`, `expenseId`, `actionId: ""`) through a new `POST /api/job-expenses/:id/receipt` route that links both records in one write. It's served by the existing `/api/job-task-attachments/:id/view`, so there's no second file store before Phase 13, and receipts migrate with the task photos. Accepts PNG/JPEG/WebP/PDF. HEIC is refused (browsers can't display it; phones convert to JPEG for web uploads). A capture with no file extension gets one from its MIME type.
+  - **Categories** follow what the 2026 rate sheet bills at cost + margin (lodging, per diem/meals, travel, materials purchased, equipment rental, subcontracted service), each defaulting `billable: true`. Fuel is recovered through the fuel surcharge, so it's non-billable, as is Other. `reimbursable` is set when paid personally or in cash.
+  - **Roll-up:** a **Field expenses** panel on the project's Live tab (thumbnails, billable/reimburse badges, totals). Phase 09's close report now includes `costs.expenses`, and these are real costs, unlike its rate-card-priced rows. The finance screen's pre-close estimate adds them too. Turning a billable expense into an invoice line is left for Phase 09/11.
+- **Found while testing: the tile grid overflowed the 420px device frame.** Square (`aspect-ratio: 1`) tiles in `repeat(3, 1fr)` carry a content-derived minimum width, so the third column was clipped. This predates this pass. Fixed with `repeat(3, minmax(0, 1fr))`.

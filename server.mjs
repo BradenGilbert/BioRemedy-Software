@@ -108,6 +108,9 @@ const collectionAccess = {
   jobTypeTemplates: "dispatch",
   jobStatusEvents: "dispatch",
   jobTaskAttachments: "dispatch",
+  // Phase 10 (2026-09-22 pass): field receipts/expenses per dispatch job; the photo itself lives in
+  // jobTaskAttachments (kind "receipt") until Phase 13's generic store exists.
+  jobExpenses: "dispatch",
   invoices: "finance",
   qboExports: "finance",
   businessUnits: "salesDocuments",
@@ -1159,6 +1162,7 @@ const defaultBackend = {
   ],
   jobStatusEvents: [],
   jobTaskAttachments: [],
+  jobExpenses: [],
   laborAssignments: [],
   sampleLabReports: [],
   sampleRecords: [
@@ -2079,15 +2083,19 @@ const defaultBackend = {
     { id: "account-type-residential", name: "Residential", description: "", displayOrder: 4 },
     { id: "account-type-strategic-partner", name: "Strategic Partner", description: "", displayOrder: 5 },
   ],
+  // Curated for picking; naicsCode (2022 NAICS sector/subsector) is for reporting and export (Phase 03 Q53).
   industries: [
-    { id: "industry-oil-gas", industryName: "Oil & Gas", industryCode: "OILGAS", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 1 },
-    { id: "industry-agriculture", industryName: "Agriculture", industryCode: "AG", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 2 },
-    { id: "industry-wastewater", industryName: "Wastewater", industryCode: "WASTEWATER", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 3 },
-    { id: "industry-manufacturing", industryName: "Manufacturing", industryCode: "MFG", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 4 },
-    { id: "industry-municipal-government", industryName: "Municipal / Government", industryCode: "GOVT", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 5 },
-    { id: "industry-healthcare", industryName: "Healthcare", industryCode: "HEALTH", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 6 },
-    { id: "industry-construction", industryName: "Construction", industryCode: "CONSTRUCTION", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 7 },
-    { id: "industry-transportation-logistics", industryName: "Transportation / Logistics", industryCode: "TRANSPORT", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 8 },
+    { id: "industry-oil-gas", industryName: "Oil & Gas", industryCode: "OILGAS", naicsCode: "211", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 1 },
+    { id: "industry-agriculture", industryName: "Agriculture", industryCode: "AG", naicsCode: "11", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 2 },
+    { id: "industry-wastewater", industryName: "Wastewater", industryCode: "WASTEWATER", naicsCode: "221320", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 3 },
+    { id: "industry-manufacturing", industryName: "Manufacturing", industryCode: "MFG", naicsCode: "31-33", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 4 },
+    { id: "industry-municipal-government", industryName: "Municipal / Government / DOT", industryCode: "GOVT", naicsCode: "92", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 5 },
+    { id: "industry-healthcare", industryName: "Healthcare", industryCode: "HEALTH", naicsCode: "62", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 6 },
+    { id: "industry-construction", industryName: "Construction", industryCode: "CONSTRUCTION", naicsCode: "23", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 7 },
+    { id: "industry-transportation-logistics", industryName: "Transportation / Logistics", industryCode: "TRANSPORT", naicsCode: "48-49", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 8 },
+    { id: "industry-environmental", industryName: "Environmental", industryCode: "ENV", naicsCode: "562", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 9 },
+    { id: "industry-utilities-infrastructure", industryName: "Utilities / Infrastructure", industryCode: "UTIL", naicsCode: "22", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 10 },
+    { id: "industry-education", industryName: "Education", industryCode: "EDU", naicsCode: "61", parentIndustryId: "", industryCategory: "", description: "", displayOrder: 11 },
   ],
   accountIndustries: [],
   addresses: [],
@@ -2337,6 +2345,8 @@ function filterBackendForRole(data, role) {
     jobTypeTemplates: canAccess(role, "dispatch") ? data.jobTypeTemplates : [],
     jobStatusEvents: canAccess(role, "dispatch") ? data.jobStatusEvents : [],
     jobTaskAttachments: canAccess(role, "dispatch") ? data.jobTaskAttachments : [],
+    // Finance needs expenses for cost reports and reimbursement; operations for project review.
+    jobExpenses: canAccess(role, "dispatch") || canAccess(role, "operations") || canAccess(role, "finance") ? data.jobExpenses : [],
     invoices: canAccess(role, "finance") ? data.invoices : [],
     qboSettings: canAccess(role, "finance") ? data.qboSettings : { connectionStatus: "Restricted", realmId: "", lastExportAt: "" },
     qboExports: canAccess(role, "finance") ? data.qboExports : [],
@@ -2816,6 +2826,55 @@ const jobTaskAttachmentMimeTypes = new Map([
   [".jpeg", "image/jpeg"],
 ]);
 
+// Receipts are often PDFs from email as well as phone photos. HEIC isn't accepted: browsers can't
+// display it, and phones convert to JPEG when a web form asks for an image.
+const receiptMimeTypes = new Map([...jobTaskAttachmentMimeTypes, [".webp", "image/webp"], [".pdf", "application/pdf"]]);
+
+// Receipt photo for a field expense. Same store as task photos (jobTaskAttachments + data/uploads),
+// so receipts come along when Phase 13 migrates attachments. Links both ways in one write.
+async function handleJobExpenseReceiptUpload(request, response, expenseId) {
+  const role = getRole(request);
+  if (!canAccess(role, "dispatch")) return json(response, 403, { error: "Dispatch role required." });
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+
+  const data = await loadBackend();
+  const expense = data.jobExpenses.find((item) => item.id === expenseId);
+  if (!expense) return json(response, 404, { error: "Expense not found." });
+
+  const fileName = normalizeUploadFileName(request.headers["x-file-name"]?.toString());
+  const extension = path.extname(fileName).toLowerCase();
+  const mimeType = receiptMimeTypes.get(extension);
+  if (!fileName || !mimeType) return json(response, 415, { error: "Attach a photo (PNG, JPEG, WebP) or a PDF." });
+
+  const body = await readRequestBody(request, maxJobRequestDocumentBytes);
+  if (!body.length) return json(response, 400, { error: "The selected file is empty." });
+
+  const attachment = {
+    id: makeId("job-task-attachment"),
+    jobId: expense.dispatchJobId || "",
+    actionId: "",
+    expenseId,
+    kind: "receipt",
+    fileName,
+    storageName: "",
+    mimeType,
+    sizeBytes: body.length,
+    caption: decodeHeaderText(request.headers["x-caption"]?.toString()),
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: request.headers["x-crm-user"]?.toString() || role,
+  };
+  attachment.storageName = `${attachment.id}${extension}`;
+
+  await mkdir(uploadsDir, { recursive: true });
+  await writeFile(path.join(uploadsDir, attachment.storageName), body);
+  data.jobTaskAttachments.push(attachment);
+  expense.receiptAttachmentId = attachment.id;
+  expense.updatedAt = new Date().toISOString();
+  await saveBackend(data);
+
+  return json(response, 201, attachment);
+}
+
 async function handleJobTaskAttachmentUpload(request, response, actionId) {
   const role = getRole(request);
   if (!canAccess(role, "dispatch")) return json(response, 403, { error: "Dispatch role required." });
@@ -3046,6 +3105,11 @@ async function handleApi(request, response, pathname) {
   const jobTaskAttachmentUploadMatch = pathname.match(/^\/api\/job-actions\/([^/]+)\/attachments$/);
   if (jobTaskAttachmentUploadMatch) {
     return handleJobTaskAttachmentUpload(request, response, jobTaskAttachmentUploadMatch[1]);
+  }
+
+  const jobExpenseReceiptMatch = pathname.match(/^\/api\/job-expenses\/([^/]+)\/receipt$/);
+  if (jobExpenseReceiptMatch) {
+    return handleJobExpenseReceiptUpload(request, response, jobExpenseReceiptMatch[1]);
   }
 
   const jobTaskAttachmentViewMatch = pathname.match(/^\/api\/job-task-attachments\/([^/]+)\/view$/);

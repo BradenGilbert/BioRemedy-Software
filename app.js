@@ -33,7 +33,9 @@ const STAGE_REQUIRED_FIELDS = {
     { key: "facilityId", label: "Facility" },
     { key: "contaminationNotes", label: "Contamination" },
     { key: "serviceType", label: "Opportunity type" },
-    { key: "industry", label: "Industry" },
+    // Phase 03/06 (2026-09-23): an opportunity inherits its account's industry, so a blank own
+    // value doesn't block the gate when the account's industry is set.
+    { key: "industry", label: "Industry", validate: (opportunity) => Boolean(opportunity.industry || primaryIndustryNameForAccount(opportunity.accountId)) },
     { key: "description", label: "Description" },
     { key: "currentSituation", label: "Current situation" },
   ],
@@ -353,6 +355,7 @@ const workspaceModules = {
   office: [
     { view: "office", label: "Overview" },
     { view: "office-alerts", label: "Alerts" },
+    { view: "office-compliance", label: "Compliance" },
     { view: "office-schedule", label: "Schedule" },
   ],
   finance: [
@@ -418,6 +421,7 @@ const viewWorkspace = {
   "inventory-labor": "inventory",
   office: "office",
   "office-alerts": "office",
+  "office-compliance": "office",
   "office-schedule": "office",
   finance: "finance",
   "finance-invoices": "finance",
@@ -436,6 +440,7 @@ const viewWorkspace = {
   "frontline-messaging": "frontline",
   "frontline-forms": "frontline",
   "frontline-trips": "frontline",
+  "frontline-receipts": "frontline",
   "frontline-location": "frontline",
   "frontline-invoices": "frontline",
   "frontline-settings": "frontline",
@@ -1625,6 +1630,7 @@ const state = {
   // Rate Card screen: which rate sheet's prices the product table shows, and the section filter.
   rateCardSheetId: "",
   rateCardCategoryFilter: "",
+  officeComplianceFilter: "",
   opsMapFilters: { jobClass: "", status: "", alertsOnly: false, dateFrom: "", dateTo: "", accountId: "", pointType: "" },
   opsCalendarMonth: "",
   opsCalendarSelectedDate: "",
@@ -2262,6 +2268,16 @@ async function handleClick(event) {
   if (action === "open-rate-card-uom") openRateCardUomDialog(id);
   if (action === "open-rate-card-product") openRateCardProductDialog(id);
   if (action === "open-pricing-settings") openPricingSettingsDialog();
+  if (action === "filter-office-compliance") {
+    state.officeComplianceFilter = actionButton.dataset.filter || "";
+    renderOfficeCompliance();
+  }
+  if (action === "open-account-vendor-tab") {
+    state.selectedAccountId = id;
+    state.accountDetailTab = "vendor-subcontractor";
+    state.view = "account-detail";
+    render();
+  }
   if (action === "open-account") openAccountDialog(id);
   if (action === "open-account-owner") openAccountOwnerDialog(id);
   if (action === "open-account-billing") openAccountBillingDialog(id);
@@ -2649,6 +2665,12 @@ async function handleSubmit(event) {
 
   event.preventDefault();
 
+  // A dialog opened on an old record holds its unformatted phone text until someone types in the
+  // field; normalise every phone field once before any save reads the form.
+  form.querySelectorAll("input").forEach((input) => {
+    if (isPhoneInput(input)) input.value = formatPhoneNumber(input.value);
+  });
+
   if (form.dataset.form === "opportunity") await saveOpportunity(form);
   if (form.dataset.form === "opportunity-lead") await saveOpportunityLead(form);
   if (form.dataset.form === "opportunity-qualify") await saveOpportunityQualify(form);
@@ -2744,6 +2766,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "frontline-clock-in") await frontlineClockIn(form);
   if (form.dataset.form === "frontline-clock-out") await frontlineClockOut(form);
   if (form.dataset.form === "frontline-log-trip") await frontlineLogTrip(form);
+  if (form.dataset.form === "frontline-log-expense") await frontlineLogExpense(form);
   if (form.dataset.form === "frontline-notification-prefs") await frontlineSaveNotificationPrefs(form);
 }
 
@@ -2774,6 +2797,7 @@ function handleInput(event) {
 }
 
 function handleInputInner(event) {
+  if (event.type === "input" && isPhoneInput(event.target)) applyPhoneFormatting(event.target);
   if (event.target.matches('[data-action="upload-sample-lab-report"]')) {
     const input = event.target;
     const file = input.files?.[0];
@@ -3135,6 +3159,7 @@ function render() {
   if (state.view === "inventory-labor") renderInventoryLabor();
   if (state.view === "office") renderOfficeManager();
   if (state.view === "office-alerts") renderOfficeAlertsPage();
+  if (state.view === "office-compliance") renderOfficeCompliance();
   if (state.view === "office-schedule") renderOfficeSchedulePage();
   if (state.view === "finance") renderFinance();
   if (state.view === "finance-invoices") renderFinanceInvoices();
@@ -3154,6 +3179,7 @@ function render() {
   if (state.view === "frontline-messaging") renderFrontlineMessaging();
   if (state.view === "frontline-forms") renderFrontlineForms();
   if (state.view === "frontline-trips") renderFrontlineTrips();
+  if (state.view === "frontline-receipts") renderFrontlineReceipts();
   if (state.view === "frontline-location") renderFrontlineLocation();
   if (state.view === "frontline-invoices") renderFrontlineInvoices();
   if (state.view === "frontline-settings") renderFrontlineSettings();
@@ -3523,11 +3549,38 @@ function renderModuleTabs(workspaceId) {
   `;
 }
 
+// --- Environmental risk (Phase 03 Q55, locked 2026-09-22) -------------------------------------
+// Risk is a property of a place, not a company: "a customer with ten sites has ten risk pictures."
+// It lives on the facility. An account's risk is its riskiest assessed site. The old account-level
+// `risk` field is read only as a fallback while an account's sites are still unassessed, so dashboards
+// don't silently drop to zero before anyone has assessed a site.
+const ENVIRONMENTAL_RISK_LEVELS = ["Low", "Medium", "High"];
+
+function accountEnvironmentalRisk(account) {
+  if (!account) return "";
+  const levels = facilitiesForAccount(account.id).map((facility) => facility.environmentalRisk).filter(Boolean);
+  return ["High", "Medium", "Low"].find((level) => levels.includes(level)) || account.risk || "";
+}
+
+function highRiskSiteCount() {
+  return state.accounts.reduce((count, account) => {
+    const assessed = facilitiesForAccount(account.id).filter((facility) => facility.environmentalRisk);
+    if (assessed.length) return count + assessed.filter((facility) => facility.environmentalRisk === "High").length;
+    return count + (account.risk === "High" ? 1 : 0);
+  }, 0);
+}
+
+function renderEnvironmentalRiskBadge(level) {
+  if (!level) return "";
+  const tone = level === "High" ? "high" : level === "Medium" ? "medium" : "low";
+  return `<span class="risk-badge ${tone}">Environmental risk: ${escapeHtml(level)}</span>`;
+}
+
 function renderMetrics() {
   const activePipeline = state.opportunities
     .filter((opportunity) => opportunity.stage !== "Won")
     .reduce((total, opportunity) => total + Number(opportunity.value), 0);
-  const highRiskSites = state.accounts.filter((account) => account.risk === "High").length;
+  const highRiskSites = highRiskSiteCount();
   const proposalCount = state.opportunities.filter((opportunity) => opportunity.stage === "Proposal").length;
   const pending = pendingQueue().length;
 
@@ -4719,6 +4772,59 @@ function getCoreAccount(account) {
   return buildCoreAccountRecord(account || {});
 }
 
+// --- Phone numbers (Phase 05, 2026-09-22 pass) ------------------------------------------------
+//
+// One formatter for every phone field, as typed and when displayed. North American numbers read
+// 555-123-4567, with the country code as 1-555-123-4567. An extension (x204, ext 204, #204)
+// survives. Anything else (international "+44 …", text like "ask for Bob") is left exactly as
+// entered rather than mangled. The formatted text is what gets stored (owner-facing: store what the
+// user sees). Old unformatted records are formatted at display time, so no migration is needed.
+// `partial` groups an incomplete number as it's typed (555 → 555-1 → 555-123-4…). Display and save
+// only reformat a complete 10-digit number, so an old 7-digit local number stays as stored.
+function formatPhoneNumber(value, { partial = false } = {}) {
+  const text = String(value ?? "");
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.startsWith("+")) return text;
+  const extension = trimmed.match(/\s*(?:x|ext\.?|extension|#)\s*(\d*)\s*$/i);
+  const main = extension ? trimmed.slice(0, extension.index) : trimmed;
+  if (/[a-z]/i.test(main)) return text;
+  let digits = main.replace(/\D/g, "");
+  if (!digits) return text;
+  // NANP area codes never start with 0 or 1, so a leading 1 is always the country code.
+  const country = digits.startsWith("1") ? "1-" : "";
+  if (country) digits = digits.slice(1);
+  if (digits.length > 10 || (!partial && digits.length !== 10)) return text;
+  const grouped = digits.length <= 3 ? digits : digits.length <= 6 ? `${digits.slice(0, 3)}-${digits.slice(3)}` : `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  const formatted = digits ? country + grouped : country.replace("-", "");
+  return extension ? `${formatted} x${extension[1]}` : formatted;
+}
+
+function isPhoneFieldName(name) {
+  return /phone|fax|telephone|mobile/i.test(String(name || ""));
+}
+
+function isPhoneInput(element) {
+  return element instanceof HTMLInputElement && element.type !== "checkbox" && (element.type === "tel" || isPhoneFieldName(element.name));
+}
+
+// Reformat as the user types without throwing the caret to the end: count the digits (and the
+// extension "x") before the caret, then put the caret after the same number of them.
+function applyPhoneFormatting(input) {
+  const before = input.value;
+  const formatted = formatPhoneNumber(before, { partial: true });
+  if (formatted === before) return;
+  const caret = input.selectionStart ?? before.length;
+  const significant = before.slice(0, caret).replace(/[^\dx]/gi, "").length;
+  input.value = formatted;
+  let seen = 0;
+  let position = 0;
+  while (position < formatted.length && seen < significant) {
+    if (/[\dx]/i.test(formatted[position])) seen += 1;
+    position += 1;
+  }
+  input.setSelectionRange?.(position, position);
+}
+
 function getAccountFieldValue(account, key) {
   return getCoreAccount(account)[key] ?? "";
 }
@@ -4736,6 +4842,7 @@ function formatAccountFieldValue(account, key) {
     return Number.isFinite(amount) && amount > 0 ? money(amount) : "Not captured";
   }
   if (key === "createdOn") return formatDate(value);
+  if (isPhoneFieldName(key)) return formatPhoneNumber(String(value));
   return String(value);
 }
 
@@ -4943,6 +5050,7 @@ function formatContactFieldValue(contact, key) {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (value === null || value === undefined || value === "") return "Not captured";
   if (["lastContacted", "lastActivityDate", "nextActivityDate", "createdOn", "lastModifiedDate", "birthday"].includes(key)) return formatDate(value);
+  if (isPhoneFieldName(key)) return formatPhoneNumber(String(value));
   return String(value);
 }
 
@@ -5324,7 +5432,7 @@ function renderAccountColumnValue(account, columnKey, { summary }) {
       ${escapeHtml(account.contact || getAccountFieldValue(account, "addressOnePrimaryContact"))}
       <div class="row-meta">
         <span>${escapeHtml(getAccountFieldValue(account, "email"))}</span>
-        <span>${escapeHtml(getAccountFieldValue(account, "mainPhoneNumber"))}</span>
+        <span>${escapeHtml(formatPhoneNumber(getAccountFieldValue(account, "mainPhoneNumber")))}</span>
       </div>
     `;
   }
@@ -5629,9 +5737,9 @@ function renderAccountSummaryTab(account) {
           <div class="panel-header"><h3>Account information</h3></div>
           <div class="panel-body">
             <dl class="detail-list">
-              <div><dt>Phone</dt><dd>${escapeHtml(account.mainPhoneNumber || account.phone || "Not captured")}</dd></div>
+              <div><dt>Phone</dt><dd>${escapeHtml(formatPhoneNumber(account.mainPhoneNumber || account.phone || "Not captured"))}</dd></div>
               <div><dt>Email</dt><dd>${escapeHtml(account.email || "Not captured")}</dd></div>
-              <div><dt>Fax</dt><dd>${escapeHtml(account.faxNumber || "Not captured")}</dd></div>
+              <div><dt>Fax</dt><dd>${escapeHtml(formatPhoneNumber(account.faxNumber || "Not captured"))}</dd></div>
               <div><dt>Website</dt><dd>${escapeHtml(account.website || "Not captured")}</dd></div>
               <div><dt>Parent account</dt><dd>${
                 parentAccount
@@ -6081,7 +6189,7 @@ function renderAccountContactRow(contact) {
       <div class="row-meta">
         <span>${escapeHtml(contact.title || "No title")}</span>
         <span>${escapeHtml(contact.email || "No email")}</span>
-        <span>${escapeHtml(contact.phone || "No phone")}</span>
+        <span>${escapeHtml(formatPhoneNumber(contact.phone || "No phone"))}</span>
       </div>
       <div class="inline-actions">
         <span class="stage-badge">${escapeHtml(contact.influence || "Unknown influence")}</span>
@@ -6494,6 +6602,86 @@ function renderVendorProfileSummary(profile) {
   `;
 }
 
+// --- Office > Compliance (Phase 04 item 4) -----------------------------------------------------
+//
+// The filterable expiry list the account-header badge was always meant to sit beside: every
+// vendor's certificate of insurance in one table. Customer approvals are not listed because they
+// don't expire (Q23). Rows with an alert carry the red dot, per the red-dot rule. A profile whose
+// status field still says "Valid" after its date has passed is flagged rather than silently
+// rewritten, because the office may be mid-renewal; see Phase 04's corrections.
+function vendorComplianceRows() {
+  return (state.backend.vendorProfiles || [])
+    .filter((profile) => !profile.deletedAt)
+    .map((profile) => {
+      const account = findAccount(profile.accountId);
+      const expiry = isExpiringOrExpired(profile.insuranceExpiration);
+      const status = !profile.insuranceExpiration ? "No date on file" : expiry === "expired" ? "Expired" : expiry === "expiring" ? "Expiring within 30 days" : "Current";
+      const statusMismatch = expiry === "expired" && /valid|current|approved/i.test(profile.insuranceStatus || "");
+      return { profile, account, status, expiry, statusMismatch };
+    });
+}
+
+function renderOfficeCompliance() {
+  const filter = state.officeComplianceFilter || "";
+  const allRows = vendorComplianceRows();
+  const rows = filter ? allRows.filter((row) => row.status === filter) : allRows;
+  const counts = ["Expired", "Expiring within 30 days", "Current", "No date on file"].map((status) => [status, allRows.filter((row) => row.status === status).length]);
+  app.innerHTML = `
+    <section class="view">
+      ${renderWorkspaceHeader("office", "Compliance", "Vendor and subcontractor certificates of insurance, by expiry. Customer subcontractor approvals don't expire, so they aren't listed.")}
+      <section class="metric-strip" aria-label="Compliance status">
+        ${counts
+          .map(
+            ([status, count]) => `
+              <button class="metric metric-link ${filter === status ? "active" : ""}" type="button" data-action="filter-office-compliance" data-filter="${escapeAttribute(filter === status ? "" : status)}">
+                <p class="eyebrow">${escapeHtml(status)}${(status === "Expired" || status === "Expiring within 30 days") && count ? renderAlertDot(`${count} ${status.toLowerCase()}`) : ""}</p>
+                <strong>${count}</strong>
+                <span>${filter === status ? "Showing only these. Click to show all" : "Click to filter the table"}</span>
+              </button>
+            `,
+          )
+          .join("")}
+      </section>
+      <article class="${allRows.some((row) => row.expiry) ? "panel panel-needs-attention" : "panel"}">
+        <div class="panel-header"><h3>Certificates of insurance${filter ? `: ${escapeHtml(filter)}` : ""}</h3></div>
+        <div class="panel-body">
+          ${renderDataTable({
+            tableId: "office-compliance",
+            columns: [
+              { key: "vendor", label: "Vendor", sortValue: (row) => row.account?.name || "" },
+              { key: "vendorNumber", label: "Vendor #", sortValue: (row) => row.profile.vendorNumber || "" },
+              { key: "expires", label: "Insurance expires", sortValue: (row) => row.profile.insuranceExpiration || "9999" },
+              { key: "status", label: "Status", sortValue: (row) => row.status },
+              { key: "recorded", label: "Status on record", sortValue: (row) => row.profile.insuranceStatus || "" },
+              { key: "onboarding", label: "Onboarding", sortValue: (row) => row.profile.onboardingStatus || "" },
+              { key: "open", label: "", sortable: false },
+            ],
+            rows,
+            searchFields: [(row) => row.account?.name, (row) => row.profile.vendorNumber, (row) => row.status],
+            searchPlaceholder: "Search vendors",
+            emptyText: filter ? `No vendors are ${filter.toLowerCase()}.` : "No vendor profiles yet. Add one from an account's Vendor & Subcontractor tab.",
+            renderRow: (row) => {
+              const name = row.account?.name || "Unknown account";
+              const tone = row.expiry === "expired" ? "high" : row.expiry === "expiring" ? "medium" : row.status === "Current" ? "low" : "";
+              return `
+                <tr>
+                  <td><strong>${row.expiry ? withTrailingAlertDot(name, `Insurance ${row.status.toLowerCase()}`) : escapeHtml(name)}</strong></td>
+                  <td>${escapeHtml(row.profile.vendorNumber || "—")}</td>
+                  <td>${row.profile.insuranceExpiration ? formatDate(row.profile.insuranceExpiration) : "Not on file"}</td>
+                  <td>${tone ? `<span class="risk-badge ${tone}">${escapeHtml(row.status)}</span>` : escapeHtml(row.status)}</td>
+                  <td>${escapeHtml(row.profile.insuranceStatus || "Not set")}${row.statusMismatch ? `<br /><small class="muted-text">Says "${escapeHtml(row.profile.insuranceStatus)}", but the date has passed</small>` : ""}</td>
+                  <td>${escapeHtml(row.profile.onboardingStatus || "—")}</td>
+                  <td>${row.account ? `<button class="mini-button" type="button" data-action="open-account-vendor-tab" data-id="${escapeAttribute(row.account.id)}">Open</button>` : ""}</td>
+                </tr>
+              `;
+            },
+          })}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
 function isExpiringOrExpired(dateString, withinDays = 30) {
   if (!dateString) return null;
   const target = new Date(dateString);
@@ -6590,6 +6778,7 @@ function renderFacilityDetailHeader(facility, account) {
       <div class="account-hero-stats">
         <span class="tag">${escapeHtml(formatFacilityCategory(facility))}</span>
         <span class="stage-badge">${escapeHtml(facility.badge || "Not set")}</span>
+        ${renderEnvironmentalRiskBadge(facility.environmentalRisk)}
       </div>
     </div>
   `;
@@ -6606,9 +6795,10 @@ function renderFacilityLocationPanel(facility) {
           ${facility.street2 ? `<div><dt>Street 2</dt><dd>${escapeHtml(facility.street2)}</dd></div>` : ""}
           <div><dt>City / State / ZIP</dt><dd>${escapeHtml(cityState || "Not captured")}</dd></div>
           <div><dt>Country</dt><dd>${escapeHtml(facility.countryOrRegion || "Not captured")}</dd></div>
-          <div><dt>Phone</dt><dd>${escapeHtml(facility.phone || "Not captured")}</dd></div>
+          <div><dt>Phone</dt><dd>${escapeHtml(formatPhoneNumber(facility.phone || "Not captured"))}</dd></div>
           <div><dt>Access instructions</dt><dd>${escapeHtml(facility.access || "Not captured")}</dd></div>
           ${facility.concern ? `<div><dt>Concern</dt><dd>${escapeHtml(facility.concern)}</dd></div>` : ""}
+          <div><dt>Environmental risk</dt><dd>${escapeHtml(facility.environmentalRisk || "Not assessed")}${facility.environmentalRiskNotes ? `<br /><small>${escapeHtml(facility.environmentalRiskNotes)}</small>` : ""}</dd></div>
         </dl>
       </div>
     </article>
@@ -6722,6 +6912,19 @@ function cleanupFacilityMap() {
   facilityLeafletMap = null;
 }
 
+// Leaflet's default marker loads marker-icon.png/marker-shadow.png from beside its stylesheet, and
+// this app doesn't ship those images, so the default renders as a broken image (Phase 10 owner
+// report, 2026-09-22). Every map uses a divIcon instead; this is the one for plain GPS points.
+function gpsPointIcon(leaflet, label = "GPS") {
+  return leaflet.divIcon({
+    className: "leaflet-type-marker asset",
+    html: `<span>${escapeHtml(label)}</span>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -16],
+  });
+}
+
 function initializeFacilityMap(facilityId) {
   const mapElement = document.querySelector("#facilityMap");
   if (!mapElement) return;
@@ -6753,7 +6956,7 @@ function initializeFacilityMap(facilityId) {
     const latLng = [Number(location.latitude), Number(location.longitude)];
     bounds.push(latLng);
     leaflet
-      .marker(latLng, { title: location.label || "GPS point" })
+      .marker(latLng, { icon: gpsPointIcon(leaflet), title: location.label || "GPS point" })
       .addTo(facilityLeafletMap)
       .bindPopup(`
         <div class="map-popup">
@@ -7398,8 +7601,8 @@ function renderContactSummaryTab(contact) {
           <div class="panel-body">
             <dl class="detail-list">
               <div><dt>Email</dt><dd>${escapeHtml(core.email || "Not captured")}</dd></div>
-              <div><dt>Business phone</dt><dd>${escapeHtml(core.businessPhone || "Not captured")}</dd></div>
-              <div><dt>Mobile phone</dt><dd>${escapeHtml(core.mobilePhone || "Not captured")}</dd></div>
+              <div><dt>Business phone</dt><dd>${escapeHtml(formatPhoneNumber(core.businessPhone || "Not captured"))}</dd></div>
+              <div><dt>Mobile phone</dt><dd>${escapeHtml(formatPhoneNumber(core.mobilePhone || "Not captured"))}</dd></div>
               <div><dt>Account</dt><dd>${
                 account
                   ? `<button class="link-button" type="button" data-action="view-account" data-id="${escapeAttribute(account.id)}">${escapeHtml(account.name)}</button>`
@@ -7482,9 +7685,9 @@ function renderContactDetailsTab(contact) {
               <div><dt>Job title</dt><dd>${escapeHtml(core.jobTitle || "Not captured")}</dd></div>
               <div><dt>Email</dt><dd>${escapeHtml(core.email || "Not captured")}</dd></div>
               <div><dt>Email (alternate)</dt><dd>${escapeHtml(core.emailAddressTwo || "Not captured")}</dd></div>
-              <div><dt>Business phone</dt><dd>${escapeHtml(core.businessPhone || "Not captured")}</dd></div>
-              <div><dt>Mobile phone</dt><dd>${escapeHtml(core.mobilePhone || "Not captured")}</dd></div>
-              <div><dt>Fax</dt><dd>${escapeHtml(core.fax || "Not captured")}</dd></div>
+              <div><dt>Business phone</dt><dd>${escapeHtml(formatPhoneNumber(core.businessPhone || "Not captured"))}</dd></div>
+              <div><dt>Mobile phone</dt><dd>${escapeHtml(formatPhoneNumber(core.mobilePhone || "Not captured"))}</dd></div>
+              <div><dt>Fax</dt><dd>${escapeHtml(formatPhoneNumber(core.fax || "Not captured"))}</dd></div>
             </dl>
           </div>
         </article>
@@ -7557,7 +7760,7 @@ function renderContactDetailsTab(contact) {
               <div><dt>Street</dt><dd>${escapeHtml([core.addressOneStreetOne, core.addressOneStreetTwo].filter(Boolean).join(", ") || "Not captured")}</dd></div>
               <div><dt>City / State</dt><dd>${escapeHtml([core.addressOneCity, core.addressOneState].filter(Boolean).join(", ") || "Not captured")}</dd></div>
               <div><dt>Zip / Country</dt><dd>${escapeHtml([core.addressOneZipCode, core.addressOneCountry].filter(Boolean).join(", ") || "Not captured")}</dd></div>
-              <div><dt>Phone</dt><dd>${escapeHtml(core.addressOneTelephoneOne || "Not captured")}</dd></div>
+              <div><dt>Phone</dt><dd>${escapeHtml(formatPhoneNumber(core.addressOneTelephoneOne || "Not captured"))}</dd></div>
             </dl>
           </div>
         </article>
@@ -7571,7 +7774,7 @@ function renderContactDetailsTab(contact) {
               <div><dt>Street</dt><dd>${escapeHtml([core.addressTwoStreetOne, core.addressTwoStreetTwo].filter(Boolean).join(", ") || "Not captured")}</dd></div>
               <div><dt>City / State</dt><dd>${escapeHtml([core.addressTwoCity, core.addressTwoState].filter(Boolean).join(", ") || "Not captured")}</dd></div>
               <div><dt>Zip / Country</dt><dd>${escapeHtml([core.addressTwoZipCode, core.addressTwoCountry].filter(Boolean).join(", ") || "Not captured")}</dd></div>
-              <div><dt>Fax</dt><dd>${escapeHtml(core.addressTwoFax || "Not captured")}</dd></div>
+              <div><dt>Fax</dt><dd>${escapeHtml(formatPhoneNumber(core.addressTwoFax || "Not captured"))}</dd></div>
             </dl>
           </div>
         </article>
@@ -7902,7 +8105,7 @@ function renderAllProjectsTable(jobs) {
       const openAlerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved").length;
       return `
         <tr>
-          <td><button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${escapeHtml(job.name)}</button></td>
+          <td><button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${openAlerts ? withTrailingAlertDot(job.name, `${openAlerts} open field alert${openAlerts === 1 ? "" : "s"}`) : escapeHtml(job.name)}</button></td>
           <td>${escapeHtml(account?.name || "Unknown account")}</td>
           <td>${escapeHtml(jobClassLabel[job.jobClass] || job.jobClass)}</td>
           <td>${formatDate(job.startDate)}</td>
@@ -8135,7 +8338,7 @@ function renderProjectDetail() {
 
       <div class="account-detail-shell">
         <div class="account-detail-tabs-row">
-          ${renderProjectDetailTabs(activeTab)}
+          ${renderProjectDetailTabs(activeTab, alerts.length)}
         </div>
         <div class="account-detail-tabbody">
           ${renderProjectTabBody(activeTab, job, ctx)}
@@ -8162,14 +8365,15 @@ const projectDetailTabs = [
   { id: "live", label: "Live" },
 ];
 
-function renderProjectDetailTabs(activeTab) {
+// Red-dot rule: open field alerts live on the Live tab, so that tab carries the dot.
+function renderProjectDetailTabs(activeTab, openAlertCount = 0) {
   return `
     <div class="segment-tabs" role="tablist" aria-label="Project detail sections">
       ${projectDetailTabs
         .map(
           (tab) => `
             <button type="button" role="tab" aria-selected="${tab.id === activeTab}" class="${tab.id === activeTab ? "active" : ""}" data-action="switch-project-tab" data-tab="${tab.id}">
-              ${escapeHtml(tab.label)}
+              ${escapeHtml(tab.label)}${tab.id === "live" && openAlertCount ? renderAlertDot(`${openAlertCount} open field alert${openAlertCount === 1 ? "" : "s"}`) : ""}
             </button>
           `,
         )
@@ -8207,7 +8411,7 @@ function renderProjectIntakeTab(job, ctx) {
             <dl class="detail-list">
               <div><dt>Generator</dt><dd>${escapeHtml(generator.name)}</dd></div>
               <div><dt>Site</dt><dd>${escapeHtml(generator.siteName)}</dd></div>
-              <div><dt>Contact</dt><dd>${escapeHtml(generator.contactName)}${generator.contactPhone ? ` - ${escapeHtml(generator.contactPhone)}` : ""}</dd></div>
+              <div><dt>Contact</dt><dd>${escapeHtml(generator.contactName)}${generator.contactPhone ? ` - ${escapeHtml(formatPhoneNumber(generator.contactPhone))}` : ""}</dd></div>
               <div><dt>EPA ID</dt><dd>${escapeHtml(generator.epaId)}</dd></div>
               <div><dt>TCEQ ID</dt><dd>${escapeHtml(generator.tceqId)}</dd></div>
               <div><dt>Insurance</dt><dd>${escapeHtml(generator.insuranceContact)}</dd></div>
@@ -8268,7 +8472,7 @@ function renderEmergencyIntakePanel(job) {
         </div>
         <p class="help-text">${escapeHtml(job.mobilizationNote || "")}</p>
         <dl class="detail-list">
-          <div><dt>Caller</dt><dd>${escapeHtml(job.callerName || "Not captured")}${job.callerPhone ? ` — ${escapeHtml(job.callerPhone)}` : ""}</dd></div>
+          <div><dt>Caller</dt><dd>${escapeHtml(job.callerName || "Not captured")}${job.callerPhone ? ` — ${escapeHtml(formatPhoneNumber(job.callerPhone))}` : ""}</dd></div>
           <div><dt>Material</dt><dd>${escapeHtml(job.spillMaterial || "Not captured")}${job.spillQuantity ? ` (${escapeHtml(job.spillQuantity)})` : ""}</dd></div>
           <div><dt>Surface</dt><dd>${escapeHtml(job.spillSurface || "Not captured")}</dd></div>
           <div><dt>Storm drain</dt><dd>${escapeHtml(job.stormDrainInvolved || "Unknown")}</dd></div>
@@ -8341,7 +8545,7 @@ function renderProjectLiveTab(job, ctx) {
       <div class="detail-stack">
         ${
           alerts.length
-            ? `<article class="panel">
+            ? `<article class="panel panel-needs-attention">
                 <div class="panel-header"><div><h3>Field alerts</h3><span>${alerts.length} open</span></div></div>
                 <div class="panel-body record-list">
                   ${alerts.map(renderAlertCard).join("")}
@@ -8375,6 +8579,8 @@ function renderProjectLiveTab(job, ctx) {
             </div>
           </div>
         </article>
+
+        ${renderProjectExpensesPanel(job)}
       </div>
 
       <div class="detail-stack">
@@ -8506,12 +8712,13 @@ function renderProjectBillingPanel(job) {
           <div><dt>Materials (${costs.materials.items.length} logged, ${money(costs.materials.unitCost)}/unit${costs.materials.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.materials.total)}</dd></div>
           <div><dt>Equipment (${costs.equipment.items.length} logged, ${money(costs.equipment.unitCost)}/day${costs.equipment.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.equipment.total)}</dd></div>
           <div><dt>Labor (${costs.labor.hours} hrs logged, ${money(costs.labor.unitCost)}/hr${costs.labor.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.labor.total)}</dd></div>
+          ${costs.expenses ? `<div><dt>Field expenses (${costs.expenses.items.length} receipt${costs.expenses.items.length === 1 ? "" : "s"})</dt><dd>${money(costs.expenses.total)}</dd></div>` : ""}
           <div><dt>Total cost</dt><dd><strong>${money(costs.total)}</strong></dd></div>
           <div><dt>Revenue (${escapeHtml(revenue.quotedSource === "quote" ? "quote" : revenue.quotedSource === "estimate" ? "estimate" : revenue.quotedSource === "none" ? "no quote/estimate on file" : "opportunity value")})</dt><dd>${money(revenue.quoted)}</dd></div>
           ${revenue.invoiced != null ? `<div><dt>Invoiced amount</dt><dd>${money(revenue.invoiced)}</dd></div>` : ""}
           <div><dt>Margin</dt><dd><strong class="${margin >= 0 ? "" : "risk-badge high"}">${money(margin)}${marginPercent != null ? ` (${marginPercent.toFixed(1)}%)` : ""}</strong></dd></div>
         </dl>
-        ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
+        ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours && !costs.expenses?.items.length ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
         <p class="help-text">Waste-disposal cost tracking (permits, disposal manifests) is not included — that's Phase 11/Field Ops Depth scope, not yet built.</p>
       </div>
     </article>
@@ -9873,7 +10080,7 @@ function renderJobCard(job) {
     <article class="job-card">
       <div>
         <button class="link-button account-name" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">
-          ${escapeHtml(job.name)}
+          ${alerts.length ? withTrailingAlertDot(job.name, `${alerts.length} open field alert${alerts.length === 1 ? "" : "s"}`) : escapeHtml(job.name)}
         </button>
         <div class="card-meta">
           <button class="link-button compact-link" type="button" data-action="view-account" data-id="${job.accountId}">
@@ -10051,7 +10258,7 @@ function renderWorkforceTableRow(employee) {
       <td data-label="Employee">
         <button class="record-link workforce-name-link" type="button" data-action="view-employee" data-id="${employee.id}">
           <span class="person-avatar" aria-hidden="true">${escapeHtml(getInitials(employee.displayName, "BR"))}</span>
-          <span><strong>${escapeHtml(employee.displayName)}</strong><small>${escapeHtml(employee.employeeNumber)}</small></span>
+          <span><strong>${employeeCredentialAlertTitle(employee.id) ? withTrailingAlertDot(employee.displayName, employeeCredentialAlertTitle(employee.id)) : escapeHtml(employee.displayName)}</strong><small>${escapeHtml(employee.employeeNumber)}</small></span>
         </button>
       </td>
       <td data-label="Role"><strong>${escapeHtml(employee.jobTitle)}</strong><span class="table-subtext">${escapeHtml(employee.businessUnit)}</span></td>
@@ -10126,7 +10333,7 @@ function renderEmployeeDetail() {
             </div>
           </article>
 
-          <article class="panel ${isPanelHighlighted(`employee-credentials-${employee.id}`) ? "panel-highlight" : ""}" id="employee-credentials-panel">
+          <article class="panel ${isPanelHighlighted(`employee-credentials-${employee.id}`) ? "panel-highlight" : ""} ${certifications.some(credentialNeedsAttention) ? "panel-needs-attention" : ""}" id="employee-credentials-panel">
             <div class="panel-header">
               <div><h3>Credentials and certifications</h3><span>${validCerts} valid · ${issueCerts} need attention</span></div>
               <button class="mini-button" type="button" data-action="open-credential" data-employee-id="${employee.id}">Add</button>
@@ -10150,7 +10357,7 @@ function renderEmployeeDetail() {
             <div class="panel-body">
               <dl class="detail-list">
                 <div><dt>Email</dt><dd>${escapeHtml(employee.primaryEmail || "Not set")}</dd></div>
-                <div><dt>Mobile</dt><dd>${escapeHtml(employee.mobilePhone || "Not set")}</dd></div>
+                <div><dt>Mobile</dt><dd>${escapeHtml(formatPhoneNumber(employee.mobilePhone || "Not set"))}</dd></div>
               </dl>
             </div>
           </article>
@@ -10188,7 +10395,7 @@ function renderCredentialRow(record) {
     <article class="credential-row">
       <div>
         <span class="credential-type">${escapeHtml(record.recordType)}</span>
-        <strong>${escapeHtml(record.name)}</strong>
+        <strong>${credentialNeedsAttention(record) ? withTrailingAlertDot(record.name, "Expired, expiring or not valid") : escapeHtml(record.name)}</strong>
         <span>${escapeHtml(record.code)}${record.number ? ` · ${escapeHtml(record.number)}` : ""}</span>
       </div>
       <div class="credential-dates">
@@ -10236,7 +10443,7 @@ function renderWorkforceCredentials() {
       <section class="metric-strip">
         <div class="metric"><p class="eyebrow">Cert types</p><strong>${types.length}</strong><span>${activeCertificationTypes().length} active</span></div>
         <div class="metric"><p class="eyebrow">Assignments</p><strong>${records.length}</strong><span>Across ${getEmployees().length} employees</span></div>
-        <div class="metric"><p class="eyebrow">Blocked</p><strong>${blocked.length}</strong><span>Cannot support new work</span></div>
+        <div class="metric"><p class="eyebrow">Blocked${blocked.length ? renderAlertDot(`${blocked.length} blocked credential${blocked.length === 1 ? "" : "s"}`) : ""}</p><strong>${blocked.length}</strong><span>Cannot support new work</span></div>
         <div class="metric"><p class="eyebrow">Verified</p><strong>${records.filter((record) => record.verified).length}</strong><span>Evidence reviewed</span></div>
       </section>
       <article class="panel">
@@ -10249,7 +10456,10 @@ function renderWorkforceCredentials() {
                 .map(
                   (type) => `
                     <tr>
-                      <td data-label="Type"><strong>${escapeHtml(type.name)}</strong></td>
+                      <td data-label="Type"><strong>${(() => {
+                        const flagged = records.filter((record) => record.certTypeId === type.id && credentialNeedsAttention(record)).length;
+                        return flagged ? withTrailingAlertDot(type.name, `${flagged} holder${flagged === 1 ? "" : "s"} expired, expiring or not valid`) : escapeHtml(type.name);
+                      })()}</strong></td>
                       <td data-label="Category">${escapeHtml(type.category || "")}</td>
                       <td data-label="Issuing body">${escapeHtml(type.issuingBody || "")}</td>
                       <td data-label="Renewal">${type.renewalIntervalMonths ? `${type.renewalIntervalMonths} months` : "One-time"}</td>
@@ -10997,7 +11207,7 @@ function renderJobRequestCard(request) {
           <div><dt>Service</dt><dd>${escapeHtml(request.serviceCategory)} · ${escapeHtml(request.requestedTimeText || "Not set")}</dd></div>
           <div><dt>Location</dt><dd>${escapeHtml(request.addressText || "Not set")}</dd></div>
           <div><dt>Called in by</dt><dd>${escapeHtml(request.calledInByName || "Not set")}</dd></div>
-          <div><dt>Onsite POC</dt><dd>${escapeHtml(request.onsiteContactName || "Not set")} · ${escapeHtml(request.onsiteContactPhone || "No phone")}</dd></div>
+          <div><dt>Onsite POC</dt><dd>${escapeHtml(request.onsiteContactName || "Not set")} · ${escapeHtml(formatPhoneNumber(request.onsiteContactPhone || "No phone"))}</dd></div>
           <div><dt>Requested lead</dt><dd>${escapeHtml(request.requestedAssignee || "Unassigned")}</dd></div>
           <div><dt>Estimate</dt><dd>${formatDuration(request.estimatedDurationMinutes)}</dd></div>
         </dl>
@@ -11130,14 +11340,26 @@ function renderDispatchJobs() {
   `;
 }
 
+// Red-dot rule for dispatch jobs: an open schedule/eligibility conflict, or a job past draft that is
+// blocked from dispatch. A blocked *draft* is not flagged: every unplanned draft is "Blocked" by
+// definition (no schedule, no crew yet), and dotting them all would bury the real alerts.
+function dispatchJobAlertTitle(job, readiness = getJobReadiness(job)) {
+  if (isTerminalDispatchStatus(job.status)) return "";
+  const openConflicts = conflictsForDispatchJob(job.id).filter((conflict) => conflict.status === "Open").length;
+  if (openConflicts) return `${openConflicts} open conflict${openConflicts === 1 ? "" : "s"}`;
+  if (readiness.status === "Blocked" && job.status !== "draft") return "Blocked from dispatch";
+  return "";
+}
+
 function renderDispatchJobTableRow(job) {
   const lead = findEmployee(job.fieldLeadEmployeeId);
   const readiness = getJobReadiness(job);
+  const alertTitle = dispatchJobAlertTitle(job, readiness);
   return `
     <tr>
       <td data-label="Job">
         <button class="table-record-link" type="button" data-action="view-dispatch-job" data-id="${job.id}">
-          <strong>${escapeHtml(job.jobNumber)}</strong>
+          <strong>${escapeHtml(job.jobNumber)}${alertTitle ? renderAlertDot(alertTitle) : ""}</strong>
           <span>${escapeHtml(job.jobName)}</span>
           <small>${escapeHtml(job.jobType)} v${Number(job.jobTypeVersion || 1)}</small>
         </button>
@@ -11821,7 +12043,7 @@ function renderDispatchJobDetail() {
       </section>
 
       <div class="account-detail-tabs-row">
-        ${renderDispatchJobDetailTabs(activeTab)}
+        ${renderDispatchJobDetailTabs(activeTab, dispatchJobAlertTitle(job, readiness))}
       </div>
       <div class="account-detail-tabbody">
         ${renderDispatchJobTabBody(activeTab, job, readiness)}
@@ -11830,14 +12052,15 @@ function renderDispatchJobDetail() {
   `;
 }
 
-function renderDispatchJobDetailTabs(activeTab) {
+// Readiness and exceptions live on Summary, so Summary carries the dot.
+function renderDispatchJobDetailTabs(activeTab, alertTitle = "") {
   return `
     <div class="segment-tabs" role="tablist" aria-label="Dispatch job detail sections">
       ${dispatchJobDetailTabs
         .map(
           (tab) => `
             <button type="button" role="tab" aria-selected="${tab.id === activeTab}" class="${tab.id === activeTab ? "active" : ""}" data-action="switch-dispatch-job-tab" data-tab="${tab.id}">
-              ${escapeHtml(tab.label)}
+              ${escapeHtml(tab.label)}${tab.id === "summary" && alertTitle ? renderAlertDot(alertTitle) : ""}
             </button>
           `,
         )
@@ -11876,7 +12099,7 @@ function renderDispatchJobSummaryTab(job, readiness) {
 
       <section class="job-detail-layout">
         <div class="job-detail-main">
-          <article class="panel readiness-panel">
+          <article class="panel readiness-panel ${readiness.status === "Blocked" && job.status !== "draft" && !isTerminalDispatchStatus(job.status) ? "panel-needs-attention" : ""}">
             <div class="panel-header"><div><h3>Dispatch readiness</h3><span>${escapeHtml(readiness.summary)}</span></div>${renderReadinessBadge(readiness.status)}</div>
             <div class="panel-body readiness-check-list">
               ${readiness.checks.map(renderReadinessCheck).join("")}
@@ -11884,7 +12107,7 @@ function renderDispatchJobSummaryTab(job, readiness) {
           </article>
         </div>
         <aside class="job-detail-sidebar">
-          <article class="panel">
+          <article class="panel ${conflicts.some((conflict) => conflict.status === "Open") && !isTerminalDispatchStatus(job.status) ? "panel-needs-attention" : ""}">
             <div class="panel-header"><div><h3>Exceptions</h3><span>${conflicts.length} related</span></div></div>
             <div class="panel-body record-list">
               ${conflicts.map(renderCompactJobConflict).join("") || `<div class="empty-state compact">No schedule or eligibility conflicts.</div>`}
@@ -11916,7 +12139,7 @@ function renderDispatchJobDetailsTab(job) {
           <p class="job-description">${escapeHtml(job.description)}</p>
           <dl class="detail-list job-overview-list">
             <div><dt>Address</dt><dd>${escapeHtml(job.addressText || "Not set")}</dd></div>
-            <div><dt>Onsite POC</dt><dd>${escapeHtml(job.onsiteContactName || "Not set")} · ${escapeHtml(job.onsiteContactPhone || "No phone")}</dd></div>
+            <div><dt>Onsite POC</dt><dd>${escapeHtml(job.onsiteContactName || "Not set")} · ${escapeHtml(formatPhoneNumber(job.onsiteContactPhone || "No phone"))}</dd></div>
             <div><dt>Generator / RP</dt><dd>${escapeHtml(job.generatorResponsibleParty || "Unknown")}</dd></div>
             <div><dt>BioRemedy PO</dt><dd>${escapeHtml(job.bioremedyPoNumber || "Not assigned")}</dd></div>
             <div><dt>Customer PO</dt><dd>${escapeHtml(job.customerPoNumber || "Not provided")}</dd></div>
@@ -12324,7 +12547,7 @@ function renderInventoryConsumables() {
             rows: consumables,
             renderRow: (item) => `
               <tr>
-                <td><button class="link-button" type="button" data-action="view-consumable" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.materialType)}</button></td>
+                <td><button class="link-button" type="button" data-action="view-consumable" data-id="${escapeAttribute(item.id)}">${consumableAlertTitle(item) ? withTrailingAlertDot(item.materialType, consumableAlertTitle(item)) : escapeHtml(item.materialType)}</button></td>
                 <td>${escapeHtml(item.buyer)}</td>
                 <td>${Number(item.onHand || 0)} ${escapeHtml(item.unit)}</td>
                 <td>${item.available} ${escapeHtml(item.unit)}</td>
@@ -12336,6 +12559,19 @@ function renderInventoryConsumables() {
       </article>
     </section>
   `;
+}
+
+// Red-dot rules for inventory. "Watch" stock is a heads-up, not an alert; only below-reorder counts.
+function consumableAlertTitle(item) {
+  return item?.status === "Reorder" ? "At or below the reorder point" : "";
+}
+
+function equipmentAlertTitle(asset) {
+  if (!asset) return "";
+  if (asset.status === "Maintenance hold") return "On maintenance hold";
+  if (asset.issue) return `Open issue: ${asset.issue}`;
+  if (asset.maintenanceDue && daysUntil(asset.maintenanceDue) < 0) return "Maintenance overdue";
+  return "";
 }
 
 function renderConsumableDetail() {
@@ -12373,7 +12609,7 @@ function renderConsumableDetail() {
 
       <section class="employee-detail-layout">
         <div class="employee-detail-main">
-          <article class="panel">
+          <article class="panel ${consumableAlertTitle(consumable) ? "panel-needs-attention" : ""}">
             <div class="panel-header"><h3>Stock levels</h3></div>
             <div class="panel-body">
               <div class="race-progress ${consumable.tone}">
@@ -12537,7 +12773,7 @@ function renderInventoryEquipment() {
             renderRow: (asset) => `
               <tr>
                 <td>${escapeHtml(asset.category || "General equipment")}</td>
-                <td><button class="link-button" type="button" data-action="view-equipment-asset" data-asset-tag="${escapeAttribute(asset.assetTag)}">${escapeHtml(asset.assetTag)}</button></td>
+                <td><button class="link-button" type="button" data-action="view-equipment-asset" data-asset-tag="${escapeAttribute(asset.assetTag)}">${equipmentAlertTitle(asset) ? withTrailingAlertDot(asset.assetTag, equipmentAlertTitle(asset)) : escapeHtml(asset.assetTag)}</button></td>
                 <td>${escapeHtml(asset.equipment)}</td>
                 <td><span class="risk-badge ${asset.statusTone}">${escapeHtml(asset.status)}${asset.issue ? " ⚠" : ""}</span></td>
                 <td>${formatDate(asset.maintenanceDue)}</td>
@@ -12590,7 +12826,7 @@ function renderEquipmentAssetDetail() {
 
       <section class="employee-detail-layout">
         <div class="employee-detail-main">
-          <article class="panel">
+          <article class="panel ${asset.status === "Maintenance hold" || asset.issue ? "panel-needs-attention" : ""}">
             <div class="panel-header"><h3>Equipment facts</h3></div>
             <div class="panel-body">
               <dl class="detail-list">
@@ -12607,7 +12843,7 @@ function renderEquipmentAssetDetail() {
             </div>
           </article>
 
-          <article class="panel">
+          <article class="panel ${asset.maintenanceDue && daysUntil(asset.maintenanceDue) < 0 ? "panel-needs-attention" : ""}">
             <div class="panel-header">
               <div><h3>Maintenance records</h3><span>Next due ${formatDate(asset.maintenanceDue)}</span></div>
               <button class="mini-button" type="button" data-action="open-equipment-maintenance" data-asset-tag="${escapeAttribute(asset.assetTag)}">Log maintenance</button>
@@ -13419,7 +13655,7 @@ function renderClientSpillDetail() {
               <dl class="detail-list">
                 <div><dt>Generator</dt><dd>${escapeHtml(generator.name)}</dd></div>
                 <div><dt>Site</dt><dd>${escapeHtml(generator.siteName)}</dd></div>
-                <div><dt>Contact</dt><dd>${escapeHtml(generator.contactName)}${generator.contactPhone ? ` - ${escapeHtml(generator.contactPhone)}` : ""}</dd></div>
+                <div><dt>Contact</dt><dd>${escapeHtml(generator.contactName)}${generator.contactPhone ? ` - ${escapeHtml(formatPhoneNumber(generator.contactPhone))}` : ""}</dd></div>
                 <div><dt>EPA ID</dt><dd>${escapeHtml(generator.epaId)}</dd></div>
                 <div><dt>TCEQ ID</dt><dd>${escapeHtml(generator.tceqId)}</dd></div>
                 <div><dt>Insurance</dt><dd>${escapeHtml(generator.insuranceContact)}</dd></div>
@@ -13632,7 +13868,7 @@ function renderClientContactCard(contact) {
       </div>
       <dl class="detail-list compact-detail-list">
         <div><dt>Email</dt><dd>${escapeHtml(contact.email || contact.emailAddressOne || "Not captured")}</dd></div>
-        <div><dt>Phone</dt><dd>${escapeHtml(contact.phone || contact.businessPhone || contact.mobilePhone || "Not captured")}</dd></div>
+        <div><dt>Phone</dt><dd>${escapeHtml(formatPhoneNumber(contact.phone || contact.businessPhone || contact.mobilePhone || "Not captured"))}</dd></div>
       </dl>
     </article>
   `;
@@ -13812,7 +14048,7 @@ function renderActivityPicker(accountId, contactId = "", opportunityId = "") {
 
 function renderTimelineItemDetail(activity) {
   if (activity.activityType === "Call") {
-    return activity.phoneNumber ? `<span>${escapeHtml(activity.phoneNumber)}</span>` : "";
+    return activity.phoneNumber ? `<span>${escapeHtml(formatPhoneNumber(activity.phoneNumber))}</span>` : "";
   }
   if (activity.activityType === "Meeting") {
     if (activity.meetingFormat === "Online") {
@@ -13986,7 +14222,7 @@ const FRONTLINE_TILES = [
   { key: "location", label: "Location", view: "frontline-location" },
   { key: "invoices", label: "Invoices", view: "frontline-invoices" },
   { key: "settings", label: "Settings", view: "frontline-settings" },
-  { key: "exit", label: "Exit", view: "" },
+  { key: "receipts", label: "Receipts", view: "frontline-receipts" },
 ];
 
 function renderFrontlineHeader() {
@@ -14060,6 +14296,7 @@ const FRONTLINE_TILE_ICON_PATHS = {
   invoices: '<path d="M6 2h12v19l-3-2-3 2-3-2-3 2V2Z" /><path d="M9 7h6M9 11h6M9 15h4" />',
   settings:
     '<circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M22 12h-3M5 12H2M19.07 4.93l-2.12 2.12M7.05 16.95l-2.12 2.12M19.07 19.07l-2.12-2.12M7.05 7.05 4.93 4.93" />',
+  receipts: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z" /><circle cx="12" cy="13" r="4" />',
   exit: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />',
 };
 
@@ -14069,14 +14306,6 @@ function frontlineTileIcon(key) {
 }
 
 function renderFrontlineTile(tile) {
-  if (tile.key === "exit") {
-    return `
-      <button class="frontline-tile exit" type="button" data-action="frontline-exit">
-        <span class="frontline-tile-icon">${frontlineTileIcon(tile.key)}</span>
-        <span>${escapeHtml(tile.label)}</span>
-      </button>
-    `;
-  }
   return `
     <button class="frontline-tile" type="button" data-view="${tile.view}">
       <span class="frontline-tile-icon">${frontlineTileIcon(tile.key)}</span>
@@ -14099,6 +14328,11 @@ function renderFrontlineHome() {
           <div class="frontline-grid">
             ${FRONTLINE_TILES.map(renderFrontlineTile).join("")}
           </div>
+          <!-- Owner, 2026-09-22: Exit is a short full-width bar under the grid, so its old cell holds Receipts. -->
+          <button class="frontline-exit-bar" type="button" data-action="frontline-exit">
+            <span class="frontline-tile-icon">${frontlineTileIcon("exit")}</span>
+            <span>Exit</span>
+          </button>
         </div>
       </div>
     </div>
@@ -14727,6 +14961,206 @@ function mileageEntriesForEmployee(employeeId) {
     .sort((a, b) => new Date(b.capturedAt) - new Date(a.capturedAt));
 }
 
+// --- Field receipts & expenses (Phase 10, 2026-09-22 pass) ------------------------------------
+//
+// A field worker photographs a receipt and files it against the dispatch job it was for. Expenses
+// roll up to the project (Field expenses panel, and Phase 09's close report as a real cost). The
+// photo lives in jobTaskAttachments (kind "receipt"), the store Front Line task photos already use,
+// until Phase 13's generic attachment store exists.
+
+// Categories follow what the 2026 rate sheet bills at cost + margin (travel, lodging, per diem,
+// subcontracted services, rented equipment, purchased materials), so an expense can become a
+// billable line later instead of being re-keyed. Fuel is recovered through the fuel surcharge, so
+// it isn't billable on its own.
+const EXPENSE_CATEGORIES = [
+  { value: "Fuel", billable: false },
+  { value: "Lodging", billable: true },
+  { value: "Per diem / meals", billable: true },
+  { value: "Travel (airfare, tolls, parking)", billable: true },
+  { value: "Materials purchased", billable: true },
+  { value: "Equipment rental", billable: true },
+  { value: "Subcontracted service", billable: true },
+  { value: "Other", billable: false },
+];
+const EXPENSE_PAYMENT_METHODS = ["Company card", "Personal (reimburse me)", "Cash"];
+
+function getJobExpenses() {
+  return (state.backend.jobExpenses || []).filter((expense) => !expense.deletedAt);
+}
+
+function expensesForProject(projectId) {
+  const dispatchIds = new Set(dispatchJobsForProject(projectId).map((job) => job.id));
+  return getJobExpenses()
+    .filter((expense) => expense.projectId === projectId || dispatchIds.has(expense.dispatchJobId))
+    .sort((a, b) => String(b.incurredOn || "").localeCompare(String(a.incurredOn || "")));
+}
+
+function receiptAttachment(expense) {
+  return expense.receiptAttachmentId ? (state.backend.jobTaskAttachments || []).find((item) => item.id === expense.receiptAttachmentId) : null;
+}
+
+function renderReceiptLink(expense) {
+  const attachment = receiptAttachment(expense);
+  if (!attachment) return `<span class="muted-text">No receipt</span>`;
+  const url = `/api/job-task-attachments/${encodeURIComponent(attachment.id)}/view`;
+  return attachment.mimeType?.startsWith("image/")
+    ? `<a href="${url}" target="_blank" rel="noopener"><img class="receipt-thumb" src="${url}" alt="Receipt from ${escapeAttribute(expense.vendor || "vendor")}" loading="lazy" /></a>`
+    : `<a href="${url}" target="_blank" rel="noopener">View receipt (PDF)</a>`;
+}
+
+function renderFrontlineExpenseRow(expense) {
+  const job = expense.dispatchJobId ? findDispatchJob(expense.dispatchJobId) : null;
+  return `
+    <article class="frontline-record-card frontline-expense-row">
+      ${renderReceiptLink(expense)}
+      <div>
+        <div class="inline-actions"><strong>${moneyExact(expense.amount)}</strong><span>${escapeHtml(expense.category || "")}</span></div>
+        <span>${escapeHtml(expense.vendor || "Vendor not recorded")} · ${formatDate(expense.incurredOn)}</span>
+        <span>${job ? escapeHtml(frontlineJobOptionLabel(job)) : "No job"} · ${escapeHtml(expense.paymentMethod || "")}</span>
+      </div>
+    </article>
+  `;
+}
+
+function renderFrontlineReceipts() {
+  const employeeId = state.frontlineSession?.employeeId;
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+  const mine = getJobExpenses()
+    .filter((expense) => expense.employeeId === employeeId)
+    .sort((a, b) => String(b.submittedAt || "").localeCompare(String(a.submittedAt || "")));
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body">
+          <h2>Receipts</h2>
+          <form class="frontline-action-form frontline-record-card" data-form="frontline-log-expense">
+            <label>Job
+              <select name="dispatchJobId" required>
+                <option value="">Choose the job this was for...</option>
+                ${myJobs.map((job) => `<option value="${escapeAttribute(job.id)}">${escapeHtml(frontlineJobOptionLabel(job))}</option>`).join("")}
+              </select>
+            </label>
+            <label>Receipt photo
+              <input type="file" name="receipt" accept="image/*,application/pdf" capture="environment" required />
+            </label>
+            <div class="form-grid">
+              <label>Amount<input type="number" name="amount" min="0.01" step="0.01" required placeholder="0.00" /></label>
+              <label>Date<input type="date" name="incurredOn" value="${todayIso()}" required /></label>
+            </div>
+            <label>Vendor<input name="vendor" maxlength="80" placeholder="e.g. Buc-ee's, Home Depot" /></label>
+            <div class="form-grid">
+              <label>Category
+                <select name="category">${EXPENSE_CATEGORIES.map((item) => `<option>${escapeHtml(item.value)}</option>`).join("")}</select>
+              </label>
+              <label>Paid with
+                <select name="paymentMethod">${EXPENSE_PAYMENT_METHODS.map((item) => `<option>${escapeHtml(item)}</option>`).join("")}</select>
+              </label>
+            </div>
+            <label>Note<textarea name="note" placeholder="What was it for?"></textarea></label>
+            <button class="primary-button" type="submit">Save receipt</button>
+          </form>
+          <h3>My receipts</h3>
+          <div class="frontline-job-list">
+            ${mine.slice(0, 20).map(renderFrontlineExpenseRow).join("") || `<div class="empty-state">No receipts submitted yet.</div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function frontlineLogExpense(form) {
+  const employeeId = state.frontlineSession?.employeeId;
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (!employeeId || submitButton?.disabled) return;
+  const data = new FormData(form);
+  const dispatchJobId = data.get("dispatchJobId").toString();
+  const amount = Number(data.get("amount") || 0);
+  const picked = form.elements.receipt?.files?.[0];
+  if (!dispatchJobId) return showToast("Choose the job this expense was for.");
+  if (!(amount > 0)) return showToast("Enter the receipt amount.");
+  if (!picked) return showToast("Add a photo of the receipt.");
+  // Some phones hand over a camera capture named just "image" with no extension; the server decides
+  // the file type from the extension, so give it one from the MIME type.
+  const extensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+  const file = /\.[a-z0-9]+$/i.test(picked.name) ? picked : new File([picked], `receipt.${extensions[picked.type] || "jpg"}`, { type: picked.type });
+  const job = findDispatchJob(dispatchJobId);
+  const category = data.get("category").toString();
+  const paymentMethod = data.get("paymentMethod").toString();
+  const vendor = data.get("vendor").toString().trim();
+  const expenseId = makeId("expense");
+  if (submitButton) submitButton.disabled = true;
+  try {
+    await saveBackendRecord(
+      "jobExpenses",
+      {
+        id: expenseId,
+        dispatchJobId,
+        projectId: job?.projectId || "",
+        employeeId,
+        incurredOn: data.get("incurredOn").toString() || todayIso(),
+        amount: roundCents(amount),
+        vendor,
+        category,
+        paymentMethod,
+        reimbursable: paymentMethod !== "Company card",
+        billable: Boolean(EXPENSE_CATEGORIES.find((item) => item.value === category)?.billable),
+        note: data.get("note").toString().trim(),
+        status: "Submitted",
+        receiptAttachmentId: "",
+        submittedAt: new Date().toISOString(),
+      },
+      { refresh: false },
+    );
+    await uploadRawFile(`/api/job-expenses/${encodeURIComponent(expenseId)}/receipt`, file, { "X-Caption": encodeURIComponent(vendor || category) });
+    await refreshBackendState();
+    render();
+    showToast(`Receipt saved to ${job ? job.jobNumber || "the job" : "the job"}.`);
+  } catch (error) {
+    if (submitButton) submitButton.disabled = false;
+    showToast(error.message || "Receipt could not be saved.");
+  }
+}
+
+// Office side: every receipt filed against any of the project's dispatch jobs.
+function renderProjectExpensesPanel(job) {
+  const expenses = expensesForProject(job.id);
+  const total = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  const billable = expenses.filter((expense) => expense.billable).reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  const reimbursable = expenses.filter((expense) => expense.reimbursable).reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <div><h3>Field expenses</h3><span>${expenses.length ? `${moneyExact(total)} total · ${moneyExact(billable)} billable · ${moneyExact(reimbursable)} to reimburse` : "Receipts filed from Front Line"}</span></div>
+      </div>
+      <div class="panel-body record-list">
+        ${
+          expenses
+            .map((expense) => {
+              const employee = findEmployee(expense.employeeId);
+              return `
+                <article class="detail-card project-expense-row">
+                  ${renderReceiptLink(expense)}
+                  <div>
+                    <div class="row-meta"><strong>${moneyExact(expense.amount)} · ${escapeHtml(expense.category || "")}</strong><span>${formatDate(expense.incurredOn)}</span></div>
+                    <span>${escapeHtml(expense.vendor || "Vendor not recorded")} · ${escapeHtml(employee?.displayName || "Unknown")} · ${escapeHtml(expense.paymentMethod || "")}</span>
+                    <div class="inline-actions">
+                      ${expense.billable ? `<span class="risk-badge low">Billable</span>` : ""}
+                      ${expense.reimbursable ? `<span class="risk-badge medium">Reimburse</span>` : ""}
+                    </div>
+                    ${expense.note ? `<p class="help-text">${escapeHtml(expense.note)}</p>` : ""}
+                  </div>
+                </article>
+              `;
+            })
+            .join("") || `<div class="empty-state">No receipts filed against this project's dispatch jobs yet.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function renderFrontlineTrips() {
   const employeeId = state.frontlineSession?.employeeId;
   const entries = mileageEntriesForEmployee(employeeId);
@@ -14843,7 +15277,7 @@ function renderFrontlineSettings() {
           <div class="frontline-record-card">
             <strong>${escapeHtml(employee?.displayName || "Unknown")}</strong>
             <span>${escapeHtml(employee?.jobTitle || "Not set")} · ${escapeHtml(employee?.employeeNumber || "")}</span>
-            <span>${escapeHtml(employee?.mobilePhone || "No mobile on file")}</span>
+            <span>${escapeHtml(formatPhoneNumber(employee?.mobilePhone || "No mobile on file"))}</span>
             <span>${escapeHtml(employee?.primaryEmail || "No email on file")}</span>
             <span>Session started ${formatDateTime(state.frontlineSession?.loginAt)}</span>
           </div>
@@ -15286,7 +15720,7 @@ function initializeFrontlineLocationMap(points) {
     const latLng = [Number(location.latitude), Number(location.longitude)];
     bounds.push(latLng);
     leaflet
-      .marker(latLng, { title: location.label || "GPS point" })
+      .marker(latLng, { icon: gpsPointIcon(leaflet), title: location.label || "GPS point" })
       .addTo(frontlineLocationLeafletMap)
       .bindPopup(
         `<div class="map-popup"><strong>${escapeHtml(location.label || "GPS point")}</strong><span>${formatDateTime(location.lastPingAt)}</span></div>`,
@@ -18224,7 +18658,19 @@ function buildProjectCostReport(project) {
   const laborRate = resolveCostBasisRate("prod-field-labor-standard", priceLevelId, 95);
   const laborTotal = labor.hours * laborRate.amount;
 
-  const costsTotal = materialsTotal + equipmentTotal + laborTotal;
+  // Field receipts are actual money spent, unlike the rate-card-priced rows above (see Phase 09's
+  // 2026-09-23 correction about sell rates).
+  const expenseItems = expensesForProject(project.id).map((expense) => ({
+    id: expense.id,
+    category: expense.category,
+    vendor: expense.vendor,
+    incurredOn: expense.incurredOn,
+    amount: Number(expense.amount || 0),
+    billable: Boolean(expense.billable),
+  }));
+  const expensesTotal = roundCents(expenseItems.reduce((sum, item) => sum + item.amount, 0));
+
+  const costsTotal = materialsTotal + equipmentTotal + laborTotal + expensesTotal;
 
   const existingInvoice = (state.backend.invoices || []).find((invoice) => invoice.projectId === project.id);
   const quotedRevenue = docRef.total || Number(opportunity?.value || project.budget || project.notToExceed || 0);
@@ -18239,6 +18685,7 @@ function buildProjectCostReport(project) {
       materials: { unitCost: materialRate.amount, rateSource: materialRate.source, items: materialItems, total: materialsTotal },
       equipment: { unitCost: equipmentRate.amount, rateSource: equipmentRate.source, items: equipmentItems, total: equipmentTotal },
       labor: { unitCost: laborRate.amount, rateSource: laborRate.source, hours: labor.hours, entries: labor.entries, total: laborTotal },
+      expenses: { items: expenseItems, total: expensesTotal },
       total: costsTotal,
     },
     revenue: {
@@ -19035,7 +19482,7 @@ function openOpportunityLeadDialog(opportunityId) {
   // staying inline — reopen Edit afterward to pick the new facility. See the phase doc's corrections.
   const addFacilityButton = dialog.querySelector('[data-action="open-facility"]');
   if (addFacilityButton) addFacilityButton.dataset.accountId = core.accountId;
-  form.elements.industry.value = core.industry || "";
+  populateOpportunityIndustrySelect(form.elements.industry, core.industry || "", core.accountId);
   form.elements.contaminationNotes.value = opportunity.contaminationNotes || "";
   form.elements.originatingLeadId.value = core.originatingLeadId || "";
   form.elements.sourceCampaign.value = core.sourceCampaign || "";
@@ -22238,6 +22685,8 @@ function openFacilityDialog(accountId = "", facilityId = "") {
     form.elements.concern.value = facility.concern || "";
     form.elements.hasConcern.checked = hasConcern;
     form.elements.access.value = facility.access || "";
+    form.elements.environmentalRisk.value = facility.environmentalRisk || "";
+    form.elements.environmentalRiskNotes.value = facility.environmentalRiskNotes || "";
     toggleFacilityOtherField(category);
     toggleFacilityConcernField(category, hasConcern);
   } else {
@@ -22274,6 +22723,8 @@ async function saveFacility(form) {
     badge: data.get("badge").toString().trim(),
     concern: hasConcern ? data.get("concern").toString().trim() : "",
     access: data.get("access").toString().trim(),
+    environmentalRisk: data.get("environmentalRisk").toString(),
+    environmentalRiskNotes: data.get("environmentalRiskNotes").toString().trim(),
   };
   delete facility.type;
   delete facility.status;
@@ -23514,6 +23965,25 @@ function populateEmployeeSelect(root, fieldName, blankLabel = "", extraOptions =
   });
 }
 
+// Opportunity industry (Phase 03 Q53): picked from the curated list, not typed. The stored value
+// stays the industry *name* (the field predates the industries collection, and the Qualify gate and
+// existing rows read it). Blank means "same as the account". A legacy free-text value that isn't on
+// the list stays selectable, so opening and saving an old opportunity never silently erases it.
+function populateOpportunityIndustrySelect(select, currentValue, accountId) {
+  const accountIndustry = primaryIndustryNameForAccount(accountId);
+  const names = getIndustries()
+    .slice()
+    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0))
+    .map((industry) => industry.industryName);
+  const legacy = currentValue && !names.includes(currentValue) ? currentValue : "";
+  select.innerHTML = [
+    `<option value="">${escapeHtml(accountIndustry ? `Same as account (${accountIndustry})` : "Not set")}</option>`,
+    ...names.map((name) => `<option value="${escapeAttribute(name)}">${escapeHtml(name)}</option>`),
+    ...(legacy ? [`<option value="${escapeAttribute(legacy)}">${escapeHtml(legacy)} (old free-text entry)</option>`] : []),
+  ].join("");
+  select.value = currentValue || "";
+}
+
 function populateIndustrySelect(root, fieldName, blankLabel = "Not set") {
   root.querySelectorAll(`select[name='${fieldName}']`).forEach((select) => {
     const sortedIndustries = getIndustries()
@@ -24652,7 +25122,7 @@ function getAccountCrmSummary(account) {
     openPipeline / 1000 +
     activeAlerts.length * 80 +
     openTasks.filter((task) => daysUntil(task.dueDate) < 0).length * 70 +
-    (account.risk === "High" ? 60 : account.risk === "Medium" ? 25 : 0) +
+    (accountEnvironmentalRisk(account) === "High" ? 60 : accountEnvironmentalRisk(account) === "Medium" ? 25 : 0) +
     (daysSince(account.lastContact) > 10 ? 30 : 0);
 
   return {
@@ -24676,7 +25146,7 @@ function getAccountHealth(account, openTasks, openOpportunities, activeAlerts) {
   if (activeAlerts.some((alert) => alert.severity === "High") || hasOverdueTask) {
     return { label: "Needs action", tone: "high" };
   }
-  if (account.risk === "High" || staleTouch || openOpportunities.length > 1) {
+  if (accountEnvironmentalRisk(account) === "High" || staleTouch || openOpportunities.length > 1) {
     return { label: "Watch closely", tone: "medium" };
   }
   return { label: "On track", tone: "low" };
@@ -24831,7 +25301,7 @@ function opportunityPriorityScore(item) {
   const taskDays = item.nextTask ? daysUntil(item.nextTask.dueDate) : 30;
   return (
     Number(item.opportunity.value) / 1000 +
-    (item.account?.risk === "High" ? 80 : item.account?.risk === "Medium" ? 35 : 0) +
+    (accountEnvironmentalRisk(item.account) === "High" ? 80 : accountEnvironmentalRisk(item.account) === "Medium" ? 35 : 0) +
     (item.closeStatus.tone === "high" ? 90 : item.closeStatus.tone === "medium" ? 45 : 0) +
     (taskDays < 0 ? 70 : taskDays <= 3 ? 35 : 0) +
     Math.max(0, 30 - closeDays)
@@ -25303,6 +25773,17 @@ function findEmployee(employeeId) {
 
 function getEmployeeCertifications() {
   return state.backend.employeeCertifications || [];
+}
+
+// Red-dot rule for credentials. Checks the live expiry date as well as the stored status: a record
+// can still say "Valid" after its date has passed (the same drift vendor insurance has).
+function credentialNeedsAttention(record) {
+  return record.status !== "Valid" || Boolean(isExpiringOrExpired(record.expiresOn));
+}
+
+function employeeCredentialAlertTitle(employeeId) {
+  const flagged = certificationsForEmployee(employeeId).filter(credentialNeedsAttention).length;
+  return flagged ? `${flagged} credential${flagged === 1 ? "" : "s"} expired, expiring or not valid` : "";
 }
 
 function certificationsForEmployee(employeeId) {
@@ -26034,7 +26515,8 @@ function getFinanceRows() {
     const materialCost = closeReport ? closeReport.costs.materials.total : materials.reduce((sum, item) => sum + Number(item.quantity || 0) * 42, 0);
     const equipmentCost = closeReport ? closeReport.costs.equipment.total : equipment.length * 650;
     const laborCost = closeReport ? closeReport.costs.labor.total : assignmentsForJob(job.id).length * 1200;
-    const expenses = closeReport ? closeReport.costs.total : materialCost + equipmentCost + laborCost;
+    const fieldExpenses = expensesForProject(job.id).reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+    const expenses = closeReport ? closeReport.costs.total : materialCost + equipmentCost + laborCost + fieldExpenses;
     const quoted = Number(invoice?.quotedAmount || closeReport?.revenue.quoted || opportunity?.value || job.notToExceed || job.budget || 0);
     const invoicePrep = Number(invoice?.invoiceAmount || (closeReport ? closeReport.revenue.quoted : Math.max(quoted, expenses * 1.35)));
     const lastCommunication = activitiesForAccount(job.accountId)[0];

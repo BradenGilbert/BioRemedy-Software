@@ -55,19 +55,18 @@ Two answers from that second round changed earlier entries and are already corre
 
 ## Stage B — Make the CRM Correct (the bulk of the work)
 
-### Phase 03 — Account Domain · *2 old items + 1 new*
-- Add industries: Environmental, Utilities/Infrastructure, Education; decide where DOT lives (Transportation already exists as "Transportation / Logistics" — do not add a duplicate)
-- Resolve whether `accounts.industry` (legacy scalar) or the `industries` join is authoritative — Phase 06 depends on the answer
-- Two items blocked on you (list-filter cleanup, Account Table)
+### Phase 03 — Account Domain · *1 item, blocked on you*
+*2026-09-23 (Wave 2): industries added (plus DOT under Government, and a NAICS code per industry), `accountIndustries` confirmed authoritative, opportunity industry is now a curated picker, and facility-level environmental risk (Q55) built. "Remove the Account Table" was dropped (Q30).*
+- List-filter cleanup (item 6): do you want literal filter *buttons*/chips, or are the compact search + dropdowns already there enough?
 
-### Phase 04 — Vendor & Subcontractor · *3 items, all blocked*
-- Dispatch-time subcontractor approval check + real vendor FK on job resources (bigger than planned, touches Phase 07)
-- W-9/COI upload → review workflow (blocked on Phase 13)
-- Agreement templates by type (blocked on Phase 13)
+### Phase 04 — Vendor & Subcontractor · *2 unblocked, 3 blocked*
+*2026-09-23: Office → Compliance expiry list shipped (item 4); item 7 resolved by Phase 08's rate sheets.*
+- Dispatch-time subcontractor approval check + real vendor FK on job resources (Wave 4)
+- Subcontractor assignment rate fields: pick a rate sheet, then derive the rate (item 14, unblocked by Phase 08; Wave 4)
+- W-9/COI upload → review workflow; agreement templates by type (blocked on Phase 13)
 
 ### Phase 05 — Contacts & Timeline · *4 items*
 *Corrected 2026-09-23: activity tags (item 2) and the person/type timeline filters shipped 2026-09-18; this list had not caught up.*
-- Phone numbers auto-format with dashes — one shared formatter, applied everywhere, caret position preserved
 - Shared opportunity-lookup component (also wanted by Phases 03 and 04)
 - Timeline "Related" filter (depends on Phase 06 item 20, the Regarding field)
 - Connected-via opportunity/project links clickable (item 14, together with Phase 06 item 12)
@@ -88,9 +87,8 @@ Two answers from that second round changed earlier entries and are already corre
 - Owner to enter the current fuel surcharge % (Rate Card → Pricing settings); it starts unset
 - Phase 09's close report prices usage at sell rates (now visible, flagged in both phase docs)
 
-### Phase 10 — Front Line · *2 new*
-- Fix the broken map marker (it is the only map in the app using Leaflet's default icon — the other four use `divIcon`)
-- Receipt/expense capture per job; Exit becomes a short full-width bar
+### Phase 10 — Front Line · ✅ 2026-09-22 pass shipped 2026-09-23 (Wave 2)
+Map markers fixed (two maps used the broken default, not one), Receipts tile with per-job expenses rolled up to the project and the close report, Exit as a full-width bar, tile grid overflow fixed.
 
 ### Phase 11 — Field Ops Depth & Reporting · *outline + 2 new specs*
 - **Post-work report generator** modelled on Lone Star's: per-day timeline, case narrative, per-day and summary billables, JSA/safety, post-job review, crew e-signatures. Structure fully transcribed in the phase doc
@@ -108,7 +106,13 @@ One intake screen: caller, pasted GPS pin, spill facts (storm drain, off-road di
 All 8 items live: All Projects table (old panels kept in code, not rendered); metric cards filtered per project class and clickable through to the matching table; Scheduled Work/Multi-Stage's second card reads "Projects without scheduled dispatches"; left-nav sub-option indent treatment; a real month-grid calendar; map filters (class/point-type/account/status/date/alerts-only); searchable+sortable consumables and equipment tables; one shared `renderDataTable()` component across all of it. Not done: equipment-category alignment to the 2026 rate sheet's sections (deferred to Phase 08, which already owns that import) and plotting facilities on the map (they aren't plotted at all today, not just unfiltered). **Follow-up 2026-09-23:** Resource Blocks is now a per-project count that filters the table. That work exposed that `equipmentAssets` rows still carried `assignedJobId`. This was migrated to `assignedProjectId` 2026-09-23, fixing a server normalizer that had been dropping every UI equipment assignment on save.
 
 ### Cross-cutting rule (owner, 2026-09-23)
-Any alert on any panel uses the red-dot style: a red dot (`renderAlertDot()`) on the tab and list row, plus `.panel-needs-attention` on the panel. So far only the account vendor-insurance alert follows it. Other warnings (credential expiry, dispatch conflicts, etc.) still use header/inline badges only, and a sweep is open.
+Any alert on any panel uses the red-dot style: a red dot (`renderAlertDot()`) on the tab and list row, plus `.panel-needs-attention` on the panel. **Sweep done 2026-09-23 (Wave 2):**
+- **Projects:** open field alerts put a dot on the Live tab, the project row and job cards, and outline the Field alerts panel.
+- **Dispatch jobs:** an open conflict, or "Blocked" on a job past draft, dots the Summary tab and the Job Register row, and outlines the readiness/exceptions panels. Blocked *drafts* aren't flagged, since every unplanned draft is blocked.
+- **Credentials:** a live date check dots the directory row, the credential row and the credential-type row, and outlines the Credentials panel.
+- **Inventory:** below-reorder consumables and equipment on hold, with an issue, or overdue for maintenance are dotted in their tables and outlined in their detail panels.
+- **Compliance and the rate card** also follow the rule.
+- **Deliberately excluded:** opportunity list rows. Nearly every open deal is missing *some* next-stage field, so a dot there is noise; stage-gate dots stay on the opportunity's tabs and panels.
 
 ### Phase 18 — Workforce & Devices · ✅ items 1–3 shipped 2026-09-23; item 4 waits for Phase 12
 **Shipped:** Team Roster moved to Teams and Crews, panels reordered; Upcoming Time Off + Standby/on-call as a real assignable thing (`standbyAssignments`, separate from availability blocks) with a configurable rotation setting; device lifecycle (add, open, edit, suspend, reinstate, retire, delete) with IMEI/hardware/OS/onboarding, and suspended/retired devices verified blocked from Front Line sign-in.
@@ -142,7 +146,7 @@ Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enfo
 
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
-**Now (2026-09-23 sprint):** Wave 1 (Phase 08 rate-card rework, plus the Phase 06 scope generator and Phase 17 equipment categories) shipped. Next is Wave 2: the quick independents (Phase 10 map marker and receipts, Phase 05 phone formatter, Phase 03 industries, the app-wide red-dot sweep, the Phase 04 filterable list). See the sprint plan in the session record.
+**Now (2026-09-23 sprint):** Waves 1 and 2 shipped. Next is Wave 3: timeline and the shared lookup (Phase 05 opportunity-lookup component, Connected-via links with Phase 06 item 12, and Phase 06's "Regarding" field, which the timeline "Related" filter needs).
 **Before real users:** Phase 12, then Phase 13.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 

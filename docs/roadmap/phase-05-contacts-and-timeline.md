@@ -1,6 +1,6 @@
 # Phase 05 — Contacts & Activity Timeline
 
-**Status:** 🟢 **Most items done.** Corrected 2026-09-23 (sprint Wave 0): this line had fallen behind the item bodies. Done: items 1, 2 (activity tags, 2026-09-18), 3, 5, 6, 7, 8, 9, 10, 12, 15, and the person/type half of 11 (2026-09-18). Item 13 is settled with no change (Q57). **Remaining:** item 4 (shared opportunity-lookup component, also wanted by Phases 03/04), the "Related" half of item 11 (depends on Phase 06 item 20, the Regarding field), item 14 (Connected-via links, to be done together with Phase 06 item 12), and the phone-number formatter. All are sprint Waves 2–3.
+**Status:** 🟢 **Most items done.** Corrected 2026-09-23 (sprint Wave 0): this line had fallen behind the item bodies. Done: items 1, 2 (activity tags, 2026-09-18), 3, 5, 6, 7, 8, 9, 10, 12, 15, and the person/type half of 11 (2026-09-18). Item 13 is settled with no change (Q57). **Remaining:** item 4 (shared opportunity-lookup component, also wanted by Phases 03/04), the "Related" half of item 11 (depends on Phase 06 item 20, the Regarding field), and item 14 (Connected-via links, to be done together with Phase 06 item 12). All three are sprint Wave 3. **Phone formatter shipped 2026-09-23 (Wave 2).** See its section below.
 **Depends on:** Phase 02 (facility↔contact junction), Phase 03 (edit-button audit pattern)
 **Coordinate with:** Phase 06 (Opportunity Domain) — items 14 here and Phase 06 items 6/8/9/12 touch the same contact↔opportunity relationship and the same "Connected via" panel; build the shared multi-select/lookup component once, use it in both.
 **Estimated sessions:** 3
@@ -239,6 +239,13 @@ Build one shared formatter and apply it everywhere, not just on the contact dial
 Store digits-only and format at the edges, or store formatted text? Recommendation: **store what the user sees** (formatted), because every read site in this app renders raw field values directly and a digits-only store would need a formatter added at each of them. Flagging it as a decision because the opposite choice is defensible if search-by-phone is coming.
 
 This touches the same render-then-restore-focus machinery this phase already fixed app-wide (the one-keystroke focus-loss bug) — reformatting on input moves the caret, so the formatter must restore caret position or it will reproduce that bug in a new form.
+
+**✅ Shipped 2026-09-23 (sprint Wave 2).** One `formatPhoneNumber()` in `app.js`, stored as the user sees it (the recommendation above; no digits-only store):
+- **As typed:** any input that's `type="tel"` or whose name contains phone/fax/telephone/mobile is reformatted on each keystroke (`555`, `555-1` … `555-123-4567`; a leading 1 becomes `1-555-…`, since NANP area codes never start with 0 or 1). `x204`, `ext 204` and `#204` normalise to ` x204`. `+44 …` and anything with letters is left exactly as typed. The caret is restored by counting the digits before it.
+- **On save:** `handleSubmit()` normalises every phone field once before any save reads the form, which covers a dialog opened on an old unformatted record and saved without touching the field.
+- **On display:** the account and contact field formatters and all 21 direct display sites format at render time, so old records read consistently with no migration. Display and save only reformat a *complete* 10-digit number (partial grouping is typing-only), so an old 7-digit local number such as "555-1234" is shown as stored rather than mangled.
+- 18 phone inputs gained `type="tel"` (phone number keypads), and the "(816) 555-0147" placeholders now show the stored format.
+- Verified live: typing `15551234567x204` gives `1-555-123-4567 x204`; backspace mid-number keeps the caret in place; `+44 20 7946 0958` is untouched; a record stored as `5125550199` displays as `512-555-0199` on the contact page and in the contact list.
 
 ---
 

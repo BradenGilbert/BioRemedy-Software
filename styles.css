@@ -784,6 +784,13 @@ h3 {
   min-width: 0;
 }
 
+/* A grid item's default min-width is its content's min-content width, so one wide child (a 9-tab
+   row, a stage ladder) stretched whole detail pages to 900-1350px on a phone even though the tab row
+   itself scrolls. Letting the view's children shrink puts the scrolling where it belongs. */
+.view > * {
+  min-width: 0;
+}
+
 .workspace-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, auto);
@@ -5659,9 +5666,11 @@ body[data-theme="dark"] textarea::placeholder {
   width: 100%;
 }
 
+/* minmax(0, 1fr), not 1fr: square (aspect-ratio) tiles carry a content-derived minimum width, which
+   made the third column overflow the 420px device frame until 2026-09-23. */
 .frontline-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -5688,9 +5697,56 @@ body[data-theme="dark"] textarea::placeholder {
   transform: translateY(-1px);
 }
 
-.frontline-tile.exit {
-  border-color: rgba(220, 38, 38, 0.3);
+/* Exit: a short, full-width bar under the tile grid (owner, 2026-09-22), not a tile. It sits in
+   the normal flow after the grid, so it can never cover the last row of tiles. */
+.frontline-exit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 10px;
+  background: var(--surface);
   color: #b91c1c;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.frontline-exit-bar .frontline-tile-icon {
+  width: 28px;
+  height: 28px;
+  color: #b91c1c;
+}
+
+.frontline-exit-bar .frontline-tile-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.frontline-expense-row,
+.project-expense-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.frontline-expense-row > div,
+.project-expense-row > div {
+  display: grid;
+  gap: 2px;
+}
+
+.receipt-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
 }
 
 .frontline-tile-icon {
@@ -5707,10 +5763,6 @@ body[data-theme="dark"] textarea::placeholder {
 .frontline-tile-icon svg {
   width: 22px;
   height: 22px;
-}
-
-.frontline-tile.exit .frontline-tile-icon {
-  color: #b91c1c;
 }
 
 .frontline-job-list {
@@ -6094,4 +6146,17 @@ body[data-theme="dark"] .frontline-device {
 
 [data-table-id="rate-card-products"] .risk-badge {
   white-space: normal;
+}
+
+/* Detail-page headers (account, contact, opportunity share .account-hero): stack the identity block
+   and the stat badges on a phone instead of forcing them side by side past the screen edge. */
+@media (max-width: 720px) {
+  .account-hero {
+    flex-direction: column;
+  }
+
+  .account-hero-identity,
+  .account-hero-backrow {
+    flex-wrap: wrap;
+  }
 }

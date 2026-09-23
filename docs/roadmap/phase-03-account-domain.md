@@ -1,6 +1,6 @@
 # Phase 03 — Account Domain Correctness
 
-**Status:** 🟢 **Nearly complete, 2026-09-16 session.** Items 1, 2, 3, 4, 5, 8, 9, and 10 done and click-tested live. Only two items remain, and both are genuinely blocked on the owner, not on more engineering time: item 6 (list filter cleanup — likely already done via the pre-existing shared `renderCompactSearch`/`renderCompactSelect` components, but "buttons" vs. dropdowns is ambiguous, see item 6's note) and item 7 ("remove the Account Table" — no such UI element found, needs the owner to clarify what it refers to). See "Corrections found during implementation" before resuming — do not re-plan what's already done.
+**Status:** 🟢 **Nearly complete.** Items 1–5 and 8–10 were done 2026-09-16; item 7 was dropped (Q30). **2026-09-23 (sprint Wave 2):** the 2026-09-22 industries item shipped (three new industries, Government renamed to include DOT, `naicsCode` on every row), the `accountIndustries` join was confirmed as the authoritative industry, opportunity industry became a curated picker, and Q55's facility-level environmental risk was built. **Only item 6 remains**, and it's blocked on the owner: list-filter "buttons" vs the existing compact search/dropdowns. Q54 (account lifecycle status) is back-burnered by the owner.
 **Depends on:** Phase 02 (Create Account captures a primary *address*, which requires the address model to be real)
 **Estimated sessions:** 2–3
 
@@ -319,6 +319,11 @@ New rows: **Environmental**, **Utilities / Infrastructure**, **Education**. For 
 
 **Legacy field note:** `accounts.industry` (a free-text scalar, `index.html:266`) still exists alongside the real `industries` join. Phase 06 item 34 depends on which one is authoritative — resolve it here rather than in the opportunity code.
 
+**✅ Shipped 2026-09-23 (sprint Wave 2).**
+- **Industries:** Environmental, Utilities / Infrastructure and Education added. `industry-municipal-government` was renamed **"Municipal / Government / DOT"** (the rename recommended above, not a child row). Every row gained `naicsCode` (Q53, 2022 NAICS sector/subsector: Oil & Gas 211, Agriculture 11, Wastewater 221320, Manufacturing 31-33, Government 92, Healthcare 62, Construction 23, Transportation 48-49, Environmental 562, Utilities 22, Education 61). Applied to both the `server.mjs` seed and the live data (via the API).
+- **Which industry field is authoritative:** the `accountIndustries` join. `accounts.industry` is dead: zero accounts had a value when checked on 2026-09-23. It's left in the record builder, harmless, and nothing reads it for decisions.
+- **Opportunity industry** (`opportunities.industry`, free text until now, with values such as "space" and "logistics inbdustry test") is now a **picker from the curated list** in the Lead dialog. It still stores the industry *name*, so the Qualify gate and existing rows keep working. The blank option reads "Same as account (X)". A legacy value not on the list stays selectable as "(old free-text entry)", so saving an old opportunity never erases it. The **Qualify gate now accepts the account's industry** when the opportunity's own is blank (Phase 06 item 34 made that inheritance display-only; making the gate agree avoids forcing a re-entry).
+
 ---
 
 ## Decisions locked 2026-09-22 (owner)
@@ -333,3 +338,4 @@ New rows: **Environmental**, **Utilities / Infrastructure**, **Education**. For 
 - **Industries (Q53): confirmed** — curated list for picking, optional `naicsCode` per row for reporting and export.
 - **Account lifecycle status (Q54): back burner.** The question needs the actual field values (`relationshipStatus` vs `customer_status`) laid out side by side before it can be answered; not blocking anything.
 - **Environmental risk (Q55): lives on the facility, not the account.** A customer with ten sites has ten risk pictures. Model it in the facility record (Phase 02's), not the company.
+  - **✅ Built 2026-09-23 (sprint Wave 2)**; answered 2026-09-22 but never built until now. `facilities.environmentalRisk` (Not assessed / Low / Medium / High) and `environmentalRiskNotes` are in the facility dialog, with a badge on the Facility detail header and a row in its Location panel. The account-level readers of the old `accounts.risk` (the dashboard's "High risk sites" metric and three priority scores) now go through `accountEnvironmentalRisk()`, which returns the riskiest *assessed* site and falls back to `accounts.risk` only while none of the account's sites are assessed. That keeps dashboards from dropping to zero before anyone has assessed a site. The metric now counts sites, as its label always said.
