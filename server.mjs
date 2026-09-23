@@ -121,6 +121,10 @@ const collectionAccess = {
   opportunities: "sales",
   leads: "sales",
   opportunityContacts: "sales",
+  // Phase 06 items 30/31 — opportunity <-> facility/location junction. Same shape/domain as
+  // opportunityContacts, the pattern that worked for the same "single scalar can't represent a
+  // multi-site opportunity" problem.
+  opportunityLocations: "sales",
   opportunityAssignments: "sales",
   opportunityProducts: "salesDocuments",
   quotes: "salesDocuments",
@@ -1624,7 +1628,8 @@ const defaultBackend = {
       value: 185000,
       stage: "Proposal",
       serviceType: "UST removal",
-      closeQuarter: "2026-Q3",
+      closeBand: "0-30",
+      closeBandSetAt: "2026-09-23T00:00:00.000Z",
       nextStep: "Price alternate disposal option after lab report",
       updatedAt: "2026-07-01T15:12:00.000Z",
       quoteId: "quote-riverbend-revision",
@@ -1636,7 +1641,8 @@ const defaultBackend = {
       value: 96000,
       stage: "Qualify",
       serviceType: "Soil remediation",
-      closeQuarter: "2026-Q3",
+      closeBand: "0-30",
+      closeBandSetAt: "2026-09-23T00:00:00.000Z",
       nextStep: "Walk fleet yard and loading bay with operations",
       updatedAt: "2026-06-29T13:30:00.000Z",
     },
@@ -1647,7 +1653,8 @@ const defaultBackend = {
       value: 132000,
       stage: "Negotiation",
       serviceType: "Asbestos abatement",
-      closeQuarter: "2026-Q3",
+      closeBand: "0-30",
+      closeBandSetAt: "2026-09-23T00:00:00.000Z",
       nextStep: "Confirm night shift pricing and containment plan",
       updatedAt: "2026-07-02T10:20:00.000Z",
       quoteId: "quote-clearwater-night-shift",
@@ -1659,7 +1666,8 @@ const defaultBackend = {
       value: 42000,
       stage: "Lead",
       serviceType: "Groundwater treatment",
-      closeQuarter: "2026-Q3",
+      closeBand: "0-30",
+      closeBandSetAt: "2026-09-23T00:00:00.000Z",
       nextStep: "Send sample plan template and project references",
       updatedAt: "2026-06-26T16:45:00.000Z",
       estimateId: "estimate-prairie-phase2",
@@ -1715,6 +1723,9 @@ const defaultBackend = {
       isPrimary: false,
     },
   ],
+  // Phase 06 items 30/31 — empty by default; every real row is created by the app's own inline
+  // "attach a site" flow, not seeded.
+  opportunityLocations: [],
   opportunityProducts: [
     {
       id: "opp-prod-riverbend-remediation",
@@ -2301,6 +2312,7 @@ function filterBackendForRole(data, role) {
     opportunities: canAccess(role, "sales") ? data.opportunities : [],
     leads: canAccess(role, "sales") ? data.leads : [],
     opportunityContacts: canAccess(role, "sales") ? data.opportunityContacts : [],
+    opportunityLocations: canAccess(role, "sales") ? data.opportunityLocations : [],
     opportunityAssignments: canAccess(role, "sales") ? data.opportunityAssignments : [],
     opportunityProducts: canAccess(role, "salesDocuments") ? data.opportunityProducts : [],
     quotes: canAccess(role, "salesDocuments") ? data.quotes : [],

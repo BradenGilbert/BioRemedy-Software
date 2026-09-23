@@ -71,15 +71,9 @@ Two answers from that second round changed earlier entries and are already corre
 - Shared opportunity-lookup component (also wanted by Phases 03 and 04)
 - Timeline filter by person / related record / type
 
-### Phase 06 — Opportunity Domain · *2 old items + 5 new shipped 2026-09-23, 5 new still open*
-**Shipped 2026-09-23:** account-context hint relabel + "Use this text" button; stage badges no longer look like buttons (all 4 surfaces); `proposedSolution`/`customerNeed`/`description` write-through fallbacks removed from `buildCoreOpportunityRecord()`, 12 contaminated `proposedSolution` records blanked; needs lists renamed to "Heavy Equipment Needed" + comma splitting + combined Add/Edit dialog; industry inherits from the account for display only, no longer writes through.
-**Still open from the 2026-09-22 pass:**
-- Close forecast → 30/60/90/360-day bands (reverses `closeQuarter`, shipped 09-17; migrate, don't blank)
-- Create facilities/job sites from the opportunity: inline on the Facility dropdown, and a Sites panel on Develop & Planning. **Needs a new `opportunityLocations` junction** — `facilityId` is a scalar today
-- "Associated Locations" panel on Summary (reads that junction; photos wait for Phase 13)
-- Red dot on the failing tab **and** the failing panel when Advance is blocked — driven by the same check the button uses, not a parallel list; tab contrast (same pass)
-- Develop & Planning build-out: move `customerNeed` earlier, make Proposed Solution a composed artifact, make Develop the site-walk home
-**Carried:** site-walk quick-schedule action; advance-validation highlighting (now merged into the red-dot item)
+### Phase 06 — Opportunity Domain · ✅ substantially complete 2026-09-23 (two sessions)
+**Shipped:** account-context hint relabel + "Use this text"; stage badges no longer look like buttons; `proposedSolution`/`customerNeed`/`description` write-through fallbacks removed, 12 contaminated `proposedSolution` records blanked; needs lists renamed + comma splitting + combined dialog; industry inherits for display only; close forecast replaced with relative bands (`closeBand`/`closeBandSetAt`, all existing data migrated, reverses the earlier `closeQuarter` decision); new `opportunityLocations` junction + Sites & Locations / Associated Locations panels with inline facility creation; red-dot tab/panel validation highlighting + tab contrast; site-walk quick-schedule; `customerNeed` moved to Lead & Qualification. List search (item 3) was already working.
+**Still open:** the Proposed Solution composed-artifact generator (shared scope with Phase 08 item 8 — needs both call sites designed together), the "Regarding" cross-entity field (its own large build, not started), items blocked on Phase 04 or Phase 13.
 
 ### Phase 07 — Dispatch & Operations · ✅ 4 new items shipped 2026-09-23; 1 old item remains
 **Shipped 2026-09-23:** intake feed now empties (open-only by default, toggle for converted/closed); Job Register gained search + sortable columns (adopted Phase 17's shared `renderDataTable()`); dispatch schedule is a real 7-day window, no skip-ahead; conflicts gained a "Go to blocker" button (employee-credential conflicts only — no equipment/material reference field exists yet to jump to) with a transient red-outline highlight (`state.highlightPanel`, shared mechanism Phase 06 item 32 can reuse).
@@ -142,9 +136,10 @@ Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enfo
 
 ## Suggested order
 
-**Now:** Phase 08's rate-card rework (the one big item left unshipped from 2026-09-23's session — needs its own dedicated session). (Phase 15, Phase 17, Phase 07's four fixes, 5 of Phase 06's 10 new items, and 2 of Phase 08's 6 new items all shipped 2026-09-23 — see each phase's status.)
-(Phases 15, 16, 17, 18 items 1–3, Phase 07's four fixes, 5 of Phase 06's 10 new items, and 2 of Phase 08's 6 new items all shipped 2026-09-23.)
+**2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
+
+**Now:** Phase 08's rate-card rework — the one large item left in Stage B, needs its own dedicated session (new `productPrices` shape, three rate tiers, minimums, surcharges, cost-plus margin, importing the real `2026 RATES.xlsx`).
 **Before real users:** Phase 12, then Phase 13.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 
-Phase 07's four items and Phase 10's two are each small and independent — good candidates to clear in a single session when a bigger phase is blocked on a decision.
+Phase 10's remaining two small items are independent — a good candidate to clear in a single session when a bigger phase is blocked on a decision.

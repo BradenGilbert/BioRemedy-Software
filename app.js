@@ -83,6 +83,56 @@ function getMissingFieldsThroughStage(opportunity, targetStage) {
   return STAGES.slice(0, targetIndex + 1).flatMap((stage) => getMissingStageFields(opportunity, stage));
 }
 
+// Phase 06 item 32 — the same check the Advance button uses (the next stage's required fields,
+// not the cumulative through-current-stage set the Summary banner shows), reused to drive a red
+// dot on the tab and a highlight on the specific panel, so there is one source of truth instead of
+// a second parallel list.
+function getNextStageMissingFields(opportunity) {
+  const currentIndex = STAGES.indexOf(opportunity.stage);
+  const nextStage = STAGES[currentIndex + 1];
+  if (!nextStage) return [];
+  return getMissingStageFields(opportunity, nextStage);
+}
+
+// Maps each gated field key to the tab and panel that actually holds it, so a real UI location
+// backs every dot/highlight — not a guess. Fields not listed here (list-type items like
+// stakeholders are never gated) have no panel to highlight.
+const OPPORTUNITY_FIELD_LOCATIONS = {
+  opportunityName: { tab: "summary", panel: "opportunity-core" },
+  accountId: { tab: "summary", panel: "opportunity-core" },
+  serviceType: { tab: "summary", panel: "opportunity-core" },
+  contactLinked: { tab: "summary", panel: "associated-contacts" },
+  facilityId: { tab: "lead-qualification", panel: "lead-details" },
+  contaminationNotes: { tab: "lead-qualification", panel: "lead-details" },
+  industry: { tab: "lead-qualification", panel: "lead-details" },
+  description: { tab: "lead-qualification", panel: "lead-details" },
+  currentSituation: { tab: "lead-qualification", panel: "lead-details" },
+  purchaseTimeframe: { tab: "lead-qualification", panel: "qualification" },
+  budgetAmount: { tab: "lead-qualification", panel: "qualification" },
+  purchaseProcess: { tab: "lead-qualification", panel: "qualification" },
+  decisionMakerFound: { tab: "lead-qualification", panel: "qualification" },
+  captureSummary: { tab: "lead-qualification", panel: "qualification" },
+  // Item 35 sub-piece 1 — customerNeed moved to Lead & Qualification's Lead details panel.
+  customerNeed: { tab: "lead-qualification", panel: "lead-details" },
+  proposedSolution: { tab: "develop-planning", panel: "develop-details" },
+  siteWalkStatus: { tab: "develop-planning", panel: "develop-details" },
+  proposalDevelopedStatus: { tab: "proposal-documents", panel: "proposal-status" },
+  internalReviewStatus: { tab: "proposal-documents", panel: "proposal-status" },
+  proposalPresentedStatus: { tab: "proposal-documents", panel: "proposal-status" },
+  quoteId: { tab: "proposal-documents", panel: "quote" },
+  accountPaperworkStatus: { tab: "proposal-documents", panel: "negotiation-signoff" },
+  quoteSignedStatus: { tab: "proposal-documents", panel: "negotiation-signoff" },
+  workAuthorizationStatus: { tab: "proposal-documents", panel: "negotiation-signoff" },
+};
+
+function tabNeedsAttention(missingFields, tabId) {
+  return missingFields.some((field) => OPPORTUNITY_FIELD_LOCATIONS[field.key]?.tab === tabId);
+}
+
+function panelNeedsAttention(missingFields, panelId) {
+  return missingFields.some((field) => OPPORTUNITY_FIELD_LOCATIONS[field.key]?.panel === panelId);
+}
+
 // A Project's operational lifecycle, distinct from the sales-side opportunity STAGES above.
 // Plan/Mobilize/Field Work/Closeout have no dedicated UI yet — only Intake is built out this pass.
 const PROJECT_STAGES = ["Intake", "Plan", "Mobilize", "Field Work", "Closeout"];
@@ -555,7 +605,7 @@ const tableViewRegistry = {
     sales: {
       label: "Pipeline View",
       description: "Opportunity stage, value, close date, probability, service type, and next step.",
-      columns: ["name", "account", "stage", "value", "probability", "closeQuarter", "nextStep"],
+      columns: ["name", "account", "stage", "value", "probability", "closeBand", "nextStep"],
     },
   },
 };
@@ -740,7 +790,7 @@ const opportunityCoreFieldSections = [
     id: "datesActivity",
     label: "Dates and Activity",
     fields: [
-      { key: "closeQuarter", label: "Close Quarter" },
+      { key: "closeBand", label: "Close Forecast" },
       { key: "actualCloseDate", label: "Actual Close Date" },
       { key: "createdOn", label: "Created On" },
       { key: "createdBy", label: "Created By" },
@@ -782,7 +832,7 @@ const opportunityTableViews = {
   forecast: {
     label: "Forecast View",
     description: "Revenue, probability, close date, and forecast category.",
-    columns: ["opportunityName", "accountName", "dealStage", "amount", "weightedAmount", "closeQuarter", "forecastCategory"],
+    columns: ["opportunityName", "accountName", "dealStage", "amount", "weightedAmount", "closeBand", "forecastCategory"],
   },
   qualification: {
     label: "Qualification View",
@@ -1900,9 +1950,15 @@ async function refreshBackendState() {
       ...state.backend,
       ...backend,
     };
+    // Item 26 — bands aren't a fixed-width sortable string like "YYYY-Q#" was; sort by band index
+    // (0-30 first, no-band last), tie-broken by how long the band has been set (staler first).
     state.opportunities = (state.backend.opportunities || [])
       .filter((opportunity) => !opportunity.deletedAt)
-      .sort((a, b) => (a.closeQuarter || "9999-Q4").localeCompare(b.closeQuarter || "9999-Q4"));
+      .sort((a, b) => {
+        const bandDiff = closeBandSortValue(a.closeBand) - closeBandSortValue(b.closeBand);
+        if (bandDiff) return bandDiff;
+        return (a.closeBandSetAt || "9999").localeCompare(b.closeBandSetAt || "9999");
+      });
     state.sampleRecords = (state.backend.sampleRecords || [])
       .slice()
       .sort((a, b) => new Date(b.collectionTime) - new Date(a.collectionTime));
@@ -2220,6 +2276,9 @@ async function handleClick(event) {
   if (action === "reinstate-frontline-device") await reinstateFrontlineDevice(id);
   if (action === "retire-frontline-device") await retireFrontlineDevice(id);
   if (action === "delete-frontline-device") await deleteFrontlineDevice(id);
+  if (action === "quick-schedule-site-walk") openSiteWalkQuickSchedule(actionButton.dataset.opportunityId);
+  if (action === "open-opportunity-location") openOpportunityLocationDialog(actionButton.dataset.opportunityId);
+  if (action === "remove-opportunity-location") await unlinkOpportunityLocation(id);
   if (action === "open-standby-assignment") openStandbyAssignmentDialog(id);
   if (action === "remove-standby-assignment") await removeStandbyAssignment();
   if (action === "open-standby-rotation-settings") openStandbyRotationSettingsDialog();
@@ -2555,6 +2614,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "opportunity-needs-combined") await saveOpportunityNeedsCombined(form);
   if (form.dataset.form === "emergency-intake") await submitEmergencyIntake(form);
   if (form.dataset.form === "frontline-device") await saveFrontlineDevice(form);
+  if (form.dataset.form === "opportunity-location") await saveOpportunityLocation(form);
   if (form.dataset.form === "standby-assignment") await saveStandbyAssignment(form);
   if (form.dataset.form === "standby-rotation-settings") await saveStandbyRotationSettings(form);
   if (form.dataset.form === "opportunity-proposal") await saveOpportunityProposal(form);
@@ -2802,6 +2862,10 @@ function handleInputInner(event) {
     if (event.target.checked && retainUntilField && !retainUntilField.value) {
       retainUntilField.value = addDays(730);
     }
+  }
+
+  if (event.target.matches("#opportunityLocationDialog select[name='type']")) {
+    toggleOpportunityLocationTypeFields(event.target.value);
   }
 
   if (event.target.matches("#opportunityAssignmentDialog select[name='type']")) {
@@ -3421,7 +3485,7 @@ function renderPipelineInsights() {
     .map((opportunity) => ({
       opportunity,
       account: findAccount(opportunity.accountId),
-      closeStatus: getCloseStatus(opportunity.closeQuarter),
+      closeStatus: getCloseStatus(opportunity.closeBand, opportunity.closeBandSetAt),
       nextTask: nextOpenTaskForAccount(opportunity.accountId),
     }))
     .sort((a, b) => opportunityPriorityScore(b) - opportunityPriorityScore(a))
@@ -3657,7 +3721,7 @@ function renderStageColumn(stage) {
 function renderOpportunityCard(opportunity) {
   const account = findAccount(opportunity.accountId);
   const probability = opportunity.probability ?? STAGE_PROBABILITY[opportunity.stage] ?? 15;
-  const closeStatus = getCloseStatus(opportunity.closeQuarter);
+  const closeStatus = getCloseStatus(opportunity.closeBand, opportunity.closeBandSetAt);
   const contacts = contactsForOpportunity(opportunity.id);
   const nextTask = nextOpenTaskForAccount(opportunity.accountId);
   const currentStageIndex = STAGES.indexOf(opportunity.stage);
@@ -3730,6 +3794,7 @@ function renderOpportunityDetail() {
 
   const activeTab = state.opportunityDetailTab || "summary";
   const progress = getOpportunityProgress(opportunity);
+  const missingFields = getNextStageMissingFields(opportunity);
 
   app.innerHTML = `
     <section class="view">
@@ -3744,10 +3809,10 @@ function renderOpportunityDetail() {
           </div>
         </section>
         <div class="account-detail-tabs-row">
-          ${renderOpportunityDetailTabs(activeTab)}
+          ${renderOpportunityDetailTabs(activeTab, missingFields)}
         </div>
         <div class="account-detail-tabbody">
-          ${renderOpportunityTabBody(activeTab, opportunity)}
+          ${renderOpportunityTabBody(activeTab, opportunity, missingFields)}
         </div>
       </div>
     </section>
@@ -3757,7 +3822,7 @@ function renderOpportunityDetail() {
 function renderOpportunityDetailHeader(opportunity) {
   const coreOpportunity = getCoreOpportunity(opportunity);
   const account = findAccount(opportunity.accountId);
-  const closeStatus = getCloseStatus(coreOpportunity.closeQuarter);
+  const closeStatus = getCloseStatus(coreOpportunity.closeBand, coreOpportunity.closeBandSetAt);
   const currentStageIndex = STAGES.indexOf(opportunity.stage);
   const nextStage = STAGES[currentStageIndex + 1];
   const resultingProject = state.projects.find((project) => project.opportunityId === opportunity.id);
@@ -3788,7 +3853,9 @@ function renderOpportunityDetailHeader(opportunity) {
   `;
 }
 
-function renderOpportunityDetailTabs(activeTab) {
+// Phase 06 item 32 — a red dot on the tab holding a missing required field, plus tab-contrast
+// pass (the segment-tabs row was "hard to see for new users" — see the matching CSS).
+function renderOpportunityDetailTabs(activeTab, missingFields = []) {
   return `
     <div class="segment-tabs" role="tablist" aria-label="Opportunity detail sections">
       ${opportunityDetailTabs
@@ -3796,6 +3863,7 @@ function renderOpportunityDetailTabs(activeTab) {
           (tab) => `
             <button type="button" role="tab" aria-selected="${tab.id === activeTab}" class="${tab.id === activeTab ? "active" : ""}" data-action="switch-opportunity-tab" data-tab="${tab.id}">
               ${escapeHtml(tab.label)}
+              ${tabNeedsAttention(missingFields, tab.id) ? `<span class="tab-alert-dot" title="Missing information needed to advance"></span>` : ""}
             </button>
           `,
         )
@@ -3804,19 +3872,19 @@ function renderOpportunityDetailTabs(activeTab) {
   `;
 }
 
-function renderOpportunityTabBody(tab, opportunity) {
+function renderOpportunityTabBody(tab, opportunity, missingFields = []) {
   switch (tab) {
     case "lead-qualification":
-      return renderOpportunityLeadQualificationTab(opportunity);
+      return renderOpportunityLeadQualificationTab(opportunity, missingFields);
     case "develop-planning":
-      return renderOpportunityDevelopPlanningTab(opportunity);
+      return renderOpportunityDevelopPlanningTab(opportunity, missingFields);
     case "proposal-documents":
-      return renderOpportunityProposalDocumentsTab(opportunity);
+      return renderOpportunityProposalDocumentsTab(opportunity, missingFields);
     case "files-activity":
       return renderOpportunityFilesActivityTab(opportunity);
     case "summary":
     default:
-      return renderOpportunitySummaryTab(opportunity);
+      return renderOpportunitySummaryTab(opportunity, missingFields);
   }
 }
 
@@ -3842,7 +3910,7 @@ function renderOpportunityWonProjectPrompt(opportunity) {
   `;
 }
 
-function renderOpportunitySummaryTab(opportunity) {
+function renderOpportunitySummaryTab(opportunity, missingFields = []) {
   const coreOpportunity = getCoreOpportunity(opportunity);
   const stakeholderCount = stakeholdersForOpportunity(opportunity.id).length;
   const tasks = openTasksForAccount(opportunity.accountId);
@@ -3866,8 +3934,8 @@ function renderOpportunitySummaryTab(opportunity) {
           <span>${coreOpportunity.closeProbability}% probability</span>
         </div>
         <div class="metric">
-          <p class="eyebrow">Close quarter</p>
-          <strong>${escapeHtml(formatCloseQuarter(coreOpportunity.closeQuarter))}</strong>
+          <p class="eyebrow">Close forecast</p>
+          <strong>${escapeHtml(formatCloseBand(coreOpportunity.closeBand))}</strong>
           <span>${escapeHtml(coreOpportunity.forecastCategory)}</span>
         </div>
         <div class="metric">
@@ -3878,7 +3946,7 @@ function renderOpportunitySummaryTab(opportunity) {
       </section>
 
       <section class="crm-profile-grid">
-        ${renderOpportunityMainInformation(opportunity)}
+        ${renderOpportunityMainInformation(opportunity, missingFields)}
 
         <div class="detail-stack">
           <article class="panel">
@@ -3893,7 +3961,8 @@ function renderOpportunitySummaryTab(opportunity) {
         </div>
 
         <div class="detail-stack">
-          ${renderStakeholdersPanel(opportunity, "Associated contacts")}
+          ${renderStakeholdersPanel(opportunity, "Associated contacts", panelNeedsAttention(missingFields, "associated-contacts"))}
+          ${renderOpportunityLocationsPanel(opportunity, "Associated Locations")}
           <article class="panel">
             <div class="panel-header"><h3>Open tasks</h3></div>
             <div class="panel-body task-list">
@@ -3915,7 +3984,7 @@ function renderOpportunitySummaryTab(opportunity) {
   `;
 }
 
-function renderOpportunityLeadQualificationTab(opportunity) {
+function renderOpportunityLeadQualificationTab(opportunity, missingFields = []) {
   const account = findAccount(opportunity.accountId);
   const currentSituationValue = opportunity.currentSituation
     ? escapeHtml(opportunity.currentSituation)
@@ -3933,7 +4002,7 @@ function renderOpportunityLeadQualificationTab(opportunity) {
       : "Not captured";
   return `
     <section class="crm-profile-grid">
-      <article class="panel">
+      <article class="panel ${panelNeedsAttention(missingFields, "lead-details") ? "panel-needs-attention" : ""}">
         <div class="panel-header">
           <h3>Lead details</h3>
           <button class="mini-button" type="button" data-action="open-opportunity-lead" data-id="${opportunity.id}">Edit</button>
@@ -3948,10 +4017,11 @@ function renderOpportunityLeadQualificationTab(opportunity) {
             <div><dt>Source campaign</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "sourceCampaign") || "Not captured")}</dd></div>
             <div><dt>Description</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "description") || "Not captured")}</dd></div>
             <div><dt>Current situation</dt><dd>${currentSituationValue}</dd></div>
+            <div><dt>Customer need</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "customerNeed") || "Not captured")}</dd></div>
           </dl>
         </div>
       </article>
-      <article class="panel">
+      <article class="panel ${panelNeedsAttention(missingFields, "qualification") ? "panel-needs-attention" : ""}">
         <div class="panel-header">
           <h3>Qualification</h3>
           <button class="mini-button" type="button" data-action="open-opportunity-qualify" data-id="${opportunity.id}">Edit</button>
@@ -3995,26 +4065,37 @@ function renderOpportunityAssignmentRow(entry) {
   `;
 }
 
-function renderOpportunityDevelopPlanningTab(opportunity) {
+function renderOpportunityDevelopPlanningTab(opportunity, missingFields = []) {
   const competitors = competitorsForOpportunity(opportunity.id);
 
   return `
     <section class="crm-profile-grid">
-      <article class="panel">
+      <article class="panel ${panelNeedsAttention(missingFields, "develop-details") ? "panel-needs-attention" : ""}">
         <div class="panel-header">
           <h3>Develop details</h3>
           <button class="mini-button" type="button" data-action="open-opportunity-develop" data-id="${opportunity.id}">Edit</button>
         </div>
         <div class="panel-body">
           <dl class="detail-list">
-            <div><dt>Customer need</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "customerNeed") || "Not captured")}</dd></div>
             <div><dt>Proposed solution</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "proposedSolution") || "Not captured")}</dd></div>
-            <div><dt>Site walk</dt><dd>${escapeHtml(opportunity.siteWalkStatus || "Incomplete")}</dd></div>
+            <div>
+              <dt>Site walk</dt>
+              <dd>
+                ${escapeHtml(opportunity.siteWalkStatus || "Incomplete")}
+                ${
+                  (opportunity.siteWalkStatus || "Incomplete") === "Incomplete"
+                    ? `<button class="mini-button" type="button" data-action="quick-schedule-site-walk" data-opportunity-id="${escapeAttribute(opportunity.id)}">Schedule</button>`
+                    : ""
+                }
+              </dd>
+            </div>
           </dl>
         </div>
       </article>
 
       ${renderStakeholdersPanel(opportunity, "Stakeholders")}
+
+      ${renderOpportunityLocationsPanel(opportunity, "Sites & Locations")}
 
       <article class="panel">
         <div class="panel-header">
@@ -4082,13 +4163,13 @@ function renderOpportunityDevelopPlanningTab(opportunity) {
   `;
 }
 
-function renderOpportunityProposalDocumentsTab(opportunity) {
+function renderOpportunityProposalDocumentsTab(opportunity, missingFields = []) {
   const quotes = quotesForOpportunity(opportunity.id);
   const estimates = estimatesForOpportunity(opportunity.id);
 
   return `
     <section class="crm-profile-grid">
-      <article class="panel">
+      <article class="panel ${panelNeedsAttention(missingFields, "proposal-status") ? "panel-needs-attention" : ""}">
         <div class="panel-header">
           <h3>Proposal status</h3>
           <button class="mini-button" type="button" data-action="open-opportunity-proposal" data-id="${opportunity.id}">Edit</button>
@@ -4102,7 +4183,7 @@ function renderOpportunityProposalDocumentsTab(opportunity) {
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel ${panelNeedsAttention(missingFields, "quote") ? "panel-needs-attention" : ""}">
         <div class="panel-header">
           <h3>Quote</h3>
           <button class="mini-button" type="button" data-action="open-opportunity-quote" data-opportunity-id="${opportunity.id}">Add quote</button>
@@ -4163,7 +4244,7 @@ function renderOpportunityProposalDocumentsTab(opportunity) {
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel ${panelNeedsAttention(missingFields, "negotiation-signoff") ? "panel-needs-attention" : ""}">
         <div class="panel-header">
           <h3>Negotiation sign-off</h3>
           <button class="mini-button" type="button" data-action="open-opportunity-negotiation" data-id="${opportunity.id}">Edit</button>
@@ -4211,7 +4292,7 @@ function renderOpportunityFilesActivityTab(opportunity) {
   `;
 }
 
-function renderOpportunityMainInformation(opportunity) {
+function renderOpportunityMainInformation(opportunity, missingFields = []) {
   const core = getCoreOpportunity(opportunity);
   const account = findAccount(opportunity.accountId);
   const primaryContact = contactsForOpportunity(opportunity.id)[0];
@@ -4228,7 +4309,7 @@ function renderOpportunityMainInformation(opportunity) {
 
   return `
     <div class="detail-stack opportunity-info-column">
-      <article class="panel">
+      <article class="panel ${panelNeedsAttention(missingFields, "opportunity-core") ? "panel-needs-attention" : ""}">
         <div class="panel-header">
           <h3>Opportunity</h3>
           <button class="mini-button" type="button" data-action="open-opportunity" data-id="${escapeAttribute(opportunity.id)}" data-account-id="${escapeAttribute(opportunity.accountId)}">Edit</button>
@@ -4302,7 +4383,7 @@ function renderOpportunityMainInformation(opportunity) {
         <div class="panel-header"><h3>Dates &amp; source</h3></div>
         <div class="panel-body">
           <dl class="detail-list">
-            ${row("Close quarter", field("closeQuarter"))}
+            ${row("Close forecast", field("closeBand"))}
             ${core.actualCloseDate ? row("Actual close", field("actualCloseDate")) : ""}
             ${row("Purchase time frame", field("purchaseTimeframe"))}
             ${row("Last contacted", field("lastContacted"))}
@@ -4807,7 +4888,7 @@ function buildCoreOpportunityRecord(opportunity) {
     closeProbability: probability,
     probability,
     priority: opportunity.priority || "Normal",
-    rating: opportunity.rating || getCloseStatus(opportunity.closeQuarter).label,
+    rating: opportunity.rating || getCloseStatus(opportunity.closeBand, opportunity.closeBandSetAt).label,
     initialCommunication: opportunity.initialCommunication || "Contacted",
     // No account-level fallback here on purpose: `buildCoreOpportunityRecord` is also the
     // function every save path uses to build the persisted record (`getCoreOpportunity` is a
@@ -4841,10 +4922,14 @@ function buildCoreOpportunityRecord(opportunity) {
     currency: opportunity.currency || "USD",
     exchangeRate: opportunity.exchangeRate || "1.00",
     isRevenueSystemCalculated: Boolean(opportunity.isRevenueSystemCalculated),
-    // closeDate/estimatedCloseDate (exact-date fields) were replaced by closeQuarter (Phase 06 item 1).
-    // The fallback to the legacy fields covers any record that predates the migration script
-    // (data/backend.json and server.mjs's seed data were both converted directly).
-    closeQuarter: opportunity.closeQuarter || dateToCloseQuarter(opportunity.closeDate || opportunity.estimatedCloseDate) || "",
+    // Item 26 — closeQuarter (Phase 06 item 1) is itself replaced by a relative band + when it was
+    // set (Q10 locked decision). No fallback derivation here on purpose, same reasoning as
+    // currentSituation/proposedSolution above: a display fallback baked into the function every
+    // save path runs through gets silently written to disk as the record's own value. Existing
+    // closeQuarter data was migrated once (see the migration note in database-handoff-map.md), not
+    // derived live on every read.
+    closeBand: opportunity.closeBand || "",
+    closeBandSetAt: opportunity.closeBandSetAt || "",
     actualCloseDate: opportunity.actualCloseDate || "",
     createdOn: opportunity.createdOn || opportunity.createdAt || now,
     createdBy: opportunity.createdBy || state.currentUser?.name || "Local user",
@@ -4883,7 +4968,7 @@ function formatOpportunityFieldValue(opportunity, key) {
     return money(Number(value || 0));
   }
   if (key === "closeProbability") return `${Number(value || 0)}%`;
-  if (key === "closeQuarter") return formatCloseQuarter(value);
+  if (key === "closeBand") return formatCloseBand(value);
   if (["actualCloseDate", "createdOn", "lastModifiedDate", "lastContacted", "nextActivityDate"].includes(key)) return formatDate(value);
   return String(value);
 }
@@ -5924,7 +6009,7 @@ function renderAccountListPanel(title, items, renderItem, seeAllAction, accountI
 }
 
 function renderOpportunityMiniCard(opportunity) {
-  const closeStatus = getCloseStatus(opportunity.closeQuarter);
+  const closeStatus = getCloseStatus(opportunity.closeBand, opportunity.closeBandSetAt);
   return `
     <article class="detail-card">
       <button class="link-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">${escapeHtml(opportunity.name)}</button>
@@ -6900,7 +6985,7 @@ function renderAccountOpportunityCard(opportunity) {
       <div class="row-meta">
         <span>${money(opportunity.value)}</span>
         <span>${escapeHtml(opportunity.stage)}</span>
-        <span>Close ${formatCloseQuarter(opportunity.closeQuarter)}</span>
+        <span>Close ${formatCloseBand(opportunity.closeBand)}</span>
       </div>
       <p class="help-text">${escapeHtml(opportunity.nextStep)}</p>
       <div class="inline-actions">
@@ -15960,6 +16045,10 @@ async function saveOpportunity(form) {
   const existing = existingId ? findOpportunity(existingId) : null;
   const previousStage = existing?.stage || "";
   const stage = existing ? existing.stage : data.get("startingStage")?.toString() || "Lead";
+  // Item 26 — closeBandSetAt only moves when the band itself actually changes, not on every save
+  // of an unrelated field. That's what keeps the staleness reading ("set N days ago") meaningful.
+  const newCloseBand = data.get("closeBand").toString();
+  const closeBandChanged = (existing?.closeBand || "") !== newCloseBand;
   const opportunity = buildCoreOpportunityRecord({
     ...(existing || {}),
     id: existingId || makeId("opp"),
@@ -15968,7 +16057,8 @@ async function saveOpportunity(form) {
     opportunityName: data.get("name").toString().trim(),
     value: Number(data.get("value")),
     amount: Number(data.get("value")),
-    closeQuarter: data.get("closeQuarter").toString(),
+    closeBand: newCloseBand,
+    closeBandSetAt: closeBandChanged ? (newCloseBand ? new Date().toISOString() : "") : existing?.closeBandSetAt || "",
     stage,
     dealStage: stage,
     probability: STAGE_PROBABILITY[stage],
@@ -15976,6 +16066,7 @@ async function saveOpportunity(form) {
     serviceType: data.get("serviceType").toString(),
     status: stage === "Won" ? "Won" : data.get("status").toString(),
     nextStep: data.get("nextStep").toString().trim(),
+    customerNeed: data.get("customerNeed").toString().trim(),
     weightedAmount: undefined,
     forecastAmount: undefined,
     rating: undefined,
@@ -18449,12 +18540,17 @@ function openProjectFromOpportunityDialog(opportunityId) {
   form.elements.jobClass.value = mapServiceTypeToJobClass(core.serviceType);
   populateEmployeeSelect(dialog, "projectManagerEmployeeId", "Select project manager");
   form.elements.startDate.value = todayIso();
-  // The opportunity's close date used to give this a precise target date. Now that close is only
-  // tracked to the quarter (Phase 06 item 1), an exact day derived from it would be false precision —
-  // use the quarter's start date as a rough anchor when it's still ahead of us, otherwise just fall
-  // back to a sensible "30 days out" default like every other quick-create flow in the app.
-  const quarterStart = closeQuarterStart(core.closeQuarter);
-  const targetDate = quarterStart && quarterStart > parseDate(todayIso()) ? localIsoDate(quarterStart) : addDays(30);
+  // Item 26 — the opportunity's close band replaces the quarter as the rough anchor: an exact day
+  // is still false precision, so use "today + the band's own day range" (its midpoint, offset by
+  // how long the band has already been sitting) as a reasonable target, falling back to the same
+  // "30 days out" default every other quick-create flow in the app uses when there's no band.
+  const closeBandInfo = findCloseBand(core.closeBand);
+  let targetDate = addDays(30);
+  if (closeBandInfo && Number.isFinite(closeBandInfo.maxDays)) {
+    const daysSinceSet = core.closeBandSetAt ? daysBetween(core.closeBandSetAt, todayIso()) : 0;
+    const remainingDays = Math.max(7, closeBandInfo.maxDays - daysSinceSet);
+    targetDate = addDays(remainingDays);
+  }
   form.elements.targetDate.value = targetDate;
   // Item 3: default the project's value from the linked quote/estimate's computed total when one
   // exists (the "Current" one selected on the opportunity, i.e. opportunity.quoteId/estimateId) —
@@ -18755,15 +18851,19 @@ function openOpportunityDialog(accountId = "", opportunityId = "") {
     form.elements.accountId.value = core.accountId;
     form.elements.name.value = core.opportunityName;
     form.elements.value.value = core.amount;
-    populateCloseQuarterSelect(dialog, core.closeQuarter || defaultCloseQuarter());
+    populateCloseBandSelect(dialog, core.closeBand || "");
     form.elements.serviceType.value = core.serviceType || "Scheduled Environmental Service";
     form.elements.status.value = core.status === "Lost" ? "Lost" : "Open";
     form.elements.nextStep.value = core.nextStep;
+    form.elements.customerNeed.value = core.customerNeed || "";
     if (startingStageField) startingStageField.hidden = true;
   } else {
     form.elements.id.value = "";
     if (accountId) form.elements.accountId.value = accountId;
-    populateCloseQuarterSelect(dialog, defaultCloseQuarter());
+    // Item 26 — no default band for a brand-new opportunity, unlike the old "next quarter"
+    // default. A close-timing guess this early is exactly the false precision the band was built
+    // to avoid; better to leave it genuinely unset until someone has a real answer.
+    populateCloseBandSelect(dialog, "");
     if (startingStageField) startingStageField.hidden = false;
   }
   dialog.showModal();
@@ -18791,6 +18891,11 @@ function openOpportunityLeadDialog(opportunityId) {
   form.elements.id.value = core.id;
   form.elements.contactId.value = contactsForOpportunity(opportunity.id)[0]?.id || "";
   form.elements.facilityId.value = opportunity.facilityId || "";
+  // Item 30 — "+ Add new facility" opens the existing Account facility dialog (Phase 02/03), not a
+  // new one. It closes this dialog when saved (saveFacility() closes every open dialog) rather than
+  // staying inline — reopen Edit afterward to pick the new facility. See the phase doc's corrections.
+  const addFacilityButton = dialog.querySelector('[data-action="open-facility"]');
+  if (addFacilityButton) addFacilityButton.dataset.accountId = core.accountId;
   form.elements.industry.value = core.industry || "";
   form.elements.contaminationNotes.value = opportunity.contaminationNotes || "";
   form.elements.originatingLeadId.value = core.originatingLeadId || "";
@@ -18802,6 +18907,9 @@ function openOpportunityLeadDialog(opportunityId) {
   // (that's exactly how every opportunity on a shared account ended up with identical
   // "current situation" text). Show the account's concern as a separate read-only hint instead.
   form.elements.currentSituation.value = opportunity.currentSituation || "";
+  // Item 35 sub-piece 1 — Customer need moved here from Develop & Planning ("customer need is
+  // something that should be in qualifications or lead stage" per the owner's note).
+  form.elements.customerNeed.value = opportunity.customerNeed || "";
   const account = findAccount(core.accountId);
   const hint = form.querySelector("[data-account-concern-hint]");
   if (hint) {
@@ -18835,6 +18943,7 @@ async function saveOpportunityLead(form) {
     sourceCampaign: data.get("sourceCampaign").toString().trim(),
     description: data.get("description").toString().trim(),
     currentSituation: data.get("currentSituation").toString().trim(),
+    customerNeed: data.get("customerNeed").toString().trim(),
     updatedAt: new Date().toISOString(),
   });
 
@@ -18903,7 +19012,6 @@ function openOpportunityDevelopDialog(opportunityId) {
   form.reset();
   const core = getCoreOpportunity(opportunity);
   form.elements.id.value = core.id;
-  form.elements.customerNeed.value = core.customerNeed || "";
   form.elements.proposedSolution.value = core.proposedSolution || "";
   form.elements.siteWalkStatus.value = opportunity.siteWalkStatus || "Incomplete";
   dialog.showModal();
@@ -18913,9 +19021,10 @@ async function saveOpportunityDevelop(form) {
   const data = new FormData(form);
   const opportunity = findOpportunity(data.get("id").toString());
   if (!opportunity) return;
+  // Item 35 sub-piece 1 — customerNeed no longer read from this form (moved to Lead &
+  // Qualification); `...opportunity` in the spread below preserves whatever value it already has.
   const updated = buildCoreOpportunityRecord({
     ...opportunity,
-    customerNeed: data.get("customerNeed").toString().trim(),
     proposedSolution: data.get("proposedSolution").toString().trim(),
     siteWalkStatus: data.get("siteWalkStatus").toString(),
     updatedAt: new Date().toISOString(),
@@ -22454,6 +22563,24 @@ function openQuickNoteDialog(accountId = "", contactId = "", opportunityId = "")
   dialog.showModal();
 }
 
+// Phase 06 item 15 — site walk becomes schedulable in one click, not just a status dropdown.
+// Interpreted pragmatically: rather than a separate yes/no gate in front of the existing dropdown
+// (siteWalkStatus already has "Not needed" for the "no" case), the quick-schedule action appears
+// exactly when a site walk is both needed and not yet done (status "Incomplete"), and opens the
+// real Meeting scheduling dialog pre-filled with the Site Visit tag — reusing the timeline/tagging
+// machinery from Phase 05 rather than building a parallel scheduling mechanism.
+function openSiteWalkQuickSchedule(opportunityId) {
+  const opportunity = findOpportunity(opportunityId);
+  if (!opportunity) return;
+  const core = getCoreOpportunity(opportunity);
+  openActivityMeetingDialog(opportunity.accountId, "", opportunityId);
+  const dialog = document.querySelector("#activityMeetingDialog");
+  const form = dialog.querySelector("form");
+  form.elements.subject.value = `Site walk — ${core.opportunityName}`;
+  const siteVisitTag = form.querySelector('input[name="tags"][value="Site Visit"]');
+  if (siteVisitTag) siteVisitTag.checked = true;
+}
+
 function openActivityMeetingDialog(accountId = "", contactId = "", opportunityId = "") {
   closeActivityPickers();
   const dialog = document.querySelector("#activityMeetingDialog");
@@ -23416,11 +23543,11 @@ function renderStakeholderCard(entry, { removable = true } = {}) {
   `;
 }
 
-function renderStakeholdersPanel(opportunity, title) {
+function renderStakeholdersPanel(opportunity, title, needsAttention = false) {
   const stakeholders = stakeholdersForOpportunity(opportunity.id);
   const formerStakeholders = formerStakeholdersForOpportunity(opportunity.id);
   return `
-    <article class="panel">
+    <article class="panel ${needsAttention ? "panel-needs-attention" : ""}">
       <div class="panel-header">
         <h3>${escapeHtml(title)}</h3>
         <div class="inline-actions">
@@ -23459,6 +23586,131 @@ function formerStakeholdersForOpportunity(opportunityId) {
 
 function hasDecisionMakerStakeholder(opportunityId) {
   return stakeholdersForOpportunity(opportunityId).some((entry) => entry.influenceLevel === "Decision maker");
+}
+
+// Phase 06 items 30/31 — opportunity <-> facility/location junction. `opportunities.facilityId` is
+// a single scalar, so an opportunity covering three sites can't be represented; this is the same
+// shape as opportunityContacts, which is the pattern that worked for the equivalent problem there.
+function findLocation(locationId) {
+  return (state.backend.locations || []).find((location) => location.id === locationId);
+}
+
+function opportunityLocationsForOpportunity(opportunityId) {
+  return (state.backend.opportunityLocations || []).filter((entry) => entry.opportunityId === opportunityId && !entry.deletedAt);
+}
+
+async function linkOpportunityLocation({ opportunityId, type, facilityId = "", locationId = "", role = "", note = "" }) {
+  await saveBackendRecord("opportunityLocations", {
+    id: makeId("opp-location"),
+    opportunityId,
+    type,
+    facilityId,
+    locationId,
+    role,
+    note,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+function openOpportunityLocationDialog(opportunityId) {
+  const opportunity = findOpportunity(opportunityId);
+  if (!opportunity) return;
+  const dialog = document.querySelector("#opportunityLocationDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.opportunityId.value = opportunityId;
+  populateFacilitySelect(dialog, opportunity.accountId);
+  const locationSelect = form.elements.locationId;
+  locationSelect.innerHTML = (state.backend.locations || [])
+    .map((location) => `<option value="${escapeAttribute(location.id)}">${escapeHtml(location.label || location.id)}${location.locationType ? ` — ${escapeHtml(location.locationType)}` : ""}</option>`)
+    .join("");
+  const addFacilityButton = dialog.querySelector('[data-role="opportunity-location-add-facility"]');
+  if (addFacilityButton) addFacilityButton.dataset.accountId = opportunity.accountId;
+  toggleOpportunityLocationTypeFields("Facility");
+  dialog.showModal();
+}
+
+function toggleOpportunityLocationTypeFields(type) {
+  const dialog = document.querySelector("#opportunityLocationDialog");
+  const facilityField = dialog.querySelector('[data-role="opportunity-location-facility-field"]');
+  const gpsField = dialog.querySelector('[data-role="opportunity-location-gps-field"]');
+  const addFacilityButton = dialog.querySelector('[data-role="opportunity-location-add-facility"]');
+  if (facilityField) facilityField.hidden = type !== "Facility";
+  if (gpsField) gpsField.hidden = type !== "Location";
+  if (addFacilityButton) addFacilityButton.hidden = type !== "Facility";
+}
+
+async function saveOpportunityLocation(form) {
+  const data = new FormData(form);
+  const opportunityId = data.get("opportunityId").toString();
+  const type = data.get("type").toString();
+  try {
+    await linkOpportunityLocation({
+      opportunityId,
+      type,
+      facilityId: type === "Facility" ? data.get("facilityId").toString() : "",
+      locationId: type === "Location" ? data.get("locationId").toString() : "",
+      role: data.get("role").toString().trim(),
+      note: data.get("note").toString().trim(),
+    });
+    closeDialogs();
+    render();
+    showToast("Site attached to this opportunity.");
+  } catch (error) {
+    showToast(error.message || "Site could not be attached.");
+  }
+}
+
+async function unlinkOpportunityLocation(id) {
+  const entry = (state.backend.opportunityLocations || []).find((item) => item.id === id);
+  if (!entry) return;
+  await saveBackendRecord("opportunityLocations", { ...entry, deletedAt: new Date().toISOString() });
+  render();
+  showToast("Site removed from this opportunity.");
+}
+
+// Phase 06 items 30/31 — one panel, reused on both Summary ("Associated Locations", under
+// Associated Contacts per the note) and Develop & Planning ("Sites & Locations"), same pattern as
+// renderStakeholdersPanel. Each row is badged Facility or GPS and opens the Facility detail page
+// where applicable — photos are explicitly deferred to Phase 13 (no attachment store to put them in
+// yet), not built as a second photo mechanism here.
+function renderOpportunityLocationsPanel(opportunity, title) {
+  const entries = opportunityLocationsForOpportunity(opportunity.id);
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <h3>${escapeHtml(title)}</h3>
+        <button class="mini-button" type="button" data-action="open-opportunity-location" data-opportunity-id="${escapeAttribute(opportunity.id)}">Add</button>
+      </div>
+      <div class="panel-body record-list">
+        ${
+          entries
+            .map((entry) => {
+              const facility = entry.type === "Facility" ? findFacility(entry.facilityId) : null;
+              const location = entry.type === "Location" ? findLocation(entry.locationId) : null;
+              const name = facility?.name || location?.label || "Unknown site";
+              return `
+                <article class="detail-card">
+                  <div class="row-meta">
+                    <div>
+                      <span class="tag">${entry.type === "Facility" ? "Facility" : "GPS"}</span>
+                      <strong>${escapeHtml(name)}</strong>
+                      ${entry.role ? `<span>${escapeHtml(entry.role)}</span>` : ""}
+                    </div>
+                    <div class="inline-actions">
+                      ${facility ? `<button class="mini-button" type="button" data-action="view-facility" data-id="${escapeAttribute(facility.id)}">Open</button>` : ""}
+                      <button class="mini-button" type="button" data-action="remove-opportunity-location" data-id="${escapeAttribute(entry.id)}">Remove</button>
+                    </div>
+                  </div>
+                  ${entry.note ? `<p class="table-subtext">${escapeHtml(entry.note)}</p>` : ""}
+                </article>
+              `;
+            })
+            .join("") || `<div class="empty-state">No sites attached yet.</div>`
+        }
+      </div>
+    </article>
+  `;
 }
 
 function findCompetitor(competitorId) {
@@ -23716,8 +23968,12 @@ function getSampleCoordinates(sample) {
 }
 
 function opportunityPriorityScore(item) {
-  const closeQuarterEndDate = closeQuarterEnd(item.opportunity.closeQuarter);
-  const closeDays = closeQuarterEndDate ? daysUntil(closeQuarterEndDate) : 999;
+  // Item 26 — a band has no single "end date" to measure distance to the way a quarter did; the
+  // band's own maxDays, offset by how long it's been set, is the closest equivalent "how close is
+  // this really" proxy without inventing false day-level precision the band deliberately dropped.
+  const band = findCloseBand(item.opportunity.closeBand);
+  const daysSinceSet = item.opportunity.closeBandSetAt ? daysBetween(item.opportunity.closeBandSetAt, todayIso()) : 0;
+  const closeDays = band ? Math.max(0, (Number.isFinite(band.maxDays) ? band.maxDays : 360) - daysSinceSet) : 999;
   const taskDays = item.nextTask ? daysUntil(item.nextTask.dueDate) : 30;
   return (
     Number(item.opportunity.value) / 1000 +
@@ -23732,20 +23988,22 @@ function getOpportunityProgress(opportunity) {
   const stageIndex = Math.max(0, STAGES.indexOf(opportunity.stage));
   const percent = STAGE_PROBABILITY[opportunity.stage] ?? 15;
   const core = getCoreOpportunity(opportunity);
-  const tone = opportunity.stage === "Won" ? "low" : getCloseStatus(core.closeQuarter).tone;
+  const tone = opportunity.stage === "Won" ? "low" : getCloseStatus(core.closeBand, core.closeBandSetAt).tone;
   return { percent, stageIndex, tone };
 }
 
-function getCloseStatus(value) {
-  if (!value) return { label: "No close quarter set", tone: "low" };
-  const label = formatCloseQuarter(value);
-  const start = closeQuarterStart(value);
-  const end = closeQuarterEnd(value);
-  if (!start || !end) return { label: `Close ${label}`, tone: "low" };
-  const today = parseDate(todayIso());
-  if (end < today) return { label: `${label} (overdue)`, tone: "high" };
-  if (start <= today && today <= end) return { label: `${label} (this quarter)`, tone: "medium" };
-  return { label: `Close ${label}`, tone: "low" };
+// Phase 06 item 26 — band + staleness, not quarter boundaries. A band never silently re-buckets;
+// instead, once today is further out than the band's own day range allows, it reads as overdue
+// against the day it was actually set — that's the staleness Q10 asked to make visible.
+function getCloseStatus(closeBand, closeBandSetAt) {
+  const band = findCloseBand(closeBand);
+  if (!band) return { label: "No target set", tone: "low" };
+  const daysSinceSet = closeBandSetAt ? daysBetween(closeBandSetAt, todayIso()) : 0;
+  const staleNote = closeBandSetAt ? ` (set ${daysSinceSet}d ago)` : "";
+  if (Number.isFinite(band.maxDays) && daysSinceSet > band.maxDays) {
+    return { label: `${band.label} — overdue${staleNote}`, tone: "high" };
+  }
+  return { label: `${band.label}${staleNote}`, tone: band.id === "0-30" ? "medium" : "low" };
 }
 
 function daysUntil(value) {
@@ -25043,56 +25301,38 @@ function formatDateTime(value) {
 // "YYYY-Q#" (e.g. "2027-Q1"), which sort correctly with a plain string compare. These helpers
 // convert between that shape and real Date objects only where day-level math is still needed
 // internally (overdue/urgency scoring) — nothing here should push an exact day back into the UI.
-function formatCloseQuarter(value) {
-  const match = /^(\d{4})-Q([1-4])$/.exec(value || "");
-  if (!match) return "Not set";
-  return `Q${match[2]} ${match[1]}`;
+// Phase 06 item 26 — replaces the closeQuarter family outright (Q10 locked decision). A quarter is
+// an absolute calendar bucket, so an untouched deal silently changed band as the calendar rolled;
+// "Q4 2026" answers "when on the calendar," not "how far out," which is what the pipeline actually
+// asks. The replacement is a relative band (0-30/31-60/61-90/91-360/beyond-360 days) plus
+// `closeBandSetAt`, so a stale forecast is visible instead of silently re-bucketing on its own —
+// storing the band alone would mean a deal marked "0-30" stays "0-30" forever even 90 days later.
+const CLOSE_BANDS = [
+  { id: "0-30", label: "0–30 days", maxDays: 30 },
+  { id: "31-60", label: "31–60 days", maxDays: 60 },
+  { id: "61-90", label: "61–90 days", maxDays: 90 },
+  { id: "91-360", label: "91–360 days", maxDays: 360 },
+  { id: "beyond-360", label: "Beyond 360 days", maxDays: Infinity },
+];
+
+function findCloseBand(bandId) {
+  return CLOSE_BANDS.find((band) => band.id === bandId) || null;
 }
 
-function closeQuarterStart(value) {
-  const match = /^(\d{4})-Q([1-4])$/.exec(value || "");
-  if (!match) return null;
-  return new Date(Number(match[1]), (Number(match[2]) - 1) * 3, 1);
+function formatCloseBand(bandId) {
+  return findCloseBand(bandId)?.label || "No target";
 }
 
-function closeQuarterEnd(value) {
-  const start = closeQuarterStart(value);
-  if (!start) return null;
-  return new Date(start.getFullYear(), start.getMonth() + 3, 0);
+function closeBandSortValue(bandId) {
+  const index = CLOSE_BANDS.findIndex((band) => band.id === bandId);
+  return index < 0 ? CLOSE_BANDS.length : index;
 }
 
-function dateToCloseQuarter(value) {
-  if (!value) return "";
-  const date = parseDate(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-Q${Math.floor(date.getMonth() / 3) + 1}`;
-}
-
-function closeQuarterOptionValues(includeValue = "") {
-  const currentYear = new Date().getFullYear();
-  const values = [];
-  for (let year = currentYear - 1; year <= currentYear + 3; year++) {
-    for (let quarter = 1; quarter <= 4; quarter++) values.push(`${year}-Q${quarter}`);
-  }
-  if (includeValue && !values.includes(includeValue)) values.push(includeValue);
-  return values.sort();
-}
-
-function defaultCloseQuarter() {
-  const today = new Date();
-  const quarter = Math.floor(today.getMonth() / 3) + 1;
-  const nextQuarter = quarter === 4 ? 1 : quarter + 1;
-  const year = quarter === 4 ? today.getFullYear() + 1 : today.getFullYear();
-  return `${year}-Q${nextQuarter}`;
-}
-
-function populateCloseQuarterSelect(root, currentValue = "") {
-  root.querySelectorAll("select[name='closeQuarter']").forEach((select) => {
+function populateCloseBandSelect(root, currentValue = "") {
+  root.querySelectorAll("select[name='closeBand']").forEach((select) => {
     select.innerHTML = [
-      `<option value="">No target quarter</option>`,
-      ...closeQuarterOptionValues(currentValue).map(
-        (value) => `<option value="${escapeAttribute(value)}">${escapeHtml(formatCloseQuarter(value))}</option>`,
-      ),
+      `<option value="">No target</option>`,
+      ...CLOSE_BANDS.map((band) => `<option value="${escapeAttribute(band.id)}">${escapeHtml(band.label)}</option>`),
     ].join("");
     select.value = currentValue || "";
   });

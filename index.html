@@ -199,8 +199,8 @@
             <input name="value" required type="number" min="0" step="1000" value="85000" />
           </label>
           <label>
-            Close quarter (optional)
-            <select name="closeQuarter"></select>
+            Close forecast (optional)
+            <select name="closeBand"></select>
           </label>
         </div>
         <div class="form-grid">
@@ -236,6 +236,10 @@
           <small>Only change this if the deal has already reached this point in real life — you'll need to backfill that stage's required information afterward.</small>
         </label>
         <label>
+          Customer need (optional)
+          <textarea name="customerNeed" rows="2" placeholder="What does the customer need solved?"></textarea>
+        </label>
+        <label>
           Next step
           <input name="nextStep" required maxlength="100" placeholder="Send revised scope after sampling report" />
         </label>
@@ -261,6 +265,7 @@
           Facility
           <select name="facilityId"></select>
         </label>
+        <button class="mini-button" type="button" data-action="open-facility" data-account-id="">+ Add new facility</button>
         <label>
           Industry
           <input name="industry" maxlength="60" placeholder="Manufacturing" />
@@ -286,6 +291,10 @@
         <label>
           Current situation
           <textarea name="currentSituation" rows="3" placeholder="What's driving the customer to act now?"></textarea>
+        </label>
+        <label>
+          Customer need
+          <textarea name="customerNeed" rows="3" placeholder="What does the customer need solved?"></textarea>
         </label>
         <div class="account-context-hint" data-account-concern-hint hidden>
           <p class="help-text"></p>
@@ -358,10 +367,6 @@
           <h2>Develop</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
-        <label>
-          Customer need
-          <textarea name="customerNeed" rows="3" placeholder="What does the customer need solved?"></textarea>
-        </label>
         <label>
           Proposed solution
           <textarea name="proposedSolution" rows="3" placeholder="How are we proposing to solve it?"></textarea>
@@ -3291,6 +3296,46 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Create project and dispatch job</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityLocationDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-location">
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Attach a site</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Type
+          <select name="type">
+            <option value="Facility">Facility (a place work happens)</option>
+            <option value="Location">GPS location (a point, e.g. a sample site)</option>
+          </select>
+        </label>
+        <label data-role="opportunity-location-facility-field">
+          Facility
+          <select name="facilityId"></select>
+        </label>
+        <button class="mini-button" type="button" data-action="open-facility" data-account-id="" data-role="opportunity-location-add-facility">+ Add new facility</button>
+        <label data-role="opportunity-location-gps-field" hidden>
+          GPS location
+          <select name="locationId"></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Role
+            <input name="role" maxlength="60" placeholder="Primary site, sample point, staging area" />
+          </label>
+          <label>
+            Note
+            <input name="note" maxlength="120" />
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Attach site</button>
         </menu>
       </form>
     </dialog>

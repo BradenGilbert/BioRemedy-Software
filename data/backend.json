@@ -20758,7 +20758,7 @@
       "stage": "Proposal",
       "serviceType": "Scheduled Environmental Service",
       "nextStep": "Price alternate disposal option after lab report",
-      "updatedAt": "2026-09-17T23:14:02.115Z",
+      "updatedAt": "2026-09-23T14:08:23.656Z",
       "createdAt": "2026-08-10T21:17:28.877Z",
       "facilityId": "",
       "industry": "",
@@ -20782,7 +20782,7 @@
       "closeProbability": 60,
       "probability": 60,
       "priority": "Normal",
-      "rating": "Close Jul 24, 2026",
+      "rating": "61–90 days (set 0d ago)",
       "initialCommunication": "Contacted",
       "customerNeed": "Scheduled Environmental Service",
       "proposedSolution": "",
@@ -20814,8 +20814,9 @@
       "quoteId": "quote-mu65c5a9-s1sunr",
       "priceList": "",
       "recordSource": "Local CRM",
-      "closeQuarter": "2026-Q3",
-      "estimateId": ""
+      "estimateId": "",
+      "closeBand": "61-90",
+      "closeBandSetAt": "2026-09-23T14:08:23.646Z"
     },
     {
       "id": "opp-north-river-stormwater",
@@ -20826,7 +20827,6 @@
       "serviceType": "Remediation Field Work",
       "nextStep": "Walk fleet yard and loading bay with operations",
       "updatedAt": "2026-09-23T05:06:27.870Z",
-      "closeQuarter": "2026-Q3",
       "opportunityName": "Stormwater and diesel cleanup program",
       "amount": 96000,
       "dealStage": "Qualify",
@@ -20880,7 +20880,9 @@
       "priceList": "",
       "recordSource": "Local CRM",
       "description": "Walk fleet yard and loading bay with operations",
-      "createdAt": "2026-09-23T05:06:27.870Z"
+      "createdAt": "2026-09-23T05:06:27.870Z",
+      "closeBand": "0-30",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-clearwater-abatement",
@@ -20891,8 +20893,9 @@
       "serviceType": "Asbestos Abatement",
       "nextStep": "Confirm night shift pricing and containment plan",
       "updatedAt": "2026-07-02T10:20:00.000Z",
-      "closeQuarter": "2026-Q3",
-      "quoteId": "quote-clearwater-night-shift"
+      "quoteId": "quote-clearwater-night-shift",
+      "closeBand": "0-30",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-prairie-phase2",
@@ -20957,7 +20960,6 @@
       "recordSource": "Local CRM",
       "description": "Send sample plan template and project references",
       "createdAt": "2026-09-17T02:29:50.038Z",
-      "closeQuarter": "2026-Q3",
       "equipmentNeeds": [
         {
           "name": "Vacuum trailer",
@@ -20969,7 +20971,9 @@
         }
       ],
       "vendorNeeds": [],
-      "resourceNeeds": []
+      "resourceNeeds": [],
+      "closeBand": "0-30",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-msw66ith-3c7npi",
@@ -21062,7 +21066,8 @@
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
       "workAuthorizationStatus": "Signed",
-      "closeQuarter": "2026-Q3"
+      "closeBand": "0-30",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-mu33t6d1-iel4ko",
@@ -21126,7 +21131,8 @@
       "recordSource": "Local CRM",
       "description": "next step is brok AF my BOI",
       "createdAt": "2026-09-15T20:07:59.161Z",
-      "closeQuarter": "2026-Q4"
+      "closeBand": "91-360",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-mu4c4qxs-1ucxl8",
@@ -21190,7 +21196,8 @@
       "recordSource": "Local CRM",
       "description": "Review cow potential",
       "createdAt": "2026-09-16T16:48:42.044Z",
-      "closeQuarter": "2026-Q4"
+      "closeBand": "91-360",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-mu4caooh-q29n38",
@@ -21254,7 +21261,8 @@
       "recordSource": "Local CRM",
       "description": "Test jeff muilti ability boi",
       "createdAt": "2026-09-16T16:53:19.043Z",
-      "closeQuarter": "2026-Q4"
+      "closeBand": "91-360",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-mu4covno-mqlp5w",
@@ -21320,7 +21328,8 @@
       "createdAt": "2026-09-16T17:04:21.129Z",
       "facilityId": "",
       "contaminationNotes": "lead details contamination test",
-      "closeQuarter": "2026-Q4"
+      "closeBand": "91-360",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-mu4d3fc2-ix14uk",
@@ -21425,7 +21434,8 @@
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
       "workAuthorizationStatus": "Signed",
-      "closeQuarter": "2026-Q4"
+      "closeBand": "91-360",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-mu7cb2rk-6ddyu3",
@@ -21434,7 +21444,6 @@
       "opportunityName": "NEW BRANFELS TA",
       "value": 30000,
       "amount": 30000,
-      "closeQuarter": "2026-Q3",
       "stage": "Won",
       "dealStage": "Won",
       "probability": 100,
@@ -21516,7 +21525,9 @@
       "proposalPresentedStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
-      "workAuthorizationStatus": "Signed"
+      "workAuthorizationStatus": "Signed",
+      "closeBand": "0-30",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-mu7efomy-uhe3su",
@@ -21525,7 +21536,6 @@
       "opportunityName": "REBRAND OF A TA SITE IN SAN ANTONIO, 1 OF 2",
       "value": 25000,
       "amount": 25000,
-      "closeQuarter": "2026-Q3",
       "stage": "Develop",
       "dealStage": "Develop",
       "probability": 45,
@@ -21581,7 +21591,9 @@
       "priceList": "",
       "recordSource": "Local CRM",
       "description": "SEND QUOTE",
-      "createdAt": "2026-09-18T20:16:32.856Z"
+      "createdAt": "2026-09-18T20:16:32.856Z",
+      "closeBand": "0-30",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     },
     {
       "id": "opp-muczcy1i-18ew5e",
@@ -21590,7 +21602,6 @@
       "opportunityName": "fire fly crash",
       "value": 85000,
       "amount": 85000,
-      "closeQuarter": "2026-Q4",
       "stage": "Won",
       "dealStage": "Won",
       "probability": 100,
@@ -21657,7 +21668,9 @@
       "proposalPresentedStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
-      "workAuthorizationStatus": "Signed"
+      "workAuthorizationStatus": "Signed",
+      "closeBand": "91-360",
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
     }
   ],
   "opportunityAssignments": [
@@ -21883,6 +21896,31 @@
       "isPrimary": true,
       "createdAt": "2026-09-16T17:31:42.316Z",
       "updatedAt": "2026-09-16T17:31:42.316Z"
+    }
+  ],
+  "opportunityLocations": [
+    {
+      "id": "opp-location-mue6av7h-ii1e27",
+      "opportunityId": "opp-prairie-phase2",
+      "type": "Facility",
+      "facilityId": "",
+      "locationId": "",
+      "role": "Primary site",
+      "note": "",
+      "createdAt": "2026-09-23T14:03:11.357Z",
+      "updatedAt": "2026-09-23T14:03:44.881Z",
+      "deletedAt": "2026-09-23T14:03:44.877Z"
+    },
+    {
+      "id": "opp-location-mue6bkqh-ijiqkf",
+      "opportunityId": "opp-prairie-phase2",
+      "type": "Facility",
+      "facilityId": "loc-prairie-cold-storage",
+      "locationId": "",
+      "role": "",
+      "note": "",
+      "createdAt": "2026-09-23T14:03:44.441Z",
+      "updatedAt": "2026-09-23T14:03:44.445Z"
     }
   ],
   "opportunityProducts": [

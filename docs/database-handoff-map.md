@@ -341,15 +341,31 @@ to resolve. `getFinanceRows()`/`openInvoiceDialog()` were updated to prefer a pr
 generated report "feeds" the existing invoice dialog without a parallel invoice path. See
 `docs/roadmap/phase-09-billing-invoicing.md` for the full writeup.
 
-**Phase 06's 2026-09-22 pass, partial (2026-09-23)** — no new fields or collections; three existing
-`opportunities` fields (`proposedSolution`, `customerNeed`, `description`) lost their write-through
-fallbacks in `buildCoreOpportunityRecord()` (they used to silently copy `nextStep`/`serviceType` in
-on the first save if the field was blank — see item 29). **Data cleanup:** 12 `opportunities` rows
-in `data/backend.json` had `proposedSolution` blanked (it was character-identical to `nextStep`,
-confirming the contamination) per the owner's locked Q11 decision — if a query ever needs "why is
-this opportunity's proposed solution blank," this is why. `customerNeed`/`description` have the
-same contamination pattern in ~10 rows each but were **not** blanked (no locked decision covers
-them yet).
+**Phase 06's 2026-09-22 pass, completed 2026-09-23 (two sessions)** — one new collection, one field
+replaced, one field's write-through fallback removed (plus two others), several fields relocated
+(no schema change for the relocations). **New collection:** `opportunityLocations` (`id`,
+`opportunityId`, `type` "Facility"/"Location", `facilityId` or `locationId`, `role`, `note`,
+soft-deletable via `deletedAt`) — the opportunity↔facility/location junction items 30/31 needed,
+same shape as `opportunityContacts`. Registered in `server.mjs`'s `collectionAccess`/
+`defaultBackend`/role-gated response filter (a new top-level collection is a three-place server
+change, not just a JSON-file addition). **Field replacement:** `opportunities.closeQuarter` (a
+`"YYYY-Q#"` string) is gone, replaced outright by `opportunities.closeBand` (one of
+`"0-30"`/`"31-60"`/`"61-90"`/`"91-360"`/`"beyond-360"`, or blank for no target) and
+`opportunities.closeBandSetAt` (ISO timestamp, advances only when the band value itself changes).
+**Data migration executed:** all 13 real opportunities in `data/backend.json` had `closeQuarter`
+converted to a `closeBand`/`closeBandSetAt` pair (bucketed by days-to-quarter-end relative to the
+2026-09-23 migration date) and the `closeQuarter` field deleted outright — not kept alongside, per
+this project's own "two parallel vocabularies" lesson from the `closeDate`/`estimatedCloseDate`
+history. The 4 representative seed opportunities in `server.mjs` were migrated the same way.
+**Write-through fallbacks removed** from `buildCoreOpportunityRecord()` for `proposedSolution`,
+`customerNeed`, and `description` (item 29) — they used to silently copy `nextStep`/`serviceType` in
+on first save if blank. **Data cleanup:** 12 `opportunities` rows had `proposedSolution` blanked
+(character-identical to `nextStep`, confirming contamination) per the locked Q11 decision — if a
+query ever needs "why is this opportunity's proposed solution blank," this is why.
+`customerNeed`/`description` have the same contamination pattern in ~10 rows each but were **not**
+blanked (no locked decision covers them yet). **Relocated, no schema change:**
+`opportunities.customerNeed` is now edited from the Lead & Qualification dialog/panel instead of the
+Develop dialog/panel (item 35 sub-piece 1) — same field, different edit surface.
 
 **Phase 17 (2026-09-23)** is rendering-only — no new collections or persisted fields. Six new tables
 (All Projects, Scheduled Work, Multi-Stage Remediation, Consumables, Equipment, plus the existing

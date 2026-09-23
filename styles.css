@@ -817,20 +817,63 @@ h3 {
 }
 
 .segment-tabs button {
-  min-height: 36px;
-  border: 1px solid var(--border);
+  min-height: 38px;
+  border: 1.5px solid var(--border);
   border-radius: 8px;
   background: #ffffff;
-  color: var(--muted);
-  padding: 0 12px;
-  font-weight: 800;
+  /* Phase 06 item 32 — inactive tabs were muted-on-white at 1px, which read as barely-there to
+     new users. Darker text + a heavier border gives them real presence as navigation, not just
+     as a label next to the highlighted active one. */
+  color: var(--ink);
+  padding: 0 14px;
+  font-weight: 700;
   white-space: nowrap;
+  position: relative;
+}
+
+.segment-tabs button:hover {
+  border-color: var(--teal);
 }
 
 .segment-tabs button.active {
   background: var(--teal);
   border-color: var(--teal);
   color: #ffffff;
+  font-weight: 800;
+}
+
+/* Phase 06 item 32 — red dot on a tab that holds a field blocking the next stage advance. */
+.tab-alert-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--red);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* Persistent (not transient like .panel-highlight) — stays as long as the field is actually
+   missing, so it reads as "this panel needs attention," not a one-time arrival flash. */
+.panel-needs-attention {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px rgba(196, 60, 60, 0.25);
+}
+
+.panel-needs-attention > .panel-header h3::after {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  vertical-align: middle;
 }
 
 .view-header {
