@@ -29,6 +29,12 @@ If Node is not on your path, run the app with the bundled Codex Node executable:
 
 Then open the local URL printed by the server.
 
+To test without touching the real data, point a second instance at a copy. `PORT` picks the port, and `CRM_DATA_DIR` is a folder holding a copy of `data/backend.json` (uploads go to its `uploads/` subfolder):
+
+```powershell
+$env:PORT = 4180; $env:CRM_DATA_DIR = "C:\path\to\scratch\data"; & "<node.exe>" .\server.mjs
+```
+
 ## Microsoft identity setup
 
 The app can be wired to Microsoft Entra ID from the Identity & Sync screen. You will need:

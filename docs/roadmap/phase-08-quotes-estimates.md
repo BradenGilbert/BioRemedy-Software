@@ -74,11 +74,13 @@ Update `docs/database-handoff-map.md` once the line-item shape is finalized.
 
 ## Verification / done criteria
 
-- [ ] Build a quote with 3+ line items from the product/rate catalog; the total computes correctly
-- [ ] Edit an existing quote's line items; the total recalculates
-- [ ] Create a project from a won opportunity that has a quote; the project's value defaults from the quote total
-- [ ] Create a project from a won opportunity with **no** quote; still prompts for manual entry (no regression)
-- [ ] The same rate/price data referenced by a quote line item is what Phase 04's vendor/service-agreement rate card panels point to (not a separate hardcoded value)
+*Boxes ticked 2026-09-23 (sprint Wave 0) from the Playwright evidence recorded under "Verified live" below. The work shipped 2026-09-17, but the boxes were never marked.*
+
+- [x] Build a quote with 3+ line items from the product/rate catalog; the total computes correctly (live, 2026-09-17: $171,500 → $218,900 as lines changed, and the total survived reload)
+- [x] Edit an existing quote's line items; the total recalculates (live, 2026-09-17)
+- [x] Create a project from a won opportunity that has a quote; the project's value defaults from the quote total (live, 2026-09-17: `opp-mu4c4qxs-1ucxl8`, $35,400 quote vs. $85,000 opportunity amount)
+- [x] Create a project from a won opportunity with **no** quote; still prompts for manual entry (no regression) (live, 2026-09-17: `opp-mu4covno-mqlp5w`)
+- [ ] The same rate/price data referenced by a quote line item is what Phase 04's vendor/service-agreement rate card panels point to (not a separate hardcoded value). **Confirmed by code trace only** (both read `state.backend.priceLevels` via `populatePriceLevelSelect`). Left unticked on purpose: the round-two rate-card rework replaces this read path with `productPrices`, so re-verify it live then rather than ticking it now
 
 ---
 

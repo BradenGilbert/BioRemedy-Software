@@ -656,7 +656,14 @@ deleted from `data/backend.json`.
   `assignedProjectId` the client sends, so no UI assignment ever persisted.
   It now writes `assignedProjectId` (still accepting the legacy name as
   input), and `loadBackend()` renames the legacy field on read so a restored
-  older backup is covered.
+  older backup is covered. The same session checked all seven collections
+  whose server normalizer whitelists fields (`purchaseOrders`,
+  `scheduleEvents`, `equipmentAssets`, `locations`, `facilityContacts`,
+  `invoices`, `inventoryItems`) against every client save site. Only
+  `equipmentAssets` was dropping client fields. **Any new field on one of
+  these seven must be added to its `normalizeRecord()` branch in
+  `server.mjs`, or the server silently discards it.** Every other
+  collection passes through unchanged.
   (`timeEntries` retired September 16, 2026 -- zero `app.js` readers/writers
   beyond the blanket role-filter pass-through; its one seed row held a
   `jobId` referencing a project, the exact naming collision the Phase 01

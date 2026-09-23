@@ -145,7 +145,7 @@ None. Every fix in this phase wired new or corrected UI/logic onto fields that a
 - [x] Reserving a material beyond on-hand stock warns (toast + persistent "Over stock" badge) but does not block the reservation (2026-09-17, verified live — owner decision: warn, don't block)
 - [x] An existing credential can be edited in place ("Renew / update") without creating a duplicate row (2026-09-17, verified live)
 - [x] A project's stage ladder (Intake/Plan/Mobilize/Field Work/Closeout) advances as its dispatch job(s) move through real status transitions, not stuck on Intake (2026-09-17, verified live end-to-end)
-- [ ] Worker hours logged via a Front Line Timer task are added to the employee's tracked hours — fixed by code trace, not click-tested through a live Front Line session this session
+- [x] Worker hours logged via a Front Line Timer task are added to the employee's tracked hours. Fixed by code trace 2026-09-17; **click-tested live 2026-09-23** (sprint Wave 0, against a scratch data copy): Logan signed in to Front Line, acknowledged a dispatched job and submitted 2.5 h on its "Capture travel and truck time" Timer task. `employees.hoursWorked` went from 22 to 24.5, the `jobFormSubmissions` payload recorded `hours: 2.5`, and there were no console errors
 - [x] A new project created from a won opportunity defaults its intake "Site" to the opportunity's own selected facility, not an arbitrary first facility on the account (2026-09-17 — fix verified by code trace and by confirming the bug's signature in existing pre-fix data; a fresh end-to-end UI creation through all opportunity stage gates to a brand-new Won record was not completed this session, see item 13's note)
 
 ---

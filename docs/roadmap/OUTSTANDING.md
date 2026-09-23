@@ -65,11 +65,12 @@ Two answers from that second round changed earlier entries and are already corre
 - W-9/COI upload → review workflow (blocked on Phase 13)
 - Agreement templates by type (blocked on Phase 13)
 
-### Phase 05 — Contacts & Timeline · *3 items + 1 new*
+### Phase 05 — Contacts & Timeline · *4 items*
+*Corrected 2026-09-23: activity tags (item 2) and the person/type timeline filters shipped 2026-09-18; this list had not caught up.*
 - Phone numbers auto-format with dashes — one shared formatter, applied everywhere, caret position preserved
-- Activity tagging system (not started)
 - Shared opportunity-lookup component (also wanted by Phases 03 and 04)
-- Timeline filter by person / related record / type
+- Timeline "Related" filter (depends on Phase 06 item 20, the Regarding field)
+- Connected-via opportunity/project links clickable (item 14, together with Phase 06 item 12)
 
 ### Phase 06 — Opportunity Domain · ✅ substantially complete 2026-09-23 (two sessions)
 **Shipped:** account-context hint relabel + "Use this text"; stage badges no longer look like buttons; `proposedSolution`/`customerNeed`/`description` write-through fallbacks removed, 12 contaminated `proposedSolution` records blanked; needs lists renamed + comma splitting + combined dialog; industry inherits for display only; close forecast replaced with relative bands (`closeBand`/`closeBandSetAt`, all existing data migrated, reverses the earlier `closeQuarter` decision); new `opportunityLocations` junction + Sites & Locations / Associated Locations panels with inline facility creation; red-dot tab/panel validation highlighting + tab contrast; site-walk quick-schedule; `customerNeed` moved to Lead & Qualification. List search (item 3) was already working.
@@ -77,7 +78,7 @@ Two answers from that second round changed earlier entries and are already corre
 
 ### Phase 07 — Dispatch & Operations · ✅ 4 new items shipped 2026-09-23; 1 old item remains
 **Shipped 2026-09-23:** intake feed now empties (open-only by default, toggle for converted/closed); Job Register gained search + sortable columns (adopted Phase 17's shared `renderDataTable()`); dispatch schedule is a real 7-day window, no skip-ahead; conflicts gained a "Go to blocker" button (employee-credential conflicts only — no equipment/material reference field exists yet to jump to) with a transient red-outline highlight (`state.highlightPanel`, shared mechanism Phase 06 item 32 can reuse).
-**Still open:** Verify Front Line timer hours reach employee tracked hours in a live session (fixed by code trace only, 2026-09-17).
+**Verified live 2026-09-23:** Front Line Timer hours reach the employee's tracked hours (22 → 24.5 after a 2.5 h submission). **Still open:** item 4 (job-centric resource-planning UI per Q33), item 7 (photo capture, which may already be covered by Phase 10's typed capture), and item 8 (template rebuild, deferred per Q34). All three are sprint Wave 4.
 
 ### Phase 08 — Quotes & Estimates · *second round, 2 of 6 shipped 2026-09-23*
 **Shipped 2026-09-23:** Estimates → "Estimation Tool" (dropped effective dates, renamed, Convert-to-Quote added, linked via `quotes.sourceEstimateId`); Quote "Effective to" defaults to +30 days (live recompute unless hand-edited).
@@ -85,7 +86,7 @@ Two answers from that second round changed earlier entries and are already corre
 - **Rate card rework to match the real 2026 rate sheet**: three tiers (Standard/OT & Emergency/Double Time — corrected from four), four-hour emergency minimums, fuel surcharge, cost+28% margin lines, real units (Per Man Per Day, Per Foot Per Day), catalog sections. Needs its own session — new `productPrices` shape, not an incremental change.
 - Itemized lines sourced from labor roles, equipment, consumables and lab tests — not one lumpy service row (depends on the rate card rework above)
 - Estimation tool pulls from Resource Needs (site notes half blocked on Phase 06)
-- Tick off the five definition-of-done boxes from round one — they were never marked, so the shipped work is unverified on paper
+- ~~Tick off the five definition-of-done boxes from round one~~: 4 of 5 ticked 2026-09-23 from recorded live evidence. The fifth (Phase 04 panels read the same rate data) is code-trace only and gets re-verified during the rate-card rework, which replaces that read path
 
 ### Phase 10 — Front Line · *2 new*
 - Fix the broken map marker (it is the only map in the app using Leaflet's default icon — the other four use `divIcon`)

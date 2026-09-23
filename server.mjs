@@ -7,7 +7,8 @@ import { fileURLToPath } from "node:url";
 const root = path.dirname(fileURLToPath(import.meta.url));
 const basePort = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
-const dataDir = path.join(root, "data");
+// CRM_DATA_DIR points a test instance at a scratch copy so click-tests never write to the real data.
+const dataDir = process.env.CRM_DATA_DIR ? path.resolve(process.env.CRM_DATA_DIR) : path.join(root, "data");
 const dataFile = path.join(dataDir, "backend.json");
 const uploadsDir = path.join(dataDir, "uploads");
 const maxJobRequestDocumentBytes = 25 * 1024 * 1024;
