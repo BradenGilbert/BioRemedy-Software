@@ -299,3 +299,37 @@ Confirm during implementation whether an existing "company structure" panel is m
 - **2026-09-16 — found a real server bug via testing, not via the plan.** See item 9 above: `server.mjs`'s `normalizeRecord("facilityContacts", ...)` never round-tripped `deletedAt`, so soft-deletes on that collection silently no-opped. Fixed alongside the edit/remove UI. Worth a quick grep of `normalizeRecord`'s other hand-written per-collection branches for the same class of bug (a field the client sends that the whitelist drops) before building more soft-delete UI on any of them.
 - **2026-09-16 — item 2 (edit-button audit) and item 8 (facility detail page) not started.** Item 2 is a genuine systematic audit (every panel × Account/Contact/Opportunity) that deserves its own dedicated session rather than a partial pass bolted onto this one. Item 8 is a full new page (facility detail: location, contacts, photos, work history, notes, map) gated in part on Phase 13 (Document Storage) for real photo uploads — worth scoping as its own session too rather than a rushed stub.
 - **2026-09-16 — a Windows/PowerShell encoding trap, for whoever next edits `data/backend.json` directly.** Windows PowerShell 5.1's `Get-Content`/`Set-Content` do not round-trip UTF-8 safely: `Get-Content` without an explicit `-Encoding utf8` on a BOM-less UTF-8 file misreads multibyte characters (em-dashes, etc.) via the system codepage, and `Set-Content -Encoding utf8` then re-encodes the misread text as UTF-8 mojibake (`—` → `â€”`) across the *entire* file, not just the touched region — plus it silently adds a UTF-8 BOM, which `JSON.parse` in Node does **not** strip and will fail on. This actually happened this session (caught immediately via a `git diff` sanity check before anything was committed, reverted with `git checkout`, redone with a pure Node `fs.readFileSync(..., 'utf8')`/`JSON.parse`/`fs.writeFileSync` script instead). **Never use PowerShell `Get-Content`/`Set-Content` on `data/backend.json` — use Node or the Edit tool.**
+
+---
+
+# 2026-09-22 feedback pass
+
+**Source:** `docs/roadmap/notes-2026-09-22.md` item 3. **Status:** Not started.
+
+### Add missing industries; add DOT to Government
+
+> *"Industry's to add: environmental, Transportation, utilities/ Infastructure, Education, (add DOT to Government)"*
+
+**CONFIRMED.** The `industries` collection in `data/backend.json` holds eight rows: Oil & Gas, Agriculture, Wastewater, Manufacturing, Municipal / Government, Healthcare, Construction, Transportation / Logistics. The picker built in this phase reads them through `industriesForAccount()` / `sortedIndustries`, so adding rows is data work, not code work — but there are two catches worth handling in the same pass:
+
+- **`server.mjs` carries its own fallback seed.** Add the rows in both places or a fresh install will disagree with this one.
+- **Transportation already exists** as "Transportation / Logistics." Do not add a second row — the note predates knowing that. Decide whether DOT work belongs there or under Government.
+
+New rows: **Environmental**, **Utilities / Infrastructure**, **Education**. For "add DOT to Government," the cheapest correct move is renaming `industry-municipal-government` to **"Municipal / Government / DOT"** rather than creating a child industry — `parentIndustryId` and `industryCategory` exist on the schema but nothing reads them, so a hierarchy here would be invisible structure. If the owner wants DOT reportable on its own, it needs its own top-level row instead.
+
+**Legacy field note:** `accounts.industry` (a free-text scalar, `index.html:266`) still exists alongside the real `industries` join. Phase 06 item 34 depends on which one is authoritative — resolve it here rather than in the opportunity code.
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **"Remove the Account Table" (Q30): dropped.** *"that was an incomplete note."* This item has been carried as blocking since 2026-09-16 — it is now closed with no action. **One of the two things holding this phase open is gone.**
+- **Industry list (Q53): back it with NAICS codes, as an attribute — not as a replacement.** The owner left the call to me. Recommendation being recorded as the decision: keep the curated list (the eight existing values plus Environmental, Utilities/Infrastructure, Education) because a salesperson picking from 1,000 NAICS codes will pick badly, and add an optional `naicsCode` on each industry row for reporting, filtering and any future export. Curated for entry, NAICS for analysis. Reversible in either direction later, which a full NAICS switch would not be.
+- **Account lifecycle status (Q54): still open** — the owner asked what the question meant. See the session notes; re-ask with context.
+- **Environmental risk location (Q55): still open** — same, the question was not clear as asked.
+
+### Q53 / Q54 / Q55 answered 2026-09-22
+
+- **Industries (Q53): confirmed** — curated list for picking, optional `naicsCode` per row for reporting and export.
+- **Account lifecycle status (Q54): back burner.** The question needs the actual field values (`relationshipStatus` vs `customer_status`) laid out side by side before it can be answered; not blocking anything.
+- **Environmental risk (Q55): lives on the facility, not the account.** A customer with ten sites has ten risk pictures. Model it in the facility record (Phase 02's), not the company.

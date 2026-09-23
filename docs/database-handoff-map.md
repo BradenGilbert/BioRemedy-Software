@@ -341,6 +341,96 @@ to resolve. `getFinanceRows()`/`openInvoiceDialog()` were updated to prefer a pr
 generated report "feeds" the existing invoice dialog without a parallel invoice path. See
 `docs/roadmap/phase-09-billing-invoicing.md` for the full writeup.
 
+**Phase 06's 2026-09-22 pass, partial (2026-09-23)** — no new fields or collections; three existing
+`opportunities` fields (`proposedSolution`, `customerNeed`, `description`) lost their write-through
+fallbacks in `buildCoreOpportunityRecord()` (they used to silently copy `nextStep`/`serviceType` in
+on the first save if the field was blank — see item 29). **Data cleanup:** 12 `opportunities` rows
+in `data/backend.json` had `proposedSolution` blanked (it was character-identical to `nextStep`,
+confirming the contamination) per the owner's locked Q11 decision — if a query ever needs "why is
+this opportunity's proposed solution blank," this is why. `customerNeed`/`description` have the
+same contamination pattern in ~10 rows each but were **not** blanked (no locked decision covers
+them yet).
+
+**Phase 17 (2026-09-23)** is rendering-only — no new collections or persisted fields. Six new tables
+(All Projects, Scheduled Work, Multi-Stage Remediation, Consumables, Equipment, plus the existing
+Purchase Orders table already on this pattern) now share one `renderDataTable()`/`getTableState()`
+component instead of bespoke search boxes; table search/sort state lives in `state.tables`
+(client-only, never persisted). The operations calendar became a real month grid
+(`buildCalendarMonthDays()`) instead of a 7-day flat strip. The operations map gained a filter panel
+(`state.opsMapFilters`, client-only) — `getMapMarkers()` marker objects gained `projectId`/
+`accountId`/`projectStage` fields for filtering purposes, but these are derived at read time from
+the existing `locations`/`projects` records, not new persisted fields on `locations` itself.
+
+**Phase 08's 2026-09-22 pass, items 6/7 (2026-09-23)** — one new field: `quotes.sourceEstimateId`,
+set when a quote is created via "Convert to quote" on an estimate (blank otherwise). Converting the
+same estimate twice is allowed and creates two independent quote rows, each with its own
+`sourceEstimateId` pointing at the same estimate — there is no dedup and no back-reference on the
+estimate side (an estimate does not know how many quotes were made from it; query
+`quotes.filter(q => q.sourceEstimateId === estimateId)` if that's ever needed). `estimates.effectiveFrom`/
+`effectiveTo` still exist as fields (not removed from the schema) but are no longer editable —
+existing values are preserved on save, new estimates never get them. No new collections.
+
+**Phase 18 (2026-09-23), items 1–3** — two new top-level JSON-backend collections plus new fields on
+the existing `frontlineDevices`. `standbyAssignments` (`id`, `employeeId`, `startsAt`, `endsAt`,
+`notes`, `createdBy`, `createdAt`, soft-deletable via `deletedAt`) models standby/on-call as a real
+commitment, deliberately separate from `availabilityBlocks` (which already had an `"On call"` type
+before this phase — see the phase doc's corrections for why that's the wrong model to have reused).
+`standbyRotationSettings` is a one-row collection (`id: "default"`, `rotationPattern`, `notes`,
+`updatedBy`, `updatedAt`) standing in for a real shared-settings surface, which doesn't exist yet.
+`frontlineDevices` gained `hardwareModel`, `imei`, `osVersion`, `onboardedAt`, `ownership`
+(`"Company"`/`"Personal"`), and `deletedAt` (soft delete); `registrationStatus` gained two new real
+values, `"Suspended"` and `"Retired"`, both enforced at Front Line sign-in
+(`frontlineLogin()` blocks an employee whose only registered device(s) are all suspended/retired).
+**Both new collections required matching entries in `server.mjs`'s `collectionAccess`,
+`defaultBackend`, and the role-gated response filter** — the server 404s any `saveBackendRecord()`
+call to a collection name it doesn't already know about, so adding a new top-level collection is a
+three-place server change, not just a frontend one. Item 4 (per-dispatch sign-on links + GPS
+consent) is not started — see the phase doc.
+
+**Phase 16 (2026-09-23)** added the emergency intake fields — all on the existing `projects`
+collection, no new collection, written once at creation by `submitEmergencyIntake()` and otherwise
+untouched by any other flow. New fields: `callerName`, `callerPhone`, `callerRelationship`,
+`spillMaterial`, `spillQuantity`, `spillSurface`, `stormDrainInvolved`, `offRoadDischarge`,
+`absorbentDeployed`, `absorbentDeployedBy`, `lawEnforcementStatus`, `fireDepartmentStatus`,
+`otherEmergencyServicesStatus`, `agencyIncidentNumber`, `hasInsurance`, `isInsuranceClaim`,
+`insuranceCarrier`, `insurancePolicyNumber`, `insuranceClaimNumber`, `policyCopyOnFile`,
+`downPaymentAmount`, `downPaymentBy`, `downPaymentReference`, `mobilizationStatus`,
+`mobilizationNote`, `mobilizationClearedAt`, `mobilizationOverrideBy`, `mobilizationOverrideReason`,
+`incidentReportedAt`, `incidentLatitude`, `incidentLongitude`. `mobilizationStatus` is one of
+`"Cleared to mobilize"`, `"Blocked — awaiting down payment"`, or `"Blocked — awaiting insurance
+documentation"` — computed once at intake per the locked Q14/Q15 decision tree
+(`computeEmergencyMobilization()`) and never recomputed automatically; a later status change (e.g.
+a down payment arriving after the fact) would need its own explicit action, which doesn't exist yet.
+Also new: `accounts.isProvisional` (boolean, set on an account created inline during emergency
+intake — flagged for office cleanup per Q16, no cleanup workflow built yet) and a `locations` row
+per intake with `locationType: "Spill origin"`, written only when a GPS pin was captured. No new
+collections.
+
+**Phase 15 (2026-09-23)** added the sales-to-operations handover to `projects` -- no new top-level
+collections, six new fields on the existing `projects` record, all copied once at creation from the
+won opportunity and never re-synced afterward (owner decision: "we just need the data, where it came
+from doesn't matter" -- no provenance badging, no drift detection): `equipmentNeeds`, `vendorNeeds`,
+`resourceNeeds` (arrays of `{ name, note }`, same shape as the opportunity fields they're copied
+from), `siteWalkStatus` (previously hardcoded to `"Incomplete"` at creation regardless of the
+opportunity's real status -- now actually carried over), and `quoteId`/`estimateId` (copied
+references, not a line-item snapshot -- `quoteLinesForQuote()`/`estimateLinesForEstimate()` read the
+referenced document live, so the project's "priced baseline" panel keeps showing the same document
+even if the opportunity's own "current" quote changes later). Site photos were **not** carried over
+-- the opportunity has no `sitePhotoRefs` field to carry from; blocked on Phase 13 per the phase doc.
+Also added `closeProjectsForLostOpportunity()`: when an opportunity's `status` transitions to
+`"Lost"`, every non-closed `projects` row with a matching `opportunityId` is closed with
+`outcome: "Lost"` and `status: "Cancelled"` -- a separate path from Phase 09's `closeProject()` that
+does **not** gate on reaching the "Closeout" stage (a lost deal never reaches it) and does **not**
+generate a cost report (no billable outcome). Verified live 2026-09-23. The project detail page was
+also restructured from one long scrolling page into three tabs (Intake/Plan/Live, same pattern and
+`state.projectDetailTab` convention as Account/Contact/Opportunity) -- no schema change, UI only. The
+"customer paperwork" flag on the Intake tab is **not** a carried-over opportunity field -- the
+opportunity has no such field to carry, so it reads live from the project's own `jobRequests`
+(`customerPacketStatus` / `documentRole: "customer_packet"` uploads) instead, same data the job
+request dialog's "prior packet" logic already used. This is a placeholder per the phase doc's item 2;
+Phase 13's document requirement/review model replaces it. See
+`docs/roadmap/phase-15-project-execution-workspace.md`.
+
 **Phase 08 (2026-09-17)** added two new JSON-backend collections, `estimates` and `estimateLines`,
 structurally identical to the pre-existing `quotes`/`quoteLines` -- owner decision: Quote and
 Estimate are two genuinely separate documents, not one type with a status flag (the source notes
@@ -642,6 +732,31 @@ See `docs/dataverse-relationship-architecture.md` for the note on the
 Meeting/Call/Email/Task/Note activity dialogs also added in this pass, and
 how they relate to the `activities` vs. `sales_tasks` direction described
 there.
+
+### Recent prototype-only additions (Phase 05 item 2 -- activity tags)
+
+- `activities.tags` -- new array field (multi-value), vocabulary locked to
+  `Personal`, `Business`, `Compliance`, `Safety`, `Billing`, `Site Visit`,
+  `Follow-up` (`ACTIVITY_TAGS` in `app.js`). Editable after creation via a new
+  "Edit tags" action on each timeline entry (`tagEditorDialog`), not just at
+  creation time. Every activity-creating dialog (generic Activity, Quick
+  Note, Meeting, Call, Email, Task) now includes the same tag-picker
+  checkbox group. No `activities` (`014_activities.sql`) column for this
+  yet. Filter chips built on top of
+  this field live in `renderTimelinePanel()` and are shared by every
+  timeline surface (Account Summary, Opportunity Summary, Opportunity Files
+  & Activity).
+
+### Recent prototype-only additions (Phase 06 item 9 -- multi-contact activities)
+
+- `activities.contactIds` -- new array field, replacing the old assumption
+  that `activities.contactId` (scalar) was sufficient. `contactId` is kept
+  as a derived first-entry alias (computed in `buildCoreActivityRecord()`)
+  for backward compatibility with existing single-contact read sites; it is
+  no longer the field anything writes to directly. No migration script was
+  needed -- every activity passes through `buildCoreActivityRecord()` on
+  load, so the derivation happens transparently for existing rows. No
+  `activities` (`014_activities.sql`) column for this yet.
 
 ## What Still Needs Tables or a Stronger Model
 

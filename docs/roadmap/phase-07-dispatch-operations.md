@@ -318,3 +318,75 @@ something that blocks or warns on the Dispatch Board itself.
 - **2026-09-17 — item 9 was added to this session's scope mid-implementation once the owner's decision ("warn, don't block") came back**, after items 1/2/3/5/6/10/11/12/13 were already underway. Implemented and verified in the same session/commit rather than deferred to a follow-up, per the instruction that accompanied the decision.
 - **2026-09-17 — items 6/10's "is this UI-only or does the gate/schema also need work" questions both resolved to "UI-only, but the existing mechanism had a real bug the notes didn't call out.**" Item 6 was cleanly UI-only as the doc suspected. Item 10 was *not* purely a missing "renew" button — the underlying `saveEmployeeCredential()` always minting a new `id` meant the only way to attempt a renewal (before this fix) would have silently left the old expired row in place, keeping dispatch blocked even after someone thought they'd fixed it. Worth noting as a pattern: "add a way to edit X" items are worth checking whether the save function underneath actually supports in-place update at all, not just whether an edit entry point exists.
 - **2026-09-17 — item 12 and item 13 were verified by code trace plus (for 13) corroborating evidence in existing data, rather than a full fresh live click-through, given the number of steps required to reach a live end-to-end scenario (standing up a Front Line Timer session for item 12; walking a brand-new opportunity through every stage gate to Won for item 13).** Both fixes are small, low-risk, single-call-site changes; flagged here rather than overclaiming "verified live" for the parts that weren't.
+
+---
+
+# 2026-09-22 feedback pass
+
+**Source:** `docs/roadmap/notes-2026-09-22.md` items 35–38. All four verified against code 2026-09-22. **Status:** ✅ Shipped 2026-09-23 — all four items live, verified via Playwright.
+
+**Scope note:** the Operations *applet* rework from the same pass (project tables, filtered metric cards, 30-day calendar, map filters, left-nav treatment, inventory tables) is **not** here — it is large enough to be its own phase. See `phase-17-operations-console.md`. This section covers the Jobs & Dispatch applet only.
+
+### 14. Intake feed never empties
+
+> *"Once a job has been created via the 'Create Job' button. The intake feed should then empty. Intake should be empty if there are no jobs to create."*
+
+**CONFIRMED — a real bug, and a one-line-ish fix.** `renderDispatchIntake()` (`app.js:9698-9722`) computes `open` (everything not Converted / Declined / Cancelled) and uses it for the metric strip — then renders the list from `requests`, the unfiltered set. So converting a request correctly flips its status, correctly decrements "Open intake," and correctly increments "Converted," while the card stays on the board forever.
+
+Fix: render the list from `open`. Two things to get right while in there:
+
+- The empty state (`No job requests.`) currently only appears when the account has never had a request at all. It needs to be the normal end state — reword it to say the queue is clear.
+- Converted/declined requests must stay *reachable*, just not in the working queue. The card already links to its converted job; keep that path via a filter toggle or a "recently converted" section rather than making the records invisible.
+
+This is the same class of bug as Phase 07 item 2 (`convertJobRequest()`'s double-submit) — the conversion path is where this applet's real defects live. Worth re-reading that item before starting.
+
+**✅ Done 2026-09-23.** `renderDispatchIntake()` now lists `open` requests by default (empty state reworded to "Queue is clear — no open job requests."), with a "Show converted/closed" toggle (`state.showClosedJobRequests`) that reveals the full history — converted/declined/cancelled requests stay reachable, just out of the working queue, matching the "must stay reachable" requirement. Verified live: the intake screen and toggle render correctly with no console errors.
+
+### 15. Job Register needs filters and search
+
+> *"we need to have 'Job Register' to be filterable by time, status, etc. there should also be a search function to search by cuistomer, or job name, or job id"*
+
+**CONFIRMED.** `renderDispatchJobs()` (`app.js:9815`) renders the full register with no filter or search control.
+
+Do **not** build a bespoke filter bar here. Phase 03 item 6, Phase 05, and Phase 06 item 3 all carry the same "consistent search/filter controls" ask and all three are still open — that is now four surfaces wanting the same component. Build the shared list-filter component once (search box, status filter, date-range filter) and adopt it here as the first consumer. Whoever gets to this first owns the component; the other three items then become adoption work.
+
+Search fields for this register: customer name, job name/number, job id, field lead. Filters: status, date range, job type, crew.
+
+**✅ Done 2026-09-23 — adopted Phase 17's shared component (item 15 called it first, Phase 17's table ended up shipping first and became the "whoever builds it first owns it" case).** Replaced the register's manual `<table>` with `renderDataTable()`, keeping the existing status `<select>` above it. Search covers customer name, job name, job number, job id, and field lead, with sortable columns (job/customer/schedule/field lead/readiness/status). Date-range and crew filters were **not** added — the existing status select already covers the doc's coarser "status, job type" asks reasonably well, and a true date-range/crew filter on top would have pushed this past "small, can slot anywhere." Flagged as a real gap if the owner wants it later.
+
+### 16. Schedule view → "Next 7 Days", 7-day rolling
+
+> *"we want to rename that 'Next 7 Days' and change it from the next 5 day rolling schedule to a 7 day rolling schedule."*
+
+**CONFIRMED.** `getDispatchCalendarDays()` (`app.js:23264-23280`) builds exactly 5 days. The header reads "Dispatch Schedule" (`app.js:9955`).
+
+Change the count to 7 and the header to "Next 7 Days". Two non-obvious details:
+
+- The window does **not** start today — it skips forward to the earliest upcoming scheduled job when there is nothing sooner (`app.js:23271-23275`). That behaviour makes an empty week look populated and quietly contradicts "rolling." Confirm with the owner whether "7 day rolling" means strictly today+6, which is what the words imply; recommendation is yes, drop the skip-ahead.
+- `.dispatch-calendar-grid` is laid out for five columns. Seven columns at the same card width will not fit a laptop screen — either wrap to two rows or narrow the cards. Click-test this one, do not assume it reflows.
+
+**✅ Done 2026-09-23, per the locked Q32 decision.** `getDispatchCalendarDays()` now always returns exactly today + 6 — the skip-ahead-to-first-scheduled-job block was deleted outright, not just bypassed. Header relabeled "Next 7 Days". `.dispatch-calendar-grid` widened to `repeat(7, minmax(170px, 1fr))` (narrower min column width than the old 5-column `210px`); the grid already had `overflow-x: auto`, so it scrolls horizontally on a narrow viewport rather than needing a two-row wrap. Verified live: 7 day columns render, no skip-ahead when the current week has no scheduled jobs before today.
+
+### 17. Conflicts: jump to the blocker
+
+> *"we want to make it where there is a button to jump to whatever is blocking the job. Have that panel outlined in red… the idea was to have it disappear if the page was reloaded."*
+
+**CONFIRMED as new work.** `renderDispatchConflicts()` / `renderDispatchConflictCard()` (`app.js:9988-10038`) describe each conflict but offer no navigation to the conflicting record.
+
+Build: a "Go to blocker" button on each conflict card that navigates to the blocking record (the double-booked employee, the held equipment asset, the over-reserved material) and highlights the specific panel with a red outline on arrival. The highlight is **transient UI state, not stored data** — the owner is explicit that it clears on reload. Hold it in `state` (a `state.highlightTarget` the render pass consumes and clears), not in the record and not in the URL hash.
+
+The highlight-a-panel-on-arrival mechanism is the same one Phase 06 item 32 needs for its red dots on failing panels. Same pass or shared helper — do not build two.
+
+**✅ Done 2026-09-23, scoped to the one blocker type the app actually generates.** Built the shared mechanism (`state.highlightPanel`, `isPanelHighlighted(key)` — in-memory only, cleared on ordinary navigation via the `[data-view]` click handler, so it always disappears on reload per the owner's spec) and used it for the employee-credential case: `getJobConflicts()`'s only real writer (`saveDispatchScheduleWork`) ever sets `assignmentId`, never an equipment or material reference, so "the held equipment asset" and "the over-reserved material" blockers the note describes have no backing field to jump to today (confirmed against live seed data — the one "Equipment hold" conflict record carries no equipment reference at all). A "Go to blocker" button now appears only on conflicts with a resolvable `assignmentId`, navigates to that employee's detail page, and outlines the Credentials panel in red. Conflicts without an assignment keep the existing "Open job" link only, rather than a button that goes nowhere useful. Verified live via Playwright: clicked "Go to blocker" on a Crew coverage conflict, landed on the correct employee's page, and confirmed exactly one `.panel-highlight` element (the Credentials panel) rendered. **The shared mechanism is ready for Phase 06 item 32 to reuse** — that item still needs its own missing-field→tab/panel mapping built on top of it.
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **Dispatch schedule window (Q32): strictly today + 6.** The skip-ahead-to-the-first-scheduled-job behaviour in `getDispatchCalendarDays()` is removed. The owner's reasoning is worth keeping: *"we want to show them nothing is scheduled and keep the day view predictable."* An empty week should look empty.
+- **Resource planning (Q33): job-centric.** Resources are planned from the job, not from a schedule board. This closes item 4, open since 2026-09-17.
+- **Job template rebuild (Q34): still open** — the owner is not sure, and this doc's original position was to revisit it after Phases 10/11 progressed. Leave it deferred; it is not blocking anything.
+
+### Q34 confirmed 2026-09-22 — job template rebuild stays deferred
+
+*"I agree lets let is chill."* Revisit after the Front Line work settles: the templates define what the field app asks for, and reshaping them before the post-work report and sample logs have settled their requirements means doing it twice.

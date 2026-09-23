@@ -116,3 +116,23 @@ Cut over **domain by domain**, not all at once. The app should run against a mix
 ## Corrections found during implementation
 
 *(Record here anything that turned out to be different from the plan.)*
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **Dataverse (Q48): no longer a target.** *"I think we will go outside and run custom database."* This closes a question that has shaped several documents. Consequences worth acting on rather than leaving implicit:
+  - `docs/dataverse-relationship-architecture.md` stays useful as a record of *why* entities are shaped the way they are, but its alignment rules are no longer constraints. It should carry a note saying so, so a future session does not treat Dataverse compatibility as a requirement.
+  - The schema's Dataverse-compatible choices (`stateCode`/`statusCode`, `transactionCurrencyId`, and similar) can be simplified during the migration if they cost anything. They are not free, and nothing now depends on them.
+  - No Dataverse metadata query is needed before migrating, which removes a prerequisite this doc previously carried.
+- **Hosting (Q45), tooling (Q46), cut-over (Q47): still open** — the owner asked for more explanation on all three. See the session notes. None of them block anything until this phase actually starts, which is after the pilot.
+
+### Q45–Q47 answered 2026-09-22
+
+- **Hosting (Q45): a managed cloud database — Azure or AWS.** Not local. The owner's reasoning: local is appealing but does not scale. Azure remains the recommendation over AWS purely because identity and mail are already going to Microsoft, so it is one fewer account, one fewer bill and one fewer identity model — but either is a defensible choice and the migration work is the same.
+- **Tooling (Q46): raw SQL with a thin runner.** The 28 existing files stay as they are. No ORM.
+- **Cut-over (Q47): big bang at the alpha, not domain-by-domain.** This **reverses this doc's recommendation**, deliberately and with a clear rationale from the owner: *"I want to keep editing it, and once we are ready to push it all live for the alpha we will do it all at once."* Continuing to iterate freely on the JSON backend is worth more right now than incremental migration safety, and a single switchover at a planned moment is easier to reason about than a long period where two stores are both half-authoritative.
+
+  **What that decision costs, so it is chosen with open eyes:** a big-bang cut-over concentrates all the risk into one day, and the rollback is "go back to the JSON file and lose whatever was written to Postgres." Two things make it survivable and should be treated as requirements of this phase, not nice-to-haves:
+  1. **A rehearsal.** Run the full migration against a copy, with real data volumes, and check row counts and relationships — more than once, and most importantly again shortly before the real run.
+  2. **A tested restore path back to the JSON backend**, exercised during rehearsal rather than discovered on the day. `npm run backup` already exists; the point is having proven the way back, not having the file.

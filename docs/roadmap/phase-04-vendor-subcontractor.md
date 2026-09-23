@@ -233,3 +233,21 @@ Update `docs/database-handoff-map.md` (Priority 1 item 4 partially closes) and `
 - **2026-09-17 — row counts and Layer 3's actual state, verified before implementation.** This doc's opening framing had three factual errors, all corrected inline above at their source: `vendorProfiles` has 3 rows (not 2), `serviceAgreements` has 2 rows (not 1), and most importantly `subcontractorAssignments` already has **1 row and full working UI** (card renderer, open/save/remove dialogs, a panel on the account page) — not "0 rows, no UI" as originally written. Layer 3 was never the gap; the real remaining Layer 3 work is items 14 (contradictory rate fields) and 5 (no real dispatch linkage), not building UI from nothing.
 - **2026-09-17 — item 5 ("close the dispatch gap") is a from-scratch build, not a repoint.** Verified against the running JS prototype before touching anything: `job_resource_allocations.vendor_account_id` is a SQL-schema-only concept. The prototype's equivalent (`jobResources`) has no vendor/account FK of any kind — its "Vendor" resource type is a bare free-text input. There's nothing to repoint at `subcontractorAssignments`; the field needs to be built first. Also touches the Dispatch workspace's "Assign resource" dialog, not the Account page, so this is as much Phase 07's territory as this one's. Deliberately not started this session — recommend picking it up only after confirming with Phase 07's own doc whether it already plans to touch the same dialog, to avoid two phases redesigning the same UI independently.
 - **2026-09-17 — a duplicate rate-card selector was found that the original doc didn't mention.** Item 13 only called out the Vendor Compliance vs. Service Agreement "Rate Card" duplication. There is actually a **third** independent `priceLevelId` selector, on Subcontractor Assignments, also labeled "Rate card" (`index.html`, `#subcontractorAssignmentDialog`). Not resolved this session — folded into item 14's existing scope (the contradictory rate-card/rate-amount/rate-type fields on that same dialog), since fixing one without the other would be incomplete. Both remain blocked on Phase 08's rate-card foundation as the doc's soft-dependency note already anticipated.
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **Customer approval expiry (Q23): customer approvals do not expire.** The owner's answer — *"there should not be a way for customer to expire their approval"* — removes the premise of the block-or-warn question rather than answering it. An approval stands until it is explicitly revoked.
+
+  **This contradicts work already shipped in this phase** and needs cleaning up rather than quietly coexisting: the account-header expiry badge added on 2026-09-17 surfaces "customer approval expired/expiring," and `accountApprovedSubcontractors` carries expiry semantics. Either drop the expiry field from customer approvals and keep the badge for **vendor insurance** only (which genuinely does expire — that is the COI's own date, not ours to decide), or keep the field unused. Recommendation: drop it from customer approvals, keep insurance expiry, and make the badge say which of the two it means.
+- **Approval granularity (Q24): blanket, not per-scope.** The `approved_scope` column in the SQL schema is therefore unused — leave it, but do not build UI for it, and do not let the dispatch-time check (item 5) branch on scope.
+- **Who maintains the approved list (Q25): compliance.** This is the write permission Phase 12 needs to encode. Sales and ops read it; compliance writes it.
+
+### Q23 completed 2026-09-22 — warn, never block
+
+The owner's follow-up answer is **warn**. Combined with the earlier answer that customer approvals do not expire, the settled position is:
+
+- **Customer approvals do not expire** — they stand until explicitly revoked, so the expiry question does not arise for them.
+- **Where a compliance check does legitimately fire** — vendor insurance lapsing, an explicitly revoked approval — it **warns loudly and allows an override with a reason, recorded**. It never blocks the dispatch. This matches the dispatcher-override pattern already described in `docs/erp-operational-architecture.md`.
+- The shipped expiry badge should therefore be scoped to **vendor insurance only**, and say so on its face.

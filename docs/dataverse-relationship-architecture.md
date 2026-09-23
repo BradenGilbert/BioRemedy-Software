@@ -1,4 +1,8 @@
-# Dataverse Relationship Architecture
+﻿# Dataverse Relationship Architecture
+
+> **⚠ Status changed 2026-09-22 — Dataverse / Dynamics 365 is NO LONGER A TARGET.**
+> The owner decided the platform will run its own custom database (see `docs/roadmap/phase-14-postgres-migration.md`, "Decisions locked 2026-09-22"). Everything below remains useful as the **record of why entities are shaped the way they are**, and its findings about this codebase (the `projectStage` and `crewMemberships` corrections especially) are still accurate and still worth reading.
+> What changed is its authority: **the alignment rules below are history, not requirements.** Do not add work, fields or constraints solely to preserve Dataverse compatibility, and do not treat a divergence from these rules as a defect. Dataverse-shaped choices already in the schema (`stateCode`/`statusCode`, `transactionCurrencyId` and similar) may be simplified during the Phase 14 migration if they cost anything.
 
 This project now has a Dataverse-style relationship foundation in `crm-schema/015_dataverse_relationship_foundation.sql`.
 

@@ -115,3 +115,17 @@ None of these exist in `crm-schema/` yet — this is net-new schema design, and 
 ## Corrections found during implementation
 
 *(Record here anything that turned out to be different from the plan.)*
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **Entra tenant / app registration (Q42): does not exist yet.** This is now the single longest-lead dependency in the roadmap and it is outside the codebase. Creating a tenant and registering the application should start well before this phase does — everything in Stage C waits on it, and Phase 18's sign-on links wait behind that.
+- **Audit storage (Q44): keep it simple until 1.0.** An append-only file in the JSON backend until the real database lands in Phase 14, at which point audit moves with it. Matches this doc's original leaning.
+- **Break-glass admin (Q43): still open** — the owner asked what it means. See the session notes; re-ask once the concept is clear. It is not blocking, but it should be settled before real sign-in ships, because retrofitting an emergency access path after lockout is painful.
+
+### Q43 answered 2026-09-22 — build the break-glass admin
+
+A local emergency account that works when Entra does not (outage, tenant misconfiguration, lockout). **Build it as part of this phase, not after** — an emergency access path added once you are already locked out is not an emergency access path.
+
+Requirements: credentials stored separately from the normal auth path; every single use written to the audit log as a high-visibility event, not a routine entry; and the account exercised deliberately during the phase so it is known to work before it is needed.

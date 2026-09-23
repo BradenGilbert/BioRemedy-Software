@@ -32,7 +32,7 @@ const STAGE_REQUIRED_FIELDS = {
     { key: "accountId", label: "Account" },
     { key: "facilityId", label: "Facility" },
     { key: "contaminationNotes", label: "Contamination" },
-    { key: "serviceType", label: "Cleanup type" },
+    { key: "serviceType", label: "Opportunity type" },
     { key: "industry", label: "Industry" },
     { key: "description", label: "Description" },
     { key: "currentSituation", label: "Current situation" },
@@ -267,9 +267,12 @@ const workspaceModules = {
   ],
   operations: [
     { view: "ops-projects", label: "All Projects" },
-    { view: "ops-scheduled", label: "Scheduled Work" },
-    { view: "ops-emergency", label: "Emergency Response" },
-    { view: "ops-remediation", label: "Multi-Stage" },
+    // Phase 17 item 4 — these three are sub-options of "All Projects" (same project set, just
+    // filtered by class), not siblings of equal weight. `sub: true` gets a nav-item--sub class
+    // for indentation/restyling; they stay visible and one click away, never collapsed.
+    { view: "ops-scheduled", label: "Scheduled Work", sub: true },
+    { view: "ops-emergency", label: "Emergency Response", sub: true },
+    { view: "ops-remediation", label: "Multi-Stage", sub: true },
     { view: "ops-calendar", label: "Calendar" },
     { view: "ops-map", label: "Map" },
     { view: "ops-race", label: "Race Track" },
@@ -354,6 +357,7 @@ const viewWorkspace = {
   "workforce-availability": "workforce",
   "workforce-schedule": "workforce",
   "workforce-devices": "workforce",
+  "workforce-device-detail": "workforce",
   "employee-detail": "workforce",
   inventory: "inventory",
   "inventory-consumables": "inventory",
@@ -690,7 +694,7 @@ const opportunityCoreFieldSections = [
       { key: "owner", label: "Owner" },
       { key: "hubspotOwnerId", label: "HubSpot Owner ID" },
       { key: "dealType", label: "Deal Type" },
-      { key: "serviceType", label: "Service Type" },
+      { key: "serviceType", label: "Opportunity Type" },
       { key: "sourceCampaign", label: "Source Campaign" },
       { key: "originatingLeadId", label: "Originating Lead" },
     ],
@@ -1495,12 +1499,16 @@ const state = {
   contactDetailTab: "",
   accountTimelineSearch: "",
   timelineVisibleCounts: {},
+  timelineTagFilters: {},
+  timelinePersonFilters: {},
+  timelineTypeFilters: {},
   contactSearch: "",
   contactTableView: "sales",
   opportunitySearch: "",
   opportunityTableView: "board",
   operationsFilter: "All",
   taskFilter: "Open",
+  accountCasesFilter: "Open",
   showFormerStakeholders: false,
   selectedAccountId: "",
   selectedFacilityId: "",
@@ -1513,6 +1521,7 @@ const state = {
   selectedDispatchJobId: "",
   selectedConsumableId: "",
   selectedEquipmentAssetTag: "",
+  selectedFrontlineDeviceId: "",
   selectedTemplateId: "",
   templateDraft: null,
   workforceSearch: "",
@@ -1520,6 +1529,18 @@ const state = {
   pipelineAccountFilter: "",
   projectsAccountFilter: "",
   dispatchAccountFilter: "",
+  // Phase 17 — shared data-table search/sort state, keyed by table id, plus map filters and the
+  // calendar's visible month (defaults to the current month, "today" is always in view first load).
+  tables: {},
+  opsMapFilters: { jobClass: "", status: "", alertsOnly: false, dateFrom: "", dateTo: "", accountId: "", pointType: "" },
+  opsCalendarMonth: "",
+  opsCalendarSelectedDate: "",
+  opsClassTableFilter: "",
+  showClosedJobRequests: false,
+  // Phase 07 item 17 — transient "jump to blocker" highlight. In-memory only, never persisted or
+  // put in the URL, so it always clears on reload (the owner's explicit spec). Shares the same
+  // mechanism Phase 06 item 32 will need for its red-dot validation highlighting.
+  highlightPanel: "",
   accounts: [],
   contacts: [],
   facilities: [],
@@ -1555,6 +1576,11 @@ const state = {
     workforceTeamMemberships: [],
     crewProfiles: [],
     availabilityBlocks: [],
+    // Phase 18 item 2 — standby/on-call, modeled separately from availabilityBlocks on purpose: a
+    // person on standby is committed, not unavailable, so overloading the existing "On call"
+    // availability type would be wrong (see the phase doc's corrections).
+    standbyAssignments: [],
+    standbyRotationSettings: [],
     frontlineDevices: [],
     timeEntries: [],
     jobMileageEntries: [],
@@ -2043,6 +2069,8 @@ async function handleClick(event) {
     state.pipelineAccountFilter = "";
     state.projectsAccountFilter = "";
     state.dispatchAccountFilter = "";
+    state.opsClassTableFilter = "";
+    state.highlightPanel = "";
     if (state.view !== "account-detail") state.selectedAccountId = "";
     if (state.view !== "contact-detail") state.selectedContactId = "";
     if (state.view !== "opportunity-detail") state.selectedOpportunityId = "";
@@ -2052,6 +2080,7 @@ async function handleClick(event) {
     if (state.view !== "dispatch-job-detail") state.selectedDispatchJobId = "";
     if (state.view !== "inventory-consumable-detail") state.selectedConsumableId = "";
     if (state.view !== "inventory-equipment-detail") state.selectedEquipmentAssetTag = "";
+    if (state.view !== "workforce-device-detail") state.selectedFrontlineDeviceId = "";
     if (state.view !== "dispatch-template-editor") {
       state.selectedTemplateId = "";
       state.templateDraft = null;
@@ -2106,6 +2135,7 @@ async function handleClick(event) {
   if (action === "open-opportunity-assignment") openOpportunityAssignmentDialog(actionButton.dataset.opportunityId, actionButton.dataset.purpose, id);
   if (action === "remove-opportunity-assignment") await removeOpportunityAssignment(id);
   if (action === "open-opportunity-needs-list") openOpportunityNeedsListDialog(actionButton.dataset.opportunityId, actionButton.dataset.kind);
+  if (action === "open-opportunity-needs-combined") openOpportunityNeedsCombinedDialog(actionButton.dataset.opportunityId);
   if (action === "open-opportunity-proposal") openOpportunityProposalDialog(id);
   if (action === "open-opportunity-negotiation") openOpportunityNegotiationDialog(id);
   if (action === "open-opportunity-quote") openOpportunityQuoteDialog(actionButton.dataset.opportunityId, id);
@@ -2178,6 +2208,76 @@ async function handleClick(event) {
     state.dispatchJobDetailTab = actionButton.dataset.tab;
     render();
   }
+  if (action === "switch-project-tab") {
+    state.projectDetailTab = actionButton.dataset.tab;
+    render();
+  }
+  if (action === "convert-estimate-to-quote") await convertEstimateToQuote(actionButton.dataset.opportunityId, id);
+  if (action === "open-emergency-intake") openEmergencyIntakeDialog();
+  if (action === "open-frontline-device") openFrontlineDeviceDialog(id);
+  if (action === "view-frontline-device") viewFrontlineDevice(id);
+  if (action === "suspend-frontline-device") await suspendFrontlineDevice(id);
+  if (action === "reinstate-frontline-device") await reinstateFrontlineDevice(id);
+  if (action === "retire-frontline-device") await retireFrontlineDevice(id);
+  if (action === "delete-frontline-device") await deleteFrontlineDevice(id);
+  if (action === "open-standby-assignment") openStandbyAssignmentDialog(id);
+  if (action === "remove-standby-assignment") await removeStandbyAssignment();
+  if (action === "open-standby-rotation-settings") openStandbyRotationSettingsDialog();
+  if (action === "jump-to-conflict-blocker") {
+    const conflict = getJobConflicts().find((item) => item.id === id);
+    const assignment = conflict ? getJobAssignments().find((item) => item.id === conflict.assignmentId) : null;
+    if (assignment?.employeeId) {
+      state.view = "employee-detail";
+      state.selectedEmployeeId = assignment.employeeId;
+      state.highlightPanel = `employee-credentials-${assignment.employeeId}`;
+      render();
+      window.scrollTo(0, 0);
+    }
+  }
+  if (action === "use-account-concern-text") {
+    const hint = actionButton.closest("[data-account-concern-hint]");
+    const form = actionButton.closest("form");
+    if (hint && form?.elements.currentSituation) {
+      form.elements.currentSituation.value = hint.dataset.concernText || "";
+      form.elements.currentSituation.focus();
+    }
+  }
+  if (action === "clear-map-filters") {
+    state.opsMapFilters = { jobClass: "", status: "", alertsOnly: false, dateFrom: "", dateTo: "", accountId: "", pointType: "" };
+    render();
+  }
+  if (action === "calendar-month-nav") {
+    const direction = Number(actionButton.dataset.direction);
+    if (direction === 0) {
+      state.opsCalendarMonth = "";
+      state.opsCalendarSelectedDate = "";
+    } else {
+      const anchor = parseDate(state.opsCalendarMonth || todayIso());
+      anchor.setDate(1);
+      anchor.setMonth(anchor.getMonth() + direction);
+      state.opsCalendarMonth = localIsoDate(anchor);
+    }
+    render();
+  }
+  if (action === "select-calendar-day") {
+    state.opsCalendarSelectedDate = actionButton.dataset.date;
+    render();
+  }
+  if (action === "filter-ops-class-table") {
+    state.opsClassTableFilter = actionButton.dataset.filter || "";
+    render();
+  }
+  if (action === "table-sort") {
+    const tableState = getTableState(actionButton.dataset.table);
+    const column = actionButton.dataset.column;
+    if (tableState.sortKey === column) {
+      tableState.sortDir = tableState.sortDir === "asc" ? "desc" : "asc";
+    } else {
+      tableState.sortKey = column;
+      tableState.sortDir = "asc";
+    }
+    render();
+  }
   if (action === "see-all-opportunities") {
     state.pipelineAccountFilter = actionButton.dataset.accountId;
     state.view = "pipeline";
@@ -2216,6 +2316,14 @@ async function handleClick(event) {
     state.timelineVisibleCounts[contextKey] = (state.timelineVisibleCounts[contextKey] || TIMELINE_PAGE_SIZE) + TIMELINE_PAGE_SIZE;
     render();
   }
+  if (action === "toggle-timeline-tag-filter") {
+    const contextKey = actionButton.dataset.context;
+    const tag = actionButton.dataset.tag;
+    const active = state.timelineTagFilters[contextKey] || [];
+    state.timelineTagFilters[contextKey] = active.includes(tag) ? active.filter((t) => t !== tag) : [...active, tag];
+    render();
+  }
+  if (action === "edit-activity-tags") openTagEditorDialog(actionButton.dataset.id);
   if (action === "open-note") openActivityDialog(actionButton.dataset.accountId, actionButton.dataset.contactId, actionButton.dataset.opportunityId);
   if (action === "open-quick-note") openQuickNoteDialog(actionButton.dataset.accountId, actionButton.dataset.contactId, actionButton.dataset.opportunityId);
   if (action === "open-activity-meeting") openActivityMeetingDialog(actionButton.dataset.accountId, actionButton.dataset.contactId, actionButton.dataset.opportunityId);
@@ -2242,6 +2350,7 @@ async function handleClick(event) {
   if (action === "open-invoice") openInvoiceDialog(actionButton.dataset.jobId);
   if (action === "close-project") await closeProject(actionButton.dataset.id);
   if (action === "toggle-show-closed-projects") { state.showClosedProjects = !state.showClosedProjects; render(); }
+  if (action === "toggle-show-closed-job-requests") { state.showClosedJobRequests = !state.showClosedJobRequests; render(); }
   if (action === "resolve-alert") await resolveProjectAlert(actionButton.dataset.id);
   if (action === "acknowledge-job-conflict") await acknowledgeJobConflict(actionButton.dataset.id);
   if (action === "regenerate-cost-report") await regenerateProjectCloseReport(actionButton.dataset.id);
@@ -2443,6 +2552,11 @@ async function handleSubmit(event) {
   if (form.dataset.form === "opportunity-competitor") await saveOpportunityCompetitor(form);
   if (form.dataset.form === "opportunity-assignment") await saveOpportunityAssignment(form);
   if (form.dataset.form === "opportunity-needs-list") await saveOpportunityNeedsList(form);
+  if (form.dataset.form === "opportunity-needs-combined") await saveOpportunityNeedsCombined(form);
+  if (form.dataset.form === "emergency-intake") await submitEmergencyIntake(form);
+  if (form.dataset.form === "frontline-device") await saveFrontlineDevice(form);
+  if (form.dataset.form === "standby-assignment") await saveStandbyAssignment(form);
+  if (form.dataset.form === "standby-rotation-settings") await saveStandbyRotationSettings(form);
   if (form.dataset.form === "opportunity-proposal") await saveOpportunityProposal(form);
   if (form.dataset.form === "opportunity-negotiation") await saveOpportunityNegotiation(form);
   if (form.dataset.form === "opportunity-quote") await saveOpportunityQuote(form);
@@ -2512,6 +2626,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "activity-call") await saveActivityCall(form);
   if (form.dataset.form === "activity-email") await saveActivityEmail(form);
   if (form.dataset.form === "activity-task") await saveActivityTask(form);
+  if (form.dataset.form === "activity-tags") await saveActivityTags(form);
   if (form.dataset.form === "identity") await saveIdentityConfig(form);
   if (form.dataset.form === "settings") await savePlatformSettings(form);
   if (form.dataset.form === "frontline-complete-action") await frontlineCompleteAction(form);
@@ -2624,6 +2739,23 @@ function handleInputInner(event) {
     renderAccounts();
   }
 
+  if (event.target.id === "accountCasesFilter") {
+    state.accountCasesFilter = event.target.value;
+    renderAccountDetail();
+  }
+
+  if (event.target.id.startsWith("timelinePersonFilter-")) {
+    const contextKey = event.target.id.slice("timelinePersonFilter-".length);
+    state.timelinePersonFilters[contextKey] = event.target.value;
+    render();
+  }
+
+  if (event.target.id.startsWith("timelineTypeFilter-")) {
+    const contextKey = event.target.id.slice("timelineTypeFilter-".length);
+    state.timelineTypeFilters[contextKey] = event.target.value;
+    render();
+  }
+
   if (event.target.id === "accountTableView") {
     state.accountTableView = event.target.value;
     renderAccounts();
@@ -2714,6 +2846,35 @@ function handleInputInner(event) {
 
   if (event.target.name === "category" && event.target.closest("#equipmentAssetDialog")) {
     renderEquipmentSpecFieldGrid(event.target.value, {});
+  }
+
+  if (event.target.id.startsWith("tableSearch-")) {
+    const tableId = event.target.id.slice("tableSearch-".length);
+    getTableState(tableId).search = event.target.value;
+    render();
+  }
+
+  if (event.target.matches('[data-action="map-filter"], [data-action="map-filter-text"]')) {
+    state.opsMapFilters[event.target.dataset.filterKey] = event.target.value;
+    render();
+  }
+
+  // Item 7 — recompute "Effective to" as "Effective from" + 30 days whenever the start date
+  // changes, unless the user has already edited the end date by hand for this dialog session.
+  if (event.target.matches('#opportunityQuoteDialog input[name="effectiveFrom"]')) {
+    const form = event.target.closest("form");
+    const effectiveTo = form.elements.effectiveTo;
+    if (!effectiveTo.dataset.touched) {
+      effectiveTo.value = event.target.value ? addDaysFrom(event.target.value, 30) : "";
+    }
+  }
+  if (event.target.matches('#opportunityQuoteDialog input[name="effectiveTo"]')) {
+    event.target.dataset.touched = "1";
+  }
+
+  if (event.target.matches('[data-action="map-filter-checkbox"]')) {
+    state.opsMapFilters[event.target.dataset.filterKey] = event.target.checked;
+    render();
   }
 }
 
@@ -2817,6 +2978,7 @@ function render() {
   if (state.view === "workforce-availability") renderWorkforceAvailability();
   if (state.view === "workforce-schedule") renderWorkforceSchedule();
   if (state.view === "workforce-devices") renderWorkforceDevices();
+  if (state.view === "workforce-device-detail") renderFrontlineDeviceDetail();
   if (state.view === "employee-detail") renderEmployeeDetail();
   if (state.view === "inventory") renderInventory();
   if (state.view === "inventory-consumables") renderInventoryConsumables();
@@ -2928,7 +3090,7 @@ function renderNav() {
   sideNav.innerHTML = modules
     .map(
       (module) => `
-        <button type="button" class="nav-item ${isActiveModule(module.view) ? "active" : ""}" data-view="${module.view}">
+        <button type="button" class="nav-item ${module.sub ? "nav-item--sub" : ""} ${isActiveModule(module.view) ? "active" : ""}" data-view="${module.view}">
           <span>${escapeHtml(module.label)}</span>
           <small>${escapeHtml(findWorkspace(activeWorkspace)?.label || "App")}</small>
         </button>
@@ -2965,11 +3127,17 @@ function renderQuickActions() {
     `);
   } else if (state.view === "opportunity-detail" && state.selectedOpportunityId && canAccessView("pipeline")) {
     const opportunity = findOpportunity(state.selectedOpportunityId);
+    const accountAttr = ` data-account-id="${escapeAttribute(opportunity?.accountId || "")}"`;
+    const opportunityAttr = ` data-opportunity-id="${escapeAttribute(state.selectedOpportunityId)}"`;
     actions.push(`
       <details class="create-menu">
         <summary class="primary-button">+ Create</summary>
         <div class="create-menu-list">
-          <button type="button" data-action="open-note" data-account-id="${escapeAttribute(opportunity?.accountId || "")}" data-opportunity-id="${escapeAttribute(state.selectedOpportunityId)}">Activity</button>
+          <button type="button" data-action="open-activity-meeting"${accountAttr}${opportunityAttr}>Meeting</button>
+          <button type="button" data-action="open-activity-call"${accountAttr}${opportunityAttr}>Call</button>
+          <button type="button" data-action="open-activity-email"${accountAttr}${opportunityAttr}>Email</button>
+          <button type="button" data-action="open-activity-task"${accountAttr}${opportunityAttr}>Task</button>
+          <button type="button" data-action="open-quick-note"${accountAttr}${opportunityAttr}>Quick note</button>
         </div>
       </details>
     `);
@@ -3603,7 +3771,7 @@ function renderOpportunityDetailHeader(opportunity) {
         <div class="inline-actions">
           <span class="stage-badge">${escapeHtml(coreOpportunity.dealStage)}</span>
           <span class="risk-badge ${closeStatus.tone}">${escapeHtml(closeStatus.label)}</span>
-          <span class="tag">${escapeHtml(coreOpportunity.forecastCategory)}</span>
+          <span class="tag">${resultingProject ? `Project: ${escapeHtml(resultingProject.activePhase || resultingProject.status || "Active")}` : escapeHtml(coreOpportunity.forecastCategory)}</span>
         </div>
       </div>
       <div class="toolbar">
@@ -3748,6 +3916,21 @@ function renderOpportunitySummaryTab(opportunity) {
 }
 
 function renderOpportunityLeadQualificationTab(opportunity) {
+  const account = findAccount(opportunity.accountId);
+  const currentSituationValue = opportunity.currentSituation
+    ? escapeHtml(opportunity.currentSituation)
+    : account?.concern
+      ? `<em>Not captured yet — account context: ${escapeHtml(account.concern)}</em>`
+      : "Not captured";
+  // Item 34 — industry inherits from the account for display only (never written through, see
+  // buildCoreOpportunityRecord); sourced from the real industriesForAccount() join, not the
+  // legacy accounts.industry scalar.
+  const accountIndustryName = account ? primaryIndustryNameForAccount(account.id) : "";
+  const industryValue = opportunity.industry
+    ? escapeHtml(opportunity.industry)
+    : accountIndustryName
+      ? `<em>Not captured yet — from account: ${escapeHtml(accountIndustryName)}</em>`
+      : "Not captured";
   return `
     <section class="crm-profile-grid">
       <article class="panel">
@@ -3759,12 +3942,12 @@ function renderOpportunityLeadQualificationTab(opportunity) {
           <dl class="detail-list">
             <div><dt>Contact</dt><dd>${escapeHtml(contactsForOpportunity(opportunity.id)[0]?.name || "Not linked")}</dd></div>
             <div><dt>Facility</dt><dd>${escapeHtml(findFacility(opportunity.facilityId)?.name || "Not captured")}</dd></div>
-            <div><dt>Industry</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "industry") || "Not captured")}</dd></div>
+            <div><dt>Industry</dt><dd>${industryValue}</dd></div>
             <div><dt>Contamination</dt><dd>${escapeHtml(opportunity.contaminationNotes || "Not captured")}</dd></div>
             <div><dt>Originating lead</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "originatingLeadId") || "Not captured")}</dd></div>
             <div><dt>Source campaign</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "sourceCampaign") || "Not captured")}</dd></div>
             <div><dt>Description</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "description") || "Not captured")}</dd></div>
-            <div><dt>Current situation</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "currentSituation") || "Not captured")}</dd></div>
+            <div><dt>Current situation</dt><dd>${currentSituationValue}</dd></div>
           </dl>
         </div>
       </article>
@@ -3863,12 +4046,17 @@ function renderOpportunityDevelopPlanningTab(opportunity) {
       </article>
 
       <article class="panel">
-        <div class="panel-header"><h3>Resource needs</h3></div>
+        <div class="panel-header">
+          <h3>Resource needs</h3>
+          <button class="mini-button" type="button" data-action="open-opportunity-needs-combined" data-opportunity-id="${opportunity.id}">
+            ${opportunity.equipmentNeeds?.length || opportunity.vendorNeeds?.length || opportunity.resourceNeeds?.length ? "Edit all" : "Add"}
+          </button>
+        </div>
         <div class="panel-body">
           <div class="detail-stack">
             <div>
               <div class="row-meta">
-                <strong>Equipment needed</strong>
+                <strong>Heavy Equipment Needed</strong>
                 <button class="mini-button" type="button" data-action="open-opportunity-needs-list" data-opportunity-id="${opportunity.id}" data-kind="equipment">Edit</button>
               </div>
               <div class="chip-list">${renderOpportunityNeedsChips(opportunity.equipmentNeeds) || `<span class="tag">Nothing listed</span>`}</div>
@@ -3946,7 +4134,7 @@ function renderOpportunityProposalDocumentsTab(opportunity) {
 
       <article class="panel">
         <div class="panel-header">
-          <h3>Estimate</h3>
+          <h3>Estimation Tool</h3>
           <button class="mini-button" type="button" data-action="open-opportunity-estimate" data-opportunity-id="${opportunity.id}">Add estimate</button>
         </div>
         <div class="panel-body">
@@ -3964,12 +4152,13 @@ function renderOpportunityProposalDocumentsTab(opportunity) {
                         ${estimate.id === opportunity.estimateId ? `<span class="tag">Current</span>` : `<button class="mini-button" type="button" data-action="mark-estimate-current" data-opportunity-id="${opportunity.id}" data-id="${estimate.id}">Mark current</button>`}
                         <button class="mini-button" type="button" data-action="print-opportunity-estimate" data-opportunity-id="${opportunity.id}" data-id="${estimate.id}">Print</button>
                         <button class="mini-button" type="button" data-action="open-opportunity-estimate" data-opportunity-id="${opportunity.id}" data-id="${estimate.id}">Edit</button>
+                        <button class="mini-button" type="button" data-action="convert-estimate-to-quote" data-opportunity-id="${opportunity.id}" data-id="${estimate.id}">Convert to quote</button>
                       </div>
                     </div>
                   </article>
                 `,
               )
-              .join("") || `<div class="empty-state">No estimate attached yet.</div>`
+              .join("") || `<div class="empty-state">No estimate attached yet — the Estimation Tool is an internal working draft; convert it to a quote when it's ready for the customer.</div>`
           }
         </div>
       </article>
@@ -4051,7 +4240,7 @@ function renderOpportunityMainInformation(opportunity) {
             ${row("Primary contact", contactValue)}
             ${row("Owner", field("owner"))}
             ${row("Deal type", field("dealType"))}
-            ${row("Service type", field("serviceType"))}
+            ${row("Opportunity type", field("serviceType"))}
             ${row("Industry", field("industry"))}
             ${row("Source campaign", field("sourceCampaign"))}
           </dl>
@@ -4241,6 +4430,14 @@ function buildCoreProjectRecord(project) {
     insuranceCarrier: project.insuranceCarrier || "",
     claimNumber: project.claimNumber || "",
     serviceProfile: project.serviceProfile || "",
+    // Sales handover (Phase 15 item 1) — copied from the won opportunity at creation, blank otherwise.
+    equipmentNeeds: project.equipmentNeeds || [],
+    vendorNeeds: project.vendorNeeds || [],
+    resourceNeeds: project.resourceNeeds || [],
+    siteWalkStatus: project.siteWalkStatus || "Incomplete",
+    sitePhotoRefs: project.sitePhotoRefs || [],
+    quoteId: project.quoteId || "",
+    estimateId: project.estimateId || "",
   };
 }
 
@@ -4403,7 +4600,16 @@ function buildCoreActivityRecord(activity) {
   const status = activity.status || (activityType === "Task" ? "Open" : "Completed");
   const accountId = activity.accountId || "";
   const opportunityId = activity.opportunityId || "";
-  const contactId = activity.contactId || "";
+  // `contactIds` is the real, multi-value field (an activity can involve several people).
+  // `contactId` is kept as a derived first-entry alias so every existing single-contact read
+  // site (findContact(activity.contactId), activitiesForContact's filter, etc.) keeps working
+  // unchanged — it is never itself the source of truth once contactIds exists.
+  const contactIds = Array.isArray(activity.contactIds)
+    ? activity.contactIds.filter(Boolean)
+    : activity.contactId
+      ? [activity.contactId]
+      : [];
+  const contactId = contactIds[0] || "";
   const subject = activity.subject || activity.title || activity.kind || `${activityType} activity`;
   const body = activity.body || activity.note || activity.description || "";
 
@@ -4412,6 +4618,7 @@ function buildCoreActivityRecord(activity) {
     id: activity.id || makeId("act"),
     accountId,
     contactId,
+    contactIds,
     opportunityId,
     activityType,
     kind: activity.kind || activityType,
@@ -4429,6 +4636,7 @@ function buildCoreActivityRecord(activity) {
     createdAt,
     completedAt: activity.completedAt || (status === "Completed" ? createdAt : ""),
     priority: activity.priority || (activityType === "Task" ? "Medium" : ""),
+    tags: normalizeActivityTags(activity.tags),
   };
 }
 
@@ -4440,6 +4648,13 @@ function normalizeActivityType(value) {
   if (raw.includes("task")) return "Task";
   if (raw.includes("note")) return "Note";
   return "Task";
+}
+
+const ACTIVITY_TAGS = ["Personal", "Business", "Compliance", "Safety", "Billing", "Site Visit", "Follow-up"];
+
+function normalizeActivityTags(value) {
+  const raw = Array.isArray(value) ? value : value ? [value] : [];
+  return raw.filter((tag) => ACTIVITY_TAGS.includes(tag));
 }
 
 function getDefaultActivityChannel(activityType) {
@@ -4594,10 +4809,24 @@ function buildCoreOpportunityRecord(opportunity) {
     priority: opportunity.priority || "Normal",
     rating: opportunity.rating || getCloseStatus(opportunity.closeQuarter).label,
     initialCommunication: opportunity.initialCommunication || "Contacted",
-    currentSituation: opportunity.currentSituation || account?.concern || "",
-    industry: opportunity.industry || account?.industry || "",
-    customerNeed: opportunity.customerNeed || opportunity.serviceType || "",
-    proposedSolution: opportunity.proposedSolution || opportunity.nextStep || "",
+    // No account-level fallback here on purpose: `buildCoreOpportunityRecord` is also the
+    // function every save path uses to build the persisted record (`getCoreOpportunity` is a
+    // thin wrapper around it), so a display fallback placed here gets silently written to disk
+    // as this opportunity's own value the next time anything saves it — that's exactly how
+    // every opportunity on a shared account ended up with identical "current situation" text.
+    // Any account-concern fallback for display belongs at the specific read site instead.
+    currentSituation: opportunity.currentSituation || "",
+    // Item 34 — same hazard as currentSituation above: the account fallback moved to the read
+    // site (renderOpportunityLeadQualificationTab), sourced from industriesForAccount() since
+    // accounts.industry is the legacy scalar, not the real (Phase 03) industries join.
+    industry: opportunity.industry || "",
+    // Item 29 — customerNeed/proposedSolution/description all had the same write-through shape
+    // as currentSituation's original bug: a cross-field fallback baked into the function every
+    // save path runs through, so an unedited save silently copied another field's text in as
+    // this one's own permanent value. Dropped outright (no read-site fallback either — the
+    // owner wants these blank until real data is entered, not auto-filled from a sibling field).
+    customerNeed: opportunity.customerNeed || "",
+    proposedSolution: opportunity.proposedSolution || "",
     nextStep: opportunity.nextStep || "",
     amount,
     value: Number(opportunity.value ?? amount),
@@ -4633,7 +4862,7 @@ function buildCoreOpportunityRecord(opportunity) {
     estimateId: opportunity.estimateId || "",
     priceList: opportunity.priceList || "",
     recordSource: opportunity.recordSource || "Local CRM",
-    description: opportunity.description || opportunity.nextStep || "",
+    description: opportunity.description || "",
     updatedAt: opportunity.updatedAt || now,
   };
 }
@@ -4664,6 +4893,76 @@ function daysBetween(fromDate, toDate) {
   const end = parseDate(toDate);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
   return Math.max(0, Math.round((end - start) / 86400000));
+}
+
+// Phase 17 item Q31 — the shared list-filter/search/sort component every new table in this phase
+// (and the Job Register, and eventually the Account/Contact/Opportunity list views) adopts instead
+// of a bespoke search box per table. Callers own row rendering (`renderRow`) so per-table columns
+// and actions stay flexible; this owns search, sort, and the chrome around them.
+// Phase 07 item 17 / Phase 06 item 32 — shared transient panel-highlight mechanism. Set a key when
+// navigating to a specific blocking record, read it wherever that record's panel renders, and clear
+// it on ordinary navigation (see the `[data-view]` click handler) so it doesn't linger once the user
+// moves on to something else.
+function isPanelHighlighted(key) {
+  return Boolean(key) && state.highlightPanel === key;
+}
+
+function getTableState(tableId) {
+  if (!state.tables[tableId]) state.tables[tableId] = { search: "", sortKey: "", sortDir: "asc" };
+  return state.tables[tableId];
+}
+
+function renderDataTable({ tableId, columns, rows, searchFields = [], renderRow, searchPlaceholder = "Search...", emptyText = "No records." }) {
+  const tableState = getTableState(tableId);
+  const term = (tableState.search || "").trim().toLowerCase();
+  let filtered = term
+    ? rows.filter((row) => searchFields.some((field) => String(field(row) ?? "").toLowerCase().includes(term)))
+    : rows;
+
+  if (tableState.sortKey) {
+    const column = columns.find((col) => col.key === tableState.sortKey);
+    const sortValue = column?.sortValue || ((row) => row[tableState.sortKey]);
+    filtered = [...filtered].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return tableState.sortDir === "desc" ? -cmp : cmp;
+    });
+  }
+
+  return `
+    <div class="data-table-wrap" data-table-id="${escapeAttribute(tableId)}">
+      <div class="data-table-toolbar">
+        ${renderCompactSearch(`tableSearch-${tableId}`, searchPlaceholder, tableState.search || "")}
+        <span class="data-table-count">${filtered.length} of ${rows.length}</span>
+      </div>
+      <div class="data-table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              ${columns
+                .map((col) => {
+                  const sortable = col.sortable !== false;
+                  const sorted = tableState.sortKey === col.key;
+                  return `
+                    <th class="${sortable ? "sortable" : ""}" ${sortable ? `data-action="table-sort" data-table="${escapeAttribute(tableId)}" data-column="${escapeAttribute(col.key)}"` : ""}>
+                      ${escapeHtml(col.label)}${sorted ? (tableState.sortDir === "desc" ? " ▼" : " ▲") : ""}
+                    </th>
+                  `;
+                })
+                .join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map(renderRow).join("") || `<tr class="data-table-empty-row"><td colspan="${columns.length}"><div class="empty-state">${escapeHtml(emptyText)}</div></td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function renderCompactSearch(id, placeholder, value) {
@@ -5115,7 +5414,11 @@ function renderAccountPlaceholderTab(label, note = "This tab is being built next
 function renderAccountSummaryTab(account) {
   const addresses = addressesForAccount(account.id);
   const billingAddress = addresses.find((address) => address.addressType === "Bill To") || addresses.find((address) => address.isPrimary);
-  const cases = alertsForAccount(account.id).filter((alert) => alert.status !== "Resolved");
+  const cases = alertsForAccount(account.id).filter((alert) => {
+    if (state.accountCasesFilter === "Closed") return alert.status === "Resolved";
+    if (state.accountCasesFilter === "All") return true;
+    return alert.status !== "Resolved";
+  });
   const upcomingItems = [...openTasksForAccount(account.id), ...upcomingActivitiesAsTaskLike(activitiesForAccount(account.id))].sort(
     (a, b) => parseDate(a.dueDate) - parseDate(b.dueDate),
   );
@@ -5169,9 +5472,20 @@ function renderAccountSummaryTab(account) {
           </div>
         </article>
         <article class="panel">
-          <div class="panel-header"><h3>Cases</h3></div>
+          <div class="panel-header">
+            <h3>Cases</h3>
+            ${renderCompactSelect(
+              "accountCasesFilter",
+              FILTER_ICON_SVG,
+              "Filter cases by status",
+              ["Open", "Closed", "All"]
+                .map((option) => `<option value="${option}" ${state.accountCasesFilter === option ? "selected" : ""}>${option}</option>`)
+                .join(""),
+              state.accountCasesFilter !== "Open",
+            )}
+          </div>
           <div class="panel-body record-list">
-            ${cases.slice(0, 5).map(renderAlertCard).join("") || `<div class="empty-state">No open cases or issues.</div>`}
+            ${cases.slice(0, 5).map(renderAlertCard).join("") || `<div class="empty-state">No ${state.accountCasesFilter === "All" ? "" : state.accountCasesFilter.toLowerCase() + " "}cases or issues.</div>`}
           </div>
         </article>
         <article class="panel">
@@ -7306,10 +7620,6 @@ function renderOperationsAllProjects() {
   const closedProjects = state.projects.filter((job) => !isActiveProject(job));
   const baseProjects = showClosed ? state.projects : activeProjects;
   const jobs = filterAccount ? baseProjects.filter((job) => job.accountId === filterAccount.id) : baseProjects;
-  const grouped = ["Emergency Response", "Multi-Stage Remediation", "Scheduled Work"].map((jobClass) => ({
-    jobClass,
-    jobs: jobs.filter((job) => job.jobClass === jobClass),
-  }));
   const allDispatchJobs = filterAccount ? getDispatchJobs().filter((dispatchJob) => dispatchJob.accountId === filterAccount.id) : getDispatchJobs();
   const completedDispatchJobs = allDispatchJobs.filter((dispatchJob) => isTerminalDispatchStatus(dispatchJob.status));
   const nonDispatchedProjects = jobs.filter((job) => isActiveProject(job) && dispatchJobsForProject(job.id).length === 0);
@@ -7364,40 +7674,64 @@ function renderOperationsAllProjects() {
         </div>
       </section>
 
-      <section class="project-directory" aria-label="Dispatch job connection">
-        <article class="panel">
-          <div class="panel-header"><div><h3>Completed dispatch jobs</h3><span>Closed or cancelled field work</span></div></div>
-          <div class="panel-body record-list">
-            ${completedDispatchJobs.slice(0, 8).map(renderOperationsDispatchJobRow).join("") || `<div class="empty-state">No completed dispatch jobs yet.</div>`}
-          </div>
-        </article>
-        <article class="panel">
-          <div class="panel-header"><div><h3>Non-dispatched projects</h3><span>Won projects with no job pushed to dispatch yet</span></div></div>
-          <div class="panel-body record-list">
-            ${nonDispatchedProjects.map(renderNonDispatchedProjectRow).join("") || `<div class="empty-state">Every project has at least one dispatch job.</div>`}
-          </div>
-        </article>
-      </section>
-
-      <section class="project-directory" aria-label="All operations projects">
-        ${grouped
-          .map(
-            (group) => `
-              <article class="panel project-directory-section">
-                <div class="panel-header">
-                  <h3>${escapeHtml(group.jobClass)}</h3>
-                  <span class="source-badge">${group.jobs.length} projects</span>
-                </div>
-                <div class="panel-body project-card-grid">
-                  ${group.jobs.map(renderProjectOverviewCard).join("") || `<div class="empty-state">No ${escapeHtml(group.jobClass.toLowerCase())} projects.</div>`}
-                </div>
-              </article>
-            `,
-          )
-          .join("")}
-      </section>
+      <article class="panel">
+        <div class="panel-header"><h3>All projects</h3></div>
+        <div class="panel-body">
+          ${renderAllProjectsTable(jobs)}
+        </div>
+      </article>
     </section>
   `;
+}
+
+// Phase 17 item 1 — the table the owner asked for under the metric strip. The "Completed dispatch
+// jobs" and "Non-dispatched projects" panels this replaced are kept in code (renderOperationsDispatchJobRow,
+// renderNonDispatchedProjectRow below) per the owner's explicit "don't need to be displayed here but
+// should be kept for later use" — every field they showed is still reachable from this table or the
+// project detail page, just not rendered on this screen anymore.
+function renderAllProjectsTable(jobs) {
+  const jobClassLabel = { "Emergency Response": "ER", "Scheduled Work": "Scheduled", "Multi-Stage Remediation": "Multi-Stage" };
+  return renderDataTable({
+    tableId: "all-projects",
+    searchPlaceholder: "Search projects...",
+    emptyText: "No projects match.",
+    searchFields: [(job) => job.name, (job) => findAccount(job.accountId)?.name, (job) => job.jobClass],
+    columns: [
+      { key: "name", label: "Project" },
+      { key: "account", label: "Account", sortValue: (job) => findAccount(job.accountId)?.name || "" },
+      { key: "jobClass", label: "Type" },
+      { key: "startDate", label: "Date" },
+      { key: "scheduledDispatch", label: "Scheduled dispatch", sortValue: (job) => (dispatchJobsForProject(job.id).length ? 1 : 0) },
+      { key: "workStarted", label: "Work started", sortValue: (job) => (dispatchWorkHasStarted(job.id) ? 1 : 0) },
+      { key: "stage", label: "Stage", sortValue: (job) => PROJECT_STAGES.indexOf(job.projectStage || "Intake") },
+      { key: "alerts", label: "Alerts", sortValue: (job) => alertsForJob(job.id).filter((alert) => alert.status !== "Resolved").length },
+    ],
+    rows: jobs,
+    renderRow: (job) => {
+      const account = findAccount(job.accountId);
+      const scheduled = dispatchJobsForProject(job.id).length > 0;
+      const started = dispatchWorkHasStarted(job.id);
+      const openAlerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved").length;
+      return `
+        <tr>
+          <td><button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${escapeHtml(job.name)}</button></td>
+          <td>${escapeHtml(account?.name || "Unknown account")}</td>
+          <td>${escapeHtml(jobClassLabel[job.jobClass] || job.jobClass)}</td>
+          <td>${formatDate(job.startDate)}</td>
+          <td>${scheduled ? `<span class="tag">Yes</span>` : `<span class="risk-badge medium">No</span>`}</td>
+          <td>${started ? `<span class="tag">Yes</span>` : "No"}</td>
+          <td>${escapeHtml(job.projectStage || "Intake")}</td>
+          <td>${openAlerts ? `<span class="risk-badge high">${openAlerts}</span>` : "0"}</td>
+        </tr>
+      `;
+    },
+  });
+}
+
+// "Work started" reads as more than just scheduled/dispatched — the crew is actually en route or on
+// site. Draft/ready/scheduled/dispatched are all still pre-work states.
+function dispatchWorkHasStarted(projectId) {
+  return dispatchJobsForProject(projectId).some((dispatchJob) => !["draft", "ready", "scheduled", "dispatched"].includes(dispatchJob.status));
 }
 
 function renderOperationsDispatchJobRow(dispatchJob) {
@@ -7530,6 +7864,27 @@ function renderProjectDetail() {
     "Scheduled Work": "Scheduled projects run on a planned cadence. New job requests default to a future service date.",
     "Multi-Stage Remediation": "Multi-stage projects anticipate more than one dispatch — every job pushed to dispatch from this project shows up below.",
   }[job.jobClass] || "";
+  const activeTab = state.projectDetailTab || "intake";
+  const ctx = {
+    account,
+    location,
+    opportunity,
+    progress,
+    generator,
+    samples,
+    sampleSessions,
+    spatial,
+    chronology,
+    alerts,
+    assignments,
+    materials,
+    equipment,
+    projectDispatchJobs,
+    activeDispatchJobs,
+    completedDispatchJobs,
+    pendingRequests,
+    projectTypeNote,
+  };
 
   app.innerHTML = `
     <section class="view">
@@ -7567,17 +7922,6 @@ function renderProjectDetail() {
 
       ${renderProjectIntakeBanner(job)}
 
-      ${
-        alerts.length
-          ? `<article class="panel">
-              <div class="panel-header"><div><h3>Field alerts</h3><span>${alerts.length} open</span></div></div>
-              <div class="panel-body record-list">
-                ${alerts.map(renderAlertCard).join("")}
-              </div>
-            </article>`
-          : ""
-      }
-
       <section class="metric-strip" aria-label="Project detail metrics">
         <div class="metric">
           <p class="eyebrow">Site events</p>
@@ -7601,122 +7945,333 @@ function renderProjectDetail() {
         </div>
       </section>
 
-      <section class="project-detail-layout">
-        <div class="detail-stack">
-          <article class="panel">
-            <div class="panel-header">
-              <h3>Generator and responsible party</h3>
-              <button class="mini-button" type="button" data-action="open-project-intake" data-id="${escapeAttribute(job.id)}">Edit</button>
-            </div>
-            <div class="panel-body">
-              <dl class="detail-list">
-                <div><dt>Generator</dt><dd>${escapeHtml(generator.name)}</dd></div>
-                <div><dt>Site</dt><dd>${escapeHtml(generator.siteName)}</dd></div>
-                <div><dt>Contact</dt><dd>${escapeHtml(generator.contactName)}${generator.contactPhone ? ` - ${escapeHtml(generator.contactPhone)}` : ""}</dd></div>
-                <div><dt>EPA ID</dt><dd>${escapeHtml(generator.epaId)}</dd></div>
-                <div><dt>TCEQ ID</dt><dd>${escapeHtml(generator.tceqId)}</dd></div>
-                <div><dt>Insurance</dt><dd>${escapeHtml(generator.insuranceContact)}</dd></div>
-                <div><dt>Carrier / Claim</dt><dd>${escapeHtml(generator.insuranceCarrier)} / ${escapeHtml(generator.claimNumber)}</dd></div>
-                <div><dt>Services</dt><dd>${escapeHtml(generator.serviceProfile)}</dd></div>
-                <div><dt>Project type</dt><dd>${escapeHtml(job.jobClass)}</dd></div>
-                <div><dt>Site walk</dt><dd>${escapeHtml(job.siteWalkStatus || "Incomplete")}</dd></div>
-                <div><dt>Site photos</dt><dd>${(job.sitePhotoRefs || []).length ? `${job.sitePhotoRefs.length} captured` : "None captured yet"}</dd></div>
-              </dl>
-            </div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-header"><h3>LiDAR and spatial render</h3></div>
-            <div class="panel-body lidar-stack">
-              ${spatial.map(renderProjectSpatialRecord).join("") || renderEmptyLidarPlaceholder(job)}
-            </div>
-          </article>
-
-          ${renderProjectSampleMap(job, samples)}
-
-          <article class="panel">
-            <div class="panel-header"><h3>Sampling sessions</h3></div>
-            <div class="panel-body record-list">
-              ${sampleSessions.map(renderSampleSession).join("") || `<div class="empty-state">No sampling sessions for this project yet.</div>`}
-            </div>
-          </article>
+      <div class="account-detail-shell">
+        <div class="account-detail-tabs-row">
+          ${renderProjectDetailTabs(activeTab)}
         </div>
-
-        <div class="detail-stack">
-          <article class="panel">
-            <div class="panel-header">
-              <div><h3>Dispatch jobs</h3><span>${projectDispatchJobs.length} total · ${activeDispatchJobs.length} active · ${completedDispatchJobs.length} completed</span></div>
-              <button class="mini-button" type="button" data-action="open-job-request" data-account-id="${escapeAttribute(job.accountId)}" data-project-id="${escapeAttribute(job.id)}">New job request</button>
-            </div>
-            <div class="panel-body">
-              ${projectTypeNote ? `<p class="help-text">${escapeHtml(projectTypeNote)}</p>` : ""}
-              ${
-                // Gap item "Planning-stage projects should support multiple independently-schedulable
-                // dispatches" — creating another job request here already worked at any project stage
-                // (the "New job request" button above has no stage gate), but a pending request that
-                // hadn't been converted into a dispatch job yet had no visible "needs scheduling" state
-                // of its own — only a one-line count. Each pending request now renders as its own card
-                // with an explicit "Needs scheduling" badge and a direct path to create its job.
-                pendingRequests.length
-                  ? `<div class="record-list">${pendingRequests.map(renderPendingJobRequestCard).join("")}</div>`
-                  : ""
-              }
-              <div class="record-list">
-                ${activeDispatchJobs.map(renderProjectDispatchJobCard).join("")}
-                ${completedDispatchJobs.map(renderProjectDispatchJobCard).join("")}
-                ${projectDispatchJobs.length || pendingRequests.length ? "" : `<div class="empty-state">No dispatch jobs yet. Push a job request to send this project's work to dispatch.</div>`}
-              </div>
-            </div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-header">
-              <div>
-                <h3>Chronological site events</h3>
-                <span>Scrollable project history from schedule, field logs, samples, alerts, and spatial uploads.</span>
-              </div>
-            </div>
-            <div class="panel-body project-timeline-scroll">
-              ${chronology.map(renderProjectChronologyItem).join("") || `<div class="empty-state">No project events yet.</div>`}
-            </div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-header"><h3>Project team and logistics</h3></div>
-            <div class="panel-body record-list">
-              ${assignments.map(renderAssignmentCard).join("") || `<div class="empty-state">No assignments yet.</div>`}
-              ${materials.slice(0, 3).map(renderMaterialCard).join("")}
-              ${equipment.slice(0, 3).map(renderEquipmentCard).join("")}
-            </div>
-          </article>
-
-          ${renderProjectBillingPanel(job)}
-
-          <article class="panel">
-            <div class="panel-header"><h3>Sales and account links</h3></div>
-            <div class="panel-body record-list">
-              <article class="detail-card">
-                <strong>${escapeHtml(account?.name ?? "Unknown account")}</strong>
-                <div class="row-meta">
-                  <span>${escapeHtml(account?.city || "No city")}</span>
-                  <span>${escapeHtml(account?.phase || "No phase")}</span>
-                </div>
-                <div class="inline-actions">
-                  ${account ? `<button class="mini-button" type="button" data-action="view-account" data-id="${escapeAttribute(account.id)}">Open account</button>` : ""}
-                  ${opportunity ? `<button class="mini-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">Open opportunity</button>` : ""}
-                </div>
-              </article>
-            </div>
-          </article>
+        <div class="account-detail-tabbody">
+          ${renderProjectTabBody(activeTab, job, ctx)}
         </div>
-      </section>
+      </div>
     </section>
   `;
 
   requestAnimationFrame(() => {
-    initializeProjectSampleMap(job.id);
-    initializeProjectModelViewers();
+    if (activeTab === "plan") {
+      initializeProjectSampleMap(job.id);
+      initializeProjectModelViewers();
+    }
   });
+}
+
+// Phase 15 — Project Execution Workspace. Intake is what came in, Plan is what we intend to do, Live
+// is what is happening. Same tab pattern (and state-key convention) as Account/Contact/Opportunity/
+// Dispatch Job Detail — see phase doc item 3. No panel from the old single-page layout was dropped,
+// only redistributed.
+const projectDetailTabs = [
+  { id: "intake", label: "Intake" },
+  { id: "plan", label: "Plan" },
+  { id: "live", label: "Live" },
+];
+
+function renderProjectDetailTabs(activeTab) {
+  return `
+    <div class="segment-tabs" role="tablist" aria-label="Project detail sections">
+      ${projectDetailTabs
+        .map(
+          (tab) => `
+            <button type="button" role="tab" aria-selected="${tab.id === activeTab}" class="${tab.id === activeTab ? "active" : ""}" data-action="switch-project-tab" data-tab="${tab.id}">
+              ${escapeHtml(tab.label)}
+            </button>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderProjectTabBody(tab, job, ctx) {
+  switch (tab) {
+    case "plan":
+      return renderProjectPlanTab(job, ctx);
+    case "live":
+      return renderProjectLiveTab(job, ctx);
+    case "intake":
+    default:
+      return renderProjectIntakeTab(job, ctx);
+  }
+}
+
+// What arrived: account, site, the sales handover, generator/EPA/TCEQ identifiers, insurance/claim
+// details, paperwork status, and the originating opportunity.
+function renderProjectIntakeTab(job, ctx) {
+  const { account, opportunity, generator } = ctx;
+  const paperwork = projectPaperworkFlag(job);
+  return `
+    <section class="project-detail-layout">
+      <div class="detail-stack">
+        <article class="panel">
+          <div class="panel-header">
+            <h3>Generator and responsible party</h3>
+            <button class="mini-button" type="button" data-action="open-project-intake" data-id="${escapeAttribute(job.id)}">Edit</button>
+          </div>
+          <div class="panel-body">
+            <dl class="detail-list">
+              <div><dt>Generator</dt><dd>${escapeHtml(generator.name)}</dd></div>
+              <div><dt>Site</dt><dd>${escapeHtml(generator.siteName)}</dd></div>
+              <div><dt>Contact</dt><dd>${escapeHtml(generator.contactName)}${generator.contactPhone ? ` - ${escapeHtml(generator.contactPhone)}` : ""}</dd></div>
+              <div><dt>EPA ID</dt><dd>${escapeHtml(generator.epaId)}</dd></div>
+              <div><dt>TCEQ ID</dt><dd>${escapeHtml(generator.tceqId)}</dd></div>
+              <div><dt>Insurance</dt><dd>${escapeHtml(generator.insuranceContact)}</dd></div>
+              <div><dt>Carrier / Claim</dt><dd>${escapeHtml(generator.insuranceCarrier)} / ${escapeHtml(generator.claimNumber)}</dd></div>
+              <div><dt>Services</dt><dd>${escapeHtml(generator.serviceProfile)}</dd></div>
+              <div><dt>Project type</dt><dd>${escapeHtml(job.jobClass)}</dd></div>
+              <div><dt>Site walk</dt><dd>${escapeHtml(job.siteWalkStatus || "Incomplete")}</dd></div>
+              <div><dt>Site photos</dt><dd>${(job.sitePhotoRefs || []).length ? `${job.sitePhotoRefs.length} captured` : "None captured yet"}</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header"><h3>Customer paperwork</h3></div>
+          <div class="panel-body">
+            <div class="inline-actions">
+              <span class="risk-badge ${paperwork.tone}">${escapeHtml(paperwork.status)}</span>
+            </div>
+            <p class="help-text">${escapeHtml(paperwork.note)}</p>
+          </div>
+        </article>
+
+        ${job.jobClass === "Emergency Response" && job.mobilizationStatus ? renderEmergencyIntakePanel(job) : ""}
+      </div>
+
+      <div class="detail-stack">
+        <article class="panel">
+          <div class="panel-header"><h3>Sales and account links</h3></div>
+          <div class="panel-body record-list">
+            <article class="detail-card">
+              <strong>${escapeHtml(account?.name ?? "Unknown account")}</strong>
+              <div class="row-meta">
+                <span>${escapeHtml(account?.city || "No city")}</span>
+                <span>${escapeHtml(account?.phase || "No phase")}</span>
+              </div>
+              <div class="inline-actions">
+                ${account ? `<button class="mini-button" type="button" data-action="view-account" data-id="${escapeAttribute(account.id)}">Open account</button>` : ""}
+                ${opportunity ? `<button class="mini-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">Open opportunity</button>` : ""}
+              </div>
+            </article>
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+// Phase 16 — the emergency intake record, read-only display of what was captured on the spill
+// call. Mobilization status is the one thing that actually gates dispatch, so it leads.
+function renderEmergencyIntakePanel(job) {
+  const clearedTone = job.mobilizationStatus === "Cleared to mobilize" ? "low" : "high";
+  return `
+    <article class="panel">
+      <div class="panel-header"><h3>Emergency intake</h3></div>
+      <div class="panel-body">
+        <div class="inline-actions">
+          <span class="risk-badge ${clearedTone}">${escapeHtml(job.mobilizationStatus)}</span>
+        </div>
+        <p class="help-text">${escapeHtml(job.mobilizationNote || "")}</p>
+        <dl class="detail-list">
+          <div><dt>Caller</dt><dd>${escapeHtml(job.callerName || "Not captured")}${job.callerPhone ? ` — ${escapeHtml(job.callerPhone)}` : ""}</dd></div>
+          <div><dt>Material</dt><dd>${escapeHtml(job.spillMaterial || "Not captured")}${job.spillQuantity ? ` (${escapeHtml(job.spillQuantity)})` : ""}</dd></div>
+          <div><dt>Surface</dt><dd>${escapeHtml(job.spillSurface || "Not captured")}</dd></div>
+          <div><dt>Storm drain</dt><dd>${escapeHtml(job.stormDrainInvolved || "Unknown")}</dd></div>
+          <div><dt>Off-road discharge</dt><dd>${escapeHtml(job.offRoadDischarge || "Unknown")}</dd></div>
+          <div><dt>Absorbent deployed</dt><dd>${escapeHtml(job.absorbentDeployed || "No")}${job.absorbentDeployedBy ? ` by ${escapeHtml(job.absorbentDeployedBy)}` : ""}</dd></div>
+          <div><dt>Law enforcement</dt><dd>${escapeHtml(job.lawEnforcementStatus || "Not involved")}</dd></div>
+          <div><dt>Fire department</dt><dd>${escapeHtml(job.fireDepartmentStatus || "Not involved")}</dd></div>
+          <div><dt>Other emergency services</dt><dd>${escapeHtml(job.otherEmergencyServicesStatus || "Not involved")}</dd></div>
+          ${job.agencyIncidentNumber ? `<div><dt>Agency / incident #</dt><dd>${escapeHtml(job.agencyIncidentNumber)}</dd></div>` : ""}
+          <div><dt>Insurance</dt><dd>${job.hasInsurance === "Yes" ? `${escapeHtml(job.insuranceCarrier || "Carrier not captured")}${job.isInsuranceClaim === "Yes" ? " — filing a claim" : ""}` : "No insurance on file"}</dd></div>
+          ${job.downPaymentAmount ? `<div><dt>Down payment</dt><dd>${money(job.downPaymentAmount)}${job.downPaymentBy ? ` — ${escapeHtml(job.downPaymentBy)}` : ""}</dd></div>` : ""}
+        </dl>
+      </div>
+    </article>
+  `;
+}
+
+// What we intend: site-specific information, documents and files, draft resource planning (the
+// sales handover carried over at creation — Phase 15 item 1), sample schedule options, and the
+// reports generated for this project (Phase 09's cost report today, Phase 11's post-work report
+// lands here later).
+function renderProjectPlanTab(job, ctx) {
+  const { spatial, samples, sampleSessions } = ctx;
+  return `
+    <section class="project-detail-layout">
+      <div class="detail-stack">
+        <article class="panel">
+          <div class="panel-header"><h3>Scope from sales</h3></div>
+          <div class="panel-body">
+            <dl class="detail-list">
+              <div><dt>Heavy equipment needed</dt><dd class="chip-list">${renderOpportunityNeedsChips(job.equipmentNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+              <div><dt>Vendor / subcontractor needed</dt><dd class="chip-list">${renderOpportunityNeedsChips(job.vendorNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+              <div><dt>Resources needed</dt><dd class="chip-list">${renderOpportunityNeedsChips(job.resourceNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        ${renderProjectPricedBaselinePanel(job)}
+
+        <article class="panel">
+          <div class="panel-header"><h3>LiDAR and spatial render</h3></div>
+          <div class="panel-body lidar-stack">
+            ${spatial.map(renderProjectSpatialRecord).join("") || renderEmptyLidarPlaceholder(job)}
+          </div>
+        </article>
+      </div>
+
+      <div class="detail-stack">
+        ${renderProjectSampleMap(job, samples)}
+
+        <article class="panel">
+          <div class="panel-header"><h3>Sampling sessions</h3></div>
+          <div class="panel-body record-list">
+            ${sampleSessions.map(renderSampleSession).join("") || `<div class="empty-state">No sampling sessions for this project yet.</div>`}
+          </div>
+        </article>
+
+        ${renderProjectBillingPanel(job)}
+      </div>
+    </section>
+  `;
+}
+
+// What is happening: dispatch jobs and their status, active and past events, alerts, and usage
+// accumulating toward the close report.
+function renderProjectLiveTab(job, ctx) {
+  const { alerts, projectDispatchJobs, activeDispatchJobs, completedDispatchJobs, pendingRequests, projectTypeNote, chronology, assignments, materials, equipment } = ctx;
+  return `
+    <section class="project-detail-layout">
+      <div class="detail-stack">
+        ${
+          alerts.length
+            ? `<article class="panel">
+                <div class="panel-header"><div><h3>Field alerts</h3><span>${alerts.length} open</span></div></div>
+                <div class="panel-body record-list">
+                  ${alerts.map(renderAlertCard).join("")}
+                </div>
+              </article>`
+            : `<article class="panel"><div class="panel-header"><h3>Field alerts</h3></div><div class="panel-body"><div class="empty-state">No open alerts.</div></div></article>`
+        }
+
+        <article class="panel">
+          <div class="panel-header">
+            <div><h3>Dispatch jobs</h3><span>${projectDispatchJobs.length} total · ${activeDispatchJobs.length} active · ${completedDispatchJobs.length} completed</span></div>
+            <button class="mini-button" type="button" data-action="open-job-request" data-account-id="${escapeAttribute(job.accountId)}" data-project-id="${escapeAttribute(job.id)}">New job request</button>
+          </div>
+          <div class="panel-body">
+            ${projectTypeNote ? `<p class="help-text">${escapeHtml(projectTypeNote)}</p>` : ""}
+            ${
+              // Gap item "Planning-stage projects should support multiple independently-schedulable
+              // dispatches" — creating another job request here already worked at any project stage
+              // (the "New job request" button above has no stage gate), but a pending request that
+              // hadn't been converted into a dispatch job yet had no visible "needs scheduling" state
+              // of its own — only a one-line count. Each pending request now renders as its own card
+              // with an explicit "Needs scheduling" badge and a direct path to create its job.
+              pendingRequests.length
+                ? `<div class="record-list">${pendingRequests.map(renderPendingJobRequestCard).join("")}</div>`
+                : ""
+            }
+            <div class="record-list">
+              ${activeDispatchJobs.map(renderProjectDispatchJobCard).join("")}
+              ${completedDispatchJobs.map(renderProjectDispatchJobCard).join("")}
+              ${projectDispatchJobs.length || pendingRequests.length ? "" : `<div class="empty-state">No dispatch jobs yet. Push a job request to send this project's work to dispatch.</div>`}
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="detail-stack">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>Chronological site events</h3>
+              <span>Scrollable project history from schedule, field logs, samples, alerts, and spatial uploads.</span>
+            </div>
+          </div>
+          <div class="panel-body project-timeline-scroll">
+            ${chronology.map(renderProjectChronologyItem).join("") || `<div class="empty-state">No project events yet.</div>`}
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header"><h3>Project team and logistics</h3></div>
+          <div class="panel-body record-list">
+            ${assignments.map(renderAssignmentCard).join("") || `<div class="empty-state">No assignments yet.</div>`}
+            ${materials.slice(0, 3).map(renderMaterialCard).join("")}
+            ${equipment.slice(0, 3).map(renderEquipmentCard).join("")}
+          </div>
+        </article>
+      </div>
+    </section>
+  `;
+}
+
+// Phase 15 item 2 — until Phase 13's document requirement/review model exists, this reads the same
+// customerPacketStatus/document data the job-request dialog already uses (see the "prior packet"
+// logic near openJobRequestDialog) rather than inventing a second paperwork-tracking mechanism.
+function projectPaperworkFlag(job) {
+  const requests = jobRequestsForProject(job.id);
+  if (!requests.length) {
+    return { status: "Unknown", tone: "medium", note: "No job request has been raised for this project yet, so paperwork status has not been captured." };
+  }
+  const mostRecent = [...requests].sort((a, b) => new Date(b.receivedAt || b.createdAt || 0) - new Date(a.receivedAt || a.createdAt || 0))[0];
+  const packetDocs = documentsForJobRequest(mostRecent.id).filter((document) => document.documentRole === "customer_packet");
+  const onFile = packetDocs.length > 0 || mostRecent.customerPacketStatus === "On file" || mostRecent.customerPacketStatus === "Not required";
+  if (onFile) {
+    return {
+      status: mostRecent.customerPacketStatus === "Not required" ? "Not required" : "On file",
+      tone: "low",
+      note: packetDocs.length ? `${packetDocs.length} document(s) uploaded via ${mostRecent.requestNumber}.` : `Marked on file via ${mostRecent.requestNumber}.`,
+    };
+  }
+  return { status: "Missing", tone: "high", note: "Third-party waste authorization and customer packet are not on file. Dispatch will re-ask unless this is resolved." };
+}
+
+// Phase 15 item 1 — the quote/estimate itself is the priced baseline (not a copied snapshot of its
+// lines); job.quoteId/estimateId are copied at project creation so this keeps reading the same
+// document even if the opportunity's "current" quote changes later.
+function renderProjectPricedBaselinePanel(job) {
+  const quote = job.quoteId ? (state.backend.quotes || []).find((item) => item.id === job.quoteId && !item.deletedAt) : null;
+  const estimate = !quote && job.estimateId ? (state.backend.estimates || []).find((item) => item.id === job.estimateId && !item.deletedAt) : null;
+  const lines = quote ? quoteLinesForQuote(quote.id) : estimate ? estimateLinesForEstimate(estimate.id) : [];
+  const docLabel = quote ? "Quote" : estimate ? "Estimate" : "";
+  const total = lines.reduce((sum, line) => sum + Number(line.extendedAmount || 0), 0);
+
+  return `
+    <article class="panel">
+      <div class="panel-header"><h3>Priced baseline</h3>${docLabel ? `<span>${escapeHtml(docLabel)}${lines.length ? ` — ${money(total)}` : ""}</span>` : ""}</div>
+      <div class="panel-body">
+        ${
+          lines.length
+            ? `<div class="record-list">
+                ${lines
+                  .map(
+                    (line) => `
+                      <article class="detail-card">
+                        <div class="row-meta">
+                          <strong>${escapeHtml(line.productName || line.productDescription || "Line item")}</strong>
+                          <span>${money(line.extendedAmount || 0)}</span>
+                        </div>
+                        <span>${line.quantity || 0} @ ${money(line.pricePerUnit || 0)}${line.isOptional ? " · optional" : ""}</span>
+                      </article>
+                    `,
+                  )
+                  .join("")}
+              </div>`
+            : `<div class="empty-state">${docLabel ? `No line items on the linked ${docLabel.toLowerCase()}.` : "No quote or estimate linked to this project."}</div>`
+        }
+      </div>
+    </article>
+  `;
 }
 
 // Phase 09 — Billing & Invoicing. Shows the close-project gate before a project closes, and the
@@ -8015,10 +8570,18 @@ function renderSampleDetail() {
   requestAnimationFrame(() => initializeSampleDetailMap(sample.id));
 }
 
-function renderOperationsScheduled() {
-  const scheduledJobs = state.projects.filter((job) => job.jobClass === "Scheduled Work" && isActiveProject(job));
-  const scheduledOpen = getScheduleEvents().filter((work) => work.status !== "Complete");
+// Phase 17 item 2/3 — each class view's rows, filtered by that class and by whichever metric card
+// was clicked (state.opsClassTableFilter, cleared whenever the view is entered via nav rather than
+// a card click — see clearOpsTableFilterOnNav in bindEvents/handleAction).
+function operationsClassRows(jobClass) {
+  const base = state.projects.filter((job) => job.jobClass === jobClass && isActiveProject(job));
+  const filter = state.opsClassTableFilter;
+  if (filter === "no-dispatch") return base.filter((job) => dispatchJobsForProject(job.id).length === 0);
+  if (filter === "alerts") return base.filter((job) => alertsForJob(job.id).some((alert) => alert.status !== "Resolved"));
+  return base;
+}
 
+function renderOperationsScheduled() {
   app.innerHTML = `
     <section class="view">
       ${renderWorkspaceHeader(
@@ -8032,21 +8595,13 @@ function renderOperationsScheduled() {
           <button class="secondary-button" type="button" data-action="open-equipment">Log equipment</button>
         `,
       )}
-      ${renderOperationsMetrics()}
-      <section class="split-grid">
-        <article class="panel">
-          <div class="panel-header"><h3>Scheduled work queue</h3></div>
-          <div class="panel-body record-list">
-            ${scheduledOpen.map(renderScheduleEventCard).join("") || `<div class="empty-state">No scheduled work yet.</div>`}
-          </div>
-        </article>
-        <article class="panel">
-          <div class="panel-header"><h3>Scheduled project cards</h3></div>
-          <div class="panel-body record-list">
-            ${scheduledJobs.map(renderJobCard).join("") || `<div class="empty-state">No scheduled project cards.</div>`}
-          </div>
-        </article>
-      </section>
+      ${renderOperationsClassMetrics("Scheduled Work")}
+      <article class="panel">
+        <div class="panel-header"><h3>Scheduled Work projects</h3></div>
+        <div class="panel-body">
+          ${renderAllProjectsTable(operationsClassRows("Scheduled Work"))}
+        </div>
+      </article>
     </section>
   `;
 }
@@ -8061,9 +8616,12 @@ function renderOperationsEmergency() {
         "operations",
         "Emergency Response",
         "Rapid response work that bypasses the normal opportunity flow and needs dispatch, NTE, labor, and customer approval visibility.",
-        `<button class="danger-button" type="button" data-action="open-alert">Field alert</button>`,
+        `
+          <button class="primary-button" type="button" data-action="open-emergency-intake">New spill call</button>
+          <button class="danger-button" type="button" data-action="open-alert">Field alert</button>
+        `,
       )}
-      ${renderOperationsMetrics()}
+      ${renderOperationsClassMetrics("Emergency Response")}
       <section class="detail-grid">
         <article class="panel">
           <div class="panel-header"><h3>Active emergency jobs</h3></div>
@@ -8083,8 +8641,6 @@ function renderOperationsEmergency() {
 }
 
 function renderOperationsRemediation() {
-  const remediationJobs = state.projects.filter((job) => job.jobClass === "Multi-Stage Remediation" && isActiveProject(job));
-
   app.innerHTML = `
     <section class="view">
       ${renderWorkspaceHeader(
@@ -8093,10 +8649,13 @@ function renderOperationsRemediation() {
         "Longer projects with investigation, planning, mobilization, field execution, closeout, samples, and documentation.",
         `<button class="primary-button" type="button" data-action="open-remediation">New remediation</button>`,
       )}
-      ${renderOperationsMetrics()}
-      <section class="record-list">
-        ${remediationJobs.map(renderRemediationCard).join("") || `<div class="empty-state">No multi-stage remediations yet.</div>`}
-      </section>
+      ${renderOperationsClassMetrics("Multi-Stage Remediation")}
+      <article class="panel">
+        <div class="panel-header"><h3>Multi-Stage Remediation projects</h3></div>
+        <div class="panel-body">
+          ${renderAllProjectsTable(operationsClassRows("Multi-Stage Remediation"))}
+        </div>
+      </article>
     </section>
   `;
 }
@@ -8176,6 +8735,53 @@ function renderOperationsMetrics() {
   `;
 }
 
+// Phase 17 item 2 — each class view's own metric strip, scoped to that class only (the bug this
+// fixes: the old renderOperationsMetrics() was one unfiltered set shared by all three class views,
+// so Scheduled Work's "Active jobs" counted emergency jobs too). Card 1/3 count what's on this
+// page; Card 2 is "projects without scheduled dispatches" for Scheduled/Multi-Stage, or "Emergency
+// response" (same scope as card 1) for Emergency, per the phase doc's table. Every card except
+// Resource Blocks is a query into the same `operationsClassRows()` the table below reads, so the
+// count and the table can never disagree; Resource Blocks isn't a project-row count, so it links to
+// Inventory instead of filtering this page's table.
+function renderOperationsClassMetrics(jobClass) {
+  const activeJobs = state.projects.filter((job) => job.jobClass === jobClass && isActiveProject(job));
+  const noDispatch = activeJobs.filter((job) => dispatchJobsForProject(job.id).length === 0);
+  const withAlerts = activeJobs.filter((job) => alertsForJob(job.id).some((alert) => alert.status !== "Resolved"));
+  const maintenanceHolds = equipmentAssets.filter((asset) => asset.status === "Maintenance hold").length;
+  const lowConsumables = getConsumableStatus().filter((item) => item.status !== "Healthy").length;
+  const activeFilter = state.opsClassTableFilter;
+
+  const card2 =
+    jobClass === "Emergency Response"
+      ? { label: "Emergency response", value: activeJobs.length, filter: "" }
+      : { label: "Projects without scheduled dispatches", value: noDispatch.length, filter: "no-dispatch" };
+
+  return `
+    <section class="metric-strip" aria-label="${escapeAttribute(jobClass)} metrics">
+      <button class="metric metric-link ${!activeFilter ? "active" : ""}" type="button" data-action="filter-ops-class-table" data-filter="">
+        <p class="eyebrow">Active jobs</p>
+        <strong>${activeJobs.length}</strong>
+        <span>${escapeHtml(jobClass)}</span>
+      </button>
+      <button class="metric metric-link ${activeFilter === card2.filter && card2.filter ? "active" : ""}" type="button" data-action="filter-ops-class-table" data-filter="${escapeAttribute(card2.filter)}">
+        <p class="eyebrow">${escapeHtml(card2.label)}</p>
+        <strong>${card2.value}</strong>
+        <span>Click to filter the table below</span>
+      </button>
+      <button class="metric metric-link ${activeFilter === "alerts" ? "active" : ""}" type="button" data-action="filter-ops-class-table" data-filter="alerts">
+        <p class="eyebrow">Open alerts</p>
+        <strong>${withAlerts.length}</strong>
+        <span>Scope, safety, access, or approval issues</span>
+      </button>
+      <button class="metric metric-link" type="button" data-view="inventory-equipment">
+        <p class="eyebrow">Resource blocks</p>
+        <strong>${maintenanceHolds + lowConsumables}</strong>
+        <span>Inventory or equipment constraints</span>
+      </button>
+    </section>
+  `;
+}
+
 function renderRemediationCard(job) {
   const account = findAccount(job.accountId);
   const progress = getJobProgress(job);
@@ -8218,25 +8824,67 @@ function renderRemediationCard(job) {
   `;
 }
 
+const CALENDAR_WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Phase 17 item 5 — a real month grid (weekday columns, week rows) instead of a 7-day flat strip.
+// Cells stay dense (a count per kind, not full cards — a month of full event cards would not fit);
+// clicking a day shows its full item list in the panel below via renderCalendarItem, the same
+// per-item renderer the old strip used, so "share day-cell rendering" (Q28) means sharing that
+// function and populateCalendarDayItems(), not the grid layout itself, which is genuinely different
+// between a month overview and the dispatch board's working-week view.
 function renderCalendarBoard() {
-  const days = buildCalendarDays();
+  const monthAnchor = state.opsCalendarMonth || todayIso();
+  const { year, month, days } = buildCalendarMonthDays(monthAnchor);
+  const monthLabel = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(year, month, 1));
+  const selectedDate = state.opsCalendarSelectedDate && days.some((day) => day.date === state.opsCalendarSelectedDate) ? state.opsCalendarSelectedDate : todayIso();
+  const selectedDay = days.find((day) => day.date === selectedDate);
+
   return `
-    <section class="calendar-grid" aria-label="Operations calendar">
-      ${days
-        .map(
-          (day) => `
-            <article class="calendar-day">
-              <div class="calendar-date">
-                <strong>${escapeHtml(day.label)}</strong>
-                <span>${formatDate(day.date)}</span>
-              </div>
-              <div class="record-list">
-                ${day.items.map(renderCalendarItem).join("") || `<div class="empty-state">Open</div>`}
-              </div>
-            </article>
-          `,
-        )
-        .join("")}
+    <section class="calendar-board" aria-label="Operations calendar">
+      <div class="calendar-board-toolbar">
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="calendar-month-nav" data-direction="-1">&lsaquo; Prev</button>
+          <strong>${escapeHtml(monthLabel)}</strong>
+          <button class="mini-button" type="button" data-action="calendar-month-nav" data-direction="1">Next &rsaquo;</button>
+        </div>
+        <button class="mini-button" type="button" data-action="calendar-month-nav" data-direction="0">Today</button>
+      </div>
+      <div class="calendar-month-grid">
+        ${CALENDAR_WEEKDAY_LABELS.map((label) => `<div class="calendar-weekday">${label}</div>`).join("")}
+        ${days
+          .map((day) => {
+            const kinds = [...new Set(day.items.map((item) => item.kind))];
+            return `
+              <button
+                type="button"
+                class="calendar-month-cell ${day.inMonth ? "" : "outside-month"} ${day.isToday ? "is-today" : ""} ${day.date === selectedDate ? "is-selected" : ""}"
+                data-action="select-calendar-day"
+                data-date="${escapeAttribute(day.date)}"
+              >
+                <span class="calendar-cell-date">${day.dayNumber}</span>
+                ${
+                  day.items.length
+                    ? `<span class="calendar-cell-badges">
+                        ${kinds
+                          .map((kind) => {
+                            const count = day.items.filter((item) => item.kind === kind).length;
+                            return `<span class="calendar-cell-dot ${kind.toLowerCase().replace(/\s+/g, "-")}">${count}</span>`;
+                          })
+                          .join("")}
+                      </span>`
+                    : ""
+                }
+              </button>
+            `;
+          })
+          .join("")}
+      </div>
+      <article class="panel">
+        <div class="panel-header"><h3>${escapeHtml(formatDate(selectedDate))}${selectedDate === todayIso() ? " (Today)" : ""}</h3></div>
+        <div class="panel-body record-list">
+          ${selectedDay?.items.map(renderCalendarItem).join("") || `<div class="empty-state">Nothing scheduled.</div>`}
+        </div>
+      </article>
     </section>
   `;
 }
@@ -8258,22 +8906,106 @@ function renderCalendarItem(item) {
   `;
 }
 
+// Phase 17 item 6 — the confirmed filter set (Q27): project class, stage/status, open-alerts-only,
+// date range, account, point type. Point type here means "asset ping" (OwnTracks / unlinked GPS)
+// vs "project location" (tied to a dispatched job) — the closest honest mapping to "facility vs GPS
+// location vs active job" that today's single `locations` marker source actually supports; facilities
+// aren't plotted on this map at all yet (see the phase doc's corrections).
+function filteredMapMarkers() {
+  const filters = state.opsMapFilters;
+  let markers = getMapMarkers();
+  if (filters.jobClass) markers = markers.filter((marker) => marker.type === filters.jobClass);
+  if (filters.pointType) markers = markers.filter((marker) => (filters.pointType === "asset" ? marker.type === "asset" : marker.type !== "asset"));
+  if (filters.status) markers = markers.filter((marker) => (marker.status || "").toLowerCase().includes(filters.status.toLowerCase()));
+  if (filters.accountId) markers = markers.filter((marker) => marker.accountId === filters.accountId);
+  if (filters.alertsOnly) {
+    markers = markers.filter((marker) => marker.projectId && alertsForJob(marker.projectId).some((alert) => alert.status !== "Resolved"));
+  }
+  if (filters.dateFrom || filters.dateTo) {
+    markers = markers.filter((marker) => {
+      const project = marker.projectId ? findProject(marker.projectId) : null;
+      const referenceDate = marker.lastPingAt || project?.startDate;
+      if (!referenceDate) return false;
+      if (filters.dateFrom && referenceDate < filters.dateFrom) return false;
+      if (filters.dateTo && referenceDate > filters.dateTo) return false;
+      return true;
+    });
+  }
+  return markers;
+}
+
+function renderOperationsMapFilterPanel() {
+  const filters = state.opsMapFilters;
+  return `
+    <article class="panel">
+      <div class="panel-header"><h3>Map filters</h3>${Object.values(filters).some(Boolean) ? `<button class="mini-button" type="button" data-action="clear-map-filters">Clear</button>` : ""}</div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <label>
+            Project class
+            <select data-action="map-filter" data-filter-key="jobClass">
+              <option value="">All</option>
+              <option value="emergency" ${filters.jobClass === "emergency" ? "selected" : ""}>Emergency Response</option>
+              <option value="remediation" ${filters.jobClass === "remediation" ? "selected" : ""}>Multi-Stage Remediation</option>
+              <option value="scheduled" ${filters.jobClass === "scheduled" ? "selected" : ""}>Scheduled Work</option>
+            </select>
+          </label>
+          <label>
+            Point type
+            <select data-action="map-filter" data-filter-key="pointType">
+              <option value="">All</option>
+              <option value="asset" ${filters.pointType === "asset" ? "selected" : ""}>Asset ping</option>
+              <option value="project" ${filters.pointType === "project" ? "selected" : ""}>Project location</option>
+            </select>
+          </label>
+          <label>
+            Account
+            <select data-action="map-filter" data-filter-key="accountId">
+              <option value="">All accounts</option>
+              ${state.accounts.map((account) => `<option value="${escapeAttribute(account.id)}" ${filters.accountId === account.id ? "selected" : ""}>${escapeHtml(account.name)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            Status contains
+            <input type="text" value="${escapeAttribute(filters.status)}" data-action="map-filter-text" data-filter-key="status" placeholder="e.g. Field Work" />
+          </label>
+          <label>
+            From date
+            <input type="date" value="${escapeAttribute(filters.dateFrom)}" data-action="map-filter-text" data-filter-key="dateFrom" />
+          </label>
+          <label>
+            To date
+            <input type="date" value="${escapeAttribute(filters.dateTo)}" data-action="map-filter-text" data-filter-key="dateTo" />
+          </label>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" data-action="map-filter-checkbox" data-filter-key="alertsOnly" ${filters.alertsOnly ? "checked" : ""} />
+          Open alerts only
+        </label>
+      </div>
+    </article>
+  `;
+}
+
 function renderOperationsMapBoard() {
-  const markers = getMapMarkers();
+  const markers = filteredMapMarkers();
   return `
     <section class="map-layout">
-      <div id="operationsMap" class="ops-map" aria-label="Interactive map of active project and asset locations">
-        <div class="map-loading">Loading map...</div>
+      <div class="map-layout-main">
+        <div id="operationsMap" class="ops-map" aria-label="Interactive map of active project and asset locations">
+          <div class="map-loading">Loading map...</div>
+        </div>
+        ${renderOperationsMapFilterPanel()}
       </div>
       <aside class="panel map-sidebar">
-        <div class="panel-header"><h3>Map layers</h3></div>
+        <div class="panel-header"><h3>Map layers</h3><span>${markers.length} of ${getMapMarkers().length} shown</span></div>
         <div class="panel-body record-list">
           <div class="legend-row"><span class="map-dot scheduled"></span>Scheduled work</div>
           <div class="legend-row"><span class="map-dot emergency"></span>Emergency response</div>
           <div class="legend-row"><span class="map-dot remediation"></span>Multi-stage remediation</div>
           <div class="legend-row"><span class="map-dot asset"></span>Assigned asset</div>
           <hr />
-          ${markers.slice(0, 10).map(renderMapSidebarItem).join("") || `<div class="empty-state">No mapped locations yet.</div>`}
+          ${markers.slice(0, 10).map(renderMapSidebarItem).join("") || `<div class="empty-state">No mapped locations match these filters.</div>`}
         </div>
       </aside>
     </section>
@@ -8740,14 +9472,14 @@ function initializeOperationsMap() {
   if (!mapElement) return;
 
   const leaflet = window.L;
-  const markers = getMapMarkers().filter((marker) => Number.isFinite(Number(marker.latitude)) && Number.isFinite(Number(marker.longitude)));
+  const markers = filteredMapMarkers().filter((marker) => Number.isFinite(Number(marker.latitude)) && Number.isFinite(Number(marker.longitude)));
   if (!leaflet) {
     mapElement.innerHTML = `<div class="map-loading">Map library did not load. Check the internet connection for map tiles.</div>`;
     return;
   }
 
   if (!markers.length) {
-    mapElement.innerHTML = `<div class="map-loading">No GPS coordinates are available yet.</div>`;
+    mapElement.innerHTML = `<div class="map-loading">No GPS coordinates match these filters.</div>`;
     return;
   }
 
@@ -9170,7 +9902,7 @@ function renderEmployeeDetail() {
             </div>
           </article>
 
-          <article class="panel">
+          <article class="panel ${isPanelHighlighted(`employee-credentials-${employee.id}`) ? "panel-highlight" : ""}" id="employee-credentials-panel">
             <div class="panel-header">
               <div><h3>Credentials and certifications</h3><span>${validCerts} valid · ${issueCerts} need attention</span></div>
               <button class="mini-button" type="button" data-action="open-credential" data-employee-id="${employee.id}">Add</button>
@@ -9218,6 +9950,12 @@ function renderEmployeeDetail() {
       </section>
     </section>
   `;
+
+  if (isPanelHighlighted(`employee-credentials-${employee.id}`)) {
+    requestAnimationFrame(() => {
+      document.querySelector("#employee-credentials-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
 }
 
 function renderCredentialRow(record) {
@@ -9394,9 +10132,15 @@ function renderWorkforceCredentialTypeDetail() {
 // GLOSSARY.md). What was missing was create/edit UI for the team/crew records themselves; that's
 // added here. Crews additionally carry `requiredCertTypeIds` (from the item 1 catalog); a member
 // missing a required cert is flagged with a warning badge, not hard-blocked, per the owner's ask.
+// Phase 18 item 1 — Team Roster moved here (from Availability, where it now shows a roster with no
+// exceptions data of its own — see renderWorkforceAvailability) and put on the left; Organizational
+// teams now sits above Dispatchable crews on the right, both per the owner's explicit layout ask.
 function renderWorkforceTeams() {
   const teams = getWorkforceTeams();
   const crews = getCrewProfiles();
+  const blocks = getAvailabilityBlocks();
+  const employeesWithExceptions = new Set(blocks.map((block) => block.employeeId));
+  const roster = getEmployees().filter((employee) => employee.employmentStatus === "Active");
   app.innerHTML = `
     <section class="view">
       ${renderWorkspaceHeader(
@@ -9406,13 +10150,21 @@ function renderWorkforceTeams() {
       )}
       <section class="workforce-groups-layout">
         <article class="panel">
-          <div class="panel-header"><div><h3>Organizational teams</h3><span>${teams.length} active groups</span></div><button class="secondary-button" type="button" data-action="open-team">Add team</button></div>
-          <div class="panel-body workforce-group-list">${teams.map(renderWorkforceTeamCard).join("")}</div>
+          <div class="panel-header"><div><h3>Team roster</h3><span>Standard schedule; new hires appear here immediately</span></div></div>
+          <div class="panel-body workforce-group-list">
+            ${roster.map((employee) => renderAvailabilityRosterCard(employee, employeesWithExceptions.has(employee.id))).join("") || `<div class="empty-state">No active employees.</div>`}
+          </div>
         </article>
-        <article class="panel">
-          <div class="panel-header"><div><h3>Dispatchable crews</h3><span>${crews.length} reusable crew profiles</span></div><button class="secondary-button" type="button" data-action="open-crew">Add crew</button></div>
-          <div class="panel-body workforce-group-list">${crews.map(renderCrewProfileCard).join("")}</div>
-        </article>
+        <div class="detail-stack">
+          <article class="panel">
+            <div class="panel-header"><div><h3>Organizational teams</h3><span>${teams.length} active groups</span></div><button class="secondary-button" type="button" data-action="open-team">Add team</button></div>
+            <div class="panel-body workforce-group-list">${teams.map(renderWorkforceTeamCard).join("")}</div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><h3>Dispatchable crews</h3><span>${crews.length} reusable crew profiles</span></div><button class="secondary-button" type="button" data-action="open-crew">Add crew</button></div>
+            <div class="panel-body workforce-group-list">${crews.map(renderCrewProfileCard).join("")}</div>
+          </article>
+        </div>
       </section>
     </section>
   `;
@@ -9457,12 +10209,23 @@ function renderCrewProfileCard(crew) {
   `;
 }
 
+// Phase 18 items 1/2 — Team Roster moved to Teams and Crews (renderWorkforceTeams), replaced here
+// with what the owner actually asked the schedule to answer: who's out and when, and who's on
+// standby right now. Both read real data (getAvailabilityBlocks / getStandbyAssignments); neither
+// reuses the other's model, per the phase doc's explicit "standby is not an availability exception."
 function renderWorkforceAvailability() {
   const blocks = getAvailabilityBlocks()
     .map((block) => ({ ...block, employee: findEmployee(block.employeeId) }))
     .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
-  const employeesWithExceptions = new Set(blocks.map((block) => block.employeeId));
-  const roster = getEmployees().filter((employee) => employee.employmentStatus === "Active");
+  const now = new Date();
+  const upcomingAbsences = blocks.filter((block) => block.type !== "On call" && new Date(block.endsAt) >= now);
+  const standbyAssignments = getStandbyAssignments()
+    .map((assignment) => ({ ...assignment, employee: findEmployee(assignment.employeeId) }))
+    .filter((assignment) => new Date(assignment.endsAt) >= now)
+    .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+  const currentStandby = standbyAssignments.find((assignment) => new Date(assignment.startsAt) <= now && now <= new Date(assignment.endsAt));
+  const rotation = getStandbyRotationSettings();
+
   app.innerHTML = `
     <section class="view">
       ${renderWorkspaceHeader(
@@ -9477,9 +10240,55 @@ function renderWorkforceAvailability() {
         </div>
       </article>
       <article class="panel">
-        <div class="panel-header"><div><h3>Team roster</h3><span>Standard schedule; new hires appear here immediately</span></div></div>
-        <div class="panel-body workforce-group-list">
-          ${roster.map((employee) => renderAvailabilityRosterCard(employee, employeesWithExceptions.has(employee.id))).join("") || `<div class="empty-state">No active employees.</div>`}
+        <div class="panel-header"><div><h3>Upcoming time off</h3><span>What's coming up across the crew</span></div></div>
+        <div class="panel-body record-list">
+          ${
+            upcomingAbsences
+              .map(
+                (block) => `
+                  <article class="compact-record">
+                    <div class="inline-actions"><span class="risk-badge ${getAvailabilityTone(block.type)}">${escapeHtml(block.type)}</span><strong>${escapeHtml(block.employee?.displayName || "Unknown")}</strong></div>
+                    <span>${formatDateTime(block.startsAt)} to ${formatDateTime(block.endsAt)}</span>
+                    <span>${escapeHtml(block.reason)}</span>
+                  </article>
+                `,
+              )
+              .join("") || `<div class="empty-state">No upcoming time off on file.</div>`
+          }
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header">
+          <div><h3>Standby / on-call</h3><span>${rotation ? `${escapeHtml(rotation.rotationPattern)} rotation` : "No rotation pattern set"}</span></div>
+          <div class="inline-actions">
+            <button class="mini-button" type="button" data-action="open-standby-rotation-settings">Rotation settings</button>
+            <button class="mini-button" type="button" data-action="open-standby-assignment">Add standby</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          ${
+            currentStandby
+              ? `<div class="core-table-notice" aria-label="Current standby"><div><strong>On call right now: ${escapeHtml(currentStandby.employee?.displayName || "Unknown")}</strong><span>Through ${formatDateTime(currentStandby.endsAt)}</span></div></div>`
+              : `<div class="empty-state">No one is currently on standby.</div>`
+          }
+          <div class="record-list">
+            ${
+              standbyAssignments
+                .map(
+                  (assignment) => `
+                    <article class="compact-record">
+                      <div class="inline-actions">
+                        <strong>${escapeHtml(assignment.employee?.displayName || "Unknown")}</strong>
+                        <button class="mini-button" type="button" data-action="open-standby-assignment" data-id="${escapeAttribute(assignment.id)}">Edit</button>
+                      </div>
+                      <span>${formatDateTime(assignment.startsAt)} to ${formatDateTime(assignment.endsAt)}</span>
+                      ${assignment.notes ? `<span>${escapeHtml(assignment.notes)}</span>` : ""}
+                    </article>
+                  `,
+                )
+                .join("") || `<div class="empty-state">No standby assignments scheduled.</div>`
+            }
+          </div>
         </div>
       </article>
     </section>
@@ -9515,6 +10324,94 @@ function renderAvailabilityLane(block) {
       <span class="source-badge">${escapeHtml(block.status)}</span>
     </article>
   `;
+}
+
+function openStandbyAssignmentDialog(assignmentId = "") {
+  const dialog = document.querySelector("#standbyAssignmentDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populateEmployeeSelect(dialog, "employeeId", "Select employee");
+  const removeButton = dialog.querySelector('[data-action="remove-standby-assignment"]');
+  const assignment = assignmentId ? getStandbyAssignments().find((item) => item.id === assignmentId) : null;
+  if (assignment) {
+    form.elements.id.value = assignment.id;
+    form.elements.employeeId.value = assignment.employeeId || "";
+    form.elements.startsAt.value = toLocalDateTimeInput(new Date(assignment.startsAt));
+    form.elements.endsAt.value = toLocalDateTimeInput(new Date(assignment.endsAt));
+    form.elements.notes.value = assignment.notes || "";
+    if (removeButton) removeButton.hidden = false;
+  } else {
+    form.elements.id.value = "";
+    const start = new Date();
+    form.elements.startsAt.value = toLocalDateTimeInput(start);
+    form.elements.endsAt.value = toLocalDateTimeInput(new Date(start.getTime() + 48 * 3600000));
+    if (removeButton) removeButton.hidden = true;
+  }
+  dialog.showModal();
+}
+
+async function saveStandbyAssignment(form) {
+  const data = new FormData(form);
+  const existingId = data.get("id").toString();
+  const existing = existingId ? getStandbyAssignments().find((item) => item.id === existingId) : null;
+  const assignment = {
+    ...(existing || {}),
+    id: existingId || makeId("standby"),
+    employeeId: data.get("employeeId").toString(),
+    startsAt: new Date(data.get("startsAt").toString()).toISOString(),
+    endsAt: new Date(data.get("endsAt").toString()).toISOString(),
+    notes: data.get("notes").toString().trim(),
+    createdBy: existing?.createdBy || state.currentUser?.name || "Local user",
+    createdAt: existing?.createdAt || new Date().toISOString(),
+  };
+  try {
+    await saveBackendRecord("standbyAssignments", assignment);
+    closeDialogs();
+    render();
+    showToast(existing ? "Standby assignment updated." : "Standby assignment added.");
+  } catch (error) {
+    showToast(error.message || "Standby assignment could not be saved.");
+  }
+}
+
+async function removeStandbyAssignment() {
+  const form = document.querySelector("#standbyAssignmentDialog form");
+  const assignmentId = form?.elements.id.value;
+  const assignment = assignmentId ? getStandbyAssignments().find((item) => item.id === assignmentId) : null;
+  if (!assignment) return;
+  await saveBackendRecord("standbyAssignments", { ...assignment, deletedAt: new Date().toISOString() });
+  closeDialogs();
+  render();
+  showToast("Standby assignment removed.");
+}
+
+function openStandbyRotationSettingsDialog() {
+  const dialog = document.querySelector("#standbyRotationSettingsDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  const settings = getStandbyRotationSettings();
+  form.elements.rotationPattern.value = settings?.rotationPattern || "Weekly";
+  form.elements.notes.value = settings?.notes || "";
+  dialog.showModal();
+}
+
+async function saveStandbyRotationSettings(form) {
+  const data = new FormData(form);
+  const settings = {
+    id: "default",
+    rotationPattern: data.get("rotationPattern").toString(),
+    notes: data.get("notes").toString().trim(),
+    updatedBy: state.currentUser?.name || "Local user",
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    await saveBackendRecord("standbyRotationSettings", settings);
+    closeDialogs();
+    render();
+    showToast("Rotation settings saved.");
+  } catch (error) {
+    showToast(error.message || "Rotation settings could not be saved.");
+  }
 }
 
 function renderAvailabilityCard(block) {
@@ -9566,6 +10463,10 @@ function renderScheduleAssignmentCard(assignment) {
   `;
 }
 
+// Phase 18 item 3 — real device lifecycle instead of a read-only table: add, open (row click into
+// a device detail page), edit, suspend, retire. Row click added without disturbing the existing
+// columns; a suspended/retired device still shows here (not hidden) but is blocked from Front Line
+// sign-in — see frontlineLogin().
 function renderWorkforceDevices() {
   const devices = getFrontlineDevices().map((device) => ({ ...device, employee: findEmployee(device.employeeId) }));
   app.innerHTML = `
@@ -9574,19 +10475,26 @@ function renderWorkforceDevices() {
         "workforce",
         "Front Line Devices",
         "Registered field devices, application versions, last contact, and synchronization health.",
+        `<button class="primary-button" type="button" data-action="open-frontline-device">Add device</button>`,
       )}
       <article class="panel">
         <div class="panel-header"><div><h3>Device register</h3><span>${devices.length} registered devices</span></div></div>
         <div class="panel-body">
           <table class="data-table device-table">
-            <thead><tr><th>Device</th><th>Employee</th><th>Platform</th><th>App</th><th>Last seen</th><th>Sync</th><th>Status</th></tr></thead>
+            <thead><tr><th>Device</th><th>Employee</th><th>Ownership</th><th>Platform</th><th>App</th><th>Last seen</th><th>Sync</th><th>Status</th></tr></thead>
             <tbody>
               ${devices
                 .map(
                   (device) => `
                     <tr>
-                      <td data-label="Device"><strong>${escapeHtml(device.displayName)}</strong><span class="table-subtext">${escapeHtml(device.deviceIdentifier)}</span></td>
-                      <td data-label="Employee"><button class="table-link" type="button" data-action="view-employee" data-id="${device.employeeId}">${escapeHtml(device.employee?.displayName || "Unassigned")}</button></td>
+                      <td data-label="Device">
+                        <button class="table-record-link" type="button" data-action="view-frontline-device" data-id="${escapeAttribute(device.id)}">
+                          <strong>${escapeHtml(device.displayName)}</strong>
+                          <span>${escapeHtml(device.deviceIdentifier)}</span>
+                        </button>
+                      </td>
+                      <td data-label="Employee">${escapeHtml(device.employee?.displayName || "Unassigned")}</td>
+                      <td data-label="Ownership">${escapeHtml(device.ownership || "Company")}</td>
                       <td data-label="Platform">${escapeHtml(device.platform)}</td>
                       <td data-label="App">${escapeHtml(device.appVersion)}</td>
                       <td data-label="Last seen">${formatDateTime(device.lastSeenAt)}</td>
@@ -9595,13 +10503,189 @@ function renderWorkforceDevices() {
                     </tr>
                   `,
                 )
-                .join("")}
+                .join("") || `<tr><td colspan="8"><div class="empty-state">No registered devices.</div></td></tr>`}
             </tbody>
           </table>
         </div>
       </article>
     </section>
   `;
+}
+
+function renderFrontlineDeviceDetail() {
+  const device = getFrontlineDevices().find((item) => item.id === state.selectedFrontlineDeviceId);
+  if (!device) {
+    state.view = "workforce-devices";
+    renderWorkforceDevices();
+    return;
+  }
+  const employee = findEmployee(device.employeeId);
+  const isActive = device.registrationStatus === "Active";
+  const isSuspended = device.registrationStatus === "Suspended";
+  const isRetired = device.registrationStatus === "Retired";
+
+  app.innerHTML = `
+    <section class="view">
+      <div class="detail-topline">
+        <button class="back-button" type="button" data-view="workforce-devices">Back to devices</button>
+        <div class="inline-actions">
+          <button class="secondary-button" type="button" data-action="open-frontline-device" data-id="${escapeAttribute(device.id)}">Edit</button>
+          ${isActive ? `<button class="secondary-button" type="button" data-action="suspend-frontline-device" data-id="${escapeAttribute(device.id)}">Suspend</button>` : ""}
+          ${isSuspended ? `<button class="secondary-button" type="button" data-action="reinstate-frontline-device" data-id="${escapeAttribute(device.id)}">Reinstate</button>` : ""}
+          ${!isRetired ? `<button class="danger-button" type="button" data-action="retire-frontline-device" data-id="${escapeAttribute(device.id)}">Retire</button>` : ""}
+          <button class="danger-button" type="button" data-action="delete-frontline-device" data-id="${escapeAttribute(device.id)}">Delete</button>
+        </div>
+      </div>
+      <section class="employee-detail-header">
+        <div>
+          <p class="eyebrow">${escapeHtml(device.deviceIdentifier)}</p>
+          <h2>${escapeHtml(device.displayName)}</h2>
+          <p>${escapeHtml(employee?.displayName || "Unassigned")} &middot; ${escapeHtml(device.ownership || "Company")}-owned</p>
+        </div>
+        <div class="employee-header-status">
+          <span class="source-badge">${escapeHtml(device.registrationStatus)}</span>
+          ${renderDeviceSyncBadge(device.syncStatus)}
+        </div>
+      </section>
+      ${isSuspended || isRetired ? `<div class="core-table-notice" aria-label="Device blocked"><div><strong>This device cannot be used for Front Line sign-in.</strong><span>${isRetired ? "Retired" : "Suspended"} devices are blocked at login regardless of who selects them.</span></div></div>` : ""}
+      <section class="employee-detail-layout">
+        <div class="employee-detail-main">
+          <article class="panel">
+            <div class="panel-header"><h3>Device details</h3></div>
+            <div class="panel-body">
+              <dl class="detail-list">
+                <div><dt>Hardware model</dt><dd>${escapeHtml(device.hardwareModel || "Not captured")}</dd></div>
+                <div><dt>IMEI / serial</dt><dd>${escapeHtml(device.imei || "Not captured")}</dd></div>
+                <div><dt>Platform</dt><dd>${escapeHtml(device.platform || "Not captured")}</dd></div>
+                <div><dt>OS version</dt><dd>${escapeHtml(device.osVersion || "Not captured")}</dd></div>
+                <div><dt>App version</dt><dd>${escapeHtml(device.appVersion || "Not captured")}</dd></div>
+                <div><dt>Onboarded</dt><dd>${device.onboardedAt ? formatDate(device.onboardedAt) : "Not captured"}</dd></div>
+                <div><dt>Last seen</dt><dd>${formatDateTime(device.lastSeenAt)}</dd></div>
+                <div><dt>Pending commands</dt><dd>${Number(device.pendingCommands || 0)}</dd></div>
+              </dl>
+            </div>
+          </article>
+        </div>
+        <aside class="employee-detail-sidebar">
+          <article class="panel">
+            <div class="panel-header"><h3>Assigned employee</h3></div>
+            <div class="panel-body">
+              ${
+                employee
+                  ? `<button class="mini-button" type="button" data-action="view-employee" data-id="${escapeAttribute(employee.id)}">${escapeHtml(employee.displayName)}</button>`
+                  : `<div class="empty-state compact">No employee assigned.</div>`
+              }
+            </div>
+          </article>
+        </aside>
+      </section>
+    </section>
+  `;
+}
+
+function openFrontlineDeviceDialog(deviceId = "") {
+  const dialog = document.querySelector("#frontlineDeviceDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populateEmployeeSelect(dialog, "employeeId", "Unassigned");
+  const device = deviceId ? getFrontlineDevices().find((item) => item.id === deviceId) : null;
+  if (device) {
+    form.elements.id.value = device.id;
+    form.elements.displayName.value = device.displayName || "";
+    form.elements.employeeId.value = device.employeeId || "";
+    form.elements.ownership.value = device.ownership || "Company";
+    form.elements.platform.value = device.platform || "";
+    form.elements.hardwareModel.value = device.hardwareModel || "";
+    form.elements.imei.value = device.imei || "";
+    form.elements.osVersion.value = device.osVersion || "";
+    form.elements.appVersion.value = device.appVersion || "";
+    form.elements.onboardedAt.value = device.onboardedAt || "";
+  } else {
+    form.elements.id.value = "";
+    form.elements.onboardedAt.value = todayIso();
+  }
+  dialog.showModal();
+}
+
+async function saveFrontlineDevice(form) {
+  const data = new FormData(form);
+  const existingId = data.get("id").toString();
+  const existing = existingId ? getFrontlineDevices().find((item) => item.id === existingId) : null;
+  const device = {
+    ...(existing || {}),
+    id: existingId || makeId("device"),
+    deviceIdentifier: existing?.deviceIdentifier || `BR-DEV-${makeId("").slice(-6).toUpperCase()}`,
+    displayName: data.get("displayName").toString().trim(),
+    employeeId: data.get("employeeId").toString(),
+    ownership: data.get("ownership").toString(),
+    platform: data.get("platform").toString().trim(),
+    hardwareModel: data.get("hardwareModel").toString().trim(),
+    imei: data.get("imei").toString().trim(),
+    osVersion: data.get("osVersion").toString().trim(),
+    appVersion: data.get("appVersion").toString().trim(),
+    onboardedAt: data.get("onboardedAt").toString(),
+    registrationStatus: existing?.registrationStatus || "Active",
+    syncStatus: existing?.syncStatus || "Healthy",
+    lastSeenAt: existing?.lastSeenAt || new Date().toISOString(),
+    pendingCommands: existing?.pendingCommands || 0,
+  };
+  try {
+    await saveBackendRecord("frontlineDevices", device);
+    closeDialogs();
+    render();
+    showToast(existing ? "Device updated." : "Device added.");
+  } catch (error) {
+    showToast(error.message || "Device could not be saved.");
+  }
+}
+
+function viewFrontlineDevice(deviceId) {
+  state.selectedFrontlineDeviceId = deviceId;
+  state.view = "workforce-device-detail";
+  render();
+  window.scrollTo(0, 0);
+}
+
+// Suspend/reinstate/retire are explicit status transitions (not a raw status dropdown) so the
+// intent is unambiguous in the record's history — and so frontlineLogin()'s block reads a status
+// value this code path actually produces.
+async function suspendFrontlineDevice(deviceId) {
+  const device = getFrontlineDevices().find((item) => item.id === deviceId);
+  if (!device) return;
+  await saveBackendRecord("frontlineDevices", { ...device, registrationStatus: "Suspended" });
+  render();
+  showToast("Device suspended — blocked from Front Line sign-in.");
+}
+
+async function reinstateFrontlineDevice(deviceId) {
+  const device = getFrontlineDevices().find((item) => item.id === deviceId);
+  if (!device) return;
+  await saveBackendRecord("frontlineDevices", { ...device, registrationStatus: "Active" });
+  render();
+  showToast("Device reinstated.");
+}
+
+async function retireFrontlineDevice(deviceId) {
+  const device = getFrontlineDevices().find((item) => item.id === deviceId);
+  if (!device) return;
+  if (!window.confirm(`Retire "${device.displayName}"? This device will be permanently blocked from Front Line sign-in.`)) return;
+  await saveBackendRecord("frontlineDevices", { ...device, registrationStatus: "Retired" });
+  render();
+  showToast("Device retired.");
+}
+
+async function deleteFrontlineDevice(deviceId) {
+  const device = getFrontlineDevices().find((item) => item.id === deviceId);
+  if (!device) return;
+  if (!window.confirm(`Delete "${device.displayName}" from the device register?`)) return;
+  // Soft delete, same convention every other removal in this app uses (deletedAt, filtered out by
+  // the collection's own getter) — there is no hard-delete/DELETE path anywhere in this codebase.
+  await saveBackendRecord("frontlineDevices", { ...device, deletedAt: new Date().toISOString() });
+  state.view = "workforce-devices";
+  state.selectedFrontlineDeviceId = "";
+  await refreshState();
+  render();
+  showToast("Device deleted.");
 }
 
 function renderFrontlineDeviceCard(device) {
@@ -9614,11 +10698,17 @@ function renderFrontlineDeviceCard(device) {
   `;
 }
 
+// Phase 07 item 14 — the working queue now actually empties once every request is converted.
+// Converted/declined/cancelled requests stay reachable via the "Show converted/closed" toggle
+// (state.showClosedJobRequests) rather than disappearing outright.
 function renderDispatchIntake() {
   const requests = getJobRequests().sort((a, b) => new Date(b.receivedAt) - new Date(a.receivedAt));
   const open = requests.filter((request) => !["Converted", "Declined", "Cancelled"].includes(request.status));
+  const closed = requests.filter((request) => ["Converted", "Declined", "Cancelled"].includes(request.status));
   const emergency = open.filter((request) => request.priority === "Emergency");
   const needsInfo = open.filter((request) => request.status === "Needs information");
+  const showClosed = Boolean(state.showClosedJobRequests);
+  const visible = showClosed ? requests : open;
 
   app.innerHTML = `
     <section class="view dispatch-view">
@@ -9634,8 +10724,17 @@ function renderDispatchIntake() {
         <div class="metric"><p class="eyebrow">Needs information</p><strong>${needsInfo.length}</strong><span>Cannot convert yet</span></div>
         <div class="metric"><p class="eyebrow">Converted</p><strong>${requests.filter((request) => request.status === "Converted").length}</strong><span>Jobs created</span></div>
       </section>
+      <section class="core-table-notice" aria-label="Converted/closed request filter">
+        <div>
+          <strong>${showClosed ? "Showing converted, declined, and cancelled requests" : `${closed.length} converted/closed request${closed.length === 1 ? "" : "s"} hidden`}</strong>
+          <span>Converted requests stay reachable here, just out of the working queue.</span>
+        </div>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="toggle-show-closed-job-requests">${showClosed ? "Hide converted/closed" : "Show converted/closed"}</button>
+        </div>
+      </section>
       <section class="intake-list">
-        ${requests.map(renderJobRequestCard).join("") || `<div class="empty-state">No job requests.</div>`}
+        ${visible.map(renderJobRequestCard).join("") || `<div class="empty-state">Queue is clear — no open job requests.</div>`}
       </section>
     </section>
   `;
@@ -9770,7 +10869,7 @@ function renderDispatchJobs() {
       </section>
       <article class="panel">
         <div class="panel-header">
-          <div><h3>Job register</h3><span>${jobs.length} records shown</span></div>
+          <div><h3>Job register</h3></div>
           <div class="toolbar">
             <select id="dispatchJobFilter" aria-label="Filter jobs">
               ${["Open", "Planning", "Scheduled", "In field", "Review", "Closed", "All"].map((value) => `<option value="${value}" ${state.dispatchJobFilter === value ? "selected" : ""}>${value}</option>`).join("")}
@@ -9778,12 +10877,29 @@ function renderDispatchJobs() {
           </div>
         </div>
         <div class="panel-body">
-          <table class="data-table dispatch-jobs-table">
-            <thead><tr><th>Job</th><th>Customer / Location</th><th>Schedule</th><th>Field lead</th><th>Readiness</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              ${jobs.map(renderDispatchJobTableRow).join("") || `<tr><td colspan="7"><div class="empty-state">No jobs in this filter.</div></td></tr>`}
-            </tbody>
-          </table>
+          ${renderDataTable({
+            tableId: "job-register",
+            searchPlaceholder: "Search customer, job name, job id, or field lead...",
+            emptyText: "No jobs match this filter and search.",
+            searchFields: [
+              (job) => job.customerName,
+              (job) => job.jobName,
+              (job) => job.jobNumber,
+              (job) => job.id,
+              (job) => findEmployee(job.fieldLeadEmployeeId)?.displayName,
+            ],
+            columns: [
+              { key: "jobNumber", label: "Job" },
+              { key: "customerName", label: "Customer / Location" },
+              { key: "scheduledStart", label: "Schedule" },
+              { key: "fieldLead", label: "Field lead", sortValue: (job) => findEmployee(job.fieldLeadEmployeeId)?.displayName || "" },
+              { key: "readiness", label: "Readiness", sortValue: (job) => getJobReadiness(job).status },
+              { key: "status", label: "Status" },
+              { key: "actions", label: "", sortable: false },
+            ],
+            rows: jobs,
+            renderRow: renderDispatchJobTableRow,
+          })}
         </div>
       </article>
     </section>
@@ -9871,7 +10987,7 @@ function renderDispatchCalendar() {
     <section class="view dispatch-view">
       ${renderWorkspaceHeader(
         "dispatch",
-        "Dispatch Schedule",
+        "Next 7 Days",
         "Jobs, crews, field leads, and readiness by day.",
       )}
       <section class="dispatch-calendar-grid">
@@ -9941,7 +11057,19 @@ function renderDispatchConflictCard(conflict) {
         <p>${escapeHtml(conflict.detail)}</p>
         <span>${escapeHtml(conflict.type)}${employee ? ` · ${escapeHtml(employee.displayName)}` : ""}</span>
       </div>
-      <button class="secondary-button" type="button" data-action="view-dispatch-job" data-id="${conflict.jobId}">${escapeHtml(conflict.job?.jobNumber || "Open job")}</button>
+      <div class="inline-actions">
+        ${
+          // Phase 07 item 17 — only offer "Go to blocker" when there's a real blocking record to
+          // jump to. Today that's exactly the employee-credential case (the only conflict-creation
+          // path in the app, `saveDispatchScheduleWork`, ever sets `assignmentId`); an "Equipment
+          // hold" conflict carries no equipment reference field yet, so it falls back to the
+          // existing "Open job" link rather than a broken jump. See the phase doc's corrections.
+          employee
+            ? `<button class="secondary-button" type="button" data-action="jump-to-conflict-blocker" data-id="${escapeAttribute(conflict.id)}">Go to blocker</button>`
+            : ""
+        }
+        <button class="secondary-button" type="button" data-action="view-dispatch-job" data-id="${conflict.jobId}">${escapeHtml(conflict.job?.jobNumber || "Open job")}</button>
+      </div>
     </article>
   `;
 }
@@ -10937,6 +12065,9 @@ function renderInventory() {
   `;
 }
 
+// Phase 17 item 7 — searchable table instead of one panel per consumable; the owner expects
+// hundreds of these. Row click goes through the same view-consumable action the old cards used, so
+// renderConsumableDetail (and its purchase-history panel) needed no changes.
 function renderInventoryConsumables() {
   const consumables = getConsumableStatus();
 
@@ -10951,9 +12082,34 @@ function renderInventoryConsumables() {
           <button class="secondary-button" type="button" data-action="open-inventory-item">Add consumable</button>
         `,
       )}
-      <section class="record-list">
-        ${consumables.map(renderConsumableCard).join("")}
-      </section>
+      <article class="panel">
+        <div class="panel-header"><h3>Consumables</h3></div>
+        <div class="panel-body">
+          ${renderDataTable({
+            tableId: "inventory-consumables",
+            searchPlaceholder: "Search consumables...",
+            emptyText: "No consumables match.",
+            searchFields: [(item) => item.materialType, (item) => item.buyer, (item) => item.barcode],
+            columns: [
+              { key: "materialType", label: "Material" },
+              { key: "buyer", label: "Buyer" },
+              { key: "onHand", label: "On hand", sortValue: (item) => Number(item.onHand || 0) },
+              { key: "available", label: "Available", sortValue: (item) => Number(item.available || 0) },
+              { key: "status", label: "Status" },
+            ],
+            rows: consumables,
+            renderRow: (item) => `
+              <tr>
+                <td><button class="link-button" type="button" data-action="view-consumable" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.materialType)}</button></td>
+                <td>${escapeHtml(item.buyer)}</td>
+                <td>${Number(item.onHand || 0)} ${escapeHtml(item.unit)}</td>
+                <td>${item.available} ${escapeHtml(item.unit)}</td>
+                <td><span class="risk-badge ${item.tone}">${escapeHtml(item.status)}</span></td>
+              </tr>
+            `,
+          })}
+        </div>
+      </article>
     </section>
   `;
 }
@@ -11122,6 +12278,12 @@ function renderPurchaseOrderTableRow(order) {
   `;
 }
 
+// Phase 17 item 7 — searchable, sortable, categorised table (sorted by category by default so the
+// heavy-equipment/PPE/testing-equipment grouping the owner asked for reads naturally). Categories
+// are today's existing `equipmentCategoryConfig` set (Vehicle, Vacuum / Vactron, Pump, Air
+// Filtration, General equipment) — aligning them to the 2026 rate sheet's sections is deferred to
+// Phase 08's rate-card rework, which already owns importing that sheet; see the phase doc's
+// corrections.
 function renderInventoryEquipment() {
   const equipment = getEquipmentStatus();
 
@@ -11133,9 +12295,36 @@ function renderInventoryEquipment() {
         "Asset status, last use, maintenance schedule, and scheduler-blocking equipment issues.",
         `<button class="primary-button" type="button" data-action="open-equipment-asset">Add equipment</button>`,
       )}
-      <section class="record-list">
-        ${equipment.map(renderEquipmentAssetCard).join("")}
-      </section>
+      <article class="panel">
+        <div class="panel-header"><h3>Equipment</h3></div>
+        <div class="panel-body">
+          ${renderDataTable({
+            tableId: "inventory-equipment",
+            searchPlaceholder: "Search equipment...",
+            emptyText: "No equipment matches.",
+            searchFields: [(asset) => asset.assetTag, (asset) => asset.equipment, (asset) => asset.category],
+            columns: [
+              { key: "category", label: "Category" },
+              { key: "assetTag", label: "Asset tag" },
+              { key: "equipment", label: "Equipment" },
+              { key: "status", label: "Status" },
+              { key: "maintenanceDue", label: "Maintenance due" },
+              { key: "lastUsed", label: "Last used" },
+            ],
+            rows: [...equipment].sort((a, b) => String(a.category || "").localeCompare(String(b.category || ""))),
+            renderRow: (asset) => `
+              <tr>
+                <td>${escapeHtml(asset.category || "General equipment")}</td>
+                <td><button class="link-button" type="button" data-action="view-equipment-asset" data-asset-tag="${escapeAttribute(asset.assetTag)}">${escapeHtml(asset.assetTag)}</button></td>
+                <td>${escapeHtml(asset.equipment)}</td>
+                <td><span class="risk-badge ${asset.statusTone}">${escapeHtml(asset.status)}${asset.issue ? " ⚠" : ""}</span></td>
+                <td>${formatDate(asset.maintenanceDue)}</td>
+                <td>${asset.lastUsed ? formatDate(asset.lastUsed) : "Not logged"}</td>
+              </tr>
+            `,
+          })}
+        </div>
+      </article>
     </section>
   `;
 }
@@ -12323,7 +13512,7 @@ function renderFieldwork() {
           </div>
           <div class="panel-body">
             <div class="timeline-list">
-              ${state.activities.slice(0, 8).map(renderTimelineItem).join("") || `<div class="empty-state">No activities yet.</div>`}
+              ${state.activities.slice(0, 8).map((activity) => renderTimelineItem(activity)).join("") || `<div class="empty-state">No activities yet.</div>`}
             </div>
           </div>
         </article>
@@ -12422,15 +13611,47 @@ const TIMELINE_PAGE_SIZE = 15;
 
 // A long activity history rendered in full inside a `.detail-stack` column pushes every panel
 // below it down the page (the Georgetown-account bug: sales activities end up "slammed at the
-// bottom"). This renders a bounded, internally-scrolling timeline with incremental "Load more"
-// paging instead of dumping the whole list into the flow.
+// bottom"). This caps the list with incremental "Load more" paging instead of dumping the whole
+// history into the flow — the page itself scrolls, not an inner scrollbox.
 function renderTimelinePanel(activities, contextKey, emptyMessage) {
+  const activeTags = state.timelineTagFilters[contextKey] || [];
+  const personFilter = state.timelinePersonFilters[contextKey] || "";
+  const typeFilter = state.timelineTypeFilters[contextKey] || "";
+  const people = [...new Set(activities.map((activity) => activity.owner || activity.author).filter(Boolean))].sort();
+  const types = [...new Set(activities.map((activity) => activity.activityType || activity.kind).filter(Boolean))].sort();
+  const filtered = activities.filter((activity) => {
+    if (activeTags.length && !(activity.tags || []).some((tag) => activeTags.includes(tag))) return false;
+    if (personFilter && (activity.owner || activity.author) !== personFilter) return false;
+    if (typeFilter && (activity.activityType || activity.kind) !== typeFilter) return false;
+    return true;
+  });
+  const anyFilterActive = Boolean(activeTags.length || personFilter || typeFilter);
   const visibleCount = state.timelineVisibleCounts[contextKey] || TIMELINE_PAGE_SIZE;
-  const visible = activities.slice(0, visibleCount);
-  const remaining = activities.length - visible.length;
+  const visible = filtered.slice(0, visibleCount);
+  const remaining = filtered.length - visible.length;
   return `
+    <div class="timeline-filter-bar">
+      ${ACTIVITY_TAGS.map(
+        (tag) =>
+          `<button type="button" class="timeline-filter-chip${activeTags.includes(tag) ? " active" : ""}" data-action="toggle-timeline-tag-filter" data-context="${escapeAttribute(contextKey)}" data-tag="${escapeAttribute(tag)}">${escapeHtml(tag)}</button>`,
+      ).join("")}
+      ${renderCompactSelect(
+        `timelinePersonFilter-${contextKey}`,
+        FILTER_ICON_SVG,
+        "Filter by person",
+        `<option value="">Everyone</option>${people.map((person) => `<option value="${escapeAttribute(person)}" ${person === personFilter ? "selected" : ""}>${escapeHtml(person)}</option>`).join("")}`,
+        Boolean(personFilter),
+      )}
+      ${renderCompactSelect(
+        `timelineTypeFilter-${contextKey}`,
+        FILTER_ICON_SVG,
+        "Filter by event type",
+        `<option value="">All types</option>${types.map((type) => `<option value="${escapeAttribute(type)}" ${type === typeFilter ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}`,
+        Boolean(typeFilter),
+      )}
+    </div>
     <div class="record-list timeline-scroll">
-      ${visible.map(renderTimelineItem).join("") || `<div class="empty-state">${escapeHtml(emptyMessage)}</div>`}
+      ${visible.map((activity) => renderTimelineItem(activity, contextKey)).join("") || `<div class="empty-state">${escapeHtml(anyFilterActive ? "No activities match the selected filters." : emptyMessage)}</div>`}
     </div>
     ${
       remaining > 0
@@ -12440,9 +13661,9 @@ function renderTimelinePanel(activities, contextKey, emptyMessage) {
   `;
 }
 
-function renderTimelineItem(activity) {
+function renderTimelineItem(activity, contextKey) {
   const account = findAccount(activity.accountId);
-  const contact = findContact(activity.contactId);
+  const contacts = (activity.contactIds || []).map((id) => findContact(id)).filter(Boolean);
   const opportunity = findOpportunity(activity.opportunityId);
   return `
     <article class="timeline-item">
@@ -12454,9 +13675,13 @@ function renderTimelineItem(activity) {
       </div>
       <strong>${escapeHtml(activity.subject || activity.kind || "Activity")}</strong>
       <p>${escapeHtml(activity.body)}</p>
+      <div class="tag-chip-list">
+        ${(activity.tags || []).map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("")}
+        <button class="mini-button" type="button" data-action="edit-activity-tags" data-id="${escapeAttribute(activity.id)}" data-context="${escapeAttribute(contextKey || "")}">Edit tags</button>
+      </div>
       <div class="row-meta">
         <span>${escapeHtml(account?.name ?? "Unknown account")}</span>
-        ${contact ? `<span>${escapeHtml(contact.name)}</span>` : ""}
+        ${contacts.map((contact) => `<span>${escapeHtml(contact.name)}</span>`).join("")}
         ${opportunity ? `<span>${escapeHtml(opportunity.name)}</span>` : ""}
         <span>${escapeHtml(activity.owner || activity.author)}</span>
       </div>
@@ -13954,6 +15179,17 @@ async function frontlineLogin() {
     showToast("Choose a field lead first.");
     return;
   }
+  // Phase 18 item 3 — a suspended or retired device must not be usable for Front Line sign-in, not
+  // merely show a badge on the register. This simulator has no real per-device hardware check, so
+  // the enforcement point is here: block sign-in for an employee whose *only* devices are all
+  // suspended/retired. An employee with no registered device at all (or at least one Active device)
+  // can still sign in — the block is specifically about a known-bad device, not about registration.
+  const employeeDevices = devicesForEmployee(employeeId);
+  const hasUsableDevice = employeeDevices.length === 0 || employeeDevices.some((device) => !["Suspended", "Retired"].includes(device.registrationStatus));
+  if (!hasUsableDevice) {
+    showToast("This employee's registered device is suspended or retired. Assign or reinstate a device before signing in.");
+    return;
+  }
   state.frontlineSession = { employeeId, loginAt: new Date().toISOString() };
   state.view = "frontline-home";
   render();
@@ -14753,6 +15989,10 @@ async function saveOpportunity(form) {
     return;
   }
   await queueChange("Opportunity", existing ? "updated" : "created", opportunity);
+  if (opportunity.status === "Lost" && existing?.status !== "Lost") {
+    await autoArchiveStakeholdersOnClose(opportunity.id);
+    await closeProjectsForLostOpportunity(opportunity.id);
+  }
   closeDialogs();
   await refreshState();
   viewOpportunity(opportunity.id);
@@ -15921,6 +17161,251 @@ async function convertJobRequest(requestId, templateId = "") {
   }
 }
 
+// Phase 16 — Emergency Response Intake. One screen, one submit: caller/location/spill facts plus
+// the mobilization decision tree (Q14, provisional-as-written), creating a project + dispatch job
+// (+ provisional account/facility when needed, Q16) in one write path that bypasses the normal
+// opportunity → project → job-request chain entirely, per the owner's explicit ask.
+const emergencyIntakeSubmissionInFlight = { active: false };
+
+function openEmergencyIntakeDialog() {
+  const dialog = document.querySelector("#emergencyIntakeDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populateAccountSelect(dialog, "No existing account — create one");
+  dialog.showModal();
+}
+
+// Q18 — pin drop is just GPS coordinates, not a link-issuing system. Accept the common formats a
+// caller might paste back: "lat, long", "lat long", or a Google Maps URL containing "@lat,long".
+function parseGpsPin(text) {
+  const value = (text || "").trim();
+  if (!value) return null;
+  const urlMatch = value.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  const pair = urlMatch ? [urlMatch[1], urlMatch[2]] : value.split(/[,\s]+/);
+  if (pair.length < 2) return null;
+  const latitude = Number(pair[0]);
+  const longitude = Number(pair[1]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude };
+}
+
+// Item 2's mobilization decision tree (Q14, "signed off as written, for now" — provisional).
+// Q15: $15,000 down-payment threshold, overridable by the Director of Sales with who/when/why
+// recorded. This constant belongs in configuration once Phase 12 has a settings surface; hardcoded
+// here with the decision reference so it's easy to find when that surface exists.
+const EMERGENCY_DOWN_PAYMENT_THRESHOLD = 15000;
+
+function computeEmergencyMobilization(data, hasExistingAccount) {
+  const now = new Date().toISOString();
+  if (hasExistingAccount) {
+    return { status: "Cleared to mobilize", note: "Existing account in good standing.", clearedAt: now };
+  }
+  const isInsuranceClaim = data.get("hasInsurance").toString() === "Yes" && data.get("isInsuranceClaim").toString() === "Yes";
+  if (isInsuranceClaim) {
+    if (form_checked(data, "policyCopyOnFile")) {
+      return { status: "Cleared to mobilize", note: "Insurance claim, policy copy on file.", clearedAt: now };
+    }
+    return { status: "Blocked — awaiting insurance documentation", note: "Insurance claim reported but no policy/declarations copy captured yet.", clearedAt: "" };
+  }
+  const downPayment = Number(data.get("downPaymentAmount") || 0);
+  const overridden = form_checked(data, "overrideMobilization");
+  if (downPayment >= EMERGENCY_DOWN_PAYMENT_THRESHOLD) {
+    return { status: "Cleared to mobilize", note: `Down payment of ${money(downPayment)} recorded (threshold ${money(EMERGENCY_DOWN_PAYMENT_THRESHOLD)}).`, clearedAt: now };
+  }
+  if (overridden) {
+    const overrideBy = data.get("overrideBy").toString().trim() || "Unrecorded";
+    const overrideReason = data.get("overrideReason").toString().trim() || "No reason recorded";
+    return {
+      status: "Cleared to mobilize",
+      note: `Mobilization override by ${overrideBy}: ${overrideReason}.`,
+      clearedAt: now,
+      mobilizationOverrideBy: overrideBy,
+      mobilizationOverrideReason: overrideReason,
+      mobilizationOverrideAt: now,
+    };
+  }
+  return {
+    status: "Blocked — awaiting down payment",
+    note: `No insurance claim and no down payment on file (threshold ${money(EMERGENCY_DOWN_PAYMENT_THRESHOLD)}).`,
+    clearedAt: "",
+  };
+}
+
+// FormData has no `.get(name)` boolean helper for checkboxes — a checkbox that isn't checked is
+// simply absent from the FormData entirely, so `.get()` returns null rather than "false".
+function form_checked(data, name) {
+  return data.get(name) === "on";
+}
+
+async function submitEmergencyIntake(form) {
+  // Phase 07 item 2's exact failure mode ("under time pressure, with people who will click
+  // twice") — guard at the very start, before any async work, same pattern as
+  // jobRequestConversionsInFlight.
+  if (emergencyIntakeSubmissionInFlight.active) return;
+  emergencyIntakeSubmissionInFlight.active = true;
+
+  try {
+    const data = new FormData(form);
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+
+    let account = data.get("accountId").toString() ? findAccount(data.get("accountId").toString()) : null;
+    const hasExistingAccount = Boolean(account);
+    if (!account) {
+      const newAccountName = data.get("newAccountName").toString().trim() || `${data.get("callerName").toString().trim()} (spill call)`;
+      account = buildCoreAccountRecord({
+        id: makeId("acct"),
+        name: newAccountName,
+        phone: data.get("callerPhone").toString().trim(),
+        contact: data.get("callerName").toString().trim(),
+        classification: "Prospect",
+        // Provisional — flagged for the office to clean up, per Q16 ("provisional, not perfect").
+        isProvisional: true,
+      });
+      await saveBackendRecord("accounts", account, { refresh: false });
+    }
+
+    const addressText = data.get("addressText").toString().trim();
+    const newFacility = {
+      id: makeId("loc"),
+      accountId: account.id,
+      name: `Spill site — ${addressText}`,
+      street1: addressText,
+      city: "",
+      category: "Job Site / Field Location",
+      badge: "Emergency",
+    };
+    await saveBackendRecord("facilities", newFacility, { refresh: false });
+
+    const gpsPin = parseGpsPin(data.get("gpsPin").toString());
+
+    const mobilization = computeEmergencyMobilization(data, hasExistingAccount);
+
+    const project = buildCoreProjectRecord({
+      id: makeId("proj"),
+      accountId: account.id,
+      facilityId: newFacility.id,
+      name: `Spill response — ${addressText}`,
+      jobClass: "Emergency Response",
+      status: "Pre-mobilization",
+      activePhase: "Intake",
+      projectStage: "Intake",
+      startDate: todayIso(),
+      // Emergency work starts now — getJobProgress()/getDateProgress() divide by the start/target
+      // span and produce NaN with no targetDate at all, so give it a real (if provisional) one
+      // rather than leaving the progress bar broken. Revised once real scope is scoped onsite.
+      targetDate: addDays(3),
+      marginWatch: "Created from emergency intake.",
+      // Caller and site
+      callerName: data.get("callerName").toString().trim(),
+      callerPhone: data.get("callerPhone").toString().trim(),
+      callerRelationship: data.get("callerRelationship").toString(),
+      // The spill
+      spillMaterial: data.get("spillMaterial").toString().trim(),
+      spillQuantity: data.get("spillQuantity").toString().trim(),
+      spillSurface: data.get("spillSurface").toString(),
+      stormDrainInvolved: data.get("stormDrainInvolved").toString(),
+      offRoadDischarge: data.get("offRoadDischarge").toString(),
+      absorbentDeployed: data.get("absorbentDeployed").toString(),
+      absorbentDeployedBy: data.get("absorbentDeployedBy").toString().trim(),
+      // Who else is there
+      lawEnforcementStatus: data.get("lawEnforcementStatus").toString(),
+      fireDepartmentStatus: data.get("fireDepartmentStatus").toString(),
+      otherEmergencyServicesStatus: data.get("otherEmergencyServicesStatus").toString(),
+      agencyIncidentNumber: data.get("agencyIncidentNumber").toString().trim(),
+      // Payment/insurance and the mobilization decision
+      hasInsurance: data.get("hasInsurance").toString(),
+      isInsuranceClaim: data.get("isInsuranceClaim").toString(),
+      insuranceCarrier: data.get("insuranceCarrier").toString().trim(),
+      insurancePolicyNumber: data.get("insurancePolicyNumber").toString().trim(),
+      insuranceClaimNumber: data.get("insuranceClaimNumber").toString().trim(),
+      policyCopyOnFile: form_checked(data, "policyCopyOnFile"),
+      downPaymentAmount: Number(data.get("downPaymentAmount") || 0),
+      downPaymentBy: data.get("downPaymentBy").toString().trim(),
+      downPaymentReference: data.get("downPaymentReference").toString().trim(),
+      mobilizationStatus: mobilization.status,
+      mobilizationNote: mobilization.note,
+      mobilizationClearedAt: mobilization.clearedAt,
+      mobilizationOverrideBy: mobilization.mobilizationOverrideBy || "",
+      mobilizationOverrideReason: mobilization.mobilizationOverrideReason || "",
+      // Incident weather (Phase 11 pulls the actual snapshot) needs a precise time/place to anchor to.
+      incidentReportedAt: new Date().toISOString(),
+      incidentLatitude: gpsPin?.latitude ?? "",
+      incidentLongitude: gpsPin?.longitude ?? "",
+    });
+    await saveBackendRecord("projects", project, { refresh: false });
+
+    if (gpsPin) {
+      await saveBackendRecord(
+        "locations",
+        {
+          id: makeId("loc-gps"),
+          projectId: project.id,
+          label: `Spill origin — ${addressText}`,
+          latitude: gpsPin.latitude,
+          longitude: gpsPin.longitude,
+          assetTags: [],
+          status: "Active",
+          source: "Emergency intake",
+          lastPingAt: new Date().toISOString(),
+          locationType: "Spill origin",
+          isTemporary: true,
+          retainUntil: addDays(730),
+          retentionReason: "Emergency response record retention",
+        },
+        { refresh: false },
+      );
+    }
+
+    const sequence = getDispatchJobs().length + 1;
+    const now = new Date();
+    const dispatchJob = {
+      id: makeId("dispatch-job"),
+      jobNumber: `JOB-${now.getFullYear()}-${localIsoDate(now).replaceAll("-", "").slice(4)}-${String(sequence).padStart(2, "0")}`,
+      accountId: account.id,
+      projectId: project.id,
+      projectName: project.name,
+      customerName: account.name,
+      jobName: `Emergency spill response — ${addressText}`,
+      jobType: "Emergency Response",
+      jobTypeCode: "ER",
+      jobTypeVersion: 1,
+      status: mobilization.status === "Cleared to mobilize" ? "ready" : "draft",
+      dispatchStatus: "Unassigned",
+      officeReviewStatus: mobilization.status === "Cleared to mobilize" ? "Ready" : "Blocked",
+      priority: "Emergency",
+      scheduledStart: now.toISOString(),
+      timezone: "America/Chicago",
+      locationName: addressText,
+      addressText,
+      onsiteContactName: data.get("callerName").toString().trim(),
+      onsiteContactPhone: data.get("callerPhone").toString().trim(),
+      description: `Emergency spill response. ${data.get("spillMaterial").toString().trim() || "Material not specified"} — ${data.get("spillSurface").toString()}.`,
+      readinessStatus: mobilization.status === "Cleared to mobilize" ? "Ready" : "Blocked",
+      completionPercent: 0,
+      updatedAt: new Date().toISOString(),
+    };
+    await saveBackendRecord("dispatchJobs", dispatchJob, { refresh: false });
+
+    closeDialogs();
+    await refreshState();
+    state.selectedProjectId = project.id;
+    state.view = "project-detail";
+    render();
+    showToast(
+      mobilization.status === "Cleared to mobilize"
+        ? "Emergency project and dispatch job created — cleared to mobilize."
+        : `Emergency project and dispatch job created — ${mobilization.status}.`,
+    );
+  } catch (error) {
+    showToast(error.message || "Emergency intake could not be submitted.");
+  } finally {
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = false;
+    emergencyIntakeSubmissionInFlight.active = false;
+  }
+}
+
 async function applyJobTypeTemplateToJob(job, template) {
   const stages = [...(template.stages || [])].sort((a, b) => Number(a.sequence) - Number(b.sequence));
   for (const [stageIndex, stage] of stages.entries()) {
@@ -16540,6 +18025,22 @@ function buildProjectCostReport(project) {
   };
 }
 
+// Phase 15 item, "Decisions locked 2026-09-22 (owner)": if the opportunity behind a project is later
+// marked Lost, the project closes with it — "once the project is created it will form and flex to any
+// changes." This is a distinct path from the normal Phase 09 close: it does not wait for the Closeout
+// stage (a lost deal never reaches it) and it does not generate a cost report (no billable outcome).
+async function closeProjectsForLostOpportunity(opportunityId) {
+  const linkedProjects = state.projects.filter((project) => project.opportunityId === opportunityId && !project.closedAt);
+  for (const project of linkedProjects) {
+    await saveBackendRecord("projects", {
+      ...project,
+      closedAt: new Date().toISOString(),
+      outcome: "Lost",
+      status: "Cancelled",
+    });
+  }
+}
+
 async function closeProject(projectId) {
   const project = findProject(projectId);
   if (!project) return;
@@ -16626,8 +18127,10 @@ async function persistActivity(fields, toastMessage) {
   });
 
   await saveBackendRecord("activities", activity, { refresh: false });
-  if (activity.contactId && activity.opportunityId) {
-    await linkContactToOpportunity(activity.contactId, activity.opportunityId);
+  if (activity.opportunityId) {
+    for (const contactId of activity.contactIds || []) {
+      await linkContactToOpportunity(contactId, activity.opportunityId);
+    }
   }
   if (activity.accountId && activity.status === "Completed" && activity.activityType !== "Task") {
     const account = findAccount(activity.accountId);
@@ -16664,7 +18167,8 @@ async function persistActivity(fields, toastMessage) {
 
 async function saveActivity(form) {
   const data = new FormData(form);
-  const selectedContact = findContact(data.get("contactId")?.toString());
+  const contactIds = data.getAll("contactIds").map(String).filter(Boolean);
+  const selectedContact = findContact(contactIds[0]);
   const selectedOpportunity = findOpportunity(data.get("opportunityId")?.toString());
   const activityType = data.get("activityType")?.toString() || "Task";
   const activityDate = data.get("activityDate")?.toString() || todayIso();
@@ -16673,7 +18177,7 @@ async function saveActivity(form) {
 
   await persistActivity({
     accountId,
-    contactId: selectedContact?.id || "",
+    contactIds,
     opportunityId: selectedOpportunity?.id || "",
     activityType,
     subject: data.get("subject")?.toString().trim() || `${activityType} activity`,
@@ -16683,6 +18187,7 @@ async function saveActivity(form) {
     activityDate,
     dueDate: data.get("dueDate")?.toString() || (activityType === "Task" ? activityDate : ""),
     status,
+    tags: data.getAll("tags").map(String),
   });
 }
 
@@ -16697,7 +18202,7 @@ async function saveQuickNote(form) {
   await persistActivity(
     {
       accountId,
-      contactId,
+      contactIds: contactId ? [contactId] : [],
       opportunityId: data.get("opportunityId").toString(),
       activityType: "Note",
       subject: data.get("subject").toString().trim(),
@@ -16706,6 +18211,7 @@ async function saveQuickNote(form) {
       channel: "Note",
       activityDate: todayIso(),
       status: "Completed",
+      tags: data.getAll("tags").map(String),
     },
     "Quick note saved.",
   );
@@ -16718,7 +18224,7 @@ async function saveActivityMeeting(form) {
   await persistActivity(
     {
       accountId,
-      contactId: data.get("contactId").toString(),
+      contactIds: data.getAll("contactIds").map(String).filter(Boolean),
       opportunityId: data.get("opportunityId").toString(),
       activityType: "Meeting",
       subject: data.get("subject").toString().trim(),
@@ -16732,6 +18238,7 @@ async function saveActivityMeeting(form) {
       meetingLink: meetingFormat === "Online" ? data.get("meetingLink").toString().trim() : "",
       meetingLocation: meetingFormat === "Offline" ? data.get("meetingLocation").toString().trim() : "",
       status: data.get("status").toString(),
+      tags: data.getAll("tags").map(String),
     },
     "Meeting saved.",
   );
@@ -16743,7 +18250,7 @@ async function saveActivityCall(form) {
   await persistActivity(
     {
       accountId,
-      contactId: data.get("contactId").toString(),
+      contactIds: data.getAll("contactIds").map(String).filter(Boolean),
       opportunityId: data.get("opportunityId").toString(),
       activityType: "Call",
       subject: data.get("subject").toString().trim(),
@@ -16753,6 +18260,7 @@ async function saveActivityCall(form) {
       phoneNumber: data.get("phoneNumber").toString().trim(),
       activityDate: data.get("activityDate").toString(),
       status: data.get("status").toString(),
+      tags: data.getAll("tags").map(String),
     },
     "Call saved.",
   );
@@ -16764,7 +18272,7 @@ async function saveActivityEmail(form) {
   await persistActivity(
     {
       accountId,
-      contactId: data.get("contactId").toString(),
+      contactIds: data.getAll("contactIds").map(String).filter(Boolean),
       opportunityId: data.get("opportunityId").toString(),
       activityType: "Email",
       subject: data.get("subject").toString().trim(),
@@ -16774,6 +18282,7 @@ async function saveActivityEmail(form) {
       emailAddress: data.get("emailAddress").toString().trim(),
       activityDate: data.get("activityDate").toString(),
       status: "Completed",
+      tags: data.getAll("tags").map(String),
     },
     "Email saved.",
   );
@@ -16786,7 +18295,7 @@ async function saveActivityTask(form) {
   await persistActivity(
     {
       accountId,
-      contactId: data.get("contactId").toString(),
+      contactIds: data.getAll("contactIds").map(String).filter(Boolean),
       opportunityId: data.get("opportunityId").toString(),
       activityType: "Task",
       subject: data.get("subject").toString().trim(),
@@ -16797,6 +18306,7 @@ async function saveActivityTask(form) {
       dueDate,
       priority: data.get("priority").toString(),
       status: data.get("status").toString(),
+      tags: data.getAll("tags").map(String),
     },
     "Task saved.",
   );
@@ -16880,6 +18390,9 @@ async function moveOpportunityToStage(id, nextStage) {
     return;
   }
   await queueChange("Opportunity", `moved to ${nextStage}`, updated);
+  if (nextStage === "Won" && previousStage !== "Won") {
+    await autoArchiveStakeholdersOnClose(id);
+  }
   await refreshState();
   render();
   showToast(`Moved to ${nextStage}.`);
@@ -16951,7 +18464,6 @@ function openProjectFromOpportunityDialog(opportunityId) {
   const currentEstimate = opportunity.estimateId ? estimatesForOpportunity(opportunity.id).find((item) => item.id === opportunity.estimateId) : null;
   const documentTotal = Number(currentQuote?.totalAmount || currentEstimate?.totalAmount || 0);
   form.elements.budget.value = documentTotal > 0 ? documentTotal : core.amount || 0;
-  form.elements.projectStage.value = "Intake";
   dialog.showModal();
 }
 
@@ -16966,7 +18478,8 @@ async function saveProjectFromOpportunity(form) {
   const opportunity = findOpportunity(opportunityId);
   const projectManagerEmployeeId = data.get("projectManagerEmployeeId").toString();
   const projectManager = getEmployees().find((employee) => employee.id === projectManagerEmployeeId)?.displayName || "";
-  const projectStage = data.get("projectStage").toString() || "Intake";
+  // Project Stage is not user-choosable at creation (Phase 15 item 4) — the stage ladder owns it from here.
+  const projectStage = "Intake";
   const job = buildCoreProjectRecord({
     id: makeId("proj"),
     accountId: account.id,
@@ -16989,8 +18502,19 @@ async function saveProjectFromOpportunity(form) {
     notToExceed: "",
     marginWatch: "New project created from a won opportunity.",
     projectStage,
-    siteWalkStatus: "Incomplete",
+    // Phase 15 item 1 — carry the sales scope over instead of dropping it on the floor. Copied at
+    // creation (owner decision: no provenance badging, no drift tracking — "we just need the data").
+    // The opportunity keeps changing after the win; the project does not follow it.
+    equipmentNeeds: opportunity?.equipmentNeeds || [],
+    vendorNeeds: opportunity?.vendorNeeds || [],
+    resourceNeeds: opportunity?.resourceNeeds || [],
+    siteWalkStatus: opportunity?.siteWalkStatus || "Incomplete",
     sitePhotoRefs: [],
+    // Quote/estimate lines aren't copied — the quote/estimate record itself is the priced baseline
+    // (quoteLinesForQuote/estimateLinesForEstimate read live), so the project just keeps the same
+    // reference the opportunity had at win time rather than duplicating line-item rows.
+    quoteId: opportunity?.quoteId || "",
+    estimateId: opportunity?.estimateId || "",
   });
 
   await saveBackendRecord("projects", job, { refresh: false });
@@ -17272,7 +18796,29 @@ function openOpportunityLeadDialog(opportunityId) {
   form.elements.originatingLeadId.value = core.originatingLeadId || "";
   form.elements.sourceCampaign.value = core.sourceCampaign || "";
   form.elements.description.value = core.description || "";
-  form.elements.currentSituation.value = core.currentSituation || "";
+  // Pre-fill from the opportunity's own field only — `core.currentSituation` also carries a
+  // fallback to the account's `concern` for display purposes, and saving this form unedited
+  // must not silently commit that borrowed account-level text as this opportunity's own value
+  // (that's exactly how every opportunity on a shared account ended up with identical
+  // "current situation" text). Show the account's concern as a separate read-only hint instead.
+  form.elements.currentSituation.value = opportunity.currentSituation || "";
+  const account = findAccount(core.accountId);
+  const hint = form.querySelector("[data-account-concern-hint]");
+  if (hint) {
+    // Item 27 — relabelled from jargon ("Account context (not this opportunity's own value
+    // yet)") to plain attribution, plus a "Use this text" button so adopting the account's
+    // concern is a deliberate click, not an accidental unedited-save (see the comment above on
+    // why the fallback lives here and not in buildCoreOpportunityRecord).
+    if (!opportunity.currentSituation && account?.concern) {
+      hint.hidden = false;
+      hint.dataset.concernText = account.concern;
+      hint.querySelector(".help-text").textContent = `From the account record — ${account.name || "this account"}'s current concern: "${account.concern}"`;
+    } else {
+      hint.hidden = true;
+      hint.dataset.concernText = "";
+      hint.querySelector(".help-text").textContent = "";
+    }
+  }
   dialog.showModal();
 }
 
@@ -17445,6 +18991,13 @@ async function restoreOpportunityStakeholder(id) {
     showToast("Stakeholder restored.");
   } catch (error) {
     showToast(error.message || "Stakeholder could not be restored.");
+  }
+}
+
+async function autoArchiveStakeholdersOnClose(opportunityId) {
+  const active = stakeholdersForOpportunity(opportunityId);
+  for (const record of active) {
+    await saveBackendRecord("opportunityContacts", { ...record, deletedAt: new Date().toISOString() }, { refresh: false });
   }
 }
 
@@ -17658,10 +19211,27 @@ async function removeOpportunityAssignment(id) {
 }
 
 const OPPORTUNITY_NEEDS_LIST_CONFIG = {
-  equipment: { field: "equipmentNeeds", title: "Equipment needed" },
+  // Item 33 — display label only ("Heavy Equipment Needed"); the field itself stays
+  // `equipmentNeeds` on purpose, a rename here buys nothing and costs a migration.
+  equipment: { field: "equipmentNeeds", title: "Heavy Equipment Needed" },
   vendor: { field: "vendorNeeds", title: "Vendor / subcontractor needed" },
   resource: { field: "resourceNeeds", title: "Resources needed" },
 };
+
+// Item 33 (Q12 locked decision) — split on newlines AND commas unconditionally. A comma inside a
+// note now ends the item; accepted tradeoff for a simpler rule. The `Name | Note` convention still
+// works since `|` isn't a split character.
+function splitNeedsListInput(text) {
+  return text
+    .split(/[\n,]/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [name, ...noteParts] = line.split("|");
+      return { name: name.trim(), note: noteParts.join("|").trim() };
+    })
+    .filter((item) => item.name);
+}
 
 function openOpportunityNeedsListDialog(opportunityId, kind) {
   const config = OPPORTUNITY_NEEDS_LIST_CONFIG[kind];
@@ -17679,23 +19249,56 @@ function openOpportunityNeedsListDialog(opportunityId, kind) {
   dialog.showModal();
 }
 
+// Item 33 — the combined "Add / Edit all" dialog: one popup, all three lists, one write. The
+// per-list dialog/buttons above stay untouched — this is an addition, not a replacement.
+function openOpportunityNeedsCombinedDialog(opportunityId) {
+  const opportunity = findOpportunity(opportunityId);
+  if (!opportunity) return;
+  const dialog = document.querySelector("#opportunityNeedsCombinedDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.id.value = opportunityId;
+  Object.values(OPPORTUNITY_NEEDS_LIST_CONFIG).forEach((config) => {
+    const items = opportunity[config.field] || [];
+    form.elements[config.field].value = items.map((item) => (item.note ? `${item.name} | ${item.note}` : item.name)).join("\n");
+  });
+  dialog.showModal();
+}
+
+async function saveOpportunityNeedsCombined(form) {
+  const data = new FormData(form);
+  const opportunity = findOpportunity(data.get("id").toString());
+  if (!opportunity) return;
+  const updates = {};
+  Object.values(OPPORTUNITY_NEEDS_LIST_CONFIG).forEach((config) => {
+    updates[config.field] = splitNeedsListInput(data.get(config.field).toString());
+  });
+
+  const updated = buildCoreOpportunityRecord({
+    ...opportunity,
+    ...updates,
+    updatedAt: new Date().toISOString(),
+  });
+
+  try {
+    await saveBackendRecord("opportunities", updated);
+  } catch (error) {
+    showToast(error.message || "Resource needs could not be saved.");
+    return;
+  }
+  closeDialogs();
+  await refreshState();
+  render();
+  showToast("Resource needs saved.");
+}
+
 async function saveOpportunityNeedsList(form) {
   const data = new FormData(form);
   const kind = data.get("kind").toString();
   const config = OPPORTUNITY_NEEDS_LIST_CONFIG[kind];
   const opportunity = findOpportunity(data.get("id").toString());
   if (!config || !opportunity) return;
-  const items = data
-    .get("items")
-    .toString()
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [name, ...noteParts] = line.split("|");
-      return { name: name.trim(), note: noteParts.join("|").trim() };
-    })
-    .filter((item) => item.name);
+  const items = splitNeedsListInput(data.get("items").toString());
 
   const updated = buildCoreOpportunityRecord({
     ...opportunity,
@@ -17982,9 +19585,12 @@ function openOpportunityQuoteDialog(opportunityId, quoteId = "") {
     form.elements.id.value = "";
     form.elements.name.value = `${getCoreOpportunity(opportunity).opportunityName} quote`;
     form.elements.effectiveFrom.value = todayIso();
+    // Item 7 — "Effective to" defaults to +30 days from "Effective from", not blank.
+    form.elements.effectiveTo.value = addDays(30);
     form.elements.priceLevelId.value = defaultPriceLevelId();
     populateDocLineContainer(dialog, []);
   }
+  delete form.elements.effectiveTo.dataset.touched;
   dialog.showModal();
 }
 
@@ -18058,8 +19664,6 @@ function openOpportunityEstimateDialog(opportunityId, estimateId = "") {
     form.elements.id.value = estimate.id;
     form.elements.name.value = estimate.name || "";
     form.elements.statusCode.value = estimate.statusCode || "Draft";
-    form.elements.effectiveFrom.value = estimate.effectiveFrom || "";
-    form.elements.effectiveTo.value = estimate.effectiveTo || "";
     form.elements.priceLevelId.value = estimate.priceLevelId || defaultPriceLevelId();
     form.elements.billingAddressId.value = estimate.billingAddressId || "";
     form.elements.shippingAddressId.value = estimate.shippingAddressId || "";
@@ -18068,7 +19672,6 @@ function openOpportunityEstimateDialog(opportunityId, estimateId = "") {
   } else {
     form.elements.id.value = "";
     form.elements.name.value = `${getCoreOpportunity(opportunity).opportunityName} estimate`;
-    form.elements.effectiveFrom.value = todayIso();
     form.elements.priceLevelId.value = defaultPriceLevelId();
     populateDocLineContainer(dialog, []);
   }
@@ -18083,6 +19686,10 @@ async function saveOpportunityEstimate(form) {
   if (!opportunity) return;
   const isNewEstimate = !data.get("id").toString();
   const estimateId = data.get("id").toString() || makeId("estimate");
+  // Item 6 — effective dates dropped from the dialog (an estimate is an internal working draft,
+  // not a customer-facing document), but an existing row's dates are carried forward untouched
+  // rather than dropped on save — "leave the data on existing rows rather than deleting it."
+  const existingEstimate = !isNewEstimate ? estimatesForOpportunity(opportunityId).find((item) => item.id === estimateId) : null;
   const lines = collectDocLines(dialog);
   const totalAmount = computeDocLinesTotal(lines);
   const estimate = {
@@ -18096,8 +19703,8 @@ async function saveOpportunityEstimate(form) {
     totalAmountBase: totalAmount,
     statusCode: data.get("statusCode").toString(),
     stateCode: data.get("statusCode").toString() === "Won" || data.get("statusCode").toString() === "Lost" ? "Closed" : "Active",
-    effectiveFrom: data.get("effectiveFrom").toString(),
-    effectiveTo: data.get("effectiveTo").toString(),
+    effectiveFrom: existingEstimate?.effectiveFrom || "",
+    effectiveTo: existingEstimate?.effectiveTo || "",
     billingAddressId: data.get("billingAddressId")?.toString() || "",
     shippingAddressId: data.get("shippingAddressId")?.toString() || "",
     notes: data.get("notes")?.toString().trim() || "",
@@ -18123,6 +19730,70 @@ async function saveOpportunityEstimate(form) {
   await refreshState();
   render();
   showToast("Estimate saved.");
+}
+
+// Item 6 — "Convert to quote": copies the estimate's lines into a new quote, sets the quote's
+// effective dates per item 7 (today + 30), links the two via `quotes.sourceEstimateId`, and leaves
+// the estimate intact as the working document. Converting the same estimate twice is allowed
+// (locked Q4) — each conversion creates its own quote and is recorded separately, nothing dedupes.
+async function convertEstimateToQuote(opportunityId, estimateId) {
+  const opportunity = findOpportunity(opportunityId);
+  const estimate = estimatesForOpportunity(opportunityId).find((item) => item.id === estimateId);
+  if (!opportunity || !estimate) return;
+  const quoteId = makeId("quote");
+  const quote = {
+    id: quoteId,
+    opportunityId,
+    customerId: opportunity.accountId,
+    customerLogicalName: "account",
+    priceLevelId: estimate.priceLevelId || "",
+    name: estimate.name ? estimate.name.replace(/\bestimate\b/i, "quote") : `${getCoreOpportunity(opportunity).opportunityName} quote`,
+    totalAmount: Number(estimate.totalAmount || 0),
+    totalAmountBase: Number(estimate.totalAmountBase || estimate.totalAmount || 0),
+    statusCode: "Draft",
+    stateCode: "Active",
+    effectiveFrom: todayIso(),
+    effectiveTo: addDays(30),
+    billingAddressId: estimate.billingAddressId || "",
+    shippingAddressId: estimate.shippingAddressId || "",
+    notes: estimate.notes || "",
+    sourceEstimateId: estimateId,
+  };
+
+  try {
+    await saveBackendRecord("quotes", quote, { refresh: false });
+    for (const line of estimateLinesForEstimate(estimateId)) {
+      await saveBackendRecord(
+        "quoteLines",
+        {
+          id: makeId("quote-line"),
+          quoteId,
+          productId: line.productId || "",
+          productName: line.productName || "",
+          productDescription: line.productDescription || "",
+          isProductOverridden: line.isProductOverridden,
+          uomId: line.uomId || "",
+          quantity: line.quantity,
+          pricePerUnit: line.pricePerUnit,
+          extendedAmount: line.extendedAmount,
+          manualDiscountAmount: line.manualDiscountAmount || 0,
+          tax: line.tax || 0,
+          isOptional: Boolean(line.isOptional),
+        },
+        { refresh: false },
+      );
+    }
+    if (!opportunity.quoteId) {
+      const updated = buildCoreOpportunityRecord({ ...opportunity, quoteId, updatedAt: new Date().toISOString() });
+      await saveBackendRecord("opportunities", updated, { refresh: false });
+    }
+  } catch (error) {
+    showToast(error.message || "Could not convert estimate to a quote.");
+    return;
+  }
+  await refreshState();
+  render();
+  showToast("Estimate converted to a new quote.");
 }
 
 // --- Explicit "Current" override (Phase 08 live bug follow-up) -----------------------------
@@ -20725,7 +22396,7 @@ function openActivityDialog(accountId = "", contactId = "", opportunityId = "") 
   const resolvedAccountId = accountId || selectedContact?.accountId || selectedOpportunity?.accountId || state.accounts[0]?.id || "";
   if (resolvedAccountId) form.elements.accountId.value = resolvedAccountId;
   populateContactSelect(dialog, resolvedAccountId);
-  if (contactId) form.elements.contactId.value = contactId;
+  if (contactId) selectContactIds(form, [contactId]);
   if (opportunityId) form.elements.opportunityId.value = opportunityId;
   form.elements.activityDate.value = todayIso();
   form.elements.dueDate.value = "";
@@ -20742,6 +22413,34 @@ function closeActivityPickers() {
   document.querySelectorAll("details.activity-picker[open]").forEach((details) => {
     details.open = false;
   });
+}
+
+function openTagEditorDialog(activityId) {
+  const activity = state.activities.find((item) => item.id === activityId);
+  if (!activity) return;
+  closeActivityPickers();
+  const dialog = document.querySelector("#tagEditorDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.id.value = activity.id;
+  const activeTags = activity.tags || [];
+  form.querySelectorAll('input[name="tags"]').forEach((checkbox) => {
+    checkbox.checked = activeTags.includes(checkbox.value);
+  });
+  dialog.showModal();
+}
+
+async function saveActivityTags(form) {
+  const data = new FormData(form);
+  const activityId = data.get("id").toString();
+  const activity = state.activities.find((item) => item.id === activityId);
+  if (!activity) return;
+  const tags = normalizeActivityTags(data.getAll("tags").map(String));
+  await saveBackendRecord("activities", { ...activity, tags }, { refresh: false });
+  closeDialogs();
+  await refreshState();
+  render();
+  showToast("Tags updated.");
 }
 
 function openQuickNoteDialog(accountId = "", contactId = "", opportunityId = "") {
@@ -20763,7 +22462,7 @@ function openActivityMeetingDialog(accountId = "", contactId = "", opportunityId
   form.elements.accountId.value = accountId;
   form.elements.opportunityId.value = opportunityId;
   populateContactSelect(dialog, accountId);
-  if (contactId) form.elements.contactId.value = contactId;
+  if (contactId) selectContactIds(form, [contactId]);
   form.elements.activityDate.value = todayIso();
   toggleMeetingFormatFields(form.elements.meetingFormat.value);
   dialog.showModal();
@@ -20777,7 +22476,7 @@ function openActivityCallDialog(accountId = "", contactId = "", opportunityId = 
   form.elements.accountId.value = accountId;
   form.elements.opportunityId.value = opportunityId;
   populateContactSelect(dialog, accountId);
-  if (contactId) form.elements.contactId.value = contactId;
+  if (contactId) selectContactIds(form, [contactId]);
   form.elements.activityDate.value = todayIso();
   dialog.showModal();
 }
@@ -20790,7 +22489,7 @@ function openActivityEmailDialog(accountId = "", contactId = "", opportunityId =
   form.elements.accountId.value = accountId;
   form.elements.opportunityId.value = opportunityId;
   populateContactSelect(dialog, accountId);
-  if (contactId) form.elements.contactId.value = contactId;
+  if (contactId) selectContactIds(form, [contactId]);
   form.elements.activityDate.value = todayIso();
   dialog.showModal();
 }
@@ -20803,7 +22502,7 @@ function openActivityTaskDialog(accountId = "", contactId = "", opportunityId = 
   form.elements.accountId.value = accountId;
   form.elements.opportunityId.value = opportunityId;
   populateContactSelect(dialog, accountId);
-  if (contactId) form.elements.contactId.value = contactId;
+  if (contactId) selectContactIds(form, [contactId]);
   form.elements.dueDate.value = todayIso();
   dialog.showModal();
 }
@@ -20886,7 +22585,7 @@ function populateOpportunitySelect(root) {
 }
 
 function populateContactSelect(root, accountId = "") {
-  root.querySelectorAll("select[name='contactId']").forEach((select) => {
+  root.querySelectorAll("select[name='contactId'], select[name='contactIds']").forEach((select) => {
     // Scoping strictly to the account in context made unaffiliated contacts (regulators,
     // referrals, consultants who don't belong to a customer account) permanently unreachable
     // from any dialog opened in an account's context. Always include them, in their own group,
@@ -20898,10 +22597,19 @@ function populateContactSelect(root, accountId = "") {
       return `<option value="${escapeAttribute(contact.id)}">${escapeHtml(contact.name)} - ${escapeHtml(account?.name ?? "Unaffiliated")}</option>`;
     };
     select.innerHTML = [
-      `<option value="">No contact selected</option>`,
+      ...(select.multiple ? [] : [`<option value="">No contact selected</option>`]),
       ...scopedContacts.map(renderOption),
       ...(unaffiliated.length ? [`<optgroup label="Unaffiliated">${unaffiliated.map(renderOption).join("")}</optgroup>`] : []),
     ].join("");
+  });
+}
+
+function selectContactIds(form, contactIds) {
+  const select = form.elements.contactIds;
+  if (!select) return;
+  const ids = Array.isArray(contactIds) ? contactIds : contactIds ? [contactIds] : [];
+  Array.from(select.options).forEach((option) => {
+    option.selected = ids.includes(option.value);
   });
 }
 
@@ -21659,7 +23367,7 @@ function activitiesForAccount(accountId) {
 }
 
 function activitiesForContact(contactId) {
-  return state.activities.filter((activity) => activity.contactId === contactId);
+  return state.activities.filter((activity) => (activity.contactIds || []).includes(contactId));
 }
 
 function activitiesForOpportunity(opportunityId) {
@@ -21670,7 +23378,7 @@ function activitiesForRecord({ accountId = "", contactId = "", opportunityId = "
   return state.activities.filter(
     (activity) =>
       (accountId && activity.accountId === accountId) ||
-      (contactId && activity.contactId === contactId) ||
+      (contactId && (activity.contactIds || []).includes(contactId)) ||
       (opportunityId && activity.opportunityId === opportunityId),
   );
 }
@@ -22106,21 +23814,13 @@ function getDateProgress(startValue, endValue) {
   return Math.round(Math.min(100, Math.max(0, ((today - start) / total) * 100)));
 }
 
-function buildCalendarDays() {
-  const dates = [];
-  for (let index = 0; index < 7; index += 1) {
-    const date = new Date();
-    date.setDate(date.getDate() + index);
-    const iso = date.toISOString().slice(0, 10);
-    dates.push({
-      date: iso,
-      label: index === 0 ? "Today" : new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date),
-      items: [],
-    });
-  }
-
+// Phase 17 item 5 — shared by the operations month calendar (buildCalendarMonthDays) and, in
+// principle, any other calendar reading the same two sources (scheduled work + project start
+// dates), so the two calendars in the app share day-cell population even though they show
+// different windows (Q28 decision: keep both, share the day-cell rendering).
+function populateCalendarDayItems(daysByDate) {
   getScheduleEvents().forEach((work) => {
-    const day = dates.find((item) => item.date === work.date);
+    const day = daysByDate.get(work.date);
     if (day) {
       day.items.push({
         id: work.projectId,
@@ -22132,7 +23832,7 @@ function buildCalendarDays() {
   });
 
   state.projects.forEach((job) => {
-    const day = dates.find((item) => item.date === job.startDate);
+    const day = daysByDate.get(job.startDate);
     if (day) {
       day.items.push({
         id: job.id,
@@ -22142,8 +23842,38 @@ function buildCalendarDays() {
       });
     }
   });
+}
 
-  return dates;
+// Replaces the old 7-day flat strip with a real month grid — weekday columns, week rows, padded
+// with the leading/trailing days of adjacent months so every week row is complete. `monthAnchorIso`
+// is any date within the month to display; defaults to today's month.
+function buildCalendarMonthDays(monthAnchorIso) {
+  const anchor = monthAnchorIso ? parseDate(monthAnchorIso) : new Date();
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const startWeekday = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
+  const gridStart = new Date(year, month, 1 - startWeekday);
+  const today = todayIso();
+
+  const days = [];
+  for (let index = 0; index < totalCells; index += 1) {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    const iso = localIsoDate(date);
+    days.push({
+      date: iso,
+      dayNumber: date.getDate(),
+      inMonth: date.getMonth() === month,
+      isToday: iso === today,
+      items: [],
+    });
+  }
+
+  populateCalendarDayItems(new Map(days.map((day) => [day.date, day])));
+  return { year, month, days };
 }
 
 function getMapMarkers() {
@@ -22172,11 +23902,14 @@ function getMapMarkers() {
           type,
           id: location.id,
           locationId: location.id,
+          projectId: location.projectId || "",
+          accountId: job?.accountId || "",
           label: location.label,
           shortLabel: getMapMarkerShortLabel(location, job),
           latitude,
           longitude,
           status: location.status || job?.status || "Mapped project",
+          projectStage: job?.projectStage || "",
           lastPingAt: location.lastPingAt,
           assetTags,
         },
@@ -22339,6 +24072,13 @@ function getAccountIndustries() {
 
 function industriesForAccount(accountId) {
   return getAccountIndustries().filter((link) => link.accountId === accountId && !link.deletedAt);
+}
+
+// Phase 06 item 34 — same "primary industry" lookup used by the Account table's industry column.
+function primaryIndustryNameForAccount(accountId) {
+  const links = industriesForAccount(accountId);
+  const primary = links.find((link) => link.isPrimary) || links[0];
+  return primary ? findIndustry(primary.industryId)?.industryName || "" : "";
 }
 
 function getSubcontractorTypes() {
@@ -22559,8 +24299,26 @@ function availabilityForEmployee(employeeId) {
   return getAvailabilityBlocks().filter((block) => block.employeeId === employeeId);
 }
 
+// Phase 18 item 2 — standby/on-call, a real assignable thing separate from availability exceptions.
+function getStandbyAssignments() {
+  return (state.backend.standbyAssignments || []).filter((assignment) => !assignment.deletedAt);
+}
+
+function getStandbyRotationSettings() {
+  return (state.backend.standbyRotationSettings || []).find((item) => item.id === "default") || null;
+}
+
+// Phase 16 coordination point — "an emergency intake should be able to answer who is on call right
+// now without someone checking a group chat." Not yet wired into the emergency intake dialog (that
+// phase shipped first), but the read path exists for whenever that connection is made.
+function currentStandbyEmployee() {
+  const now = new Date();
+  const active = getStandbyAssignments().find((assignment) => new Date(assignment.startsAt) <= now && now <= new Date(assignment.endsAt));
+  return active ? findEmployee(active.employeeId) : null;
+}
+
 function getFrontlineDevices() {
-  return state.backend.frontlineDevices || [];
+  return (state.backend.frontlineDevices || []).filter((device) => !device.deletedAt);
 }
 
 function devicesForEmployee(employeeId) {
@@ -23069,20 +24827,14 @@ function getWorkforceScheduleDates() {
   }));
 }
 
+// Phase 07 item 16 (locked Q32) — strictly today + 6, seven days, no skip-ahead to the first
+// scheduled job. An empty week should look empty ("we want to show them nothing is scheduled and
+// keep the day view predictable"), not quietly jump forward and look populated.
 function getDispatchCalendarDays() {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const scheduledDates = getDispatchJobs()
-    .map((job) => job.scheduledStart?.slice(0, 10))
-    .filter(Boolean)
-    .sort();
-  const earliestUpcoming = scheduledDates.find((date) => date >= todayIso());
-  if (earliestUpcoming) {
-    const candidate = parseDate(earliestUpcoming);
-    if (candidate > start) start.setTime(candidate.getTime());
-  }
 
-  return Array.from({ length: 5 }, (_, index) => {
+  return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     const iso = localIsoDate(date);
@@ -23223,6 +24975,15 @@ function todayIso() {
 
 function addDays(days) {
   const date = new Date();
+  date.setDate(date.getDate() + days);
+  return localIsoDate(date);
+}
+
+// Item 7 — same as addDays but relative to a given date string, not always today (for the quote
+// "Effective to = Effective from + 30" live recompute).
+function addDaysFrom(isoDate, days) {
+  const date = parseDate(isoDate);
+  if (Number.isNaN(date.getTime())) return "";
   date.setDate(date.getDate() + days);
   return localIsoDate(date);
 }

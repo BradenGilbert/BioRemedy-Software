@@ -440,3 +440,30 @@ All three were reproduced against real code before fixing, per this phase doc's 
   under a live-bug-fix pass risks masking whether it's an isolated seed typo or a symptom of a real
   Georgetown-job data issue elsewhere; whoever picks it up should check whether other Georgetown-linked
   records have the same dangling `projectId` before just repointing it.
+
+---
+
+# 2026-09-22 feedback pass
+
+**Source:** `docs/roadmap/notes-2026-09-22.md` items 42–43. Both verified 2026-09-22. **Status:** Not started.
+
+### Broken map marker on the Location tile
+
+> *"In the fielfd service app the location applet pulls a gps point, but the icon on the map is broken."*
+
+**CONFIRMED, root cause found.** `renderFrontlineLocation()`'s map setup (`app.js:13947-13966`) is the **only** Leaflet map in the app that uses the default marker: `leaflet.marker(latLng, { title })`. Every other map — the operations map board and the facility/sample maps (`app.js:8454`, `:8515`, `:8576`, `:8852`) — builds a `leaflet.divIcon()` instead. Leaflet's default marker loads `marker-icon.png` / `marker-shadow.png` from a path derived from where its CSS was loaded; without those image assets present it renders as a broken image, which is exactly what the owner is seeing.
+
+Fix: use a `divIcon` here like the other four sites, ideally the same helper, so there is one marker style across the app. Do not fix this by setting `L.Icon.Default.imagePath` — that adds an asset dependency the rest of the app does not have.
+
+### Receipt and expense capture
+
+> *"we need to add a receipt or expense report, so we can take photos of receipts and store them on the server per job and track expenses. this can take place of the exit button and we can make the exit button be three columns wide and short and go along the bottom of the screen."*
+
+New Front Line tile, plus a layout change:
+
+- **Tile:** photograph a receipt, attach it to the current job, and record amount, vendor, category, payment method (company card / personal / cash) and a note. Per-job storage is the requirement — expenses must roll up to the project so they can reach the cost report Phase 09 generates. That link is the part worth getting right; the capture UI is the easy half.
+- **Layout:** Exit moves out of the tile grid to a short full-width bar along the bottom, and the freed cell becomes the new tile. Check the tile grid's breakpoints while doing this — the grid is three columns at phone width and the bar has to not cover the last row's controls.
+
+**Storage dependency.** Receipt photos are binary attachments, which is **Phase 13**. The existing Front Line photo-capture tasks are the precedent to follow — reuse whatever they do today rather than inventing a second store, and note in the phase doc which one won.
+
+**Expense categories should map to whatever Phase 08's rate card ends up calling reimbursables** (travel, lodging, per diem, subcontracted services all bill at cost + margin per the 2026 rate sheet), so a captured expense can become a billable line instead of being re-keyed.

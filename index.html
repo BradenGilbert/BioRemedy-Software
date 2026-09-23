@@ -205,13 +205,15 @@
         </div>
         <div class="form-grid">
           <label>
-            Cleanup type
+            Opportunity type
             <select name="serviceType">
               <option>Emergency Spill Response</option>
               <option>Environmental Sampling</option>
               <option>Scheduled Environmental Service</option>
               <option>Remediation Field Work</option>
               <option>Asbestos Abatement</option>
+              <option>Investigation Needed</option>
+              <option>Unknown</option>
             </select>
           </label>
           <label>
@@ -285,6 +287,10 @@
           Current situation
           <textarea name="currentSituation" rows="3" placeholder="What's driving the customer to act now?"></textarea>
         </label>
+        <div class="account-context-hint" data-account-concern-hint hidden>
+          <p class="help-text"></p>
+          <button class="mini-button" type="button" data-action="use-account-concern-text">Use this text</button>
+        </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save lead details</button>
@@ -313,7 +319,7 @@
           </label>
           <label>
             Estimated budget
-            <input name="budgetAmount" type="number" min="0" step="1000" />
+            <input name="budgetAmount" type="number" min="0" step="0.01" />
           </label>
         </div>
         <div class="form-grid">
@@ -519,12 +525,39 @@
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
-          One per line, as <code>Name | Note</code> (note is optional)
-          <textarea name="items" rows="5" placeholder="Vacuum trailer | Needed for tank pull&#10;Roll-off container | 20 yard, staged onsite"></textarea>
+          One per line or comma-separated, as <code>Name | Note</code> (note is optional)
+          <textarea name="items" rows="5" placeholder="Vacuum trailer | Needed for tank pull&#10;Roll-off container | 20 yard"></textarea>
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save list</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="opportunityNeedsCombinedDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="opportunity-needs-combined">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Resource needs</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">One per line or comma-separated, as <code>Name | Note</code> (note is optional).</p>
+        <label>
+          Heavy Equipment Needed
+          <textarea name="equipmentNeeds" rows="3" placeholder="Vacuum trailer | Needed for tank pull"></textarea>
+        </label>
+        <label>
+          Vendor / subcontractor needed
+          <textarea name="vendorNeeds" rows="3" placeholder="Roll-off container hauler"></textarea>
+        </label>
+        <label>
+          Resources needed
+          <textarea name="resourceNeeds" rows="3" placeholder="Two-person confined-space crew"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save all</button>
         </menu>
       </form>
     </dialog>
@@ -686,9 +719,10 @@
         <input name="id" type="hidden" />
         <input name="opportunityId" type="hidden" />
         <div class="modal-header">
-          <h2>Estimate</h2>
+          <h2>Estimation Tool</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
+        <p class="help-text">An internal working draft, not a customer-facing document — no effective dates. Use "Convert to quote" when it's ready to send.</p>
         <div class="form-grid">
           <label>
             Estimate name
@@ -706,14 +740,6 @@
           </label>
         </div>
         <div class="form-grid">
-          <label>
-            Effective from
-            <input name="effectiveFrom" type="date" />
-          </label>
-          <label>
-            Effective to
-            <input name="effectiveTo" type="date" />
-          </label>
           <label>
             Rate card / price level
             <select name="priceLevelId" data-doc-price-level></select>
@@ -897,23 +923,19 @@
             <input name="startDate" type="date" />
           </label>
           <label>
-            Target date
+            Completion date
             <input name="targetDate" type="date" />
           </label>
         </div>
         <div class="form-grid">
           <label>
             Budget
-            <input name="budget" type="number" min="0" step="1000" />
+            <input name="budget" type="number" min="0" step="0.01" />
           </label>
           <label>
             Project stage
-            <select name="projectStage">
+            <select disabled>
               <option>Intake</option>
-              <option>Plan</option>
-              <option>Mobilize</option>
-              <option>Field Work</option>
-              <option>Closeout</option>
             </select>
           </label>
         </div>
@@ -1826,14 +1848,14 @@
             <input name="startDate" required type="date" />
           </label>
           <label>
-            Target date
+            Completion date
             <input name="targetDate" required type="date" />
           </label>
         </div>
         <div class="form-grid">
           <label>
             Budget
-            <input name="budget" required type="number" min="0" step="1000" value="125000" />
+            <input name="budget" required type="number" min="0" step="0.01" value="125000" />
           </label>
           <label>
             Project manager
@@ -2272,8 +2294,8 @@
             <select name="accountId" required></select>
           </label>
           <label>
-            Contact
-            <select name="contactId"></select>
+            Contacts
+            <select name="contactIds" multiple size="4"></select>
           </label>
         </div>
         <label>
@@ -2304,6 +2326,16 @@
             <input name="channel" maxlength="80" placeholder="Phone, Teams, email, onsite" />
           </label>
         </div>
+        <fieldset class="tag-picker">
+          <legend>Tags</legend>
+          <label class="check-row"><input type="checkbox" name="tags" value="Personal" /><span>Personal</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Business" /><span>Business</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Compliance" /><span>Compliance</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Safety" /><span>Safety</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Billing" /><span>Billing</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
+        </fieldset>
         <label>
           Notes
           <textarea name="body" rows="5" required maxlength="700" placeholder="Capture meeting notes, call summary, email detail, task context, or buyer concerns."></textarea>
@@ -2311,6 +2343,30 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save activity</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="tagEditorDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="activity-tags">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Edit tags</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <fieldset class="tag-picker">
+          <legend>Tags</legend>
+          <label class="check-row"><input type="checkbox" name="tags" value="Personal" /><span>Personal</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Business" /><span>Business</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Compliance" /><span>Compliance</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Safety" /><span>Safety</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Billing" /><span>Billing</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
+        </fieldset>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save tags</button>
         </menu>
       </form>
     </dialog>
@@ -2332,6 +2388,16 @@
           Note
           <textarea name="body" rows="5" required maxlength="700" placeholder="Quick note text..."></textarea>
         </label>
+        <fieldset class="tag-picker">
+          <legend>Tags</legend>
+          <label class="check-row"><input type="checkbox" name="tags" value="Personal" /><span>Personal</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Business" /><span>Business</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Compliance" /><span>Compliance</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Safety" /><span>Safety</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Billing" /><span>Billing</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
+        </fieldset>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save note</button>
@@ -2352,8 +2418,8 @@
           <input name="subject" required maxlength="120" placeholder="Quarterly site review" />
         </label>
         <label>
-          Contact
-          <select name="contactId"></select>
+          Contacts
+          <select name="contactIds" multiple size="4"></select>
         </label>
         <div class="form-grid">
           <label>
@@ -2403,6 +2469,16 @@
           Notes
           <textarea name="body" rows="4" maxlength="700" placeholder="Agenda or meeting notes"></textarea>
         </label>
+        <fieldset class="tag-picker">
+          <legend>Tags</legend>
+          <label class="check-row"><input type="checkbox" name="tags" value="Personal" /><span>Personal</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Business" /><span>Business</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Compliance" /><span>Compliance</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Safety" /><span>Safety</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Billing" /><span>Billing</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
+        </fieldset>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save meeting</button>
@@ -2425,7 +2501,7 @@
         <div class="form-grid">
           <label>
             Who
-            <select name="contactId"></select>
+            <select name="contactIds" multiple size="4"></select>
           </label>
           <label>
             Phone number
@@ -2457,6 +2533,16 @@
           Notes
           <textarea name="body" rows="4" maxlength="700" placeholder="Call summary"></textarea>
         </label>
+        <fieldset class="tag-picker">
+          <legend>Tags</legend>
+          <label class="check-row"><input type="checkbox" name="tags" value="Personal" /><span>Personal</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Business" /><span>Business</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Compliance" /><span>Compliance</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Safety" /><span>Safety</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Billing" /><span>Billing</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
+        </fieldset>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save call</button>
@@ -2478,8 +2564,8 @@
         </label>
         <div class="form-grid">
           <label>
-            Contact
-            <select name="contactId"></select>
+            Contacts
+            <select name="contactIds" multiple size="4"></select>
           </label>
           <label>
             Email address
@@ -2503,6 +2589,16 @@
           Notes
           <textarea name="body" rows="4" maxlength="700" placeholder="Email summary or key points"></textarea>
         </label>
+        <fieldset class="tag-picker">
+          <legend>Tags</legend>
+          <label class="check-row"><input type="checkbox" name="tags" value="Personal" /><span>Personal</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Business" /><span>Business</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Compliance" /><span>Compliance</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Safety" /><span>Safety</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Billing" /><span>Billing</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
+        </fieldset>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save email</button>
@@ -2523,8 +2619,8 @@
           <input name="subject" required maxlength="120" placeholder="Send updated SOW" />
         </label>
         <label>
-          Contact
-          <select name="contactId"></select>
+          Contacts
+          <select name="contactIds" multiple size="4"></select>
         </label>
         <div class="form-grid">
           <label>
@@ -2552,6 +2648,16 @@
           Notes
           <textarea name="body" rows="4" maxlength="700" placeholder="Task detail"></textarea>
         </label>
+        <fieldset class="tag-picker">
+          <legend>Tags</legend>
+          <label class="check-row"><input type="checkbox" name="tags" value="Personal" /><span>Personal</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Business" /><span>Business</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Compliance" /><span>Compliance</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Safety" /><span>Safety</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Billing" /><span>Billing</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Site Visit" /><span>Site Visit</span></label>
+          <label class="check-row"><input type="checkbox" name="tags" value="Follow-up" /><span>Follow-up</span></label>
+        </fieldset>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save task</button>
@@ -2965,6 +3071,346 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save lab info</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="emergencyIntakeDialog" class="modal">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="emergency-intake">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Emergency Response</p>
+            <h2>Spill Call Intake</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">One screen, one submit — creates the project and the dispatch job together. Don't wait on a customer record to send the truck.</p>
+
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Caller and location</legend>
+          <div class="form-grid">
+            <label>
+              Caller name
+              <input name="callerName" required maxlength="80" />
+            </label>
+            <label>
+              Callback number
+              <input name="callerPhone" required maxlength="40" />
+            </label>
+          </div>
+          <label>
+            Relationship to the site
+            <select name="callerRelationship">
+              <option>Driver</option>
+              <option>Facility contact</option>
+              <option>Carrier dispatcher</option>
+              <option>Agency</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <div class="form-grid">
+            <label>
+              Existing account (leave blank if unknown)
+              <select name="accountId"></select>
+            </label>
+            <label>
+              New account name (if no existing account)
+              <input name="newAccountName" maxlength="120" placeholder="Use the caller's company/carrier name if known" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Site address
+              <input name="addressText" required maxlength="160" />
+            </label>
+            <label>
+              GPS pin (paste coordinates, e.g. "30.59, -97.59")
+              <input name="gpsPin" maxlength="120" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="doc-line-items-fieldset">
+          <legend>The spill</legend>
+          <div class="form-grid">
+            <label>
+              Material
+              <input name="spillMaterial" maxlength="120" />
+            </label>
+            <label>
+              Estimated quantity
+              <input name="spillQuantity" maxlength="60" placeholder="e.g. ~50 gallons" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Surface
+              <select name="spillSurface">
+                <option>Road</option>
+                <option>Soil</option>
+                <option>Both</option>
+                <option>Water</option>
+              </select>
+            </label>
+            <label>
+              Storm drain involvement
+              <select name="stormDrainInvolved">
+                <option>Unknown</option>
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </label>
+            <label>
+              Off-road discharge
+              <select name="offRoadDischarge">
+                <option>Unknown</option>
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Absorbent already deployed?
+              <select name="absorbentDeployed">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </label>
+            <label>
+              Deployed by
+              <input name="absorbentDeployedBy" maxlength="80" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Who else is there</legend>
+          <div class="form-grid">
+            <label>
+              Law enforcement
+              <select name="lawEnforcementStatus">
+                <option>Not involved</option>
+                <option>En route</option>
+                <option>Involved</option>
+                <option>On scene</option>
+              </select>
+            </label>
+            <label>
+              Fire department
+              <select name="fireDepartmentStatus">
+                <option>Not involved</option>
+                <option>En route</option>
+                <option>Involved</option>
+                <option>On scene</option>
+              </select>
+            </label>
+            <label>
+              Other emergency services
+              <select name="otherEmergencyServicesStatus">
+                <option>Not involved</option>
+                <option>En route</option>
+                <option>Involved</option>
+                <option>On scene</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            Agency / incident number
+            <input name="agencyIncidentNumber" maxlength="80" />
+          </label>
+        </fieldset>
+
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Payment and insurance (drives mobilization)</legend>
+          <div class="form-grid">
+            <label>
+              Has insurance?
+              <select name="hasInsurance">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </label>
+            <label>
+              Filing an insurance claim?
+              <select name="isInsuranceClaim">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Carrier
+              <input name="insuranceCarrier" maxlength="80" />
+            </label>
+            <label>
+              Policy number
+              <input name="insurancePolicyNumber" maxlength="60" />
+            </label>
+            <label>
+              Claim number
+              <input name="insuranceClaimNumber" maxlength="60" />
+            </label>
+          </div>
+          <label class="check-row">
+            <input type="checkbox" name="policyCopyOnFile" />
+            <span>Copy of policy/declarations page captured</span>
+          </label>
+          <div class="form-grid">
+            <label>
+              Down payment amount ($)
+              <input name="downPaymentAmount" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              Taken by
+              <input name="downPaymentBy" maxlength="80" />
+            </label>
+            <label>
+              Reference number
+              <input name="downPaymentReference" maxlength="80" />
+            </label>
+          </div>
+          <p class="help-text">No insurance claim requires a down payment of at least $15,000 to mobilize, unless overridden below by the Director of Sales.</p>
+          <label class="check-row">
+            <input type="checkbox" name="overrideMobilization" />
+            <span>Override the mobilization block</span>
+          </label>
+          <div class="form-grid">
+            <label>
+              Overridden by
+              <input name="overrideBy" maxlength="80" />
+            </label>
+            <label>
+              Reason
+              <input name="overrideReason" maxlength="160" />
+            </label>
+          </div>
+        </fieldset>
+
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Create project and dispatch job</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="standbyAssignmentDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="standby-assignment">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Standby assignment</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Employee
+          <select name="employeeId" required></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Starts
+            <input name="startsAt" type="datetime-local" required />
+          </label>
+          <label>
+            Ends
+            <input name="endsAt" type="datetime-local" required />
+          </label>
+        </div>
+        <label>
+          Notes
+          <input name="notes" maxlength="160" placeholder="Primary weekend on-call" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="danger-button" type="button" data-action="remove-standby-assignment">Remove</button>
+          <button class="primary-button" type="submit">Save standby</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="standbyRotationSettingsDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="standby-rotation-settings">
+        <div class="modal-header">
+          <h2>Standby rotation settings</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Rotation pattern
+          <select name="rotationPattern">
+            <option>Weekly</option>
+            <option>Biweekly</option>
+            <option>Monthly</option>
+            <option>Custom</option>
+          </select>
+        </label>
+        <label>
+          Notes
+          <textarea name="notes" rows="3" placeholder="Rotates every Friday 5pm"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save settings</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="frontlineDeviceDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="frontline-device">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <h2>Front Line device</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Display name
+            <input name="displayName" required maxlength="80" placeholder="Logan field iPad" />
+          </label>
+          <label>
+            Assigned employee
+            <select name="employeeId"></select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Ownership
+            <select name="ownership">
+              <option>Company</option>
+              <option>Personal</option>
+            </select>
+          </label>
+          <label>
+            Platform
+            <input name="platform" maxlength="40" placeholder="iPadOS" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Hardware model
+            <input name="hardwareModel" maxlength="80" placeholder="iPad 10th gen" />
+          </label>
+          <label>
+            IMEI / serial
+            <input name="imei" maxlength="60" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            OS version
+            <input name="osVersion" maxlength="40" />
+          </label>
+          <label>
+            App version
+            <input name="appVersion" maxlength="40" />
+          </label>
+        </div>
+        <label>
+          Onboarding date
+          <input name="onboardedAt" type="date" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save device</button>
         </menu>
       </form>
     </dialog>

@@ -47,6 +47,9 @@ They are the same stored value. So the Personal dialog displays whatever was typ
 | Filter chips on every timeline | Account, Contact, Opportunity, and Project timelines all use the same renderer — build once |
 | Auto-tagging | Birthday and similar structured captures tag themselves |
 | Tag vocabulary | A small reference list, not free text — free-text tags become unfilterable within a month |
+| Editability | **Decided 2026-09-18: editable anytime**, not create-only — an "Edit tags" action on each timeline entry |
+
+**✅ Done 2026-09-18.** `activities.tags` (array, `ACTIVITY_TAGS` vocabulary) built and wired end-to-end, verified live via Playwright: create a Quick Note with tags checked → tag chips render on the timeline entry → filter chips (one per tag, shared `renderTimelinePanel()` renderer used by Account Summary, Opportunity Summary, and Opportunity Files & Activity) correctly narrow the list → "Edit tags" on an existing entry opens a small dialog pre-checked with its current tags, saves, and the chips update immediately. Auto-tagging of birthday/personal captures (the original motivating case) was **not** built — item 9's correction already moved birthday/personal notes to their own fields instead of tagged timeline entries, so there's nothing left to auto-tag.
 
 **Recorded deferral:** `docs/dataverse-relationship-architecture.md` flags an unresolved split between the legacy `activities` table and the newer `sales_tasks` direction. We are knowingly continuing to build on `activities`. Revisit **after the pilot**, when there is real usage data showing whether the generic table is actually a problem. This deferral is deliberate and should not be re-litigated every session.
 
@@ -131,6 +134,8 @@ Not yet traced to code — find wherever the contact detail page renders "upcomi
 
 Extends item 2's tag-filter-chip work with three more filter dimensions: by person (whoever logged/is associated with the activity), by "Related" (any account/contact/opportunity/project associated with the timeline's parent account), and by event type. Build as part of the same filter-chip renderer from item 2, not a separate mechanism.
 
+**🟡 Partially done 2026-09-18.** Person and event-type filters shipped, in `renderTimelinePanel()` alongside the tag chips from item 2 — both are compact selects (`renderCompactSelect`, same component used everywhere else in the app for list filters), populated dynamically from whichever people/types actually appear in that timeline's activities, keyed per-context so filters on one record's timeline don't leak into another's. Verified live: filtering an account timeline to "Note" only shows Note-type entries; person filter lists real owners. **Not done: "Related" filtering** — that dimension depends on Phase 06 item 20's "Regarding" cross-entity linking work (a bigger, separately-tracked build, see that item), since "Related" and "Regarding" turned out to describe the same underlying relationship data. Do not build a second, different "Related" mechanism — wire this filter on top of `relatedRecords` once item 20 ships.
+
 ### 12. Timeline search only accepts one character at a time
 
 > *"When using search function in timeline it only lets you type one character at a time"*
@@ -186,7 +191,7 @@ Update `docs/database-handoff-map.md` — `contacts` gained `birthdayNote`/`pers
 
 - [x] Write a 600-character personal note, then open the contact dialog — **the note is not truncated** (2026-09-17, verified live with a 550-char note)
 - [ ] A contact's birthday note appears in the timeline tagged `Personal` — superseded: birthday note is now its own field, not a timeline entry (see item 9's correction); this criterion no longer applies as written
-- [ ] Filter a timeline to `Personal` and see only those entries; clear it and see everything — blocked on item 2 (activity tags), not started
+- [x] Filter a timeline to `Personal` and see only those entries; clear it and see everything (2026-09-18 — verified live via Playwright)
 - [x] Log an activity against a contact with no account (2026-09-17, verified live)
 - [ ] Opportunity lookup returns results by typing, and shows account + stage per result — not started
 - [ ] The same lookup component is used in the activity dialog, the Create menu, and the subcontractor picker — not started
@@ -202,14 +207,41 @@ Update `docs/database-handoff-map.md` — `contacts` gained `birthdayNote`/`pers
 
 ## Open decisions
 
-- **Account-less contacts: (a) or (b)?** Recommendation (a).
-- **Tag vocabulary** — is the starting seven right? Should tags be per-workspace?
-- **Can a tag be added to an existing activity after the fact**, or only at creation?
-- **Account Role vocabulary** (item 8) — does it share a vocabulary with Phase 06 item 19's opportunity-scoped relationship tags, or are they genuinely different scopes?
-- **Contact address inheritance** (item 13) — is partial inheritance (city/state/country/zip yes, street no) actually the wanted behavior, or should it change?
+- ~~**Account-less contacts: (a) or (b)?**~~ **Decided and shipped:** (a).
+- ~~**Tag vocabulary** — is the starting seven right?~~ **Decided 2026-09-18: keep the seven as-is** (Personal, Business, Compliance, Safety, Billing, Site Visit, Follow-up). Not per-workspace.
+- ~~**Can a tag be added to an existing activity after the fact**, or only at creation?~~ **Decided 2026-09-18: editable anytime.** Build an "Edit tags" action on each timeline entry, not a create-only picker.
+- ~~**Account Role vocabulary** (item 8) — does it share a vocabulary with Phase 06 item 19's opportunity-scoped relationship tags?~~ **Decided 2026-09-18: keep separate.** Account Role answers "what is this person's standing at the company" (org-level, stable); the opportunity-scoped tag answers "what's their role in this specific deal" (deal-level, can differ per opportunity for the same person).
+- **Contact address inheritance** (item 13) — is partial inheritance (city/state/country/zip yes, street no) actually the wanted behavior, or should it change? Still open.
 
 ---
 
 ## Corrections found during implementation
 
 *(Record here anything that turned out to be different from the plan.)*
+
+---
+
+# 2026-09-22 feedback pass
+
+**Source:** `docs/roadmap/notes-2026-09-22.md` item 2. **Status:** Not started.
+
+### Phone numbers should format themselves
+
+> *"On contact, edit contact phone numbers should automatically include dashes."*
+
+**CONFIRMED — nothing formats phone numbers anywhere in the app.** There is no `formatPhone` helper; phone inputs are plain `type="tel"` fields (`index.html:2740` contact mobile, `index.html:3130` job-request onsite contact, among others) and whatever is typed is stored and displayed verbatim.
+
+Build one shared formatter and apply it everywhere, not just on the contact dialog the note mentions. Two halves:
+
+- **On input** — format as the user types (`555-123-4567` for 10 digits, `1-555-123-4567` for 11 with a leading 1), leaving anything that does not look like a NANP number alone rather than mangling it. Extensions (`x204`) must survive.
+- **On display** — normalise old records at render time so existing unformatted data reads consistently without a migration.
+
+Store digits-only and format at the edges, or store formatted text? Recommendation: **store what the user sees** (formatted), because every read site in this app renders raw field values directly and a digits-only store would need a formatter added at each of them. Flagging it as a decision because the opposite choice is defensible if search-by-phone is coming.
+
+This touches the same render-then-restore-focus machinery this phase already fixed app-wide (the one-keystroke focus-loss bug) — reformatting on input moves the caret, so the formatter must restore caret position or it will reproduce that bug in a new form.
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **Contact address inheritance (Q57): keep partial inheritance as built.** City/state/zip inherit, street does not — *"some contacts work from home, but a city is important."* No change required; recording the confirmation so this stops being re-asked.

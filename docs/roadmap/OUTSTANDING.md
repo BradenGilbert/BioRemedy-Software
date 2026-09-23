@@ -1,0 +1,150 @@
+# What's Left — compiled 2026-09-22
+
+A single view of everything still to do, across all 20 phases. **This is a snapshot, not a source of truth** — the phase docs are. Regenerate or correct this when a phase ships rather than editing it in isolation, and if this file and a phase doc disagree, the phase doc wins.
+
+Shipped work is deliberately not repeated here; `README.md` has the "already shipped" list.
+
+---
+
+## The shape of it
+
+| | Count |
+|---|---|
+| Phases shipped | 10 (00, 01, 02, 08, 09, 10, 15, 16, 17, 18) — though 08 and 10 both gained a second round on 2026-09-22 (08's rate-card rework still outstanding), and 18's item 4 waits for Phase 12 |
+| Phases substantially done, with named leftovers | 5 (03, 04, 05, 06, 07) |
+| Phases not started | 5 (11, 12, 13, 14, 19) |
+| Open items with a checkbox against them | ~80 |
+| Blocked on an owner decision, not on engineering | 14 |
+
+Three things dominate what is left, and they are worth naming because they are not "finish the feature list":
+
+1. **Handover.** Sales scopes work that operations never sees; the office collects paperwork that dispatch re-asks for. Phases 15 and 13 are both fixes for information not travelling.
+2. **Volume.** Card-per-record screens, unfiltered metrics and 5–7 day windows were built for demo data. Phase 17 is the correction.
+3. **Truth about money.** The rate card does not model how BioRemedy actually prices work (four tiers, minimums, surcharges, cost-plus). Until Phase 08's second round lands, quotes, invoices and cost reports are all approximations.
+
+---
+
+## Decisions — 44 of 52 answered 2026-09-22
+
+The owner answered the full decision list on 2026-09-22. Each answer is recorded in its own phase doc under **"Decisions locked 2026-09-22 (owner)"** — that is the authoritative place, not this summary.
+
+**Answers that changed the plan rather than confirming it, and are therefore worth reading before implementing:**
+
+| Phase | What changed |
+|---|---|
+| 15 | **Provenance is not wanted.** Copy the sales scope, keep `opportunityId`, drop the "from sales" badging and change-detection this doc originally proposed — *less* work than planned |
+| 15 | **New rule:** an opportunity going Lost closes the project, and closing amends the opportunity. Does not exist today |
+| 04 | **Customer approvals do not expire.** Contradicts the expiry badge shipped 2026-09-17 — needs reconciling, not coexisting |
+| 16 | **An account is required before dispatch**, though it can be created in the field. Reverses this doc's "dispatch first, tidy up later" framing |
+| 16 | **Pin drop is just GPS coordinates**, not a link-issuing system. Removes the shared machinery with Phase 18 |
+| 13 | **The Client Portal ships in the pilot.** Internal-only visibility becomes load-bearing on day one, and external identity joins Phase 12's scope |
+| 14 | **Dataverse is no longer a target.** Its alignment rules stop being constraints; `dataverse-relationship-architecture.md` needs a note saying so |
+| 06 | **Comma splitting takes the simple rule** — commas in notes will break, and that is accepted |
+| 06 | **Stage gates per opportunity type: deferred**, not built now |
+| 03 | **"Remove the Account Table" is dropped** as an incomplete note — one of the two items holding Phase 03 open is gone |
+| 12 | **No Entra tenant exists yet.** Now the longest-lead external dependency in the roadmap |
+
+**All 52 answered as of 2026-09-22**, after a second round covering the ones that needed explaining first. Only **Q54 (account lifecycle status)** is deliberately back-burnered — it needs the actual field values laid side by side before it can be answered, and it blocks nothing.
+
+Two answers from that second round changed earlier entries and are already corrected at source:
+
+- **Rate tiers are THREE, not four** — Standard, "OT & Emergency" (one combined rate), Double Time. The rate sheet backs this: Section I has exactly two rate columns. Emergency still needs to be *distinguishable* though, because the four-hour minimum applies to emergency call-outs specifically, not to overtime generally.
+- **Postgres cut-over is big bang at the alpha, not domain-by-domain** — a deliberate reversal of this roadmap's recommendation, so that iteration on the JSON backend stays unconstrained until one planned switchover. That makes a migration rehearsal and a tested path back to the JSON backend requirements of Phase 14, not optional extras.
+
+---
+
+## Stage B — Make the CRM Correct (the bulk of the work)
+
+### Phase 03 — Account Domain · *2 old items + 1 new*
+- Add industries: Environmental, Utilities/Infrastructure, Education; decide where DOT lives (Transportation already exists as "Transportation / Logistics" — do not add a duplicate)
+- Resolve whether `accounts.industry` (legacy scalar) or the `industries` join is authoritative — Phase 06 depends on the answer
+- Two items blocked on you (list-filter cleanup, Account Table)
+
+### Phase 04 — Vendor & Subcontractor · *3 items, all blocked*
+- Dispatch-time subcontractor approval check + real vendor FK on job resources (bigger than planned, touches Phase 07)
+- W-9/COI upload → review workflow (blocked on Phase 13)
+- Agreement templates by type (blocked on Phase 13)
+
+### Phase 05 — Contacts & Timeline · *3 items + 1 new*
+- Phone numbers auto-format with dashes — one shared formatter, applied everywhere, caret position preserved
+- Activity tagging system (not started)
+- Shared opportunity-lookup component (also wanted by Phases 03 and 04)
+- Timeline filter by person / related record / type
+
+### Phase 06 — Opportunity Domain · *2 old items + 5 new shipped 2026-09-23, 5 new still open*
+**Shipped 2026-09-23:** account-context hint relabel + "Use this text" button; stage badges no longer look like buttons (all 4 surfaces); `proposedSolution`/`customerNeed`/`description` write-through fallbacks removed from `buildCoreOpportunityRecord()`, 12 contaminated `proposedSolution` records blanked; needs lists renamed to "Heavy Equipment Needed" + comma splitting + combined Add/Edit dialog; industry inherits from the account for display only, no longer writes through.
+**Still open from the 2026-09-22 pass:**
+- Close forecast → 30/60/90/360-day bands (reverses `closeQuarter`, shipped 09-17; migrate, don't blank)
+- Create facilities/job sites from the opportunity: inline on the Facility dropdown, and a Sites panel on Develop & Planning. **Needs a new `opportunityLocations` junction** — `facilityId` is a scalar today
+- "Associated Locations" panel on Summary (reads that junction; photos wait for Phase 13)
+- Red dot on the failing tab **and** the failing panel when Advance is blocked — driven by the same check the button uses, not a parallel list; tab contrast (same pass)
+- Develop & Planning build-out: move `customerNeed` earlier, make Proposed Solution a composed artifact, make Develop the site-walk home
+**Carried:** site-walk quick-schedule action; advance-validation highlighting (now merged into the red-dot item)
+
+### Phase 07 — Dispatch & Operations · ✅ 4 new items shipped 2026-09-23; 1 old item remains
+**Shipped 2026-09-23:** intake feed now empties (open-only by default, toggle for converted/closed); Job Register gained search + sortable columns (adopted Phase 17's shared `renderDataTable()`); dispatch schedule is a real 7-day window, no skip-ahead; conflicts gained a "Go to blocker" button (employee-credential conflicts only — no equipment/material reference field exists yet to jump to) with a transient red-outline highlight (`state.highlightPanel`, shared mechanism Phase 06 item 32 can reuse).
+**Still open:** Verify Front Line timer hours reach employee tracked hours in a live session (fixed by code trace only, 2026-09-17).
+
+### Phase 08 — Quotes & Estimates · *second round, 2 of 6 shipped 2026-09-23*
+**Shipped 2026-09-23:** Estimates → "Estimation Tool" (dropped effective dates, renamed, Convert-to-Quote added, linked via `quotes.sourceEstimateId`); Quote "Effective to" defaults to +30 days (live recompute unless hand-edited).
+**Still open (the larger items):**
+- **Rate card rework to match the real 2026 rate sheet**: three tiers (Standard/OT & Emergency/Double Time — corrected from four), four-hour emergency minimums, fuel surcharge, cost+28% margin lines, real units (Per Man Per Day, Per Foot Per Day), catalog sections. Needs its own session — new `productPrices` shape, not an incremental change.
+- Itemized lines sourced from labor roles, equipment, consumables and lab tests — not one lumpy service row (depends on the rate card rework above)
+- Estimation tool pulls from Resource Needs (site notes half blocked on Phase 06)
+- Tick off the five definition-of-done boxes from round one — they were never marked, so the shipped work is unverified on paper
+
+### Phase 10 — Front Line · *2 new*
+- Fix the broken map marker (it is the only map in the app using Leaflet's default icon — the other four use `divIcon`)
+- Receipt/expense capture per job; Exit becomes a short full-width bar
+
+### Phase 11 — Field Ops Depth & Reporting · *outline + 2 new specs*
+- **Post-work report generator** modelled on Lone Star's: per-day timeline, case narrative, per-day and summary billables, JSA/safety, post-job review, crew e-signatures. Structure fully transcribed in the phase doc
+- **The case narrative is the missing input** — per-day, written by the field lead at close-out
+- **Weather: two snapshots** — at incident time and at cleanup commencement — pulled, immutable, anchored to GPS. Note "cleanup commenced" is not a field today
+- Plus the existing outline backlog: permit registry and waste tracking, lab data normalization, inventory ledger, fleet maintenance, approvals/notifications
+
+### Phase 15 — Project Execution Workspace · ✅ shipped 2026-09-23
+Equipment/vendor/resource needs, site walk status, and a quote/estimate reference now carry into the project at creation. Opportunity-Lost closes linked projects. Project detail is now Intake/Plan/Live tabs. Project Stage is greyed out at creation, budget accepts cents, and the label reads "Completion date". Not carried: site photos (opportunity has no field to carry — blocked on Phase 13) and multi-site lists (blocked on Phase 06's `opportunityLocations` junction, not yet built). The customer-paperwork flag reads live from the project's job requests rather than a carried opportunity field — see the phase doc's corrections section for why.
+
+### Phase 16 — Emergency Response · ✅ shipped 2026-09-23
+One intake screen: caller, pasted GPS pin, spill facts (storm drain, off-road discharge, absorbent), agency involvement. Explicit insurance/claim/down-payment state with a visible "Cleared to mobilize" / "Blocked" status. One guarded submit creates a linked project + dispatch job, plus a provisional account/facility when the caller has no account on file. Incident time/coordinates are captured (`incidentReportedAt`/`incidentLatitude`/`incidentLongitude`) for Phase 11's weather-snapshot fetch to anchor to later. Not done: onsite paperwork auto-attachment (blocked on Phase 13).
+
+### Phase 17 — Operations Console & Inventory · ✅ shipped 2026-09-23
+All 8 items live: All Projects table (old panels kept in code, not rendered); metric cards filtered per project class and clickable through to the matching table; Scheduled Work/Multi-Stage's second card reads "Projects without scheduled dispatches"; left-nav sub-option indent treatment; a real month-grid calendar; map filters (class/point-type/account/status/date/alerts-only); searchable+sortable consumables and equipment tables; one shared `renderDataTable()` component across all of it. Not done: equipment-category alignment to the 2026 rate sheet's sections (deferred to Phase 08, which already owns that import) and plotting facilities on the map (they aren't plotted at all today, not just unfiltered).
+
+### Phase 18 — Workforce & Devices · ✅ items 1–3 shipped 2026-09-23; item 4 waits for Phase 12
+**Shipped:** Team Roster moved to Teams and Crews, panels reordered; Upcoming Time Off + Standby/on-call as a real assignable thing (`standbyAssignments`, separate from availability blocks) with a configurable rotation setting; device lifecycle (add, open, edit, suspend, reinstate, retire, delete) with IMEI/hardware/OS/onboarding, and suspended/retired devices verified blocked from Front Line sign-in.
+**Still open:** Per-dispatch sign-on links for personal phones + immutable GPS consent records — waits for Phase 12 (it's credential issuance).
+
+---
+
+## Stage C — Pilot gate
+
+### Phase 12 — Identity, Authorization & Audit · *not started, 7 criteria*
+Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enforcement, audit entries naming real users, revocation taking effect. **Nothing above ships safely to real customer data without this.**
+
+### Phase 13 — Documents · *not started, 9 criteria + the new workflow*
+- Generic attachment store (every Files tab is a stub today)
+- **Document requirement → instance → office-admin review → stage gate**, one mechanism for the customer packet, the Republic waste authorization, vendor COIs and service agreements
+- Republic's form is a third party's PDF: fill/route/store only, never regenerate — and one packet splits into two tracked requirements
+- Unblocks Phase 04
+
+> ### ◆ PILOT MILESTONE
+
+---
+
+## Stage D / E — after the pilot
+
+- **Phase 14 — PostgreSQL migration** · 9 criteria, not started. Deliberately off the critical path
+- **Phase 19 — Email & message tracking** · your own "later." Stage 1 (send a quote with the PDF attached, tracked on the timeline) could move earlier if sending from the CRM starts to matter
+
+---
+
+## Suggested order
+
+**Now:** Phase 08's rate-card rework (the one big item left unshipped from 2026-09-23's session — needs its own dedicated session). (Phase 15, Phase 17, Phase 07's four fixes, 5 of Phase 06's 10 new items, and 2 of Phase 08's 6 new items all shipped 2026-09-23 — see each phase's status.)
+(Phases 15, 16, 17, 18 items 1–3, Phase 07's four fixes, 5 of Phase 06's 10 new items, and 2 of Phase 08's 6 new items all shipped 2026-09-23.)
+**Before real users:** Phase 12, then Phase 13.
+**After:** Phase 11's reporting depth, Phase 14, Phase 19.
+
+Phase 07's four items and Phase 10's two are each small and independent — good candidates to clear in a single session when a bigger phase is blocked on a decision.

@@ -8,8 +8,11 @@ A browser-based CRM + ERP prototype for an environmental cleanup company — sal
 
 1. **`docs/roadmap/README.md`** — the master roadmap. What's done, what's next, which phase we're in.
 2. **`docs/roadmap/GLOSSARY.md`** — the naming contract. **Read this before touching any entity.** The same concept has different names in different layers and guessing wrong causes real bugs.
+3. **`docs/roadmap/OUTSTANDING.md`** — a compiled snapshot of everything still to do, and which decisions are settled. The phase docs win if they disagree with it.
 
-Then read the specific `docs/roadmap/phase-NN-*.md` for the phase you're working on.
+Then read the specific `docs/roadmap/phase-NN-*.md` for the phase you're working on — including its **"Decisions locked 2026-09-22 (owner)"** section, which records answers to 51 open questions and in several cases *reverses* what the body of the doc recommends. Read the decisions before the plan.
+
+The owner's raw feedback lives in `docs/roadmap/notes-2026-09-22.md` (verbatim, with a note→phase index) and the real business documents behind it — the 2026 rate sheet, the new customer packet, competitor invoice and report — are in `docs/uploaded files/`.
 
 ---
 
@@ -34,13 +37,11 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 | `crm-schema/` | 28 SQL files, 141 tables. **Designed, not deployed.** The intended target model. |
 | `laravel-ready/` | **Deprecated.** Stack decision is Node + Postgres. Reference only — do not add to it. |
 
-**Three data layers exist right now:**
+**Where data lives (updated 2026-09-22):**
 
-- **IndexedDB** (browser-local, per-user, NOT shared) — accounts, contacts, projects, tasks, activities, alerts, and more
-- **JSON backend** (server, shared) — 73 collections: opportunities, facilities, dispatch jobs, employees, inventory, quotes
-- **PostgreSQL** — designed, never deployed
-
-Phase 01 collapses the first into the second. Until it ships, **assume any core CRM record you touch is invisible to other users.**
+- **JSON backend** (`data/backend.json`, server, shared) — **everything.** ~85 collections. Phase 01 (2026-09-16) migrated every core CRM collection here from browser storage.
+- **IndexedDB** — device-scoped state only: `syncQueue` and `settings`. Nothing else. If you find yourself writing a record to IndexedDB, you are doing something wrong.
+- **PostgreSQL** — designed (`crm-schema/`), never deployed. Phase 14, after the pilot.
 
 ---
 
@@ -48,10 +49,11 @@ Phase 01 collapses the first into the second. Until it ships, **assume any core 
 
 These have already caused planning errors. Confirm before acting:
 
-- **`jobs` (IndexedDB) means PROJECTS**, not dispatch jobs. Dispatch jobs are `dispatchJobs`.
-- **`locations` means FACILITIES.** GPS points are `mapLocations`. Both get renamed in Phase 02.
+- **`projects` means engagements/projects.** It was called `jobs` until Phase 01 renamed it — old plan docs and comments may still say `jobs`. Dispatch jobs are `dispatchJobs`, a different thing entirely.
+- **`facilities` means customer sites. `locations` means GPS points.** Phase 02 (2026-09-16) renamed these, and they are now the *opposite* of what pre-Phase-02 documents say — those docs claim `locations` means facilities and GPS points are `mapLocations`. `mapLocations` no longer exists. Trust the code, not an old doc.
 - **Facility ≠ Address ≠ Location.** Three different things. See the glossary.
 - `activities` / `sales_tasks` / `tasks` are three different tables for three different concepts.
+- **Dataverse compatibility is no longer a design constraint** (owner decision, 2026-09-22). `docs/dataverse-relationship-architecture.md` still explains *why* entities are shaped as they are, but its rules are history, not requirements.
 
 ---
 

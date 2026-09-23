@@ -232,3 +232,34 @@ computed), that's outside what was reproducible from the code and seed data avai
 — `buildProjectCostReport()`'s own revenue resolution (`currentQuoteOrEstimateForOpportunity()`,
 item 1 above) was re-checked and found to correctly prefer the CURRENT quote/estimate, not a stale
 one, so no second bug was found there.
+
+---
+
+# 2026-09-22 feedback pass
+
+**Source:** `docs/roadmap/notes-2026-09-22.md` item 25. **Status:** Not started.
+
+### Invoice layout should follow the Lone Star model
+
+> *"He likes lonstar's invoice look"*
+
+The reference is `docs/uploaded files/lone star hazmart Invoice_2026080901_WAC_from_Lone_Star_HazMat_Response_LLC.pdf` — a real invoice Lone Star HazMat sent BioRemedy. Its text extracts cleanly, so the structure is known without guessing:
+
+- **Header block:** remit-to address, company block with phone and billing email, then `INVOICE`, `BILL TO`, `INVOICE #`, `DATE`, `DUE DATE`, `TERMS` ("Due on receipt").
+- **A reported-location line** above the items — the site address, stated once, not repeated per line.
+- **Day grouping.** Lines are grouped under headings like `Day 1 | Initial Response | 08.09.26`. For a multi-day response this is the single most useful thing on the document and the thing BioRemedy's current invoice has no concept of.
+- **Four columns:** ACTIVITY, QTY, RATE, AMOUNT. Each activity carries a short name plus a fuller description underneath (`Technician - Off-Shift` / `Hazwoper Certified Response Technician | Off-Shift Hourly Rate`), which is exactly the rate-tier structure Phase 08's rate-sheet findings describe. Quantities are fractional hours (5.75, 5.25).
+- **Taxable flag** — a `T` suffix on line amounts.
+- **Surcharge and fee lines billed as line items**, not hidden in totals: `28% Fuel Surcharge`, `Washout Fee | Per Unit`, PPE per-each, drums per-each.
+- **Footer:** subtotal, then a terms note ("Payment is due within 30 days. A finance charge of 1.5% per month will be added to all past-due balances"), then SUBTOTAL / TAX / TOTAL / BALANCE DUE.
+
+**What this means for this phase.** The cost report and P&L snapshot shipped here already assemble the right *data* — labor hours, equipment usage, material usage, priced from the rate card. What is missing is the customer-facing document: day grouping, tier-labelled activity lines, separate surcharge/fee lines, a tax column, and the terms footer. Three of those (tiers, surcharges, minimums) are **blocked on Phase 08's rate-card rework** — an invoice cannot print "Off-Shift Hourly Rate" until the rate card knows what an off-shift rate is. Sequence this after Phase 08's second round, and build the print layout on the same print/export view Phase 08 already shipped for quotes rather than a second one.
+
+**Day grouping is the one piece worth designing now:** it needs each usage record to carry the operational day it belongs to, which is a question about how `materialUsage` / `equipmentLogs` / Front Line timer entries are stamped — answerable today, and cheap to get wrong later.
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **Invoice day-grouping (Q5):** a usage record belongs to **the dispatch job's operational day**, not its `createdAt`. A technician logging material at 1am belongs to the day of the job, not the calendar date of the entry. This means `dispatchJobs` needs an explicit operational-day value that survives overnight work — derive it once at job level, do not recompute it per record.
+- **Currency precision (Q6):** cents throughout. See Phase 08's locked decisions.

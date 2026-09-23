@@ -520,6 +520,28 @@ h3 {
   font-weight: 700;
 }
 
+/* Phase 17 item 4 — sub-options of All Projects (Scheduled Work / Emergency Response / Multi-Stage):
+   indented and slightly smaller so they read as children, but never hidden or collapsed. */
+.nav-item--sub {
+  padding-left: 26px;
+  min-height: 42px;
+  border-left: 2px solid var(--border);
+  border-radius: 0 6px 6px 0;
+  margin-left: 10px;
+}
+
+.nav-item--sub span {
+  font-size: 0.92rem;
+}
+
+.nav-item--sub small {
+  display: none;
+}
+
+.nav-item--sub.active {
+  border-left-color: var(--brand-blue);
+}
+
 .sidebar-summary {
   margin-top: 24px;
   border: 1px solid var(--border);
@@ -871,11 +893,36 @@ h3 {
   font-size: 0.88rem;
 }
 
+/* Phase 17 item 2 — metric cards that double as filter buttons into the table below them. */
+.metric-link {
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+
+.metric-link:hover {
+  border-color: var(--accent, #1f64a8);
+}
+
+.metric-link.active {
+  border-color: var(--accent, #1f64a8);
+  box-shadow: 0 0 0 2px rgba(31, 100, 168, 0.25);
+}
+
 .panel {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow);
+}
+
+/* Phase 07 item 17 / Phase 06 item 32 — transient "jump to blocker" highlight. In-memory state
+   only (state.highlightPanel), never stored on the record, so it never survives a reload. */
+.panel-highlight {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px rgba(196, 60, 60, 0.35);
 }
 
 .panel-header {
@@ -896,6 +943,16 @@ h3 {
 .panel-body {
   padding: 16px;
   overflow-x: auto;
+}
+
+/* .panel-body's overflow-x:auto (for wide tables) implicitly clips overflow-y too, which
+   traps the activity-picker/create-menu dropdown's absolutely-positioned menu inside a
+   scrollbar instead of letting it overlay the page ("Schedule Activity drops into nothing
+   with a weird scrollable bar"). Panels that only host a dropdown, not a wide table, don't
+   need the scroll container. */
+.panel-body:has(.activity-picker-menu),
+.panel-body:has(.create-menu-list) {
+  overflow: visible;
 }
 
 .board-insights {
@@ -1196,24 +1253,30 @@ h3 {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+/* Phase 06 item 28 — these read as a progress ladder (like the bar above them), not a row of
+   clickable buttons. No border/fill on incomplete stages; "done" carries weight and color, plus a
+   thin colored underline that reads as the progress rail, not a button outline. */
 .race-stage-list span,
 .stage-ladder span {
-  min-height: 28px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  min-height: 26px;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  border-radius: 0;
+  background: none;
   display: grid;
   place-items: center;
   color: var(--muted);
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 600;
   text-align: center;
+  padding-bottom: 4px;
 }
 
 .race-stage-list span.done,
 .stage-ladder span.done {
-  background: #f3fbf5;
-  border-color: rgba(36, 118, 70, 0.25);
+  border-bottom-color: var(--green);
   color: var(--green);
+  font-weight: 800;
 }
 
 .inline-actions {
@@ -1951,6 +2014,44 @@ h3 {
   border-bottom: 0;
 }
 
+/* Phase 17 — shared data-table component chrome (search + sort), used by every new table this
+   phase adds so the app stops growing bespoke search boxes per screen. */
+.data-table-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.data-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.data-table-count {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.data-table-scroll {
+  overflow-x: auto;
+}
+
+.data-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table th.sortable:hover {
+  color: var(--text, #1f2933);
+}
+
+.data-table-empty-row td {
+  padding: 0;
+}
+
 .core-table-notice {
   display: flex;
   align-items: center;
@@ -2474,10 +2575,118 @@ button.source-badge:active {
   border-left-color: var(--amber);
 }
 
+/* Phase 17 item 5 — month grid replacing the old 7-day flat strip. */
+.calendar-board {
+  display: grid;
+  gap: 14px;
+}
+
+.calendar-board-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.calendar-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-bottom: 4px;
+}
+
+.calendar-month-cell {
+  min-height: 78px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendar-month-cell.outside-month {
+  opacity: 0.4;
+}
+
+.calendar-month-cell.is-today .calendar-cell-date {
+  color: var(--blue);
+  font-weight: 700;
+}
+
+.calendar-month-cell.is-selected {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px rgba(15, 95, 154, 0.2);
+}
+
+.calendar-cell-date {
+  font-size: 0.9rem;
+}
+
+.calendar-cell-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.calendar-cell-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.calendar-cell-dot.emergency-response {
+  background: var(--red);
+}
+
+.calendar-cell-dot.multi-stage-remediation {
+  background: var(--amber);
+}
+
 .map-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: 14px;
+}
+
+/* Phase 17 item 6 — map filter panel sits below the map, in the main (non-sidebar) column. */
+.map-layout-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+.checkbox-row input {
+  width: auto;
 }
 
 .ops-map {
@@ -2681,9 +2890,68 @@ body[data-theme="dark"] .map-popup span {
 }
 
 .timeline-scroll {
-  max-height: 420px;
-  overflow-y: auto;
   padding-right: 4px;
+}
+
+.tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+}
+
+.tag-picker legend {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.tag-picker .check-row {
+  width: auto;
+}
+
+.tag-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: #f4f6f8;
+}
+
+.timeline-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.timeline-filter-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 0.75rem;
+  background: #fff;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.timeline-filter-chip.active {
+  background: #1f64a8;
+  border-color: #1f64a8;
+  color: #fff;
 }
 
 .timeline-load-more {
@@ -2905,6 +3173,23 @@ textarea {
   color: var(--muted);
   font-size: 0.86rem;
   line-height: 1.55;
+}
+
+/* Phase 06 item 27 — the account-context hint on the Lead edit dialog, with its "Use this text"
+   adoption button. */
+.account-context-hint {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  background: #f3f8fd;
+  border: 1px solid rgba(31, 100, 168, 0.18);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.account-context-hint .help-text {
+  margin: 0;
 }
 
 .redirect-uri {
@@ -3511,9 +3796,11 @@ textarea {
 }
 
 .workforce-schedule-grid,
+/* Phase 07 item 16 — 7 columns, not 5. Narrowed the min column width so a laptop-width viewport
+   shows more of the week before the existing horizontal scroll (overflow-x) kicks in. */
 .dispatch-calendar-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(210px, 1fr));
+  grid-template-columns: repeat(7, minmax(170px, 1fr));
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 5px;
@@ -4624,8 +4911,6 @@ body[data-theme="dark"] .sample-photo-grid span.help-text,
 body[data-theme="dark"] .sample-photo-thumb,
 body[data-theme="dark"] .project-model-viewer,
 body[data-theme="dark"] .project-sample-map,
-body[data-theme="dark"] .race-stage-list span,
-body[data-theme="dark"] .stage-ladder span,
 body[data-theme="dark"] .crm-card-context,
 body[data-theme="dark"] .core-table-notice,
 body[data-theme="dark"] .file-ref,
@@ -4633,6 +4918,12 @@ body[data-theme="dark"] .avatar {
   background: var(--surface-alt);
   border-color: var(--border);
   color: var(--ink);
+}
+
+body[data-theme="dark"] .race-stage-list span,
+body[data-theme="dark"] .stage-ladder span {
+  color: var(--muted);
+  border-bottom-color: var(--border);
 }
 
 body[data-theme="dark"] .sample-map-link:hover,
@@ -4771,11 +5062,15 @@ body[data-theme="dark"] .stage-badge {
 }
 
 body[data-theme="dark"] .risk-badge.low,
-body[data-theme="dark"] .race-stage-list span.done,
-body[data-theme="dark"] .stage-ladder span.done,
 body[data-theme="dark"] .task-row.complete {
   background: rgba(117, 201, 144, 0.14);
   border-color: rgba(117, 201, 144, 0.36);
+  color: #9be7b2;
+}
+
+body[data-theme="dark"] .race-stage-list span.done,
+body[data-theme="dark"] .stage-ladder span.done {
+  border-bottom-color: #9be7b2;
   color: #9be7b2;
 }
 

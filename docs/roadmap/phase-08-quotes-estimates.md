@@ -1,6 +1,6 @@
-# Phase 08 — Quotes & Estimates
+﻿# Phase 08 — Quotes & Estimates
 
-**Status:** 🟢 **Shipped 2026-09-17. Live bug report follow-up shipped 2026-09-17 (second session)** — explicit "Mark current" override, print/export, notes, billing/shipping address, and write-in options. See "Live bug report follow-up" below. Real line-item builder built and reconnected for both Quote and Estimate (now two genuinely separate documents/collections, per owner decision). Rate-card admin screen built (products, units of measure, price levels) and confirmed to be the same data Phase 04's vendor-compliance and service-agreement panels already read via `populatePriceLevelSelect`. Item 3 (project value defaults from quote/estimate) implemented and verified live for all three cases: quote-present, estimate-only, and neither. Item 4 (reusable "+Create" wiring) intentionally skipped — see below. All verified live via Playwright except the Phase 04 vendor-compliance/service-agreement read-path, which was confirmed by code trace (both dialogs already call `populatePriceLevelSelect(dialog, "priceLevelId")` against `state.backend.priceLevels`, the same collection the new admin screen edits) rather than a fresh UI click-through, since Phase 04 built no new UI this session.
+**Status:** 🟢 **Shipped 2026-09-17. Live bug report follow-up shipped 2026-09-17 (second session). Items 6 and 7 of the 2026-09-22 pass shipped 2026-09-23** (Estimation Tool rename + dropped effective dates + Convert-to-quote; quote "Effective to" defaults to +30 days). **Not started: the rate-sheet/catalog rework (items 4/5/8, the "The rate sheet changed what this phase has to model" section)** — this is the pass's largest and most consequential item (new `productPrices` shape, three rate tiers, minimums, surcharges, cost-plus margin lines, and reconciling `2026 RATES.xlsx` against the operational catalogs) and needs its own dedicated session; see that section's own "Decisions locked" for what's already settled versus what implementation still has to build. — explicit "Mark current" override, print/export, notes, billing/shipping address, and write-in options. See "Live bug report follow-up" below. Real line-item builder built and reconnected for both Quote and Estimate (now two genuinely separate documents/collections, per owner decision). Rate-card admin screen built (products, units of measure, price levels) and confirmed to be the same data Phase 04's vendor-compliance and service-agreement panels already read via `populatePriceLevelSelect`. Item 3 (project value defaults from quote/estimate) implemented and verified live for all three cases: quote-present, estimate-only, and neither. Item 4 (reusable "+Create" wiring) intentionally skipped — see below. All verified live via Playwright except the Phase 04 vendor-compliance/service-agreement read-path, which was confirmed by code trace (both dialogs already call `populatePriceLevelSelect(dialog, "priceLevelId")` against `state.backend.priceLevels`, the same collection the new admin screen edits) rather than a fresh UI click-through, since Phase 04 built no new UI this session.
 **Depends on:** Phase 06 (Proposal & Documents tab already has the stub this phase replaces)
 **Note:** this phase builds the rate/pricing foundation — Phase 04's own rate-card items (7, 13, 14) depend on *this* phase, not the other way around. Sequence Phase 08 before those specific Phase 04 items.
 **Estimated sessions:** 3–4
@@ -237,3 +237,91 @@ item 2.
 - **Not click-tested:** the Phase 04 vendor-compliance/service-agreement dialogs' rate-card selects specifically in this session (no Phase 04 UI changed, so this was confirmed by code trace instead — see Corrections above).
 
 All test-session-only data mutations (extra quotes/estimates/products/UoM created while click-testing, and 3 opportunities temporarily forced to Won via direct API calls to reach the project-creation flow without walking every stage gate) were reverted from `data/backend.json` before committing; only the intentional seed additions (`estimates`/`estimateLines` collections, one seed estimate, and the `quoteId`/`estimateId` corrections described above) remain.
+
+---
+
+# 2026-09-22 feedback pass
+
+**Source:** `docs/roadmap/notes-2026-09-22.md` items 16–19, plus item 45, which came from the attached rate sheet rather than the written notes. **Status:** Not started. This is a second round on a phase already marked shipped — the line-item builder works; what is behind it does not yet match how BioRemedy actually prices work.
+
+### The rate sheet changed what this phase has to model
+
+`docs/uploaded files/2026 RATES.xlsx` is **BioRemedy's real 2026 rate sheet**, supplied with this pass. Reading it against the rate card this phase shipped turns up structural gaps that no amount of line-item UI will paper over. From the sheet itself:
+
+- **Four rate tiers, not one.** Standard (Mon–Fri 0800–1700), Overtime (outside those hours and all weekends), Emergency (any emergency work regardless of when), and Double Time (holidays, with a named holiday list). Today `products` carry a single `priceLevelId` and `data/backend.json` holds exactly one price level (`price-standard-2026`). There is no per-product price row, so there is nowhere to put four numbers for one item.
+- **A four-hour minimum** on labor, trucks and equipment for emergency call-outs. Nothing in the model expresses a minimum billable quantity.
+- **Fuel surcharge** on all fuel-burning equipment, set per invoice from the DOE average fuel price. The Lone Star invoice shows the same idea as a line ("28% Fuel Surcharge"). No surcharge concept exists.
+- **Cost-plus-margin lines** — subcontracted equipment, lab and testing services, rented equipment, travel and lodging all bill at cost + 28% margin (10% in one case; pump rebuilds at cost + 25%). Today every line is a fixed rate times a quantity.
+- **Real units of measure**: Hourly, Daily, Each, Per Foot Per Day, Per Man Per Day. Per Diem has a floor (GSA rate, minimum $125/day/person).
+- **Sections** — Labor, Equipment and Materials (with sub-groups: Heavy Equipment, Trailers, Flood Water Removal, Marine, Pumps, Hoses/Fittings, Generators/Air Compressors), then explanatory notes that are contract terms, not pricing.
+
+This is the catalog item 16 is asking for, and it is a bigger build than "add more products." Recommended shape, to be confirmed before implementation:
+
+- a `productPrices` row per product per tier, replacing the single `priceLevelId` scalar
+- `minimumQuantity` + `minimumAppliesWhen` on the product
+- a `pricingMethod` of `rate` or `cost_plus`, with a margin percentage for the latter
+- surcharges as a document-level rule that generates its own line, so it can be rendered and audited rather than silently folded into totals
+- a `category` / `section` on each product so the catalog picker can be browsed the way the rate sheet is organised
+
+**Do not hand-key the whole workbook into seed data before the model is settled** — a second import is cheap, a second migration is not.
+
+### 5. Quote and estimate lines must be itemized from real catalogs
+
+> *"Quote and estimates items are grouped projects. They need to be itemized items from inventory, labor, equipment, sample tests, etc."*
+
+The line-item builder shipped in this phase already supports product-or-free-text lines. The complaint is about what it can pick *from*: today the product list is a handful of whole-engagement service rows (`prod-ust-remediation`, `prod-asbestos-containment`, and the three generic cost-basis rows Phase 09 added), so every real quote collapses into one lumpy "project" line.
+
+The fix is the catalog above plus **picker sources**: labor roles (from the rate sheet's Section I, which should line up with `employees`' job titles), equipment (which should reconcile with `equipmentAssets` — the same skid steer should not exist twice under different names), consumables (`inventoryItems`), and sample/lab tests. Where a catalog already exists in the app, the rate card should reference it rather than duplicate it; where it does not, the rate card is the source. **Decide the direction of each link before building** — this is the item most likely to produce two competing catalogs.
+
+### 6. Estimates become the "Estimation Tool" and convert into quotes
+
+> *"An Estimate should be saved and used as a draft for a quote… We want estimates to have the ability to be converted into quotes. Estimates should not have effective 'from' or 'to' dates, they should be considered from an operational perspective as an internal compiling tools. We might want to rename it to 'Estimation Tool'."*
+
+**CONFIRMED against the shipped implementation.** `estimates` mirrors `quotes` field-for-field, including `effectiveFrom` / `effectiveTo` (`index.html:713-718`, `app.js:18216-18226`) — which this pass says should not exist on an internal working document.
+
+Three changes:
+
+- **Drop the effective dates from estimates** (dialog, save path, and any display). Leave the data on existing rows rather than deleting it until the owner confirms nothing depended on it.
+- **Rename the surface to "Estimation Tool"** — label only. Do not rename the `estimates`/`estimateLines` collections; the naming hazards in `CLAUDE.md` exist because of exactly this kind of rename.
+- **Add "Convert to quote."** Copies the estimate's lines into a new quote, sets the quote's effective dates per item 7, links the two (`quotes.sourceEstimateId`), and leaves the estimate intact as the working document. Decide whether converting twice is allowed — recommendation: yes, with the link recording each, since re-quoting the same estimate at a new price is ordinary.
+
+The owner's framing is worth preserving in the UI: an estimate is the internal compiling tool, a quote is the customer-facing commitment. If the two screens stay identical, users will keep treating them as duplicates.
+
+**✅ Done 2026-09-23.** Removed the two `effectiveFrom`/`effectiveTo` date inputs from the estimate dialog and added a one-line explanation of why ("An internal working draft, not a customer-facing document — no effective dates"). `saveOpportunityEstimate()` no longer reads those fields from the form; for an existing estimate it carries the prior `effectiveFrom`/`effectiveTo` values forward untouched (looked up from the pre-save record) rather than blanking them, per "leave the data on existing rows rather than deleting it." Renamed the panel/dialog header to "Estimation Tool" — display only, `estimates`/`estimateLines` collection names untouched. Added `convertEstimateToQuote()`: copies every estimate line into a brand-new `quotes`/`quoteLines` record (effective dates defaulted per item 7), sets `quotes.sourceEstimateId`, and leaves the estimate itself untouched — converting the same estimate twice creates two independent quotes, both linked back to it, per the locked Q4 decision. Verified live: opened the Estimation Tool dialog and confirmed no date fields and the renamed title; clicked "Convert to quote" on a real estimate and confirmed via direct data inspection that a new `quotes` row was created with the correct `sourceEstimateId`, lines, and total (the Proposal & Documents tab's Quote panel list wasn't re-screenshotted after the refresh completed, but `renderOpportunityProposalDocumentsTab()` already maps over every `quotesForOpportunity()` result, not just the current one, so it will show both once rendered).
+
+### 7. Quote "Effective to" defaults to 30 days out
+
+> *"Quotes need a 30 day auto filled for 'Effective to' based on the date"*
+
+**CONFIRMED.** `openOpportunityQuoteDialog()` sets `effectiveFrom` to today for a new quote (`app.js:18139`) and leaves `effectiveTo` empty. Default it to `effectiveFrom + 30 days`, recomputing when the user changes `effectiveFrom` unless they have already edited the end date by hand. Existing quotes with a blank `effectiveTo` are left alone. The Lone Star invoice's "Payment is due within 30 days" is a different 30 — do not conflate the quote validity window with payment terms.
+
+**✅ Done 2026-09-23.** New quotes default `effectiveTo` to `effectiveFrom + 30` (`addDays(30)`) at dialog-open time. A new `addDaysFrom(isoDate, days)` helper (alongside the existing `addDays`, which is always relative to today) recomputes `effectiveTo` live whenever `effectiveFrom` changes, unless the user has already typed directly into `effectiveTo` for this dialog session (tracked via a `dataset.touched` flag cleared on dialog open, set the moment the user edits that field). Existing quotes with a blank `effectiveTo` are untouched — the default only applies to the new-quote path. Verified live: opened a fresh "Add quote" dialog and confirmed `effectiveFrom`/`effectiveTo` were today/+30 days respectively.
+
+### 8. The Estimation Tool pulls from Resource Needs and site notes
+
+> *"The estimation tool should pull notes from the 'Resource Needs' panel and also list any site notes or specs that matter."*
+
+The three needs lists (`equipmentNeeds`, `vendorNeeds`, `resourceNeeds` — Phase 06 item 33) are the closest thing the app has to a scoping worksheet, and they are free text today. Pulling them into a new estimate as **draft lines to be priced** is the shortest path from "sales scoped it" to "someone priced it," and it is the same generator Phase 06 item 35 wants for Proposed Solution. Build it once.
+
+Site notes and specs come from the facility (Phase 02/03 site notes) and from the sites attached to the opportunity by Phase 06 item 30 — so this item is **blocked on Phase 06 item 30** for anything beyond the needs lists. The owner flagged it as "we can figure this out later"; treat the needs-list half as in scope and the site-notes half as dependent.
+
+---
+
+## Open decisions (2026-09-22 pass)
+
+- **Rate tiers:** four tiers per product as price rows — or price levels per tier with a full product set in each? The first is less data, the second matches the existing `priceLevels` shape.
+- **Catalog ownership:** does the rate card reference `equipmentAssets` and `inventoryItems`, or keep its own product rows that map to them?
+- **Fuel surcharge:** stored as a rate that an admin updates, or entered per document?
+- **Converting an estimate twice:** allowed?
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **Rate tier structure (Q1): THREE tiers per product** — **Standard**, **OT & Emergency** (one combined rate), and **Double Time** — each with a unit of measure. Owner-corrected 2026-09-22 after this doc first recorded four; **three is right, and the rate sheet backs it**: `2026 RATES.xlsx` prices Section I with exactly two rate columns, "Standard Rate" and "Emergency/ OT Rate," with Double Time described separately in the notes. The sheet's prose describes overtime and emergency as different *situations*, but it charges them the same, which is why four looked plausible and is wrong.
+  - **Emergency still has to be distinguishable even though it prices the same as OT**, because the four-hour minimum on labor, trucks and equipment applies to *emergency call-outs specifically*, not to overtime generally. So: three prices per product, plus an emergency condition flag that drives minimums. Do not collapse emergency into OT entirely.
+- **Rate sheets are a real grouping (Q1, second half):** *"we can have all of those items on different rate sheets."* So the model is **product → four tier prices → belongs to one or more rate sheets**, and `priceLevels` becomes the rate-sheet record rather than a single global price list. Expect customer-specific and year-specific sheets.
+- **Catalog ownership (Q2):** the rate card **references** the operational catalogs. Concretely: the items in `2026 RATES.xlsx` get added to heavy equipment, consumables and the other inventory categories, and the rate card prices those rows. The owner is explicit that **the two will not align immediately** — the rate sheet does not list everything, and everything will not be in the catalogs at first. **Build for partial alignment:** a rate line must be able to exist before its catalog row does, and the UI should make unmatched items visible rather than silently dropping them. This is an import-and-reconcile job, not a clean mapping.
+- **Fuel surcharge (Q3):** admin-maintained rate, overridable per document.
+- **Estimate → quote conversion (Q4):** allowed more than once; record each conversion.
+- **Currency precision (Q6):** cents are allowed everywhere — budgets, quotes, estimates, invoices. No rounding to dollars, and certainly not to thousands (see Phase 15). *(The owner answered "yes" to an either/or; cents is the reading that matches the original complaint about `4567` being rejected. Flagging in case the intent was whole dollars.)*

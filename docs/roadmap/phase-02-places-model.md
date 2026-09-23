@@ -176,3 +176,9 @@ Two facility-contact gaps were raised right after this phase shipped, before the
 - **Facilities aren't clickable** — no dedicated facility detail page exists (location, contacts, photos, prior work history, notes, a satellite map view). Today a facility is only ever a card inside the account's "Locations & Addresses" tab.
 
 See Phase 03's account-structure scope for all three.
+
+---
+
+## Decisions locked 2026-09-22 (owner)
+
+- **Can a GPS location belong to a facility directly (Q56): yes.** Add a `facilityId` to the `locations` collection, alongside the existing `projectId`, rather than forcing every GPS point to resolve through a project. This matches `job_sites.facility_id` in `crm-schema/` — the SQL model always had it; the prototype is the thing that drifted. Both links should be optional: a spill-origin point on a highway belongs to no facility, and a permanent sample point at a customer site belongs to a facility regardless of which project last touched it.

@@ -87,6 +87,8 @@ const collectionAccess = {
   workforceTeamMemberships: "workforce",
   crewProfiles: "workforce",
   availabilityBlocks: "workforce",
+  standbyAssignments: "workforce",
+  standbyRotationSettings: "workforce",
   frontlineDevices: "workforce",
   timeEntries: "operations",
   jobMileageEntries: "operations",
@@ -547,6 +549,14 @@ const defaultBackend = {
     { id: "avail-noah-training", employeeId: "emp-noah", type: "Unavailable", startsAt: "2026-07-26T13:00:00-05:00", endsAt: "2026-07-26T16:00:00-05:00", reason: "Laboratory QA training", status: "Approved" },
     { id: "avail-tristan-late", employeeId: "emp-tristan", type: "Restricted", startsAt: "2026-07-26T07:00:00-05:00", endsAt: "2026-07-26T14:00:00-05:00", reason: "Morning appointment", status: "Approved" },
     { id: "avail-samira-shift", employeeId: "emp-samira", type: "Preferred", startsAt: "2026-07-26T07:00:00-05:00", endsAt: "2026-07-26T15:00:00-05:00", reason: "Regular Tue-Sat shift", status: "Confirmed" },
+  ],
+  // Phase 18 item 2 — standby/on-call, modeled separately from availabilityBlocks (a standby
+  // assignment is a commitment, not an unavailability exception).
+  standbyAssignments: [
+    { id: "standby-logan-weekend", employeeId: "emp-logan", startsAt: "2026-07-25T17:00:00-05:00", endsAt: "2026-07-27T07:00:00-05:00", notes: "Primary weekend on-call", createdBy: "Priya Patel", createdAt: "2026-07-20T14:00:00-05:00" },
+  ],
+  standbyRotationSettings: [
+    { id: "default", rotationPattern: "Weekly", notes: "Rotates every Friday 5pm", updatedBy: "Priya Patel", updatedAt: "2026-07-20T14:00:00-05:00" },
   ],
   frontlineDevices: [
     { id: "device-logan-ipad", employeeId: "emp-logan", deviceIdentifier: "BR-IPAD-014", displayName: "Logan field iPad", platform: "iPadOS", appVersion: "0.9.4", registrationStatus: "Active", lastSeenAt: "2026-07-26T15:42:00-05:00", syncStatus: "Healthy", pendingCommands: 0 },
@@ -2256,6 +2266,8 @@ function filterBackendForRole(data, role) {
     workforceTeamMemberships: canAccess(role, "workforce") ? data.workforceTeamMemberships : [],
     crewProfiles: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.crewProfiles : [],
     availabilityBlocks: canAccess(role, "workforce") || canAccess(role, "dispatch") ? data.availabilityBlocks : [],
+    standbyAssignments: canAccess(role, "workforce") || canAccess(role, "dispatch") || canAccess(role, "operations") ? data.standbyAssignments : [],
+    standbyRotationSettings: canAccess(role, "workforce") || canAccess(role, "dispatch") || canAccess(role, "operations") ? data.standbyRotationSettings : [],
     frontlineDevices: canAccess(role, "workforce") ? data.frontlineDevices : [],
     timeEntries: canAccess(role, "operations") ? data.timeEntries : [],
     jobMileageEntries: canAccess(role, "operations") ? data.jobMileageEntries : [],
