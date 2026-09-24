@@ -116,28 +116,21 @@
             </label>
           </fieldset>
 
-          <fieldset class="settings-section">
+          <fieldset class="settings-section settings-roles">
             <legend>Roles and Permissions</legend>
             <label>
               Active role
-              <select name="roleProfile">
-                <option value="office">Office Manager</option>
-                <option value="sales">Sales Manager</option>
-                <option value="operations">Operations Manager</option>
-                <option value="inventory">Inventory Manager</option>
-                <option value="finance">Finance Manager</option>
-                <option value="client">Client Portal</option>
-                <option value="admin">Admin</option>
-              </select>
+              <select name="activeRole"></select>
             </label>
+            <p class="help-text" data-settings-roles-help></p>
             <div class="settings-status-list">
               <div>
                 <strong>Permission enforcement</strong>
-                <span>Server and app guardrails active</span>
+                <span>The server checks every request against the active role</span>
               </div>
               <div>
-                <strong>Hidden apps</strong>
-                <span>Apps outside the active role stay blocked</span>
+                <strong>Resets at logout</strong>
+                <span>The next sign-in starts with all your roles</span>
               </div>
             </div>
           </fieldset>
@@ -5866,16 +5859,15 @@
             <input name="internalEmailAddress" type="email" maxlength="120" autocomplete="off" placeholder="name@bioremedy.com" />
           </label>
         </div>
-        <div class="form-grid">
-          <label>
-            Role
-            <select name="role" required></select>
-          </label>
-          <label>
-            Field employee
-            <select name="employeeId"></select>
-          </label>
-        </div>
+        <fieldset class="settings-section roles-picker">
+          <legend>Roles</legend>
+          <div class="check-grid" data-system-user-roles></div>
+          <p class="help-text" data-system-user-roles-help>Tick every role the person holds; their access is the combination. Client Portal cannot be combined with an internal role.</p>
+        </fieldset>
+        <label>
+          Field employee
+          <select name="employeeId"></select>
+        </label>
         <label>
           Customer account (Client Portal role only)
           <select name="clientAccountId"></select>
@@ -5884,7 +5876,7 @@
           <input type="checkbox" name="isDisabled" />
           <span>Disabled — cannot sign in; any open sessions end now</span>
         </label>
-        <p class="help-text">The role decides which workspaces and API routes the person can use. Linking a field employee makes Front Line open as that person.</p>
+        <p class="help-text">The roles decide which workspaces and API routes the person can use; with several, they get all of them. Linking a field employee makes Front Line open as that person.</p>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save user</button>
@@ -6036,6 +6028,32 @@
           <button class="primary-button" type="submit">Save details</button>
         </menu>
       </form>
+    </dialog>
+
+    <!-- Camera capture (2026-09-24). Every file input gets a "Take photo" button; on a desktop with a
+         webcam that button opens this dialog, on a phone it opens the native camera instead. -->
+    <dialog id="cameraCaptureDialog" class="modal camera-capture-dialog">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Camera</p>
+            <h2>Take a photo</h2>
+          </div>
+          <button type="button" class="icon-button" data-camera-cancel aria-label="Close">x</button>
+        </div>
+        <div class="camera-capture-stage">
+          <video autoplay playsinline muted></video>
+          <p class="camera-capture-status help-text" hidden></p>
+        </div>
+        <label class="camera-capture-picker" hidden>
+          Camera
+          <select name="camera"></select>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-camera-cancel>Cancel</button>
+          <button class="primary-button" type="button" data-camera-shoot>Take photo</button>
+        </menu>
+      </div>
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

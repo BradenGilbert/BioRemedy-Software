@@ -7245,3 +7245,94 @@ body[data-theme="dark"] .document-ext {
 .login-form[hidden] {
   display: none;
 }
+
+/* Camera capture (2026-09-24): the "Take photo" button that follows every file input, and the webcam dialog. */
+.camera-capture-button {
+  justify-self: start;
+  align-self: start;
+  margin-top: 6px;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface, #ffffff);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.camera-capture-button:hover {
+  border-color: rgba(21, 153, 71, 0.4);
+  background: var(--surface-alt, #f5fbf4);
+  transform: translateY(-1px);
+}
+
+.camera-capture-button:active {
+  transform: translateY(0);
+}
+
+label > .camera-capture-button {
+  width: max-content;
+}
+
+.camera-capture-dialog .modal-panel {
+  width: min(720px, calc(100vw - 28px));
+}
+
+.camera-capture-stage {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0b1210;
+  min-height: 200px;
+  display: grid;
+  place-items: center;
+}
+
+.camera-capture-stage video {
+  display: block;
+  width: 100%;
+  max-height: min(60vh, 540px);
+  object-fit: contain;
+  background: #0b1210;
+}
+
+.camera-capture-status {
+  position: absolute;
+  inset: auto 12px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #17211b;
+  text-align: center;
+}
+
+.camera-capture-picker {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+/* 2026-09-24: a session narrowed to one active role says so in the top bar. */
+.current-user-chip.acting-as {
+  color: #b45309;
+}
+
+.roles-picker .check-grid {
+  gap: 6px 12px;
+}
+
+.roles-picker .check-row {
+  width: auto;
+}

@@ -1554,6 +1554,7 @@ async function init() {
   await refreshState();
   applyRouteFromHash();
   bindEvents();
+  installCameraCapture();
   registerServiceWorker();
   render();
   sweepDeadlineNotifications();
@@ -3044,12 +3045,14 @@ function renderTodaySummary() {
   const openTasks = state.tasks.filter((task) => task.status !== "Complete").length;
   const activeAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved").length;
   const pending = pendingQueue().length;
-  roleSummary.textContent = state.currentUser?.role || "No role";
+  roleSummary.textContent = describeRoles();
   todaySummary.textContent = `${openTasks} open tasks, ${activeAlerts} active alerts, ${pending} edits waiting to sync`;
   const userChip = document.querySelector("#currentUserChip");
   if (userChip) {
-    userChip.textContent = state.session ? state.currentUser?.name || "" : "";
-    userChip.title = state.session ? `Signed in as ${state.currentUser?.name || ""} (${state.currentUser?.role || ""})` : "";
+    const actingAs = state.currentUser?.activeRole || "";
+    userChip.textContent = state.session ? `${state.currentUser?.name || ""}${actingAs ? ` · acting as ${actingAs}` : ""}` : "";
+    userChip.title = state.session ? `Signed in as ${state.currentUser?.name || ""} (${describeRoles()})` : "";
+    userChip.classList.toggle("acting-as", Boolean(state.session && actingAs));
   }
 }
 
@@ -3062,11 +3065,30 @@ function getCurrentWorkspaceId() {
   return viewWorkspace[state.view] || "sales";
 }
 
+// 2026-09-24 (owner): access is the combination of every role the person holds, unless they
+// narrowed the session to one active role in Settings. `role` stays the primary one for display.
+function currentRoles() {
+  const user = state.currentUser;
+  if (Array.isArray(user?.roles) && user.roles.length) return user.roles;
+  return user?.role ? [user.role] : [];
+}
+
+function userHasRole(...names) {
+  const roles = currentRoles();
+  return names.some((name) => roles.includes(name));
+}
+
+function describeRoles(user = state.currentUser) {
+  if (user?.activeRole) return `Acting as ${user.activeRole}`;
+  const roles = Array.isArray(user?.roles) && user.roles.length ? user.roles : user?.role ? [user.role] : [];
+  return roles.join(" + ") || "No role";
+}
+
 function canAccessWorkspace(workspaceId) {
   const workspace = findWorkspace(workspaceId);
   if (!workspace) return false;
-  const role = state.currentUser?.role || "";
-  return role === "Admin" || workspace.roles.includes(role);
+  const roles = currentRoles();
+  return roles.includes("Admin") || roles.some((role) => workspace.roles.includes(role));
 }
 
 function canAccessView(view) {
@@ -3078,8 +3100,7 @@ function canAccessView(view) {
 // Sales/Account Manager can trigger project creation from a Won opportunity without
 // gaining the broader Operations workspace (which owns project-detail generally).
 function canCreateProjectFromOpportunity() {
-  const role = state.currentUser?.role || "";
-  return canAccessView("project-detail") || ["Sales Manager", "Account Manager"].includes(role);
+  return canAccessView("project-detail") || userHasRole("Sales Manager", "Account Manager");
 }
 
 function ensureAllowedView() {
@@ -3140,7 +3161,7 @@ function renderHome() {
           <img class="orbit-logo logo-reversed" src="./public/brand/bioremedy-logo-primary-reversed.png" alt="BioRemedy" />
           <strong>Operations Platform</strong>
           <small class="orbit-tagline">Industrial response and remediation</small>
-          <small class="orbit-role">${escapeHtml(state.currentUser?.role || "No role")}</small>
+          <small class="orbit-role">${escapeHtml(describeRoles())}</small>
         </div>
         ${launchers.map((workspace, index) => renderHomeLauncher(workspace, index, launchers.length)).join("")}
       </section>
@@ -14843,7 +14864,7 @@ function renderFrontlineTaskCapture(action, job) {
   if (action.type === "Photo") {
     return `
       <label>Photos (at least ${Number(config.minPhotos)})
-        <input type="file" name="photos" accept="image/png,image/jpeg" capture="environment" multiple required />
+        <input type="file" name="photos" accept="image/png,image/jpeg" multiple required />
       </label>
       ${notes("What do these show?", "Before, progress, after...")}
     `;
@@ -15002,17 +15023,17 @@ function renderFrontlineSampleCapture(action, job, config) {
          photo can. -->
     <div class="form-grid">
       <label>North view photo
-        <input type="file" name="northViewPhoto" accept="image/png,image/jpeg" capture="environment" required />
+        <input type="file" name="northViewPhoto" accept="image/png,image/jpeg" required />
       </label>
       <label>Sample interval photo
-        <input type="file" name="intervalPhoto" accept="image/png,image/jpeg" capture="environment" required />
+        <input type="file" name="intervalPhoto" accept="image/png,image/jpeg" required />
       </label>
       <label>Container label photo
-        <input type="file" name="containerLabelPhoto" accept="image/png,image/jpeg" capture="environment" required />
+        <input type="file" name="containerLabelPhoto" accept="image/png,image/jpeg" required />
       </label>
     </div>
     <label>Additional sample photos
-      <input type="file" name="photos" accept="image/png,image/jpeg" capture="environment" multiple />
+      <input type="file" name="photos" accept="image/png,image/jpeg" multiple />
     </label>
     <label>Field notes
       <textarea name="summary" rows="2" placeholder="Observations at the sample point" required></textarea>
@@ -15424,7 +15445,7 @@ function renderFrontlineReceipts() {
               </select>
             </label>
             <label>Receipt photo
-              <input type="file" name="receipt" accept="image/*,application/pdf" capture="environment" required />
+              <input type="file" name="receipt" accept="image/*,application/pdf" required />
             </label>
             <div class="form-grid">
               <label>Amount<input type="number" name="amount" min="0.01" step="0.01" required placeholder="0.00" /></label>
@@ -16931,7 +16952,7 @@ function renderFrontlineAdHocCaptureForm(type, job) {
   } else if (type === "Photo") {
     fields = `
       <label>Photos
-        <input type="file" name="photos" accept="image/png,image/jpeg" capture="environment" multiple required />
+        <input type="file" name="photos" accept="image/png,image/jpeg" multiple required />
       </label>
       ${notes("What do these show?", "Before, progress, after...", false)}
     `;
@@ -20585,9 +20606,9 @@ const OFFICE_NOTIFY_ROLES = ["Admin", "Office Manager"];
 const FIELD_ALERT_NOTIFY_ROLES = ["Admin", "Office Manager", "Operations Manager", "Sales Manager", "Account Manager"];
 
 function notificationsForCurrentUser() {
-  const role = state.currentUser?.role || "";
+  const roles = currentRoles();
   return (state.backend.notifications || [])
-    .filter((notification) => !notification.deletedAt && (role === "Admin" || !notification.audienceRoles?.length || notification.audienceRoles.includes(role)))
+    .filter((notification) => !notification.deletedAt && (roles.includes("Admin") || !notification.audienceRoles?.length || notification.audienceRoles.some((role) => roles.includes(role))))
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
@@ -22249,23 +22270,53 @@ function openSettingsDialog() {
   const sessionName = settingsDialog.querySelector("[data-settings-session-name]");
   const sessionRole = settingsDialog.querySelector("[data-settings-session-role]");
   if (sessionName) sessionName.textContent = state.currentUser?.name || "Signed in";
-  if (sessionRole) sessionRole.textContent = `${state.currentUser?.role || ""}${state.currentUser?.email ? ` · ${state.currentUser.email}` : ""}${state.currentUser?.source ? ` · ${state.currentUser.source}` : ""}`;
+  if (sessionRole) sessionRole.textContent = `${describeRoles()}${state.currentUser?.email ? ` · ${state.currentUser.email}` : ""}${state.currentUser?.source ? ` · ${state.currentUser.source}` : ""}`;
   form.elements.theme.value = settings.theme;
   form.elements.density.value = settings.density;
   form.elements.gpsMode.value = settings.gpsMode;
   form.elements.gpsRefresh.value = settings.gpsRefresh;
   form.elements.gpsAccuracy.value = settings.gpsAccuracy;
   form.elements.geofenceAlerts.checked = Boolean(settings.geofenceAlerts);
-  form.elements.roleProfile.value = getCurrentRoleProfile();
+  fillActiveRoleSelect(form);
   form.elements.schedulerBlockMode.value = settings.schedulerBlockMode;
   form.elements.qboMode.value = settings.qboMode;
   form.elements.inventoryAlertMode.value = settings.inventoryAlertMode;
   settingsDialog.showModal();
 }
 
+// Settings > Roles and Permissions > Active role (2026-09-24, owner). Options: everything the person
+// holds, or one of those roles; an Admin can view as any role. The choice lives on the server
+// session, so every API call honours it, and it ends with the session.
+function fillActiveRoleSelect(form) {
+  const select = form.elements.activeRole;
+  const help = settingsDialog.querySelector("[data-settings-roles-help]");
+  if (!select) return;
+  const held = state.currentUser?.heldRoles || [];
+  const isAdmin = held.includes("Admin");
+  const activeRole = state.currentUser?.activeRole || "";
+  const choices = isAdmin ? SYSTEM_USER_ROLES.filter((role) => role !== "Client Portal" || state.session?.clientAccountId) : held;
+  const allLabel = held.length > 1 ? `All my roles (${held.join(" + ")})` : `${held[0] || "No role"} (my only role)`;
+  select.innerHTML = [
+    `<option value="">${escapeHtml(allLabel)}</option>`,
+    ...choices.filter((role) => held.length > 1 || role !== held[0]).map((role) => `<option value="${escapeAttribute(role)}">${escapeHtml(role)}${held.includes(role) ? "" : " (view as)"}</option>`),
+  ].join("");
+  select.value = activeRole;
+  select.disabled = !state.session || state.session.kind === "dispatch-link" || (held.length <= 1 && !isAdmin);
+  if (help) {
+    help.textContent = activeRole
+      ? `Acting as ${activeRole} until you log out. Choose "${allLabel}" to get everything back.`
+      : held.length > 1
+        ? `You hold ${held.join(" + ")}; everything those roles can do is open. Pick one to work as that role only, until you log out.`
+        : isAdmin
+          ? "Admin sees everything. Pick a role to see the app as that role until you log out."
+          : `Your role is ${held[0] || "not set"}.`;
+  }
+}
+
 async function savePlatformSettings(form) {
   const data = new FormData(form);
-  const roleProfile = (data.get("roleProfile") || "").toString();
+  const activeRole = (data.get("activeRole") || "").toString();
+  const roleChanged = Boolean(form.elements.activeRole) && !form.elements.activeRole.disabled && activeRole !== (state.currentUser?.activeRole || "");
   const settings = {
     ...defaultPlatformSettings,
     ...state.platformSettings,
@@ -22275,30 +22326,30 @@ async function savePlatformSettings(form) {
     gpsRefresh: (data.get("gpsRefresh") || "").toString(),
     gpsAccuracy: (data.get("gpsAccuracy") || "").toString(),
     geofenceAlerts: form.elements.geofenceAlerts.checked,
-    roleProfile,
     schedulerBlockMode: (data.get("schedulerBlockMode") || "").toString(),
     qboMode: (data.get("qboMode") || "").toString(),
     inventoryAlertMode: (data.get("inventoryAlertMode") || "").toString(),
   };
 
   await putSetting("platformSettings", settings);
-  if (demoUsers[roleProfile]) {
-    await putSetting("currentUser", {
-      ...demoUsers[roleProfile],
-      signedInAt: new Date().toISOString(),
-    });
+  let roleMessage = "";
+  if (roleChanged) {
+    try {
+      const session = await apiRequest("/api/auth/active-role", { method: "POST", body: JSON.stringify({ role: activeRole }) });
+      state.session = session;
+      state.currentUser = sessionToUser(session);
+      state.authAdmin = null;
+      roleMessage = session.activeRole ? `Acting as ${session.activeRole} until you log out.` : "All your roles are active again.";
+    } catch (error) {
+      roleMessage = error.message || "Could not change the active role.";
+    }
   }
 
   closeDialogs();
   await refreshState();
+  ensureAllowedView();
   render();
-  showToast("Settings saved.");
-}
-
-function getCurrentRoleProfile() {
-  const currentRole = state.currentUser?.role || "";
-  const matchingProfile = Object.entries(demoUsers).find(([, user]) => user.role === currentRole);
-  return matchingProfile?.[0] || state.platformSettings?.roleProfile || "office";
+  showToast(roleMessage || "Settings saved.");
 }
 
 function openOpportunityDialog(accountId = "", opportunityId = "") {
@@ -27644,6 +27695,9 @@ function sessionToUser(session) {
     name: session.name,
     email: session.email || "",
     role: session.role,
+    roles: Array.isArray(session.effectiveRoles) && session.effectiveRoles.length ? session.effectiveRoles : [session.role],
+    heldRoles: Array.isArray(session.roles) && session.roles.length ? session.roles : [session.role],
+    activeRole: session.activeRole || "",
     source: session.kind === "breakglass" ? "Emergency access" : session.kind === "dispatch-link" ? "Sign-on link" : session.kind === "entra" ? "Microsoft" : "Signed in",
     signedInAt: session.createdAt,
     employeeId: session.employeeId || "",
@@ -27803,6 +27857,8 @@ async function signOut() {
   state.authRequired = true;
   state.view = "home";
   history.replaceState(null, "", location.pathname);
+  // Logout lives inside the Settings dialog (2026-09-24): close it, or it sits over the sign-in screen.
+  closeDialogs();
   render();
 }
 
@@ -27819,7 +27875,7 @@ function renderCurrentUser() {
           <strong>${escapeHtml(user.name || "Unknown user")}</strong>
           <div class="row-meta">
             <span>${escapeHtml(user.email || "No email on the user record")}</span>
-            <span class="source-badge">${escapeHtml(user.role || "No role")}</span>
+            <span class="source-badge">${escapeHtml(describeRoles(user))}</span>
             <span class="source-badge">${escapeHtml(user.source || "Session")}</span>
           </div>
           <span class="help-text">Session started ${formatDateTime(user.signedInAt)}${state.session?.expiresAt ? ` · expires ${formatDateTime(state.session.expiresAt)}` : ""}</span>
@@ -27861,7 +27917,7 @@ function getSystemUsers() {
 function renderSystemUserRow(user) {
   const status = state.authAdmin?.usersStatus?.[user.id] || {};
   const employee = user.employeeId ? findEmployee(user.employeeId) : null;
-  const facts = [user.username ? `@${user.username}` : "", user.internalEmailAddress || "", user.role || "no role", employee ? `field: ${employee.displayName}` : "", user.entraObjectId ? "Microsoft sign-in" : ""].filter(Boolean);
+  const facts = [user.username ? `@${user.username}` : "", user.internalEmailAddress || "", (Array.isArray(user.roles) && user.roles.length ? user.roles : [user.role]).filter(Boolean).join(" + ") || "no role", employee ? `field: ${employee.displayName}` : "", user.entraObjectId ? "Microsoft sign-in" : ""].filter(Boolean);
   return `
     <div class="detail-card ${user.isDisabled ? "muted-card" : ""}">
       <div class="row-meta">
@@ -27906,7 +27962,7 @@ function renderSessionsPanel() {
             .map(
               (session) => `
                 <div class="detail-card">
-                  <div class="row-meta"><strong>${escapeHtml(session.name)}${session.current ? " (this session)" : ""}</strong><span>${escapeHtml(session.role)} · ${escapeHtml(session.kind === "breakglass" ? "emergency access" : session.kind === "dispatch-link" ? "sign-on link" : session.kind === "entra" ? "Microsoft" : "password sign-in")} · since ${formatDateTime(session.createdAt)} · last seen ${formatDateTime(session.lastSeenAt)}${session.ip ? ` · ${escapeHtml(session.ip)}` : ""}</span></div>
+                  <div class="row-meta"><strong>${escapeHtml(session.name)}${session.current ? " (this session)" : ""}</strong><span>${escapeHtml((Array.isArray(session.roles) && session.roles.length ? session.roles : [session.role]).join(" + "))}${session.activeRole ? ` (acting as ${escapeHtml(session.activeRole)})` : ""} · ${escapeHtml(session.kind === "breakglass" ? "emergency access" : session.kind === "dispatch-link" ? "sign-on link" : session.kind === "entra" ? "Microsoft" : "password sign-in")} · since ${formatDateTime(session.createdAt)} · last seen ${formatDateTime(session.lastSeenAt)}${session.ip ? ` · ${escapeHtml(session.ip)}` : ""}</span></div>
                   ${session.current ? "" : `<div class="inline-actions"><button class="mini-button" type="button" data-action="revoke-session" data-id="${escapeAttribute(session.id)}">Revoke</button></div>`}
                 </div>
               `,
@@ -27955,7 +28011,17 @@ function openSystemUserDialog(userId = "") {
   const form = dialog.querySelector("form");
   form.reset();
   const user = userId ? getSystemUsers().find((item) => item.id === userId) : null;
-  fillSelect(form.elements.role, state.authAdmin?.roles || SYSTEM_USER_ROLES, user?.role || "", "Choose a role…");
+  const roleOptions = state.authAdmin?.roles || SYSTEM_USER_ROLES;
+  const heldRoles = Array.isArray(user?.roles) && user.roles.length ? user.roles : user?.role ? [user.role] : [];
+  dialog.querySelector("[data-system-user-roles]").innerHTML = roleOptions
+    .map((role) => `<label class="check-row"><input type="checkbox" name="roles" value="${escapeAttribute(role)}" ${heldRoles.includes(role) ? "checked" : ""} /><span>${escapeHtml(role)}</span></label>`)
+    .join("");
+  const rolesHelp = dialog.querySelector("[data-system-user-roles-help]");
+  if (rolesHelp) {
+    rolesHelp.textContent = user?.entraObjectId
+      ? "This person signs in with Microsoft: their roles come from Entra on every sign-in, so change them there. Edits here last only until their next sign-in."
+      : "Tick every role the person holds; their access is the combination. Client Portal cannot be combined with an internal role.";
+  }
   fillSelect(
     form.elements.employeeId,
     getEmployees().map((employee) => [employee.id, `${employee.displayName}${employee.jobTitle ? ` - ${employee.jobTitle}` : ""}`]),
@@ -27976,19 +28042,33 @@ async function saveSystemUser(form) {
   const data = new FormData(form);
   const existingId = (data.get("id") || "").toString();
   const existing = existingId ? getSystemUsers().find((item) => item.id === existingId) : null;
+  const roles = data
+    .getAll("roles")
+    .map((item) => item.toString())
+    .filter(Boolean)
+    .sort((a, b) => SYSTEM_USER_ROLES.indexOf(a) - SYSTEM_USER_ROLES.indexOf(b));
   const user = {
     ...(existing || { businessUnitId: "bu-bioremedy", createdAt: new Date().toISOString() }),
     id: existingId || makeId("user"),
     fullName: (data.get("fullName") || "").toString().trim(),
     username: (data.get("username") || "").toString().trim().toLowerCase(),
     internalEmailAddress: (data.get("internalEmailAddress") || "").toString().trim().toLowerCase(),
-    role: (data.get("role") || "").toString(),
+    role: roles[0] || "",
+    roles,
     employeeId: (data.get("employeeId") || "").toString(),
     clientAccountId: (data.get("clientAccountId") || "").toString(),
     isDisabled: form.elements.isDisabled.checked,
   };
   if (!user.fullName || (!user.username && !user.internalEmailAddress)) {
     showToast("A user needs a name and a username or email.");
+    return;
+  }
+  if (!roles.length) {
+    showToast("Tick at least one role.");
+    return;
+  }
+  if (roles.includes("Client Portal") && roles.length > 1) {
+    showToast("Client Portal cannot be combined with an internal role.");
     return;
   }
   try {
@@ -28295,7 +28375,7 @@ function paperworkApproved(accountId, typeCode, opportunityId = "") {
 }
 
 function canReviewPaperwork() {
-  return REVIEW_ROLES.includes(state.currentUser?.role || "");
+  return userHasRole(...REVIEW_ROLES);
 }
 
 function isPortalUser() {
@@ -28402,8 +28482,6 @@ function openDocumentUploadDialog({ entityType, entityId, typeId = "", requireme
   dialog.querySelector("[data-upload-title]").textContent = title;
   dialog.querySelector("[data-upload-hint]").textContent = requirement ? "Uploading puts this requirement in review; the office approves it." : "PDF, images or Office files up to 25 MB. The same file twice is refused.";
   form.elements.file.accept = defaultType?.isImage ? "image/*" : ".pdf,.doc,.docx,.xls,.xlsx,.pptx,.csv,.txt,image/*";
-  if (defaultType?.isImage) form.elements.file.setAttribute("capture", "environment");
-  else form.elements.file.removeAttribute("capture");
   dialog.showModal();
 }
 
@@ -31984,6 +32062,207 @@ function showToast(message) {
   toast.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove("show"), 3200);
+}
+
+// --- Camera capture for file inputs (2026-09-24) -------------------------------------------------
+// Every <input type="file"> in the app gets a "Take photo" button beside it, current and future ones
+// alike (a MutationObserver decorates whatever a render inserts). On a phone the button opens the
+// native camera through a hidden capture input; on a desktop with a webcam it opens
+// #cameraCaptureDialog (getUserMedia) and the frame is saved as a JPEG. Either way the photo is
+// appended to the input's FileList through DataTransfer and a change event fires, so the existing
+// submit and upload handlers see it exactly like a picked file. The inputs themselves no longer carry
+// capture="environment": that attribute forced the camera on phones and hid the photo library, and
+// the button now covers the camera.
+const CAMERA_IMAGE_ACCEPT = /image|\.(jpe?g|png|webp|heic|gif)\b/i;
+let cameraCaptureStream = null;
+let cameraCaptureResolve = null;
+
+function installCameraCapture() {
+  if (typeof MutationObserver === "undefined") return;
+  decorateFileInputs(document.body);
+  new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) if (node.nodeType === 1) decorateFileInputs(node);
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
+function decorateFileInputs(root) {
+  const inputs = root.matches?.('input[type="file"]') ? [root] : [...(root.querySelectorAll?.('input[type="file"]') || [])];
+  inputs.forEach((input) => {
+    if (input.dataset.cameraReady || input.dataset.cameraSource) return;
+    input.dataset.cameraReady = "1";
+    input.removeAttribute("capture");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "camera-capture-button";
+    button.innerHTML = `<span aria-hidden="true">&#128247;</span> Take photo`;
+    button.title = input.multiple ? "Take a photo with the camera and add it to the files" : "Take a photo with the camera";
+    button.hidden = !fileInputAcceptsImages(input);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!fileInputAcceptsImages(input)) {
+        showToast("This field does not accept photos.");
+        return;
+      }
+      captureFromCamera(input);
+    });
+    input.insertAdjacentElement("afterend", button);
+  });
+}
+
+function fileInputAcceptsImages(input) {
+  const accept = (input.getAttribute("accept") || "").trim();
+  return !accept || CAMERA_IMAGE_ACCEPT.test(accept);
+}
+
+function cameraPrefersNativeCapture() {
+  if (!navigator.mediaDevices?.getUserMedia) return true;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+}
+
+async function captureFromCamera(input) {
+  const file = cameraPrefersNativeCapture() ? await captureWithNativeCamera() : await captureWithWebcam();
+  if (!file) return;
+  addFileToInput(input, file);
+  showToast(input.multiple ? `Photo added (${input.files.length} file${input.files.length === 1 ? "" : "s"} attached).` : "Photo attached.");
+}
+
+// The hidden input is what a phone browser turns into its camera sheet. It has to be clicked inside
+// the user's tap, which is why this path never waits on anything first.
+function captureWithNativeCamera() {
+  return new Promise((resolve) => {
+    const picker = document.createElement("input");
+    picker.type = "file";
+    picker.accept = "image/*";
+    picker.setAttribute("capture", "environment");
+    picker.dataset.cameraSource = "1";
+    picker.hidden = true;
+    let settled = false;
+    const finish = (file) => {
+      if (settled) return;
+      settled = true;
+      picker.remove();
+      resolve(file || null);
+    };
+    picker.addEventListener("change", () => finish(picker.files?.[0]));
+    picker.addEventListener("cancel", () => finish(null));
+    document.body.append(picker);
+    picker.click();
+  });
+}
+
+async function captureWithWebcam() {
+  const dialog = document.querySelector("#cameraCaptureDialog");
+  if (!dialog) return captureWithNativeCamera();
+  const status = dialog.querySelector(".camera-capture-status");
+  const picker = dialog.querySelector(".camera-capture-picker");
+  const select = picker.querySelector("select");
+  const shoot = dialog.querySelector("[data-camera-shoot]");
+  if (!dialog.dataset.bound) {
+    dialog.dataset.bound = "1";
+    dialog.querySelectorAll("[data-camera-cancel]").forEach((button) => button.addEventListener("click", () => dialog.close()));
+    dialog.addEventListener("close", () => {
+      stopCameraStream(dialog);
+      const resolve = cameraCaptureResolve;
+      cameraCaptureResolve = null;
+      resolve?.(null);
+    });
+    shoot.addEventListener("click", () => snapCameraFrame(dialog));
+    select.addEventListener("change", () => startCameraStream(dialog, select.value).catch(() => {}));
+  }
+  status.hidden = true;
+  status.textContent = "";
+  picker.hidden = true;
+  shoot.disabled = true;
+  const file = await new Promise((resolve) => {
+    cameraCaptureResolve = resolve;
+    dialog.showModal();
+    startCameraStream(dialog).catch((error) => {
+      const denied = error?.name === "NotAllowedError";
+      status.textContent = denied
+        ? "Camera access was blocked. Allow the camera for this site and try again, or choose a file instead."
+        : "No camera was found on this device. Choose a file instead.";
+      status.hidden = false;
+    });
+  });
+  return file;
+}
+
+async function startCameraStream(dialog, deviceId = "") {
+  stopCameraStream(dialog);
+  const video = dialog.querySelector("video");
+  const shoot = dialog.querySelector("[data-camera-shoot]");
+  const constraints = {
+    audio: false,
+    video: deviceId
+      ? { deviceId: { exact: deviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+      : { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+  };
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  if (!dialog.open) {
+    stream.getTracks().forEach((track) => track.stop());
+    return;
+  }
+  cameraCaptureStream = stream;
+  video.srcObject = stream;
+  await video.play().catch(() => {});
+  shoot.disabled = false;
+  if (!deviceId) await populateCameraPicker(dialog, stream);
+}
+
+async function populateCameraPicker(dialog, stream) {
+  const picker = dialog.querySelector(".camera-capture-picker");
+  const select = picker.querySelector("select");
+  const cameras = ((await navigator.mediaDevices.enumerateDevices?.()) || []).filter((device) => device.kind === "videoinput");
+  if (cameras.length < 2) return;
+  const activeId = stream.getVideoTracks()[0]?.getSettings?.().deviceId || "";
+  select.innerHTML = cameras.map((camera, index) => `<option value="${escapeAttribute(camera.deviceId)}">${escapeHtml(camera.label || `Camera ${index + 1}`)}</option>`).join("");
+  if (activeId) select.value = activeId;
+  picker.hidden = false;
+}
+
+function stopCameraStream(dialog) {
+  cameraCaptureStream?.getTracks().forEach((track) => track.stop());
+  cameraCaptureStream = null;
+  const video = dialog.querySelector("video");
+  if (video) video.srcObject = null;
+}
+
+function snapCameraFrame(dialog) {
+  const video = dialog.querySelector("video");
+  if (!video.videoWidth) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  canvas.toBlob(
+    (blob) => {
+      if (!blob) return;
+      const file = new File([blob], cameraPhotoFileName(), { type: "image/jpeg", lastModified: Date.now() });
+      const resolve = cameraCaptureResolve;
+      cameraCaptureResolve = null;
+      dialog.close();
+      resolve?.(file);
+    },
+    "image/jpeg",
+    0.92,
+  );
+}
+
+function cameraPhotoFileName() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return `photo-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.jpg`;
+}
+
+function addFileToInput(input, file) {
+  const transfer = new DataTransfer();
+  if (input.multiple) [...(input.files || [])].forEach((existing) => transfer.items.add(existing));
+  transfer.items.add(file);
+  input.files = transfer.files;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function registerServiceWorker() {
