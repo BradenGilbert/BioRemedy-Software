@@ -34,6 +34,7 @@
           <span id="connectionStatus" class="status-pill" aria-live="polite"></span>
           <div id="quickActions" class="quick-actions" aria-label="Quick actions"></div>
           <span id="notificationBell" class="notification-bell"></span>
+          <span id="itMessagesSlot" class="notification-bell"></span>
           <span id="currentUserChip" class="current-user-chip" title="Signed in as"></span>
           <button class="icon-button settings-button" type="button" data-action="open-settings" aria-label="Open settings" title="Settings">
             <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
@@ -1257,6 +1258,51 @@
           <button class="mini-button" type="button" data-action="mark-all-notifications-read">Mark all read</button>
         </div>
         <div class="notification-list" data-notification-list></div>
+      </div>
+    </dialog>
+
+    <dialog id="itMessagesDialog" class="modal">
+      <div class="modal-panel wide-modal-panel it-messages-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Messages to IT</p>
+            <h2>Issues, comments, errors</h2>
+            <p class="help-text">Enter Issues, Comments, Errors, or messages to IT here. Attach a screenshot and mark it up to show exactly what you mean.</p>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="it-messages-layout" data-it-layout>
+          <aside class="it-thread-list" data-it-thread-list hidden></aside>
+          <div class="it-thread">
+            <p class="help-text" data-it-thread-title></p>
+            <div class="chat-scroll it-chat" data-it-thread></div>
+            <form class="it-composer" data-form="it-message">
+              <input name="threadKey" type="hidden" />
+              <textarea name="body" rows="2" maxlength="4000" placeholder="What happened, where you were in the app, and what you expected" aria-label="Message to IT"></textarea>
+              <div class="it-composer-tools">
+                <button class="mini-button" type="button" data-action="it-capture-screen">Capture screen</button>
+                <label class="mini-button it-file-button">Choose image<input name="screenshotFile" type="file" accept="image/*" hidden /></label>
+                <span class="help-text" data-it-attach-note>No screenshot attached.</span>
+              </div>
+              <div class="it-annotator" data-it-annotator hidden>
+                <div class="it-annotator-tools">
+                  <button class="mini-button active" type="button" data-action="it-tool" data-tool="pen">Pen</button>
+                  <button class="mini-button" type="button" data-action="it-tool" data-tool="box">Box</button>
+                  <button class="mini-button" type="button" data-action="it-tool" data-tool="arrow">Arrow</button>
+                  <button class="mini-button" type="button" data-action="it-undo">Undo</button>
+                  <button class="mini-button" type="button" data-action="it-clear-marks">Clear marks</button>
+                  <button class="mini-button" type="button" data-action="it-remove-screenshot">Remove screenshot</button>
+                  <span class="help-text">Draw on the screenshot to point at the problem.</span>
+                </div>
+                <canvas class="it-annotator-canvas" data-it-canvas></canvas>
+              </div>
+              <menu class="modal-actions">
+                <button class="secondary-button" type="button" data-action="close-dialog">Close</button>
+                <button class="primary-button" type="submit">Send to IT</button>
+              </menu>
+            </form>
+          </div>
+        </div>
       </div>
     </dialog>
 
@@ -4200,6 +4246,12 @@
           </div>
         </fieldset>
 
+        <label>
+          Work plan (job template)
+          <select name="jobTypeTemplateId"></select>
+          <small class="field-help">The stages and tasks the crew works through on Front Line. Emergency templates come first; "No template" gives the generic four-step plan.</small>
+        </label>
+
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Create project and dispatch job</button>
@@ -4525,12 +4577,12 @@
       <div class="modal-panel">
         <div class="modal-header">
           <div>
-            <p class="eyebrow">Sales to Dispatch</p>
+            <p class="eyebrow" data-template-dialog-eyebrow>Sales to Dispatch</p>
             <h2>Choose a work plan</h2>
           </div>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
-        <p class="help-text">Pick the job template to use for this job's stages and sub-tasks. Templates matching this request's service category are suggested first.</p>
+        <p class="help-text" data-template-dialog-help>Pick the job template to use for this job's stages and sub-tasks. Templates matching this request's service category are suggested first.</p>
         <div class="record-list" data-template-options></div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>

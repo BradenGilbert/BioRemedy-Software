@@ -142,6 +142,8 @@ const collectionAccess = {
   inventoryAlerts: "dispatch",
   // Phase 18 item 4 (2026-09-23): append-only GPS consent records; written only by /api/auth/consent.
   gpsConsents: "dispatch",
+  // Messages to IT (owner, 2026-09-24): one thread per signed-in person; scoped in the routes below.
+  itMessages: "identity",
   // Phase 13 (2026-09-24): the document store, its type catalog and tracked requirements.
   documents: "customerDirectory",
   documentTypes: "customerDirectory",
@@ -701,6 +703,7 @@ const defaultBackend = {
   // building a full alerts inbox UI was out of scope for this pass.
   inventoryAlerts: [],
   gpsConsents: [],
+  itMessages: [],
   documents: [],
   documentTypes: [],
   documentRequirements: [],
@@ -2629,6 +2632,7 @@ function filterBackendForRole(data, role, session = null) {
     scheduleEvents: canAccess(role, "operations") ? data.scheduleEvents : [],
     locations: canAccess(role, "operations") ? data.locations : [],
     gpsConsents: canAccess(role, "dispatch") || canAccess(role, "workforce") ? data.gpsConsents || [] : [],
+    itMessages: visibleItMessages(data, session, role),
     inventoryItems: canAccess(role, "inventory") || canAccess(role, "dispatch") ? data.inventoryItems : [],
     purchaseOrders: canAccess(role, "inventory") ? data.purchaseOrders : [],
     inventoryMovements: canAccess(role, "inventory") ? data.inventoryMovements : [],
@@ -4429,6 +4433,7 @@ const DOCUMENT_ENTITY_TYPES = new Map([
   ["vendorProfile", "vendorProfiles"],
   ["documentType", "documentTypes"],
   ["sample", "sampleRecords"],
+  ["itMessage", "itMessages"],
 ]);
 const REQUIREMENT_STATUSES = ["Not started", "Sent", "Returned", "In review", "Approved", "Rejected"];
 const REVIEW_ROLES = ["Admin", "Office Manager", "Sales Manager", "Operations Manager"];
@@ -4483,6 +4488,73 @@ function accountIdForEntity(data, entityType, record) {
   if (entityType === "dispatchJob" && record.projectId) return (data.projects || []).find((item) => item.id === record.projectId)?.accountId || "";
   if (entityType === "sample" && record.projectId) return (data.projects || []).find((item) => item.id === record.projectId)?.accountId || "";
   return "";
+}
+
+// ---- Messages to IT (owner, 2026-09-24) ----
+// One conversation per signed-in person, keyed by their user id (the break-glass admin is
+// "breakglass"). A person sees only their own conversation; an Admin (IT) sees every one and answers
+// inside it. A screenshot is a document attached to the message (entityType "itMessage").
+function itThreadKeyForSession(session) {
+  return session?.systemUserId || (session?.kind === "breakglass" ? "breakglass" : session?.id || "");
+}
+
+function visibleItMessages(data, session, roles) {
+  const list = Array.isArray(roles) ? roles : [roles];
+  if (!session || isPortalRole(list)) return [];
+  const rows = (data.itMessages || []).filter((row) => !row.deletedAt);
+  if (list.includes("Admin")) return rows;
+  const key = itThreadKeyForSession(session);
+  return rows.filter((row) => row.threadKey === key);
+}
+
+function normalizeItMessageWrite(data, request, body, stored) {
+  const session = request.session;
+  const roles = getRoles(request);
+  if (!session || isPortalRole(roles)) return { error: "Customers cannot message IT here.", status: 403 };
+  const isAdmin = roles.includes("Admin");
+  const ownKey = itThreadKeyForSession(session);
+  if (stored) {
+    // After the fact only the read markers and the screenshot link change; text and author stay.
+    if (!isAdmin && stored.threadKey !== ownKey) return { error: "Not your conversation.", status: 403 };
+    const record = { ...stored, userReadAt: stored.userReadAt || String(body.userReadAt || ""), itReadAt: stored.itReadAt || String(body.itReadAt || "") };
+    if (!stored.screenshotDocumentId && body.screenshotDocumentId) {
+      const document = (data.documents || []).find((item) => item.id === body.screenshotDocumentId && !item.deletedAt && item.entityType === "itMessage" && item.entityId === stored.id);
+      if (!document) return { error: "That screenshot is not attached to this message.", status: 400 };
+      record.screenshotDocumentId = document.id;
+    }
+    return { record };
+  }
+  const text = String(body.body || "").trim().slice(0, 4000);
+  if (!text) return { error: "Type a message.", status: 400 };
+  let threadKey = ownKey;
+  let threadName = session.name;
+  let fromIT = false;
+  if (isAdmin && body.threadKey && body.threadKey !== ownKey) {
+    const existing = (data.itMessages || []).find((row) => row.threadKey === body.threadKey && !row.deletedAt);
+    if (!existing) return { error: "That conversation does not exist.", status: 404 };
+    threadKey = existing.threadKey;
+    threadName = existing.threadName;
+    fromIT = true;
+  }
+  const now = new Date().toISOString();
+  return {
+    record: {
+      id: String(body.id || "") || makeId("it-message"),
+      threadKey,
+      threadName,
+      authorUserId: session.systemUserId || "",
+      authorName: session.name,
+      authorRole: session.role,
+      fromIT,
+      body: text,
+      screenshotDocumentId: "",
+      pageUrl: String(body.pageUrl || "").slice(0, 300),
+      userAgent: String(request.headers["user-agent"] || "").slice(0, 200),
+      createdAt: now,
+      userReadAt: fromIT ? "" : now,
+      itReadAt: fromIT ? now : "",
+    },
+  };
 }
 
 // A customer login holds Client Portal and nothing else (an internal role on the same login wins).
@@ -4864,6 +4936,7 @@ async function handleApi(request, response, pathname) {
   const data = await loadBackend();
 
   if (request.method === "GET") {
+    if (collection === "itMessages") return json(response, 200, visibleItMessages(data, request.session, role));
     return json(response, 200, data[collection]);
   }
 
@@ -4917,6 +4990,12 @@ async function handleApi(request, response, pathname) {
     if (collection === "documentRequirements") {
       const storedRequirement = (data.documentRequirements || []).find((item) => item.id === body.id);
       const result = normalizeRequirementWrite(data, request, body, storedRequirement);
+      if (result.error) return json(response, result.status, { error: result.error });
+      record = result.record;
+    }
+    if (collection === "itMessages") {
+      const storedMessage = (data.itMessages || []).find((item) => item.id === body.id);
+      const result = normalizeItMessageWrite(data, request, body, storedMessage);
       if (result.error) return json(response, result.status, { error: result.error });
       record = result.record;
     }
@@ -4990,6 +5069,10 @@ async function handleSoftDelete(request, response, collection, id, restore) {
   const dryRun = !restore && requestUrl.searchParams.get("dryRun") === "1";
   const actor = attribution(request);
   const data = await loadBackend();
+  if (collection === "itMessages" && !role.includes("Admin")) {
+    const row = (data.itMessages || []).find((item) => item.id === id);
+    if (!row || row.threadKey !== itThreadKeyForSession(request.session)) return json(response, 403, { error: "Not your conversation." });
+  }
   const rootKey = `${collection}:${id}`;
   const now = new Date().toISOString();
 

@@ -7357,3 +7357,152 @@ label > .camera-capture-button {
 .roles-picker .check-row {
   width: auto;
 }
+
+/* 2026-09-24: a switched-off action stays visible so people know where it will be. */
+.primary-button.is-off,
+.primary-button.is-off:hover {
+  background: #cbd5e1;
+  border-color: #cbd5e1;
+  color: #475569;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.primary-button.is-off s {
+  text-decoration: line-through;
+}
+
+/* Messages to IT (2026-09-24): top-bar button, conversation dialog, screenshot annotator. */
+.it-messages-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.it-messages-panel {
+  max-width: 980px;
+}
+
+.it-messages-layout {
+  display: grid;
+  gap: 14px;
+}
+
+.it-messages-layout.has-threads {
+  grid-template-columns: 230px minmax(0, 1fr);
+}
+
+.it-thread-list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.it-thread-row {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.it-thread-row.active {
+  border-color: var(--brand-blue);
+  background: #eaf3fa;
+}
+
+.it-thread-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.it-thread-row .notification-count.static {
+  top: 8px;
+  right: 8px;
+}
+
+.it-thread {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.it-chat {
+  min-height: 200px;
+  max-height: 40vh;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  overflow: auto;
+}
+
+.it-composer {
+  display: grid;
+  gap: 8px;
+}
+
+.it-composer textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.it-composer-tools,
+.it-annotator-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.it-file-button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.it-annotator-tools .mini-button.active {
+  background: var(--brand-blue);
+  color: #fff;
+}
+
+.it-annotator {
+  display: grid;
+  gap: 8px;
+}
+
+.it-annotator-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.it-shot {
+  display: block;
+  max-width: 280px;
+  max-height: 200px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+dialog.capturing {
+  opacity: 0;
+}
+
+@media (max-width: 760px) {
+  .it-messages-layout.has-threads {
+    grid-template-columns: 1fr;
+  }
+}

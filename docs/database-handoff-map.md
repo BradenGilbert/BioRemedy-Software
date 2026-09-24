@@ -1024,6 +1024,7 @@ Generated from `server.mjs`'s `collectionAccess` map (108 collections including 
 | `qboSettings` | **new** accounting_connections (029+) | Single row today |
 | `qboExports` | **new** accounting_export_batches (029+) | Stores the QBO payload |
 | `gpsConsents` | **new** gps_consents (029+) | Append-only |
+| `itMessages` | **new** it_messages (029+) | Messages to IT (2026-09-24): thread_key = system_users.id, from_it, body, screenshot_document_id → documents (entity_type `itMessage`), page_url, user_agent, user_read_at, it_read_at |
 | `documents` | files (012) **rewritten** as documents | Polymorphic entity link, sha-256, versions, visibility |
 | `documentTypes` | **new** document_types (029+) |  |
 | `documentRequirements` | **new** document_requirements (029+) |  |

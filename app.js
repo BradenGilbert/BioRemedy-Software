@@ -2022,6 +2022,9 @@ async function dispatchClick(event) {
   if (action === "download-sample-lab-report") await downloadSampleLabReport(id);
   if (action === "convert-job-request") openJobTemplateSelectDialog(id);
   if (action === "edit-job-request") openJobRequestEditDialog(id);
+  if (action === "job-request-off") showToast("New job request is turned off for testing.");
+  if (action === "open-job-template-for-job") openJobTemplateSelectDialogForJob(actionButton.dataset.jobId);
+  if (action === "assign-job-template") await assignJobTemplate(actionButton.dataset.jobId, actionButton.dataset.templateId);
   if (action === "job-request-needs-info") await markJobRequestNeedsInfo(id);
   if (action === "job-request-ready") await setJobRequestStatus(id, "Submitted");
   if (action === "job-request-decline") await closeJobRequest(id, "Declined");
@@ -2065,6 +2068,13 @@ async function dispatchClick(event) {
   if (action === "open-permit") openPermitDialog(actionButton.dataset.id || "");
   if (action === "open-waste-record") openWasteRecordDialog(actionButton.dataset.projectId, actionButton.dataset.id || "");
   if (action === "open-notifications") openNotificationsDialog();
+  if (action === "open-it-messages") openItMessagesDialog();
+  if (action === "it-open-thread") { state.itMessagesThreadKey = actionButton.dataset.key; renderItMessagesDialog(); await markItThreadRead(); }
+  if (action === "it-capture-screen") await itCaptureScreen();
+  if (action === "it-tool") itSetTool(actionButton.dataset.tool);
+  if (action === "it-undo") { itAnnotator.strokes.pop(); itRedraw(); }
+  if (action === "it-clear-marks") { itAnnotator.strokes = []; itRedraw(); }
+  if (action === "it-remove-screenshot") itSetScreenshot(null);
   if (action === "mark-notification-read") await markNotificationsRead([actionButton.dataset.id]);
   if (action === "mark-all-notifications-read") await markNotificationsRead(notificationsForCurrentUser().filter(notificationIsUnread).map((notification) => notification.id));
   if (action === "open-notification") await openNotification(actionButton.dataset.id);
@@ -2370,6 +2380,7 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "frontline-adhoc-activity") await frontlineSubmitAdHocActivity(form);
   if (form.dataset.form === "frontline-form-submission") await frontlineSubmitStandaloneForm(form);
   if (form.dataset.form === "frontline-message") await frontlineSendMessage(form);
+  if (form.dataset.form === "it-message") await sendItMessage(form);
   if (form.dataset.form === "login") await signIn(form);
   if (form.dataset.form === "break-glass") await breakGlassSignIn(form);
   if (form.dataset.form === "system-user") await saveSystemUser(form);
@@ -2799,6 +2810,7 @@ function render() {
   renderNav();
   renderQuickActions();
   renderNotificationBell();
+  renderItMessagesButton();
   renderHeaderTitle();
   renderTodaySummary();
 
@@ -2969,7 +2981,8 @@ function renderQuickActions() {
   const actions = [];
   const activeWorkspace = getCurrentWorkspaceId();
   if (activeWorkspace === "dispatch") {
-    actions.push(`<button class="primary-button" type="button" data-action="open-job-request">New job request</button>`);
+    // Owner, 2026-09-24: the top-bar "new" action here is a Field alert, as on Operations.
+    actions.push(`<button class="danger-button" type="button" data-action="open-alert">Field alert</button>`);
   } else if (activeWorkspace === "workforce") {
     actions.push(`<button class="primary-button" type="button" data-action="open-employee">Add employee</button>`);
   } else if (state.view === "account-detail" && state.selectedAccountId && canAccessView("pipeline")) {
@@ -8955,11 +8968,8 @@ function renderOperationsScheduled() {
         "Scheduled Work",
         "Confirmed and tentative field work that needs crews, equipment, customer access, and schedule control.",
         `
-          <button class="primary-button" type="button" data-action="open-schedule">Schedule work</button>
-          <button class="secondary-button" type="button" data-action="open-remediation" data-job-class="Scheduled Work">New scheduled project</button>
+          <button class="primary-button" type="button" data-action="open-remediation" data-job-class="Scheduled Work">New scheduled project</button>
           <button class="danger-button" type="button" data-action="open-alert">Field alert</button>
-          <button class="secondary-button" type="button" data-action="open-material">Log material</button>
-          <button class="secondary-button" type="button" data-action="open-equipment">Log equipment</button>
         `,
       )}
       ${renderOperationsClassMetrics("Scheduled Work")}
@@ -11108,7 +11118,7 @@ function renderDispatchIntake() {
         "dispatch",
         "Job Request Intake",
         "Sales requests awaiting office review, job creation, scheduling, and field deployment.",
-        `<button class="primary-button" type="button" data-action="open-job-request">New job request</button>`,
+        `${renderNewJobRequestOffButton()}`,
       )}
       <section class="metric-strip">
         <div class="metric"><p class="eyebrow">Open intake</p><strong>${open.length}</strong><span>Needs dispatch action</span></div>
@@ -11130,6 +11140,12 @@ function renderDispatchIntake() {
       </section>
     </section>
   `;
+}
+
+// Owner, 2026-09-24: intake by job request is switched off while the flow is being tested. The
+// button stays where people look for it, greyed and struck through, and says why on hover.
+function renderNewJobRequestOffButton() {
+  return `<button class="primary-button is-off" type="button" data-action="job-request-off" aria-disabled="true" title="Turned off for testing"><s>New job request</s></button>`;
 }
 
 function renderJobRequestCard(request) {
@@ -11270,7 +11286,7 @@ function renderDispatchJobs() {
         "dispatch",
         "Jobs",
         "Every dispatchable work packet, separate from the overall customer project.",
-        `<button class="primary-button" type="button" data-action="open-job-request">New job request</button>`,
+        `${renderNewJobRequestOffButton()}`,
       )}
       ${
         filterAccount
@@ -11387,7 +11403,7 @@ function renderDispatchBoard() {
         "dispatch",
         "Dispatch Board",
         "Status-driven coordination from job planning through field return and office review.",
-        `<button class="primary-button" type="button" data-action="open-job-request">New job request</button>`,
+        `${renderNewJobRequestOffButton()}`,
       )}
       <section class="dispatch-board-grid">
         ${columns.map((column) => renderDispatchBoardColumn(column, jobs.filter((job) => column.statuses.includes(job.status)), column.id === "scheduled" ? siteWalkEvents().filter((event) => event.date >= todayIso()) : [])).join("")}
@@ -12019,6 +12035,7 @@ function renderDispatchJobDetail() {
         <div class="inline-actions">
           ${job.projectId ? `<button class="secondary-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.projectId)}">Back to project</button>` : ""}
           <button class="secondary-button" type="button" data-action="open-dispatch-job-edit" data-id="${job.id}">Edit details</button>
+          ${job.status !== "closed" && !stepsForDispatchJob(job.id).length ? `<button class="primary-button" type="button" data-action="open-job-template-for-job" data-job-id="${job.id}">Assign work plan</button>` : ""}
           <button class="danger-button" type="button" data-action="delete-record" data-collection="dispatchJobs" data-id="${job.id}">Delete</button>
           ${job.status === "closed" ? "" : `<button class="secondary-button" type="button" data-action="open-job-schedule" data-job-id="${job.id}">Schedule</button>`}
           ${nextTransition ? `<button class="primary-button" type="button" data-action="advance-dispatch-job" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>` : ""}
@@ -12442,9 +12459,9 @@ function renderDispatchJobFilesActivityTab(job) {
     <section class="detail-stack">
       ${renderDocumentsPanel({ entityType: "dispatchJob", entityId: job.id, title: "Documents", subtitle: "Permits, manifests, signed paperwork for this dispatch" })}
       <article class="panel">
-        <div class="panel-header"><div><h3>Work plan</h3><span>Frozen steps, actions, and linked forms</span></div></div>
+        <div class="panel-header"><div><h3>Work plan</h3><span>Frozen steps, actions, and linked forms</span></div>${!steps.length && job.status !== "closed" ? `<button class="mini-button" type="button" data-action="open-job-template-for-job" data-job-id="${escapeAttribute(job.id)}">Assign work plan</button>` : ""}</div>
         <div class="panel-body work-plan-list">
-          ${steps.map((step) => renderJobStep(step, actionsForDispatchStep(step.id))).join("") || `<div class="empty-state">No execution plan instantiated.</div>`}
+          ${steps.map((step) => renderJobStep(step, actionsForDispatchStep(step.id))).join("") || `<div class="empty-state">No work plan yet. Assign a job template so the crew has steps to work through on Front Line.</div>`}
         </div>
       </article>
 
@@ -18491,6 +18508,8 @@ function openJobTemplateSelectDialog(requestId) {
   }
 
   const dialog = document.querySelector("#jobTemplateSelectDialog");
+  dialog.querySelector("[data-template-dialog-eyebrow]").textContent = "Sales to Dispatch";
+  dialog.querySelector("[data-template-dialog-help]").textContent = "Pick the job template to use for this job's stages and sub-tasks. Templates matching this request's service category are suggested first.";
   const templates = getJobTypeTemplates().filter((template) => template.isActive !== false);
   const sorted = [...templates].sort((a, b) => {
     const aMatch = a.serviceCategory === request.serviceCategory ? 0 : 1;
@@ -18507,6 +18526,64 @@ function openJobTemplateSelectDialog(requestId) {
   `;
   dialog.querySelector("[data-template-options]").innerHTML = sorted.map((template) => renderJobTemplateOption(template, requestId, request.serviceCategory)).join("") + blankOption;
   dialog.showModal();
+}
+
+// Owner, 2026-09-24: a dispatch job without a work plan (every spill-call job until today) can be
+// given one here. Only while it has no steps: replacing a plan that work has started on is not offered.
+const JOB_TYPE_CODE_CATEGORY = { ER: "ER", SAMPLE: "Sampling", SVC: "Scheduled", REMED: "Remediation", ABATE: "Abatement" };
+
+function openJobTemplateSelectDialogForJob(jobId) {
+  const job = findDispatchJob(jobId);
+  if (!job) return;
+  if (stepsForDispatchJob(job.id).length) {
+    showToast("This job already has a work plan.");
+    return;
+  }
+  const category = JOB_TYPE_CODE_CATEGORY[job.jobTypeCode] || "";
+  const dialog = document.querySelector("#jobTemplateSelectDialog");
+  const templates = getJobTypeTemplates().filter((template) => template.isActive !== false);
+  const sorted = [...templates].sort((a, b) => (a.serviceCategory === category ? 0 : 1) - (b.serviceCategory === category ? 0 : 1));
+  dialog.querySelector("[data-template-dialog-eyebrow]").textContent = job.jobNumber;
+  dialog.querySelector("[data-template-dialog-help]").textContent = `Pick the job template for ${job.jobNumber}'s stages and sub-tasks. Templates matching its service category are suggested first.`;
+  const option = (template) => {
+    const stages = template.stages || [];
+    const taskCount = stages.reduce((sum, stage) => sum + (stage.tasks || []).length, 0);
+    const suggested = template.serviceCategory === category;
+    return `
+      <button class="template-option ${suggested ? "suggested" : ""}" type="button" data-action="assign-job-template" data-job-id="${escapeAttribute(job.id)}" data-template-id="${escapeAttribute(template.id)}">
+        <div>
+          <strong>${escapeHtml(template.name)}</strong>
+          <span class="row-meta"><span>${escapeHtml(template.serviceCategory)}</span><span>${stages.length} stage${stages.length === 1 ? "" : "s"}</span><span>${taskCount} sub-task${taskCount === 1 ? "" : "s"}</span></span>
+        </div>
+        ${suggested ? `<span class="tag">Suggested</span>` : ""}
+      </button>
+    `;
+  };
+  dialog.querySelector("[data-template-options]").innerHTML =
+    sorted.map(option).join("") +
+    `<button class="template-option" type="button" data-action="assign-job-template" data-job-id="${escapeAttribute(job.id)}" data-template-id=""><div><strong>No template</strong><span class="row-meta"><span>Generic four-step plan</span></span></div></button>`;
+  dialog.showModal();
+}
+
+async function assignJobTemplate(jobId, templateId) {
+  const job = findDispatchJob(jobId);
+  if (!job) return;
+  if (stepsForDispatchJob(job.id).length) {
+    showToast("This job already has a work plan.");
+    return;
+  }
+  const template = templateId ? findJobTypeTemplate(templateId) : null;
+  try {
+    const saved = await saveBackendRecord("dispatchJobs", { ...job, jobTypeTemplateId: template?.id || "", jobType: template?.name || job.jobType }, { refresh: false });
+    if (template) await applyJobTypeTemplateToJob(saved, template);
+    else await applyFallbackJobPlan(saved);
+    await refreshBackendState();
+    closeDialogs();
+    render();
+    showToast(template ? `Work plan "${template.name}" assigned to ${job.jobNumber}.` : `Generic work plan assigned to ${job.jobNumber}.`);
+  } catch (error) {
+    showToast(error.message || "Could not assign the work plan.");
+  }
 }
 
 function renderJobTemplateOption(template, requestId, requestServiceCategory) {
@@ -18639,6 +18716,16 @@ function openEmergencyIntakeDialog() {
   const form = dialog.querySelector("form");
   form.reset();
   populateAccountSelect(dialog, "No existing account — create one");
+  // Owner, 2026-09-24: a spill call created a dispatch job with no work plan. Emergency templates
+  // first, the first one preselected; "No template" is the generic four-step plan.
+  const templates = getJobTypeTemplates()
+    .filter((template) => template.isActive !== false)
+    .sort((a, b) => (a.serviceCategory === "ER" ? 0 : 1) - (b.serviceCategory === "ER" ? 0 : 1) || String(a.name).localeCompare(String(b.name)));
+  form.elements.jobTypeTemplateId.innerHTML = [
+    ...templates.map((template) => `<option value="${escapeAttribute(template.id)}">${escapeHtml(template.name)} · ${escapeHtml(template.serviceCategory)} · ${(template.stages || []).length} stage${(template.stages || []).length === 1 ? "" : "s"}</option>`),
+    `<option value="">No template — generic four-step plan</option>`,
+  ].join("");
+  form.elements.jobTypeTemplateId.value = templates.find((template) => template.serviceCategory === "ER")?.id || "";
   dialog.showModal();
 }
 
@@ -18834,15 +18921,17 @@ async function submitEmergencyIntake(form) {
 
     const sequence = getDispatchJobs().length + 1;
     const now = new Date();
+    const template = findJobTypeTemplate((data.get("jobTypeTemplateId") || "").toString()) || null;
     const dispatchJob = {
       id: makeId("dispatch-job"),
       jobNumber: `JOB-${now.getFullYear()}-${localIsoDate(now).replaceAll("-", "").slice(4)}-${String(sequence).padStart(2, "0")}`,
+      jobTypeTemplateId: template?.id || "",
       accountId: account.id,
       projectId: project.id,
       projectName: project.name,
       customerName: account.name,
       jobName: `Emergency spill response — ${addressText}`,
-      jobType: "Emergency Response",
+      jobType: template?.name || "Emergency Response",
       jobTypeCode: "ER",
       jobTypeVersion: 1,
       status: mobilization.status === "Cleared to mobilize" ? "ready" : "draft",
@@ -18860,7 +18949,10 @@ async function submitEmergencyIntake(form) {
       completionPercent: 0,
       updatedAt: new Date().toISOString(),
     };
-    await saveBackendRecord("dispatchJobs", dispatchJob, { refresh: false });
+    const savedDispatchJob = await saveBackendRecord("dispatchJobs", dispatchJob, { refresh: false });
+    // The work plan the crew executes on Front Line (owner, 2026-09-24: it used to be missing here).
+    if (template) await applyJobTypeTemplateToJob(savedDispatchJob, template);
+    else await applyFallbackJobPlan(savedDispatchJob);
     // Phase 16 item 2, via Phase 13 (2026-09-24): the onsite paperwork this emergency needs is a tracked
     // requirement from the first minute -- the packet and a service agreement, unless already on file.
     await ensurePaperworkRequirements(account.id, ["customer-packet", "waste-authorization", "service-agreement-msa"], { entityType: "project", entityId: project.id, source: "emergency-intake" });
@@ -20729,6 +20821,349 @@ function renderNotificationList() {
 function openNotificationsDialog() {
   renderNotificationList();
   document.querySelector("#notificationsDialog").showModal();
+}
+
+// ============================================================================================
+// Messages to IT (owner, 2026-09-24): a chat with IT from the top bar, with a screenshot you can
+// draw on. One conversation per person; IT (any Admin) sees them all and answers inside them.
+// ============================================================================================
+const IT_MESSAGES_HINT = "Enter Issues, Comments, Errors, or messages to IT here";
+const itAnnotator = { image: null, strokes: [], tool: "pen", current: null, wired: false };
+
+function getItMessages() {
+  return liveRows(state.backend.itMessages);
+}
+
+function itOwnThreadKey() {
+  return state.session?.systemUserId || (state.session?.kind === "breakglass" ? "breakglass" : state.session?.id || "");
+}
+
+function itViewerIsIT() {
+  return userHasRole("Admin") && state.itMessagesThreadKey && state.itMessagesThreadKey !== itOwnThreadKey();
+}
+
+function itThreads() {
+  const byKey = new Map();
+  for (const message of getItMessages()) {
+    const entry = byKey.get(message.threadKey) || { key: message.threadKey, name: message.threadName || message.authorName, last: "", unread: 0, count: 0 };
+    entry.count += 1;
+    if (!message.fromIT && !message.itReadAt) entry.unread += 1;
+    if (message.createdAt > entry.last) entry.last = message.createdAt;
+    if (!message.fromIT && message.threadName) entry.name = message.threadName;
+    byKey.set(message.threadKey, entry);
+  }
+  return [...byKey.values()].sort((a, b) => String(b.last).localeCompare(String(a.last)));
+}
+
+function itUnreadCount() {
+  if (!state.session) return 0;
+  if (userHasRole("Admin")) return getItMessages().filter((message) => !message.fromIT && !message.itReadAt && message.threadKey !== itOwnThreadKey()).length + getItMessages().filter((message) => message.fromIT && !message.userReadAt && message.threadKey === itOwnThreadKey()).length;
+  return getItMessages().filter((message) => message.fromIT && !message.userReadAt).length;
+}
+
+function renderItMessagesButton() {
+  const slot = document.querySelector("#itMessagesSlot");
+  if (!slot) return;
+  if (!state.session || isPortalUser()) {
+    slot.innerHTML = "";
+    return;
+  }
+  const unread = itUnreadCount();
+  slot.innerHTML = `
+    <button class="icon-button notification-button it-messages-button" type="button" data-action="open-it-messages" aria-label="Messages to IT${unread ? `, ${unread} unread` : ""}" title="${escapeAttribute(IT_MESSAGES_HINT)}">
+      <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H8l-5 3 1.5-4.5A8 8 0 1 1 21 12Z" /><path d="M8 11h8M8 14h5" /></svg>
+      ${unread ? `<span class="notification-count">${unread > 99 ? "99+" : unread}</span>` : ""}
+    </button>
+  `;
+}
+
+function openItMessagesDialog() {
+  const dialog = document.querySelector("#itMessagesDialog");
+  if (!dialog) return;
+  const own = itOwnThreadKey();
+  if (userHasRole("Admin")) {
+    const threads = itThreads();
+    if (!state.itMessagesThreadKey || !threads.some((thread) => thread.key === state.itMessagesThreadKey)) state.itMessagesThreadKey = threads[0]?.key || own;
+  } else {
+    state.itMessagesThreadKey = own;
+  }
+  itWireAnnotator();
+  itSetScreenshot(null);
+  const form = dialog.querySelector("form");
+  form.elements.body.value = "";
+  renderItMessagesDialog();
+  dialog.showModal();
+  markItThreadRead();
+}
+
+function renderItMessagesDialog() {
+  const dialog = document.querySelector("#itMessagesDialog");
+  const isAdmin = userHasRole("Admin");
+  const own = itOwnThreadKey();
+  const list = dialog.querySelector("[data-it-thread-list]");
+  const layout = dialog.querySelector("[data-it-layout]");
+  const threads = isAdmin ? itThreads() : [];
+  if (isAdmin && threads.length) {
+    list.hidden = false;
+    layout.classList.add("has-threads");
+    list.innerHTML = [
+      `<p class="eyebrow">Conversations</p>`,
+      ...threads.map((thread) => `
+        <button class="it-thread-row ${thread.key === state.itMessagesThreadKey ? "active" : ""}" type="button" data-action="it-open-thread" data-key="${escapeAttribute(thread.key)}">
+          <strong>${escapeHtml(thread.key === own ? "You" : thread.name || "Unknown")}</strong>
+          <span>${thread.count} message${thread.count === 1 ? "" : "s"} · ${formatDateTime(thread.last)}</span>
+          ${thread.unread && thread.key !== own ? `<span class="notification-count static">${thread.unread}</span>` : ""}
+        </button>
+      `),
+      threads.some((thread) => thread.key === own) ? "" : `<button class="it-thread-row ${state.itMessagesThreadKey === own ? "active" : ""}" type="button" data-action="it-open-thread" data-key="${escapeAttribute(own)}"><strong>You</strong><span>Your own notes to IT</span></button>`,
+    ].join("");
+  } else {
+    list.hidden = true;
+    layout.classList.remove("has-threads");
+    list.innerHTML = "";
+  }
+  const viewerIsIT = itViewerIsIT();
+  const messages = getItMessages().filter((message) => message.threadKey === state.itMessagesThreadKey).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  const threadName = threads.find((thread) => thread.key === state.itMessagesThreadKey)?.name || "";
+  dialog.querySelector("[data-it-thread-title]").textContent = viewerIsIT ? `Conversation with ${threadName || "a user"} — you are answering as IT.` : isAdmin ? "Your own notes to IT." : "";
+  dialog.querySelector("[data-it-thread]").innerHTML =
+    messages
+      .map((message) => {
+        const mine = viewerIsIT ? message.fromIT : !message.fromIT;
+        const sender = message.fromIT ? `${message.authorName} · IT` : message.authorName;
+        return `
+          <article class="chat-bubble ${mine ? "mine" : "theirs office"}">
+            <span class="chat-sender">${escapeHtml(sender)}</span>
+            <p>${escapeHtml(message.body)}</p>
+            ${message.screenshotDocumentId ? `<a class="it-shot-link" href="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" target="_blank" rel="noopener"><img class="it-shot" src="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" alt="Screenshot" loading="lazy" /></a>` : ""}
+            <time datetime="${escapeAttribute(message.createdAt)}">${formatDateTime(message.createdAt)}${message.pageUrl && viewerIsIT ? ` · ${escapeHtml(message.pageUrl)}` : ""}</time>
+          </article>
+        `;
+      })
+      .join("") || `<div class="chat-empty">${viewerIsIT ? "No messages in this conversation yet." : "Nothing sent yet. Describe the issue, comment, or error below; a screenshot helps."}</div>`;
+  dialog.querySelector("form").elements.threadKey.value = state.itMessagesThreadKey || "";
+  scrollChatToBottom();
+}
+
+async function markItThreadRead() {
+  if (!state.session) return;
+  const viewerIsIT = itViewerIsIT();
+  const now = new Date().toISOString();
+  const unread = getItMessages().filter((message) => message.threadKey === state.itMessagesThreadKey && (viewerIsIT ? !message.fromIT && !message.itReadAt : message.fromIT && !message.userReadAt));
+  if (!unread.length) return;
+  try {
+    for (const message of unread) {
+      await saveBackendRecord("itMessages", viewerIsIT ? { ...message, itReadAt: now } : { ...message, userReadAt: now }, { refresh: false });
+    }
+  } catch {
+    // Read markers are best-effort.
+  }
+  renderItMessagesButton();
+  const dialog = document.querySelector("#itMessagesDialog");
+  if (dialog?.open) renderItMessagesDialog();
+}
+
+async function sendItMessage(form) {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) return;
+  const text = form.elements.body.value.trim();
+  const hasShot = Boolean(itAnnotator.image);
+  if (!text && !hasShot) {
+    showToast("Type a message or attach a screenshot.");
+    return;
+  }
+  if (submitButton) submitButton.disabled = true;
+  try {
+    const saved = await saveBackendRecord("itMessages", { body: text || "Screenshot attached.", threadKey: form.elements.threadKey.value || itOwnThreadKey(), pageUrl: `${location.pathname}${location.hash}` }, { refresh: false });
+    if (hasShot) {
+      const blob = await itExportScreenshot();
+      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+      try {
+        const document = await uploadRawFile("/api/documents", file, { "X-Entity-Type": "itMessage", "X-Entity-Id": saved.id, "X-Visibility": "internal", "X-Caption": encodeURIComponent("Screenshot sent to IT") });
+        await saveBackendRecord("itMessages", { ...saved, screenshotDocumentId: document.id }, { refresh: false });
+      } catch (error) {
+        showToast(`Message sent, but the screenshot did not upload: ${error.message || "upload failed"}.`);
+      }
+    }
+    if (!saved.fromIT) {
+      await raiseNotification({ key: `it-message-${saved.id}`, title: `Message to IT from ${saved.authorName}`, body: (text || "Screenshot attached.").slice(0, 140), severity: "info", audienceRoles: ["Admin"], link: "" });
+    }
+    form.elements.body.value = "";
+    itSetScreenshot(null);
+    renderItMessagesDialog();
+    renderItMessagesButton();
+    showToast(saved.fromIT ? "Reply sent." : "Sent to IT. Thank you.");
+  } catch (error) {
+    showToast(error.message || "Could not send the message.");
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
+// ---- screenshot + annotation ----
+function itWireAnnotator() {
+  if (itAnnotator.wired) return;
+  itAnnotator.wired = true;
+  const dialog = document.querySelector("#itMessagesDialog");
+  const canvas = dialog.querySelector("[data-it-canvas]");
+  const fileInput = dialog.querySelector("input[name=screenshotFile]");
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = "";
+    if (!file) return;
+    try {
+      const image = await itLoadImage(URL.createObjectURL(file));
+      itSetScreenshot(image);
+    } catch {
+      showToast("That file could not be read as an image.");
+    }
+  });
+  const point = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    return { x: ((event.clientX - rect.left) * canvas.width) / rect.width, y: ((event.clientY - rect.top) * canvas.height) / rect.height };
+  };
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!itAnnotator.image) return;
+    event.preventDefault();
+    canvas.setPointerCapture(event.pointerId);
+    const p = point(event);
+    itAnnotator.current = { tool: itAnnotator.tool, points: [p], start: p, end: p };
+    itRedraw();
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!itAnnotator.current) return;
+    event.preventDefault();
+    const p = point(event);
+    if (itAnnotator.current.tool === "pen") itAnnotator.current.points.push(p);
+    itAnnotator.current.end = p;
+    itRedraw();
+  });
+  const finish = (event) => {
+    if (!itAnnotator.current) return;
+    event.preventDefault();
+    const stroke = itAnnotator.current;
+    itAnnotator.current = null;
+    const moved = Math.hypot(stroke.end.x - stroke.start.x, stroke.end.y - stroke.start.y) > 2 || stroke.points.length > 2;
+    if (moved) itAnnotator.strokes.push(stroke);
+    itRedraw();
+  };
+  canvas.addEventListener("pointerup", finish);
+  canvas.addEventListener("pointercancel", finish);
+}
+
+function itLoadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function itSetTool(tool) {
+  itAnnotator.tool = ["pen", "box", "arrow"].includes(tool) ? tool : "pen";
+  document.querySelectorAll("#itMessagesDialog [data-action='it-tool']").forEach((button) => button.classList.toggle("active", button.dataset.tool === itAnnotator.tool));
+}
+
+function itSetScreenshot(image) {
+  const dialog = document.querySelector("#itMessagesDialog");
+  if (!dialog) return;
+  const annotator = dialog.querySelector("[data-it-annotator]");
+  const note = dialog.querySelector("[data-it-attach-note]");
+  const canvas = dialog.querySelector("[data-it-canvas]");
+  itAnnotator.image = image || null;
+  itAnnotator.strokes = [];
+  itAnnotator.current = null;
+  if (!image) {
+    annotator.hidden = true;
+    note.textContent = "No screenshot attached.";
+    return;
+  }
+  // Keep the stored image a sensible size; the canvas is the natural size, scaled by CSS.
+  const scale = Math.min(1, 1600 / Math.max(1, image.naturalWidth || image.width));
+  canvas.width = Math.round((image.naturalWidth || image.width) * scale);
+  canvas.height = Math.round((image.naturalHeight || image.height) * scale);
+  annotator.hidden = false;
+  note.textContent = `Screenshot attached (${canvas.width}×${canvas.height}). Draw on it below.`;
+  itSetTool(itAnnotator.tool);
+  itRedraw();
+}
+
+function itRedraw() {
+  const canvas = document.querySelector("#itMessagesDialog [data-it-canvas]");
+  if (!canvas || !itAnnotator.image) return;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(itAnnotator.image, 0, 0, canvas.width, canvas.height);
+  const width = Math.max(3, Math.round(canvas.width / 320));
+  context.lineWidth = width;
+  context.strokeStyle = "#e11d48";
+  context.fillStyle = "#e11d48";
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  for (const stroke of [...itAnnotator.strokes, ...(itAnnotator.current ? [itAnnotator.current] : [])]) {
+    if (stroke.tool === "pen") {
+      context.beginPath();
+      stroke.points.forEach((p, index) => (index ? context.lineTo(p.x, p.y) : context.moveTo(p.x, p.y)));
+      context.stroke();
+    } else if (stroke.tool === "box") {
+      context.strokeRect(Math.min(stroke.start.x, stroke.end.x), Math.min(stroke.start.y, stroke.end.y), Math.abs(stroke.end.x - stroke.start.x), Math.abs(stroke.end.y - stroke.start.y));
+    } else {
+      const { start, end } = stroke;
+      const angle = Math.atan2(end.y - start.y, end.x - start.x);
+      const head = width * 5;
+      context.beginPath();
+      context.moveTo(start.x, start.y);
+      context.lineTo(end.x, end.y);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(end.x, end.y);
+      context.lineTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6));
+      context.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6));
+      context.closePath();
+      context.fill();
+    }
+  }
+}
+
+function itExportScreenshot() {
+  const canvas = document.querySelector("#itMessagesDialog [data-it-canvas]");
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Could not export the screenshot."))), "image/png"));
+}
+
+// Captures the screen through the browser's own picker (needs HTTPS or localhost). The dialog is
+// hidden for the frame so the shot shows the page underneath; phones and older browsers fall back
+// to "Choose image".
+async function itCaptureScreen() {
+  if (!navigator.mediaDevices?.getDisplayMedia) {
+    showToast("Screen capture is not available in this browser. Use Choose image instead.");
+    return;
+  }
+  const dialog = document.querySelector("#itMessagesDialog");
+  let stream = null;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "browser" }, audio: false, preferCurrentTab: true, selfBrowserSurface: "include" });
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    await video.play();
+    if (video.readyState < 2) await new Promise((resolve) => video.addEventListener("loadeddata", resolve, { once: true }));
+    dialog.classList.add("capturing");
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    dialog.classList.remove("capturing");
+    stream.getTracks().forEach((track) => track.stop());
+    const image = await itLoadImage(canvas.toDataURL("image/png"));
+    itSetScreenshot(image);
+  } catch (error) {
+    dialog.classList.remove("capturing");
+    if (stream) stream.getTracks().forEach((track) => track.stop());
+    if (error?.name !== "NotAllowedError") showToast("Could not capture the screen. Use Choose image instead.");
+  }
 }
 
 async function markNotificationsRead(ids) {
