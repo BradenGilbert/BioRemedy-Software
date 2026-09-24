@@ -2395,14 +2395,23 @@ function cascadeSummary(affected) {
   return { counts, total };
 }
 
+// A role or a list of roles: access is granted when any of them has the domain.
 function canAccess(role, domain) {
-  return roleAccess[domain]?.includes(role) || role === "Admin";
+  const roles = Array.isArray(role) ? role : [role];
+  return roles.some((item) => roleAccess[domain]?.includes(item) || item === "Admin");
 }
 
 // Phase 12a (2026-09-23): the role comes from the session the cookie resolves to. The old
-// X-CRM-Role header is ignored entirely.
+// X-CRM-Role header is ignored entirely. Since 2026-09-24 (owner) a session carries every role the
+// person holds -- their access is the combination -- unless they narrowed it to one active role in
+// Settings. getRoles() is what authorization checks; getRole() is the primary one, for display.
+function getRoles(request) {
+  const roles = effectiveRoles(request.session);
+  return roles.length ? roles : ["Anonymous"];
+}
+
 function getRole(request) {
-  return request.session?.role || "Anonymous";
+  return getRoles(request)[0];
 }
 
 function requestError(message, status = 400) {
@@ -3016,7 +3025,7 @@ async function handleOwnTracks(request, response, requestUrl) {
 }
 
 async function handleReceivePurchaseOrder(request, response, orderId) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "inventory")) return json(response, 403, { error: "Inventory role required." });
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
 
@@ -3081,7 +3090,7 @@ function normalizeUploadFileName(value) {
 }
 
 async function handleJobRequestDocumentUpload(request, response, requestId) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "dispatch")) return json(response, 403, { error: "Dispatch role required." });
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
 
@@ -3135,7 +3144,7 @@ async function handleJobRequestDocumentUpload(request, response, requestId) {
 }
 
 async function handleJobRequestDocumentDownload(request, response, documentId) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "dispatch")) return json(response, 403, { error: "Dispatch role required." });
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
 
@@ -3163,7 +3172,7 @@ async function handleJobRequestDocumentDownload(request, response, documentId) {
 // a lab result is not meant to be loadable from a bare <img src>) rather than the photo-only
 // jobTaskAttachment pipeline below.
 async function handleSampleLabReportUpload(request, response, sampleId) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "operations")) return json(response, 403, { error: "Operations role required." });
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
 
@@ -3202,7 +3211,7 @@ async function handleSampleLabReportUpload(request, response, sampleId) {
 }
 
 async function handleSampleLabReportDownload(request, response, reportId) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "operations")) return json(response, 403, { error: "Operations role required." });
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
 
@@ -3247,7 +3256,7 @@ const receiptMimeTypes = new Map([...jobTaskAttachmentMimeTypes, [".webp", "imag
 // Receipt photo for a field expense. Same store as task photos (jobTaskAttachments + data/uploads),
 // so receipts come along when Phase 13 migrates attachments. Links both ways in one write.
 async function handleJobExpenseReceiptUpload(request, response, expenseId) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "dispatch")) return json(response, 403, { error: "Dispatch role required." });
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
 
@@ -3290,7 +3299,7 @@ async function handleJobExpenseReceiptUpload(request, response, expenseId) {
 }
 
 async function handleJobTaskAttachmentUpload(request, response, actionId) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "dispatch")) return json(response, 403, { error: "Dispatch role required." });
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
 
@@ -3367,7 +3376,7 @@ async function handleJobTaskAttachmentView(request, response, attachmentId) {
 // Material consumption is the only path in the app that draws inventory down, so it validates
 // everything before mutating anything and persists in a single write, like purchase-order receipt.
 async function handleJobTaskConsume(request, response, actionId) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "dispatch") && !canAccess(role, "inventory")) {
     return json(response, 403, { error: "Dispatch or inventory role required." });
   }
@@ -3607,6 +3616,40 @@ const LOGIN_MAX_FAILURES = 8;
 const LOGIN_LOCK_MINUTES = 15;
 const MIN_PASSWORD_LENGTH = 10;
 const KNOWN_ROLES = ["Admin", "Office Manager", "Sales Manager", "Account Manager", "Operations Manager", "Scheduler", "Field Lead", "Inventory Manager", "Finance Manager", "Client Portal"];
+
+// 2026-09-24 (owner, after a two-role user saw only one role's apps): a person can hold several
+// roles and their access is the combination. KNOWN_ROLES is also the precedence order, used only
+// to pick the primary role shown in the UI. A session may narrow itself to one "active role"
+// (Settings > Roles and Permissions) until sign-out; an Admin may pick any role that way.
+function sortRoles(list) {
+  const seen = new Set();
+  return (Array.isArray(list) ? list : [list])
+    .map((item) => String(item || "").trim())
+    .filter((item) => KNOWN_ROLES.includes(item) && !seen.has(item) && seen.add(item))
+    .sort((a, b) => KNOWN_ROLES.indexOf(a) - KNOWN_ROLES.indexOf(b));
+}
+
+// Client Portal is exclusive: an internal role on the same login wins over it.
+function normalizeHeldRoles(list) {
+  const roles = sortRoles(list);
+  return roles.length > 1 ? roles.filter((role) => role !== "Client Portal") : roles;
+}
+
+function heldRoles(session) {
+  return normalizeHeldRoles(Array.isArray(session?.roles) && session.roles.length ? session.roles : [session?.role]);
+}
+
+function effectiveRoles(session) {
+  if (!session) return [];
+  const held = heldRoles(session);
+  const active = String(session.activeRole || "");
+  if (active && KNOWN_ROLES.includes(active) && (held.includes(active) || held.includes("Admin"))) return [active];
+  return held;
+}
+
+function rolesForUser(user) {
+  return normalizeHeldRoles(Array.isArray(user?.roles) && user.roles.length ? user.roles : [roleForUser(user)]);
+}
 // Phase 18 item 4, Q36: the consent text is generic to start but versioned -- the version in force
 // when someone agreed is what makes the record meaningful. Bump the version when the text changes.
 const CONSENT_TERMS = {
@@ -3727,7 +3770,10 @@ function publicSession(session) {
     employeeId: session.employeeId || "",
     name: session.name,
     email: session.email || "",
-    role: session.role,
+    role: effectiveRoles(session)[0] || session.role,
+    roles: heldRoles(session),
+    activeRole: session.activeRole || "",
+    effectiveRoles: effectiveRoles(session),
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,
     dispatchJobId: session.dispatchJobId || "",
@@ -3743,9 +3789,10 @@ function pruneSessions(auth) {
   auth.sessions = auth.sessions.filter((session) => new Date(session.expiresAt).getTime() > cutoff);
 }
 
-async function createSession(auth, request, { kind, systemUserId = "", employeeId = "", name, email = "", role, dispatchJobId = "", expiresAt = "", clientAccountId = "" }) {
+async function createSession(auth, request, { kind, systemUserId = "", employeeId = "", name, email = "", role, roles = [], dispatchJobId = "", expiresAt = "", clientAccountId = "" }) {
   const token = newToken();
   const now = new Date();
+  const held = normalizeHeldRoles(roles.length ? roles : [role]);
   const session = {
     id: makeId("session"),
     tokenHash: hashToken(token),
@@ -3754,7 +3801,9 @@ async function createSession(auth, request, { kind, systemUserId = "", employeeI
     employeeId,
     name,
     email,
-    role,
+    role: held[0] || role,
+    roles: held,
+    activeRole: "",
     dispatchJobId,
     clientAccountId,
     consentId: "",
@@ -3793,7 +3842,7 @@ async function audit(request, entry) {
   const session = request.session;
   const line = {
     at: new Date().toISOString(),
-    actor: session ? { sessionId: session.id, userId: session.systemUserId || "", name: session.name, role: session.role, kind: session.kind } : { name: "anonymous", role: "Anonymous", kind: "none" },
+    actor: session ? { sessionId: session.id, userId: session.systemUserId || "", name: session.name, role: session.role, roles: heldRoles(session), ...(session.activeRole ? { activeRole: session.activeRole } : {}), kind: session.kind } : { name: "anonymous", role: "Anonymous", kind: "none" },
     ip: requestIp(request),
     ...entry,
   };
@@ -3986,12 +4035,12 @@ async function verifyEntraIdToken(idToken, expectedNonce) {
   return claims;
 }
 
-function entraRoleFromClaims(claims, fallbackRole) {
+// Every app role in the token, mapped and ordered by precedence; the record's own roles only when
+// the token carries none.
+function entraRolesFromClaims(claims, fallbackRoles) {
   const values = Array.isArray(claims.roles) ? claims.roles : [];
-  for (const [value, role] of ENTRA_ROLE_VALUES) {
-    if (values.includes(value)) return role;
-  }
-  return KNOWN_ROLES.includes(fallbackRole) ? fallbackRole : "";
+  const mapped = ENTRA_ROLE_VALUES.filter(([value]) => values.includes(value)).map(([, role]) => role);
+  return normalizeHeldRoles(mapped.length ? mapped : fallbackRoles);
 }
 
 async function handleEntraLogin(request, response, body) {
@@ -4011,7 +4060,8 @@ async function handleEntraLogin(request, response, body) {
   const email = String(claims.preferred_username || claims.email || "").trim().toLowerCase();
   const name = String(claims.name || email || "Microsoft user").trim();
   let user = (data.systemUsers || []).find((item) => !item.deletedAt && oid && item.entraObjectId === oid) || (email ? findSystemUser(data, email) : null);
-  const role = entraRoleFromClaims(claims, user?.role || "");
+  const roles = entraRolesFromClaims(claims, user ? rolesForUser(user) : []);
+  const role = roles[0] || "";
   const now = new Date().toISOString();
   if (!role) {
     await audit(request, { action: "login-failed", provider: "entra", severity: "medium", summary: email || name, reason: "no app role" });
@@ -4026,6 +4076,7 @@ async function handleEntraLogin(request, response, body) {
       internalEmailAddress: email,
       title: "",
       role,
+      roles,
       employeeId: "",
       clientAccountId: "",
       isDisabled: false,
@@ -4044,6 +4095,7 @@ async function handleEntraLogin(request, response, body) {
     let changed = false;
     if (oid && user.entraObjectId !== oid) (user.entraObjectId = oid), (changed = true);
     if (user.role !== role) (user.role = role), (changed = true);
+    if (JSON.stringify(rolesForUser(user)) !== JSON.stringify(roles)) (user.roles = roles), (changed = true);
     if (!user.fullName && name) (user.fullName = name), (changed = true);
     if (!user.internalEmailAddress && email) (user.internalEmailAddress = email), (changed = true);
     if (changed) touchRecord(user);
@@ -4062,6 +4114,7 @@ async function handleEntraLogin(request, response, body) {
     name: user.fullName,
     email: user.internalEmailAddress || email,
     role,
+    roles,
     clientAccountId: role === "Client Portal" ? user.clientAccountId || "" : "",
   });
   request.session = session;
@@ -4102,7 +4155,8 @@ async function handleAuth(request, response, pathname) {
     const user = findSystemUser(data, username);
     const auth = await loadAuth();
     const credential = user ? auth.credentials.find((item) => item.systemUserId === user.id) : null;
-    const role = user ? roleForUser(user) : "";
+    const roles = user ? rolesForUser(user) : [];
+    const role = roles[0] || "";
     if (!user || user.isDisabled || !credential || !verifyPassword(body.password, credential) || !role) {
       noteLoginFailure(key);
       await audit(request, { action: "login-failed", severity: "medium", summary: username, reason: !user ? "unknown user" : user.isDisabled ? "disabled" : !credential ? "no password set" : !role ? "no role" : "bad password" });
@@ -4116,6 +4170,7 @@ async function handleAuth(request, response, pathname) {
       name: user.fullName,
       email: user.internalEmailAddress || "",
       role,
+      roles,
       clientAccountId: role === "Client Portal" ? user.clientAccountId || "" : "",
     });
     request.session = created;
@@ -4152,7 +4207,7 @@ async function handleAuth(request, response, pathname) {
   }
 
   if (!session) return json(response, 401, { error: "Sign in required.", unauthenticated: true });
-  const isAdmin = session.role === "Admin";
+  const isAdmin = effectiveRoles(session).includes("Admin");
 
   if (pathname === "/api/auth/password" && method === "POST") {
     const body = await readJsonBody(request);
@@ -4176,6 +4231,27 @@ async function handleAuth(request, response, pathname) {
     await revokeSessions(auth, (item) => item.systemUserId === user.id && item.id !== session.id, session.name);
     await audit(request, { action: "password-set", collection: "systemUsers", recordId: user.id, summary: user.fullName, self: user.id === session.systemUserId });
     return json(response, 200, { ok: true, userId: user.id });
+  }
+
+  // 2026-09-24 (owner): pick which of your roles is active for this session; it lasts until
+  // sign-out (a new session always starts with every role). An administrator can view the app as
+  // any role. Always a narrowing, never a widening: the held roles are what is checked.
+  if (pathname === "/api/auth/active-role" && method === "POST") {
+    const body = await readJsonBody(request);
+    const wanted = String(body.role || "").trim();
+    const held = heldRoles(session);
+    if (session.kind === "dispatch-link") return json(response, 400, { error: "A sign-on link session has a single role." });
+    if (wanted && !KNOWN_ROLES.includes(wanted)) return json(response, 400, { error: `Unknown role "${wanted}".` });
+    if (wanted && !held.includes(wanted) && !held.includes("Admin")) return json(response, 403, { error: "You do not hold that role." });
+    if (wanted === "Client Portal" && !session.clientAccountId) return json(response, 400, { error: "Client Portal needs a customer account on the login. Use the portal preview instead." });
+    const auth = await loadAuth();
+    const stored = auth.sessions.find((item) => item.id === session.id);
+    if (!stored) return json(response, 401, { error: "Sign in required.", unauthenticated: true });
+    stored.activeRole = wanted && !(held.length === 1 && held[0] === wanted) ? wanted : "";
+    await saveAuth(auth);
+    session.activeRole = stored.activeRole;
+    await audit(request, { action: "active-role", summary: stored.activeRole || "all roles" });
+    return json(response, 200, publicSession(session));
   }
 
   // An administrator changes the emergency password from the app (2026-09-24). The generated file
@@ -4409,8 +4485,10 @@ function accountIdForEntity(data, entityType, record) {
   return "";
 }
 
+// A customer login holds Client Portal and nothing else (an internal role on the same login wins).
 function isPortalRole(role) {
-  return role === "Client Portal";
+  const roles = Array.isArray(role) ? role : [role];
+  return roles.length > 0 && roles.every((item) => item === "Client Portal");
 }
 
 function portalCanSeeDocument(session, document) {
@@ -4452,7 +4530,7 @@ function documentSummary(document) {
 async function handleDocumentUpload(request, response) {
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   const session = request.session;
-  const role = getRole(request);
+  const role = getRoles(request);
   const header = (name) => decodeHeaderText(request.headers[name]?.toString() || "");
   const entityType = header("x-entity-type");
   const entityId = header("x-entity-id");
@@ -4485,7 +4563,7 @@ async function handleDocumentUpload(request, response) {
   } else if (!canAccess(role, "customerDirectory")) {
     return json(response, 403, { error: "Your role cannot upload documents." });
   }
-  if (entityType === "documentType" && role !== "Admin") return json(response, 403, { error: "Only an administrator can upload a document type's template." });
+  if (entityType === "documentType" && !role.includes("Admin")) return json(response, 403, { error: "Only an administrator can upload a document type's template." });
 
   const body = await readRequestBody(request, maxJobRequestDocumentBytes);
   if (!body.length) return json(response, 400, { error: "The selected file is empty." });
@@ -4551,7 +4629,7 @@ async function handleDocumentUpload(request, response) {
 
 async function handleDocumentFile(request, response, documentId, inline) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
-  const role = getRole(request);
+  const role = getRoles(request);
   const data = await loadBackend();
   const document = (data.documents || []).find((item) => item.id === documentId);
   if (!document || document.deletedAt) return json(response, 404, { error: "Document not found." });
@@ -4576,7 +4654,7 @@ async function handleDocumentFile(request, response, documentId, inline) {
 // or the template the office uploaded for the type.
 async function handleDocumentTemplate(request, response, typeId) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
-  const role = getRole(request);
+  const role = getRoles(request);
   const data = await loadBackend();
   const type = (data.documentTypes || []).find((item) => item.id === typeId && !item.deletedAt);
   if (!type) return json(response, 404, { error: "Document type not found." });
@@ -4635,7 +4713,7 @@ function applyRequirementApproval(data, requirement, type) {
 // Generic-route guard for documentRequirements: the lifecycle is enforced here. "In review" comes
 // only from an upload; Approved / Rejected only from a review role, stamped with who and when.
 function normalizeRequirementWrite(data, request, body, stored) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (isPortalRole(role)) return { error: "Customers cannot change requirements.", status: 403 };
   const type = (data.documentTypes || []).find((item) => item.id === body.documentTypeId);
   if (!type) return { error: "Choose a document type.", status: 400 };
@@ -4656,7 +4734,7 @@ function normalizeRequirementWrite(data, request, body, stored) {
   if (status !== stored?.status) {
     if (status === "In review") return { error: "A requirement goes into review when a document is uploaded against it.", status: 400 };
     if (["Approved", "Rejected"].includes(status)) {
-      if (!REVIEW_ROLES.includes(role)) return { error: "Only an administrator, office manager, sales manager or operations manager can approve or reject paperwork.", status: 403 };
+      if (!role.some((item) => REVIEW_ROLES.includes(item))) return { error: "Only an administrator, office manager, sales manager or operations manager can approve or reject paperwork.", status: 403 };
       if (status === "Approved" && type.requiresReview && !record.currentDocumentId) return { error: "Nothing has been returned yet — upload the signed document before approving.", status: 400 };
       record.reviewedAt = now;
       record.reviewedBy = request.session?.name || attribution(request);
@@ -4677,7 +4755,7 @@ function normalizeRequirementWrite(data, request, body, stored) {
 }
 
 async function handleApi(request, response, pathname) {
-  const role = getRole(request);
+  const role = getRoles(request);
 
   if (pathname === "/api/owntracks") {
     const requestUrl = new URL(request.url ?? "/", "http://localhost");
@@ -4803,10 +4881,10 @@ async function handleApi(request, response, pathname) {
     if (collection === "gpsConsents") {
       return json(response, 405, { error: "Consent records are written only when someone accepts the terms." });
     }
-    if (collection === "systemUsers" && role !== "Admin") {
+    if (collection === "systemUsers" && !role.includes("Admin")) {
       return json(response, 403, { error: "Only an administrator can change users." });
     }
-    if (collection === "documentTypes" && role !== "Admin") {
+    if (collection === "documentTypes" && !role.includes("Admin")) {
       return json(response, 403, { error: "Only an administrator can change document types." });
     }
     if (isPortalRole(role)) {
@@ -4814,7 +4892,14 @@ async function handleApi(request, response, pathname) {
     }
     const body = await readJsonBody(request);
     if (collection === "systemUsers") {
-      if (body.role && !KNOWN_ROLES.includes(body.role)) return json(response, 400, { error: `Unknown role "${body.role}".` });
+      // 2026-09-24: several roles per person; `role` stays the primary one (first by precedence).
+      const requestedRoles = (Array.isArray(body.roles) && body.roles.length ? body.roles : [body.role]).map((item) => String(item || "").trim()).filter(Boolean);
+      const unknownRole = requestedRoles.find((item) => !KNOWN_ROLES.includes(item));
+      if (unknownRole) return json(response, 400, { error: `Unknown role "${unknownRole}".` });
+      const roles = sortRoles(requestedRoles);
+      if (roles.includes("Client Portal") && roles.length > 1) return json(response, 400, { error: "Client Portal cannot be combined with an internal role." });
+      body.roles = roles;
+      body.role = roles[0] || "";
       body.username = String(body.username || "").trim().toLowerCase();
       body.internalEmailAddress = String(body.internalEmailAddress || "").trim().toLowerCase();
       body.clientAccountId = body.role === "Client Portal" ? String(body.clientAccountId || "") : "";
@@ -4897,7 +4982,7 @@ async function handleApi(request, response, pathname) {
 }
 
 async function handleSoftDelete(request, response, collection, id, restore) {
-  const role = getRole(request);
+  const role = getRoles(request);
   const domain = collectionAccess[collection];
   if (!domain || !Array.isArray(defaultBackend[collection])) return json(response, 404, { error: "Unknown collection." });
   if (!canAccess(role, domain)) return json(response, 403, { error: `${domain} role required.` });
@@ -5053,7 +5138,7 @@ function findCapturedSnapshot(data, projectId, kind, dispatchJobId) {
 }
 
 async function handleWeatherCapture(request, response) {
-  const role = getRole(request);
+  const role = getRoles(request);
   if (!canAccess(role, "operations") && !canAccess(role, "dispatch")) return json(response, 403, { error: "Operations or dispatch role required." });
   if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
   const body = await readJsonBody(request);
@@ -5191,6 +5276,12 @@ const server = createServer(async (request, response) => {
 function listen(port) {
   server.once("error", (error) => {
     if (error.code === "EADDRINUSE" && port < basePort + 20) {
+      // With Microsoft sign-in on, the registered redirect URI names this exact port (owner,
+      // 2026-09-24): moving quietly to the next one would break every sign-in. Stop instead.
+      if (entraEnabled) {
+        console.error(`Port ${port} is already in use. Microsoft sign-in is registered for this exact address, so the server will not move to another port. Stop the other server on ${port} and start again.`);
+        process.exit(1);
+      }
       listen(port + 1);
       return;
     }
@@ -5201,6 +5292,9 @@ function listen(port) {
     console.log(`Environmental Services CRM running at http://127.0.0.1:${port}`);
     if (host === "0.0.0.0") {
       console.log(`Network access enabled on port ${port}`);
+    }
+    if (entraEnabled) {
+      console.log(`Microsoft sign-in is on (tenant ${entraTenantId}). Redirect URIs to keep registered: http://localhost:${port}/ and the public HTTPS hostname.`);
     }
     startBackupSchedule();
     ensureBreakGlass().catch((error) => console.error(`Break-glass setup failed: ${error.message}`));

@@ -977,7 +977,7 @@ Generated from `server.mjs`'s `collectionAccess` map (108 collections including 
 | `sampleRecords` | project_samples + sampling_sessions (016) | samplingSessionId → session row |
 | `invoices` | invoices (015) | Adds tax, terms, itemized lines → invoice_lines |
 | `businessUnits` | business_units (015) |  |
-| `systemUsers` | system_users (015) | Adds role, username, employee_id, client_account_id, is_disabled, entra_object_id |
+| `systemUsers` | system_users (015) | Adds role, username, employee_id, client_account_id, is_disabled, entra_object_id, and `roles` (2026-09-24: every role held, access is the union — a `text[]` column or a `user_roles` junction; `role` stays the primary one) |
 | `teams` | teams (015) | Dataverse owner teams |
 | `transactionCurrencies` | transaction_currencies (015) |  |
 | `unitGroups` | unit_groups (015) |  |
@@ -1033,7 +1033,7 @@ Generated from `server.mjs`'s `collectionAccess` map (108 collections including 
 | Collection | Destination | Notes |
 |---|---|---|
 | `auth.json › credentials` | **new** user_credentials (029+) | scrypt salt + hash |
-| `auth.json › sessions` | **new** user_sessions (029+) | Not migrated at cutover — everyone signs in again |
+| `auth.json › sessions` | **new** user_sessions (029+) | Not migrated at cutover — everyone signs in again. Carries `roles[]` and `active_role` (2026-09-24) |
 | `auth.json › dispatchLinks` | **new** dispatch_sign_on_links (029+) |  |
 | `auth.json › breakGlass` | server secret | Not a table |
 | `audit.log` | **new** audit_log (029+) | Imported verbatim |

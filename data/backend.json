@@ -5027,12 +5027,15 @@
       "id": "inv-ppe-kits",
       "materialType": "PPE kits",
       "unit": "kits",
-      "onHand": -3,
+      "onHand": -4,
       "reorderAt": 18,
       "targetStock": 50,
       "buyer": "Safety buyer",
       "barcode": "",
-      "productId": "prod-rs-level-d-ppe-package-hard-hat-safety-glasses-and-safety-vest"
+      "productId": "prod-rs-level-d-ppe-package-hard-hat-safety-glasses-and-safety-vest",
+      "version": 1,
+      "updatedAt": "2026-09-24T19:10:33.758Z",
+      "createdAt": "2026-09-24T19:10:33.758Z"
     },
     {
       "id": "inv-disposal-drums",
@@ -5176,7 +5179,22 @@
       "receivedQuantity": 0
     }
   ],
-  "inventoryMovements": [],
+  "inventoryMovements": [
+    {
+      "id": "inventory-movement-mufwq04e-s5c435",
+      "inventoryItemId": "inv-ppe-kits",
+      "quantityDelta": -1,
+      "balanceAfter": -4,
+      "reason": "field-usage",
+      "refType": "jobAction",
+      "refId": "action-mswlnofc-9xw6hd",
+      "dispatchJobId": "dispatch-job-mswlno3z-rbqwss",
+      "projectId": "job-north-river-i130",
+      "occurredAt": "2026-09-24T19:10:33.758Z",
+      "by": "Tristan Cole",
+      "note": ""
+    }
+  ],
   "equipmentAssets": [
     {
       "id": "asset-vac-204",
@@ -6730,6 +6748,19 @@
       "requestedBy": "Zeke bowser",
       "status": "Open",
       "createdAt": "2026-09-23T19:01:00.707Z"
+    },
+    {
+      "id": "inventory-alert-mufwq04e-lswlxn",
+      "inventoryItemId": "inv-ppe-kits",
+      "materialType": "PPE kits",
+      "jobId": "dispatch-job-mswlno3z-rbqwss",
+      "actionId": "action-mswlnofc-9xw6hd",
+      "requestedQuantity": 1,
+      "onHandAtRequest": -3,
+      "resultingBalance": -4,
+      "requestedBy": "Tristan Cole",
+      "status": "Open",
+      "createdAt": "2026-09-24T19:10:33.758Z"
     }
   ],
   "gpsConsents": [],
@@ -12191,6 +12222,35 @@
       "status": "Reserved",
       "createdAt": "2026-09-23T21:25:58.640Z",
       "updatedAt": "2026-09-23T21:25:58.640Z"
+    },
+    {
+      "id": "job-resource-mufwq04e-fkjs2w",
+      "jobId": "dispatch-job-mswlno3z-rbqwss",
+      "actionId": "action-mswlnofc-9xw6hd",
+      "inventoryItemId": "inv-ppe-kits",
+      "type": "Material",
+      "name": "PPE kits",
+      "assetTag": "",
+      "quantity": 1,
+      "unit": "kits",
+      "status": "Consumed",
+      "consumedAt": "2026-09-24T19:10:33.758Z",
+      "consumedBy": "Tristan Cole"
+    },
+    {
+      "id": "job-resource-mufwq04e-9znm3f",
+      "jobId": "dispatch-job-mswlno3z-rbqwss",
+      "actionId": "action-mswlnofc-9xw6hd",
+      "inventoryItemId": "",
+      "type": "Material",
+      "name": "lots of bags",
+      "assetTag": "",
+      "quantity": 5,
+      "unit": "",
+      "status": "Consumed",
+      "writeIn": true,
+      "consumedAt": "2026-09-24T19:10:33.758Z",
+      "consumedBy": "Tristan Cole"
     }
   ],
   "jobConflicts": [
@@ -13654,10 +13714,11 @@
       "key": "stabilize",
       "name": "Stabilize Site",
       "sequence": 2,
-      "status": "Available",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-08-17T02:13:29.747Z",
-      "updatedAt": "2026-08-17T02:14:49.259Z"
+      "updatedAt": "2026-09-24T19:10:34.151Z",
+      "version": 1
     },
     {
       "id": "step-mswlnog7-oo4kft",
@@ -13665,10 +13726,11 @@
       "key": "document",
       "name": "Document Work",
       "sequence": 3,
-      "status": "Not started",
+      "status": "Available",
       "required": true,
       "createdAt": "2026-08-17T02:13:29.866Z",
-      "updatedAt": "2026-08-17T02:13:29.866Z"
+      "updatedAt": "2026-09-24T19:10:34.266Z",
+      "version": 1
     },
     {
       "id": "step-mswlnoip-dbgyyq",
@@ -18195,7 +18257,7 @@
       "name": "Log bacteria and absorbent use",
       "sequence": 3,
       "type": "Material",
-      "status": "Available",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "Log bacteria and absorbent use",
@@ -18203,7 +18265,8 @@
         "suggestedItemIds": []
       },
       "createdAt": "2026-08-17T02:13:29.835Z",
-      "updatedAt": "2026-08-17T02:14:53.500Z"
+      "updatedAt": "2026-09-24T19:10:34.056Z",
+      "version": 1
     },
     {
       "id": "action-mswlnoh0-cadyun",
@@ -18213,7 +18276,7 @@
       "name": "Capture before, progress, and after photos",
       "sequence": 1,
       "type": "Photo",
-      "status": "Not started",
+      "status": "Available",
       "required": true,
       "assigneeScope": "Any assigned worker",
       "formName": "Capture before, progress, and after photos",
@@ -18221,7 +18284,8 @@
         "minPhotos": 1
       },
       "createdAt": "2026-08-17T02:13:29.896Z",
-      "updatedAt": "2026-08-17T02:13:29.896Z"
+      "updatedAt": "2026-09-24T19:10:34.356Z",
+      "version": 1
     },
     {
       "id": "action-mswlnohu-pmtpnn",
@@ -22131,6 +22195,65 @@
       "payload": {},
       "createdAt": "2026-09-23T20:59:02.977Z",
       "updatedAt": "2026-09-23T20:59:02.977Z"
+    },
+    {
+      "id": "form-sub-mufwnjmd-g3rf8w",
+      "jobId": "dispatch-job-mu4ixj9y-r5z61c",
+      "actionId": "",
+      "formName": "Incident Report",
+      "status": "Submitted",
+      "submittedBy": "Tristan Cole",
+      "submittedByEmployeeId": "emp-tristan",
+      "submittedAt": "2026-09-24T19:08:39.061Z",
+      "summary": "kjshgjshgow",
+      "payload": {
+        "note": "kjshgjshgow"
+      },
+      "standalone": true,
+      "createdAt": "2026-09-24T19:08:37.477Z",
+      "updatedAt": "2026-09-24T19:08:37.477Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-mufwq1i8-alxn2n",
+      "jobId": "dispatch-job-mswlno3z-rbqwss",
+      "actionId": "action-mswlnofc-9xw6hd",
+      "formName": "Log bacteria and absorbent use",
+      "status": "Submitted",
+      "submittedBy": "Tristan Cole",
+      "submittedAt": "2026-09-24T19:10:35.552Z",
+      "summary": "trest adding items",
+      "payload": {
+        "materials": [
+          {
+            "writeInName": "lots of bags",
+            "unit": "",
+            "quantity": 5
+          },
+          {
+            "inventoryItemId": "inv-ppe-kits",
+            "quantity": 1,
+            "force": true
+          }
+        ],
+        "lines": [
+          {
+            "writeInName": "lots of bags",
+            "unit": "",
+            "quantity": 5,
+            "name": "lots of bags"
+          },
+          {
+            "inventoryItemId": "inv-ppe-kits",
+            "quantity": 1,
+            "name": "PPE kits",
+            "unit": "kits"
+          }
+        ]
+      },
+      "createdAt": "2026-09-24T19:10:33.949Z",
+      "updatedAt": "2026-09-24T19:10:33.949Z",
+      "version": 1
     }
   ],
   "jobTypeTemplates": [
@@ -25166,8 +25289,60 @@
       "isDisabled": false,
       "createdAt": "2026-09-24T17:25:34.631Z",
       "clientAccountId": "",
-      "updatedAt": "2026-09-24T17:29:58.600Z",
-      "version": 2
+      "updatedAt": "2026-09-24T18:57:56.239Z",
+      "version": 3,
+      "entraObjectId": "c864a5cb-7f38-4da9-9e19-d22e373f96b0"
+    },
+    {
+      "id": "user-mufwltzb-370whz",
+      "businessUnitId": "bu-bioremedy",
+      "fullName": "Tristan Tarrant",
+      "username": "tristan",
+      "internalEmailAddress": "tristan@bioremedy.com",
+      "title": "",
+      "role": "Field Lead",
+      "employeeId": "",
+      "clientAccountId": "",
+      "isDisabled": false,
+      "entraObjectId": "033b78a7-d5f3-4684-b061-d67bb5f5c262",
+      "createdAt": "2026-09-24T19:07:19.175Z",
+      "createdBy": "entra",
+      "version": 1,
+      "updatedAt": "2026-09-24T19:07:19.175Z"
+    },
+    {
+      "id": "user-mufxcb6y-hs1tta",
+      "businessUnitId": "bu-bioremedy",
+      "fullName": "bgilbert",
+      "username": "bgilbert",
+      "internalEmailAddress": "bgilbert@micro-bac.com",
+      "title": "",
+      "role": "Client Portal",
+      "employeeId": "",
+      "clientAccountId": "",
+      "isDisabled": false,
+      "entraObjectId": "5d86fac9-e3f1-477e-80a6-7be4b84b4017",
+      "createdAt": "2026-09-24T19:27:54.538Z",
+      "createdBy": "entra",
+      "version": 1,
+      "updatedAt": "2026-09-24T19:27:54.538Z"
+    },
+    {
+      "id": "user-mufxiu60-brxind",
+      "businessUnitId": "bu-bioremedy",
+      "fullName": "Logan Gallman",
+      "username": "logan",
+      "internalEmailAddress": "logan@bioremedy.com",
+      "title": "",
+      "role": "Operations Manager",
+      "employeeId": "",
+      "clientAccountId": "",
+      "isDisabled": false,
+      "entraObjectId": "69977182-366d-413f-9410-d9e42f3aeac0",
+      "createdAt": "2026-09-24T19:32:59.064Z",
+      "createdBy": "entra",
+      "version": 1,
+      "updatedAt": "2026-09-24T19:32:59.064Z"
     }
   ],
   "teams": [
