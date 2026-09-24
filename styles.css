@@ -6843,6 +6843,21 @@ body[data-theme="dark"] .frontline-device {
   font-weight: 800;
 }
 
+/* Another crew's message (general channel) is neither yours nor dispatch's: white with a border. */
+.chat-bubble.theirs.field {
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.chat-bubble.theirs.field .chat-sender {
+  color: var(--muted);
+}
+
+.chat-bubble.mine .chat-sender {
+  justify-self: end;
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .chat-empty {
   margin: auto;
   padding: 24px 16px;
@@ -6946,7 +6961,8 @@ body[data-theme="dark"] .chat-bubble.mine {
   color: #0d1f14;
 }
 
-body[data-theme="dark"] .chat-bubble.mine time {
+body[data-theme="dark"] .chat-bubble.mine time,
+body[data-theme="dark"] .chat-bubble.mine .chat-sender {
   color: rgba(13, 31, 20, 0.7);
 }
 

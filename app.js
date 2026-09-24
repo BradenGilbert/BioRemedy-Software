@@ -16426,9 +16426,12 @@ function chatDateLabel(value) {
   }).format(date);
 }
 
-// Shared by the phone and the office: `mineRole` is the side reading the thread, whose messages sit
-// on the right. Messages are grouped under a date pill.
-function renderChatThread(messages, mineRole, emptyText) {
+// Shared by the phone and the office. `reader` is who is looking: `{ role: "field", id }` puts only
+// that worker's own messages on the right (the general channel carries every crew, and another
+// crew's message must not read as "yours"); `{ role: "office" }` puts every office message on the
+// right, since the office shares one screen. Every bubble names its sender either way -- several
+// office people and several crews can write into one thread. Messages are grouped under a date pill.
+function renderChatThread(messages, reader, emptyText) {
   if (!messages.length) return `<div class="chat-empty">${escapeHtml(emptyText)}</div>`;
   let lastDay = "";
   return messages
@@ -16436,12 +16439,15 @@ function renderChatThread(messages, mineRole, emptyText) {
       const day = localIsoDate(parseDate(message.sentAt));
       const separator = day !== lastDay ? `<div class="chat-date"><span>${escapeHtml(chatDateLabel(message.sentAt))}</span></div>` : "";
       lastDay = day;
-      const mine = message.senderRole === mineRole;
-      const sender = message.senderName || (message.senderRole === "office" ? "Dispatch" : "Field crew");
+      const fromOffice = message.senderRole === "office";
+      const mine = message.senderRole === reader.role && (reader.role === "office" || !reader.id || message.senderId === reader.id);
+      const side = fromOffice ? "Dispatch" : "Field";
+      const name = message.senderName || (fromOffice ? "Dispatch" : "Field crew");
+      const sender = name === side ? name : `${name} · ${side}`;
       return `
         ${separator}
-        <article class="chat-bubble ${mine ? "mine" : "theirs"}">
-          ${mine ? "" : `<span class="chat-sender">${escapeHtml(sender)}</span>`}
+        <article class="chat-bubble ${mine ? "mine" : `theirs ${fromOffice ? "office" : "field"}`}">
+          <span class="chat-sender">${escapeHtml(sender)}</span>
           <p>${escapeHtml(message.body)}</p>
           <time datetime="${escapeAttribute(message.sentAt)}">${formatShortTime(message.sentAt)}</time>
         </article>
@@ -16550,7 +16556,7 @@ function renderFrontlineMessageThread(threadKey) {
             ${job ? `<button class="mini-button" type="button" data-action="frontline-open-job" data-id="${escapeAttribute(job.id)}">Open job</button>` : ""}
           </div>
           <div class="chat-scroll">
-            ${renderChatThread(messages, "field", emptyText)}
+            ${renderChatThread(messages, { role: "field", id: state.frontlineSession?.employeeId }, emptyText)}
           </div>
           ${renderChatComposer("frontline-message", { jobId: job ? job.id : "" }, job ? `Message dispatch about ${job.jobNumber}` : "Message dispatch")}
         </div>
@@ -16642,7 +16648,7 @@ function renderDispatchJobMessagesTab(job) {
         </div>
         <div class="panel-body">
           <div class="chat-scroll">
-            ${renderChatThread(messages, "office", `No messages on ${job.jobNumber} yet. Anything you send here reaches the crew's Front Line inbox.`)}
+            ${renderChatThread(messages, { role: "office" }, `No messages on ${job.jobNumber} yet. Anything you send here reaches the crew's Front Line inbox.`)}
           </div>
           ${renderChatComposer("dispatch-message", { jobId: job.id }, `Message the crew on ${job.jobNumber}`)}
         </div>
@@ -16676,7 +16682,7 @@ function renderDispatchFieldMessagesPanel() {
         <div>
           <h4 class="frontline-section-label">General channel${unreadGeneral ? ` · ${unreadGeneral} new` : ""}</h4>
           <div class="chat-scroll">
-            ${renderChatThread(general, "office", "Nothing in the general channel yet. Crews use it for anything not about one job.")}
+            ${renderChatThread(general, { role: "office" }, "Nothing in the general channel yet. Crews use it for anything not about one job.")}
           </div>
           ${renderChatComposer("dispatch-message", { jobId: "" }, "Message every Front Line crew")}
         </div>
