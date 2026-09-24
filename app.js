@@ -1955,7 +1955,7 @@ async function dispatchClick(event) {
   if (action === "open-material") openMaterialDialog(actionButton.dataset.jobId);
   if (action === "open-equipment") openEquipmentDialog(actionButton.dataset.jobId);
   if (action === "open-schedule") openScheduleDialog(actionButton.dataset.jobId);
-  if (action === "open-remediation") openRemediationDialog();
+  if (action === "open-remediation") openRemediationDialog(actionButton.dataset.jobClass, actionButton.dataset.next);
   if (action === "open-inventory-item") openInventoryItemDialog(id);
   if (action === "open-purchase-order") openPurchaseOrderDialog(actionButton.dataset.itemId, id);
   if (action === "receive-purchase-order") await receivePurchaseOrder(id);
@@ -7892,7 +7892,8 @@ function renderOperationsAllProjects() {
         `
           <button class="primary-button" type="button" data-action="open-schedule">Schedule work</button>
           <button class="danger-button" type="button" data-action="open-alert">Field alert</button>
-          <button class="secondary-button" type="button" data-action="open-remediation">New remediation</button>
+          <button class="secondary-button" type="button" data-action="open-remediation" data-job-class="Scheduled Work">New scheduled project</button>
+          <button class="secondary-button" type="button" data-action="open-remediation" data-job-class="Multi-Stage Remediation">New remediation</button>
         `,
       )}
       ${
@@ -8955,6 +8956,7 @@ function renderOperationsScheduled() {
         "Confirmed and tentative field work that needs crews, equipment, customer access, and schedule control.",
         `
           <button class="primary-button" type="button" data-action="open-schedule">Schedule work</button>
+          <button class="secondary-button" type="button" data-action="open-remediation" data-job-class="Scheduled Work">New scheduled project</button>
           <button class="danger-button" type="button" data-action="open-alert">Field alert</button>
           <button class="secondary-button" type="button" data-action="open-material">Log material</button>
           <button class="secondary-button" type="button" data-action="open-equipment">Log equipment</button>
@@ -9012,7 +9014,7 @@ function renderOperationsRemediation() {
         "operations",
         "Multi-Stage Remediations",
         "Longer projects with investigation, planning, mobilization, field execution, closeout, samples, and documentation.",
-        `<button class="primary-button" type="button" data-action="open-remediation">New remediation</button>`,
+        `<button class="primary-button" type="button" data-action="open-remediation" data-job-class="Multi-Stage Remediation">New remediation</button>`,
       )}
       ${renderOperationsClassMetrics("Multi-Stage Remediation")}
       <article class="panel">
@@ -17737,6 +17739,13 @@ async function saveRemediation(form) {
     return;
   }
   if (!account) return;
+  const jobClass = (data.get("jobClass") || "").toString();
+  if (!PROJECT_CREATE_CLASSES.includes(jobClass)) {
+    showToast("Choose Scheduled Work or Multi-Stage Remediation.");
+    return;
+  }
+  const remediation = jobClass === "Multi-Stage Remediation";
+  const next = (data.get("next") || "").toString();
 
   const job = buildCoreProjectRecord({
     id: makeId("proj"),
@@ -17745,7 +17754,7 @@ async function saveRemediation(form) {
     opportunityId: "",
     contactIds: contactsForAccount(account.id).map((contact) => contact.id),
     name: data.get("name").toString().trim(),
-    jobClass: "Multi-Stage Remediation",
+    jobClass,
     status: "Pre-mobilization",
     activePhase: data.get("activePhase").toString().trim(),
     projectManager: data.get("projectManager").toString().trim(),
@@ -17754,16 +17763,17 @@ async function saveRemediation(form) {
     targetDate: data.get("targetDate").toString(),
     budget: Number(data.get("budget")),
     notToExceed: "",
-    marginWatch: "Backend-created remediation awaiting detailed scope.",
+    marginWatch: remediation ? "Backend-created remediation awaiting detailed scope." : "Routine field cost tracking",
   });
 
   await saveBackendRecord("projects", job, { refresh: false });
   await queueChange("Project", "created", job);
   closeDialogs();
   await refreshState();
-  state.view = "ops-remediation";
+  state.view = remediation ? "ops-remediation" : "ops-scheduled";
   render();
-  showToast("Remediation project created.");
+  showToast(remediation ? "Remediation project created." : "Scheduled project created.");
+  if (next === "schedule") openScheduleDialog(job.id);
 }
 
 async function saveInventoryItem(form) {
@@ -26766,11 +26776,27 @@ function openScheduleDialog(jobId = "") {
   dialog.showModal();
 }
 
-function openRemediationDialog() {
+// 2026-09-24 (owner): Scheduled Work only had "Schedule work" for existing projects while ER and
+// Remediation could create theirs. The remediation dialog is now the project-create dialog for both
+// non-emergency classes; `next` = "schedule" brings the Schedule work dialog back with the new project.
+const PROJECT_CREATE_CLASSES = ["Scheduled Work", "Multi-Stage Remediation"];
+
+function openRemediationDialog(jobClass = "Multi-Stage Remediation", next = "") {
+  closeDialogs();
   const dialog = document.querySelector("#remediationDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  const remediation = jobClass !== "Scheduled Work";
   populateAccountSelect(dialog);
-  dialog.querySelector("input[name='startDate']").value = todayIso();
-  dialog.querySelector("input[name='targetDate']").value = addDays(30);
+  form.elements.jobClass.value = PROJECT_CREATE_CLASSES.includes(jobClass) ? jobClass : "Multi-Stage Remediation";
+  form.elements.next.value = next || "";
+  form.elements.startDate.value = todayIso();
+  form.elements.targetDate.value = addDays(remediation ? 30 : 7);
+  form.elements.budget.value = remediation ? "125000" : "15000";
+  form.elements.activePhase.value = remediation ? "" : "Site walk";
+  form.elements.name.placeholder = remediation ? "Soil excavation and disposal closeout" : "Quarterly tank farm wash-down";
+  form.elements.activePhase.placeholder = remediation ? "Investigation and disposal planning" : "Site walk";
+  dialog.querySelector("[data-project-create-title]").textContent = remediation ? "New remediation" : "New scheduled project";
   dialog.showModal();
 }
 

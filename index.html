@@ -2366,6 +2366,10 @@
           Project
           <select name="projectId" required></select>
         </label>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="open-remediation" data-job-class="Scheduled Work" data-next="schedule">New scheduled project</button>
+          <small class="field-help">Not in the list? This creates the project and brings you back here with it selected.</small>
+        </div>
         <label>
           Schedule title
           <input name="title" required maxlength="90" placeholder="Mobilization and utility markout" />
@@ -2404,14 +2408,25 @@
 
     <dialog id="remediationDialog" class="modal">
       <form method="dialog" class="modal-panel" data-form="remediation">
+        <input name="next" type="hidden" />
         <div class="modal-header">
-          <h2>New remediation</h2>
+          <h2 data-project-create-title>New project</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
-        <label>
-          Account
-          <select name="accountId" required></select>
-        </label>
+        <div class="form-grid">
+          <label>
+            Account
+            <select name="accountId" required></select>
+          </label>
+          <label>
+            Job class
+            <select name="jobClass" required>
+              <option value="Scheduled Work">Scheduled Work</option>
+              <option value="Multi-Stage Remediation">Multi-Stage Remediation</option>
+            </select>
+            <small class="field-help">A spill call is an Emergency Response project: use "New spill call" on the Emergency Response view.</small>
+          </label>
+        </div>
         <label>
           Project name
           <input name="name" required maxlength="90" placeholder="Soil excavation and disposal closeout" />
@@ -2442,7 +2457,7 @@
         </label>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
-          <button class="primary-button" type="submit">Save remediation</button>
+          <button class="primary-button" type="submit" data-project-create-submit>Create project</button>
         </menu>
       </form>
     </dialog>
