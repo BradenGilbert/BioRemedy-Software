@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,6 +26,11 @@ const mimeTypes = new Map([
   [".jpeg", "image/jpeg"],
   [".glb", "model/gltf-binary"],
 ]);
+
+// Phase 20 item 0 (2026-09-23): the only files the static branch serves outside public/. Everything
+// else under the project root -- data/backend.json, server.mjs, .git/, docs/, the log files -- is
+// not a web asset and must never be reachable by URL.
+const staticAllowlist = new Set(["index.html", "app.js", "styles.css", "service-worker.js", "manifest.webmanifest"]);
 
 const roleAccess = {
   sales: ["Admin", "Office Manager", "Sales Manager", "Account Manager"],
@@ -3690,14 +3695,26 @@ const server = createServer(async (request, response) => {
 
     if (pathname === "/") pathname = "/index.html";
 
+    // Phase 20 item 0 (2026-09-23): serve the allowlist and public/ only. Before this, any file under
+    // the project root came back 200 to anyone who could reach the URL (confirmed: the live database,
+    // the server source, .git/config, the uploaded rate sheet). A request for something that exists
+    // but is not allowed, or that has a file extension and does not exist, is a plain 404 -- never the
+    // SPA fallback, which would hide the leak behind a 200. Only extensionless, non-existent paths
+    // (view routes) fall back to index.html.
     const filePath = path.resolve(root, `.${pathname}`);
-    if (!filePath.startsWith(root)) {
-      response.writeHead(403);
-      response.end("Forbidden");
-      return;
+    const relativePath = path.relative(root, filePath).split(path.sep).join("/");
+    const insideRoot = relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+    const allowed = insideRoot && (staticAllowlist.has(relativePath) || relativePath.startsWith("public/"));
+    const isFile = allowed && existsSync(filePath) && statSync(filePath).isFile();
+    let resolvedPath = filePath;
+    if (!isFile) {
+      if (!insideRoot || existsSync(filePath) || path.extname(pathname)) {
+        response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+        response.end("Not found");
+        return;
+      }
+      resolvedPath = path.join(root, "index.html");
     }
-
-    const resolvedPath = existsSync(filePath) ? filePath : path.join(root, "index.html");
     const body = await readFile(resolvedPath);
     const mimeType = mimeTypes.get(path.extname(resolvedPath)) || "application/octet-stream";
 

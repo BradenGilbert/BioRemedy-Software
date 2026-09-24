@@ -1,6 +1,6 @@
 # Phase 20 — Engineering Hardening
 
-**Status:** Not started. Written 2026-09-23 from a code review of `server.mjs`, the client data layer and the live data, after the sprint Waves 0–5b and the owner's bug list.
+**Status:** In progress. Item 0 (static-file allowlist) shipped 2026-09-23 on its own commit and is live. Written 2026-09-23 from a code review of `server.mjs`, the client data layer and the live data, after the sprint Waves 0–5b and the owner's bug list.
 **Depends on:** Nothing. Every item here is independent of the feature phases and most of it is server-side.
 **Sequencing:** Item 0 ships **before the next tunnel session**, on its own commit. Items 1–6 are one wave (call it Wave 5c), **before Wave 6 / Phase 12** — Phase 12's done criteria then inherit the tests below. Item 7 is doc hygiene that rides along with any of the others.
 **Two parts:** Part A (items 0–7) is the engineering plumbing. **Part B** (B1–B12, at the bottom) is an **unsorted backlog** of sales/project/billing flow findings from the same review, parked here at the owner's request until a triage session sorts them into the phases that own each entity.
@@ -36,9 +36,9 @@ The cloudflared logs in the project root show this server has been on a public t
 **Fix:** serve only an explicit allowlist — `index.html`, `app.js`, `styles.css`, `service-worker.js`, `manifest.webmanifest`, and anything under `public/`. Everything else on the static branch returns 404 (not the SPA fallback — a 404 for `/data/backend.json` must not hand back `index.html` with a 200, which would hide the problem from the test below). Keep the SPA fallback for extensionless view paths only.
 
 **Verification:**
-- [ ] `GET /data/backend.json`, `/server.mjs`, `/.git/config`, `/docs/uploaded files/2026 RATES.xlsx`, `/data/uploads/<any>` all return 404 with no body from the file
-- [ ] `GET /`, `/app.js`, `/styles.css`, `/public/vendor/leaflet/leaflet.js` still return 200
-- [ ] The Front Line simulator and every map still load (Leaflet, three.js, brand images are all under `public/`)
+- [x] `GET /data/backend.json`, `/server.mjs`, `/.git/config`, `/docs/uploaded files/2026 RATES.xlsx`, `/data/uploads/<any>` all return 404 with no body from the file *(shipped 2026-09-23 — also `/package.json`, `/CLAUDE.md`, the cloudflared logs, the `.docx` notes in the root, `/public/../data/backend.json`, and bare directories such as `/public`, `/data`, `/.git`; the 404 body is the nine bytes "Not found")*
+- [x] `GET /`, `/app.js`, `/styles.css`, `/public/vendor/leaflet/leaflet.js` still return 200 *(and `/service-worker.js`, `/manifest.webmanifest`, `/public/favicon.svg`, the brand images; extensionless view paths still fall back to `index.html`)*
+- [x] The Front Line simulator and every map still load (Leaflet, three.js, brand images are all under `public/`) *(Home, Operations map, Race Track, Front Line, facility detail: zero failed requests, zero console errors)*
 - [ ] These five requests become a permanent part of item 6's smoke script, and Phase 12 adds them to its own done criteria
 
 ### 1. Optimistic concurrency — stop losing edits silently
