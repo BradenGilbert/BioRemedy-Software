@@ -3043,6 +3043,11 @@ function renderTodaySummary() {
   const pending = pendingQueue().length;
   roleSummary.textContent = state.currentUser?.role || "No role";
   todaySummary.textContent = `${openTasks} open tasks, ${activeAlerts} active alerts, ${pending} edits waiting to sync`;
+  const userChip = document.querySelector("#currentUserChip");
+  if (userChip) {
+    userChip.textContent = state.session ? state.currentUser?.name || "" : "";
+    userChip.title = state.session ? `Signed in as ${state.currentUser?.name || ""} (${state.currentUser?.role || ""})` : "";
+  }
 }
 
 function findWorkspace(workspaceId) {
@@ -15661,6 +15666,13 @@ function renderFrontlineSettings() {
           <h3>Registered devices</h3>
           <div class="record-list">
             ${devices.map(renderFrontlineDeviceCard).join("") || `<div class="empty-state compact">No device registered for this field lead.</div>`}
+          </div>
+
+          <h3>Session</h3>
+          <div class="frontline-record-card">
+            <span>${escapeHtml(state.currentUser?.name || "")}${state.currentUser?.role ? ` · ${escapeHtml(state.currentUser.role)}` : ""}</span>
+            <span>Exit goes back to the office app; Sign out ends this session on this device.</span>
+            <button class="frontline-exit-bar" type="button" data-action="sign-out">Sign out</button>
           </div>
 
           <h3>Notifications</h3>

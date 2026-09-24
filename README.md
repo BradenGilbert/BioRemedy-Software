@@ -25,6 +25,8 @@ Then open the URL the server prints (port 4173 by default).
 
 ### Environment
 
+Put machine settings in a `.env` file in the project root (gitignored; one `KEY=VALUE` per line) — the server reads it at startup, and real environment variables override it.
+
 | Variable | Default | What |
 |---|---|---|
 | `PORT` | `4173` | Listening port (falls forward to the next free one). |

@@ -7009,7 +7009,24 @@ body[data-theme="dark"] .frontline-thread-avatar.office {
 .app-shell.auth-mode .quick-actions,
 .app-shell.auth-mode .notification-bell,
 .app-shell.auth-mode .settings-button,
+.app-shell.auth-mode .signout-button,
+.app-shell.auth-mode .current-user-chip,
 .app-shell.auth-mode .nav-back-button {
+  display: none;
+}
+
+/* Who is signed in, and the way out, always in the top bar. */
+.current-user-chip {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.current-user-chip:empty {
   display: none;
 }
 

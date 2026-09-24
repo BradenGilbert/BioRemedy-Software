@@ -1,12 +1,31 @@
 import { createServer } from "node:http";
 import { readFile, mkdir, writeFile, rename, appendFile } from "node:fs/promises";
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, statSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBackupCycle } from "./scripts/backup-lib.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+
+// A `.env` file in the project root (gitignored) holds machine settings such as CRM_BACKUP_DIR so
+// they survive restarts without system environment variables. Real environment variables win.
+function loadDotEnv() {
+  const envFile = path.join(root, ".env");
+  if (!existsSync(envFile)) return;
+  for (const rawLine of readFileSync(envFile, "utf8").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const separator = line.indexOf("=");
+    if (separator <= 0) continue;
+    const key = line.slice(0, separator).trim();
+    let value = line.slice(separator + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+loadDotEnv();
+
 const basePort = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
 // CRM_DATA_DIR points a test instance at a scratch copy so click-tests never write to the real data.
