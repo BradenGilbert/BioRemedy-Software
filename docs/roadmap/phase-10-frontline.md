@@ -319,6 +319,8 @@ what was built and why. Kept here as the original source record.
 
 ## Corrections found during implementation
 
+- **2026-09-23 (owner's bug list):** the job tracker didn't move when the work plan did. `frontlineAutoAdvanceJob` advances the job to In progress on the first completed task after Mobilize and to Field complete when every required step is done, and sets completion from required tasks. Material task quantities step by whole items. The Job Book has a "Sales activities" section listing site walks the signed-in person is on.
+
 - **2026-09-23 audit:** the negative-stock confirmation's `inventoryAlerts` rows were written by the server and read by nothing. They now show on Office → Alerts, on the consumable's page ("Negative stock events") and in the consumables list's red dot, until the item is back at or above zero. The consumable dialog also refused to save while On hand was negative (`min="0"`); it no longer does.
 
 - **The tile table's "Time Sheet — would write the existing `timeEntries` collection" was stale.**

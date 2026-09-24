@@ -105,6 +105,8 @@ Use the shared list-filter/search component Phase 07 item 15 calls for. This pha
 
 ## Corrections found during implementation
 
+- **2026-09-23 (owner's bug list):** class-view table titles read "<card> for <class> Projects"; the Emergency view's card 2 is "Projects without scheduled dispatches" like the others; All Projects metric cards follow the account filter (`renderOperationsMetrics(jobs)`); project tables carry quick-filter chips (`QUICK_FILTERS.projects`); the map plots dispatch jobs with coordinates (`dispatchJobMapMarkers`); "Add from rate sheet" onboards consumables and equipment (`#inventoryOnboardDialog`); `equipmentAssets.ownership` (Owned / Rented / Subcontracted) is whitelisted and editable.
+
 - **2026-09-23 audit:** equipment logs, dispatch resources, maintenance records, restock items and GPS points are all keyed by `assetTag`, and renaming an asset detached them (the live "VAC-204" had become "VAC TRAILER - 204"). `saveEquipmentAsset` now cascades a rename (`cascadeAssetTagRename`), and the live references were moved.
 
 - **Item 3's Emergency Response note was already true.** The doc says to "remove the Log material and Log equipment header buttons" from the Emergency view, but the running code's `renderOperationsEmergency()` toolbar only ever had a "Field alert" button — no Log material/Log equipment buttons to remove. Scheduled Work has those two buttons (left alone, as the doc says). No code change needed for this sub-item.

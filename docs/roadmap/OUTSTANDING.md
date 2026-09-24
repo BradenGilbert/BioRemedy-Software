@@ -140,6 +140,30 @@ The owner asked for a bug scan before Wave 6. Three passes: a static wiring audi
 
 ---
 
+## Owner's bug list — 2026-09-23 (after the audit)
+
+The owner sent 22 findings from using the app. Three needed decisions; all were answered the same day: **site walks get the full build** (facility, participants, team, calendars, dispatch board, Front Line); **dispatch picks people by availability and credentials, crews are quick-picks** and a person can belong to several groups; **a pause blocks outright.**
+
+**Shipped (commits "Owner list, batch 1/2"):**
+- Operations: class tables are titled "<card> for <class> Projects", every class view has the same four clickable cards (the Emergency view's odd card is gone), the All Projects cards follow the account filter, and project tables have quick-filter chips (stage, class, alerts, no dispatch, work started, awaiting lab results).
+- Operations map plots dispatch jobs that have coordinates, with "Open job" in the popup.
+- **Project stage is honest.** A finished dispatch moves the project to *Field Work*, not Closeout; Closeout is only the explicit close, which now requires no open dispatch job or request. A new dispatch on a finished project steps the stage back to Plan. The account's Projects tab lists only actually-closed projects as closed. A project with samples out shows "Awaiting lab results (n)" on its header and in the projects table.
+- **Sampling tab** on the project: one sampling event per dispatch visit (samples used to each be their own "event"), samples awaiting results, analyte results, lab documents.
+- Project Live tab's team panel reads the dispatch jobs' crews, equipment and vendors.
+- Intake dialog prefills the generator details the page already shows (they came from the account and facility), and the "missing generator" check accepts them.
+- Front Line: completing any step after Mobilize moves the job to In progress (stamping the operational day and weather); completing every required step moves it to Field complete; completion tracks required tasks.
+- Dispatch job details are editable ("Edit details" on the job header and Details tab); a closed job no longer offers "New dispatch request"; the schedule dialog stops asking for a crew when people are already assigned.
+- Whole numbers for items: material and Front Line quantities step by 1; quote/invoice lines step by 1 unless the unit is hours (0.25) or days (0.5).
+- Estimation lines drafted from vendor needs are labelled "Vendor / subcontractor".
+- Inventory: "Add from rate sheet" onboards consumables and equipment from rate-sheet sections; equipment has Owned / Rented / Subcontracted.
+- **Paused accounts block** new opportunities, job requests, projects, scheduling or dispatch according to the pause's scope, and every pause and resume is kept in the account's pause history.
+- **Site walks**: a scheduler on the opportunity (Develop & Planning → Site walk → Schedule) with the opportunity's facility and a BioRemedy participant picker; participants join the opportunity's Team; the walk sits on the workforce schedule, the operations calendar, the dispatch board (Scheduled column, blue "Sales activity" card) and Front Line's Job Book (Sales activities section). Stored as a `scheduleEvents` row with `kind: "site_walk"` plus a Site Visit meeting on the timeline.
+- **Crews as quick-picks**: a person keeps a home crew and team and can be added to any number of others (`workforceTeamMemberships`, which the server had seeded and nothing read). Crew and team cards have "Add member"; the dispatch assign dialog can add a whole crew, then individuals are adjusted per job.
+
+**Not built (deferred):** "Anticipate results in project notes" beyond the next-step line; a laboratory master table; per-person notification of site walks (waits for Phase 12 identities).
+
+---
+
 ## Stage C — Pilot gate
 
 ### Phase 12 — Identity, Authorization & Audit · *not started, 7 criteria*

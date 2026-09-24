@@ -578,6 +578,15 @@ writeup.
 - **`qboExports`** gained `payload` (the QBO v3 Invoice JSON) and `validationIssues[]`, and `invoices.qboStatus` can now be `Blocked - fix mapping issues`. **`products.qboItemName`** and **`accounts.qboCustomerName`** override the names sent.
 - **`projects.closeReport.costs`** gained `waste: { items, total }`.
 
+**Owner's bug list (2026-09-23, after the audit).** No new collections.
+- **`scheduleEvents`** gained `kind` (`work` | `site_walk`), `opportunityId`, `accountId`, `facilityId`, `startTime`, `endTime`, `participantEmployeeIds[]`, `activityId`, `notes` (all whitelisted in `normalizeRecord()`). A site walk is a `kind: "site_walk"` row with no project. SQL: add these columns to the schedule table, with a `schedule_event_participants` join for the employees.
+- **`workforceTeamMemberships`** rows now carry `crewId` or `teamId` (one of them), `role`, `primary`, `status` (`Removed` + `deletedAt` on removal). `employees.crewId`/`teamId` remain the home crew/team.
+- **`equipmentAssets.ownership`**: `Owned` | `Rented` | `Subcontracted` (whitelisted).
+- **`accountRelationshipExtensions.pauseHistory[]`**: `pausedAt`, `pausedBy`, `reason`, `scopes[]`, `resumedAt`, `resumedBy`. SQL: an `account_pause_history` child table.
+- **`dispatchJobs`** are now edited from the UI (no new fields; `latitude`/`longitude` are finally writable).
+- **`opportunities.siteWalkStatus`** gains the value `Scheduled`.
+- Project stage semantics changed (see Phase 09's corrections): `projectStage` reaches `Closeout` only through `closeProject()`.
+
 **Sprint Wave 5b (2026-09-23) — Phase 09's Lone Star invoice.** No new collections.
 - **`invoices`** gained `invoiceNumber`, `invoiceDate`, `priceLevelId`, `rateTier`, `isEmergencyCallout`, `fuelSurchargePercent`, `energySecurityFeePercent`, `taxRatePercent`, `subtotalAmount`, `fuelSurchargeAmount`, `energySecurityFeeAmount`, `taxableAmount`, `taxAmount`, `totalAmount`, `reportedLocation`, `termsText`, `createdAt`, `updatedAt`. All are whitelisted in `normalizeRecord()`, which previously kept only ten fields. `invoiceAmount` is the grand total once lines exist.
 - **`invoiceLines`** now uses the quote line shape: `lineKind`, `sequenceNumber`, `rateTier`, `pricingMethod`, `unitCost`, `markupPercent`, `minimumQuantity`, `billableQuantity`, `minimumApplied`, `fuelSurchargeApplies`. It adds `operationalDate`, `isTaxable`, `tax` (the line's tax amount), `dispatchJobId`, `sourceType` (`labor` | `equipment` | `material` | `expense` | `waste`) and `sourceId`.

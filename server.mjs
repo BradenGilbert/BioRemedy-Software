@@ -2539,6 +2539,17 @@ function normalizeRecord(collection, payload, data) {
       requiredCertifications: payload.requiredCertifications || [],
       status: payload.status || "Scheduled",
       blockedReason: payload.blockedReason || "",
+      // Site walks (owner 2026-09-23): a sales activity on the calendar, the dispatch board and
+      // Front Line before any job exists.
+      kind: payload.kind || "work",
+      opportunityId: payload.opportunityId || "",
+      accountId: payload.accountId || "",
+      facilityId: payload.facilityId || "",
+      startTime: payload.startTime || "",
+      endTime: payload.endTime || "",
+      participantEmployeeIds: Array.isArray(payload.participantEmployeeIds) ? payload.participantEmployeeIds : [],
+      activityId: payload.activityId || "",
+      notes: payload.notes || "",
     };
   }
 
@@ -2560,6 +2571,8 @@ function normalizeRecord(collection, payload, data) {
       // Phase 11 (2026-09-23): preventive-maintenance interval and meter tracking. These were
       // dropped silently before being added here — this whitelist is the only place a new
       // equipmentAssets field takes effect (see the assignedProjectId lesson in CLAUDE.md).
+      // Owner 2026-09-23: owned, rented or subcontracted.
+      ownership: payload.ownership || "Owned",
       pmIntervalDays: toNumberOrNull(payload.pmIntervalDays),
       pmIntervalMeter: toNumberOrNull(payload.pmIntervalMeter),
       meterUnit: payload.meterUnit || "",

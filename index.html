@@ -1253,6 +1253,200 @@
       </div>
     </dialog>
 
+    <dialog id="dispatchJobEditDialog" class="modal">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="dispatch-job-edit">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Dispatch job</p>
+            <h2 data-job-edit-title>Job details</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>
+            Job name
+            <input name="jobName" required maxlength="160" />
+          </label>
+          <label>
+            Priority
+            <select name="priority"></select>
+          </label>
+        </div>
+        <label>
+          Description
+          <textarea name="description" rows="3" maxlength="600"></textarea>
+        </label>
+        <div class="form-grid">
+          <label>
+            Site address
+            <input name="addressText" maxlength="200" />
+          </label>
+          <label>
+            Location name
+            <input name="locationName" maxlength="120" />
+          </label>
+          <label>
+            Latitude
+            <input name="latitude" type="number" step="any" />
+          </label>
+          <label>
+            Longitude
+            <input name="longitude" type="number" step="any" />
+          </label>
+          <label>
+            Onsite contact
+            <input name="onsiteContactName" maxlength="90" />
+          </label>
+          <label>
+            Onsite phone
+            <input name="onsiteContactPhone" type="tel" maxlength="40" />
+          </label>
+          <label>
+            Generator / responsible party
+            <input name="generatorResponsibleParty" maxlength="120" />
+          </label>
+          <label>
+            Pricing source
+            <input name="pricingSource" maxlength="120" />
+          </label>
+          <label>
+            Customer PO
+            <input name="customerPoNumber" maxlength="60" />
+          </label>
+          <label>
+            BioRemedy PO
+            <input name="bioremedyPoNumber" maxlength="60" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Equipment notes
+            <textarea name="equipmentNotes" rows="2" maxlength="400"></textarea>
+          </label>
+          <label>
+            Labor notes
+            <textarea name="laborNotes" rows="2" maxlength="400"></textarea>
+          </label>
+          <label>
+            Vendor notes
+            <textarea name="vendorNotes" rows="2" maxlength="400"></textarea>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save job details</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="inventoryOnboardDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="inventory-onboard">
+        <input name="kind" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Inventory</p>
+            <h2 data-onboard-title>Add from the rate sheet</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">Rate-sheet lines become inventory records linked to the line they bill as. Counts, tags and maintenance details are set afterwards on each item.</p>
+        <label>
+          Rate sheet section
+          <select name="category" data-onboard-category></select>
+        </label>
+        <div class="form-grid" data-onboard-equipment-only hidden>
+          <label>
+            Ownership
+            <select name="ownership"></select>
+          </label>
+          <label>
+            Asset tag prefix
+            <input name="tagPrefix" maxlength="8" value="RS" placeholder="RS" />
+          </label>
+        </div>
+        <fieldset class="settings-section">
+          <legend>Lines to add</legend>
+          <div class="record-list" data-onboard-list></div>
+        </fieldset>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Add selected</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="siteWalkDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="site-walk">
+        <input name="opportunityId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Sales activity</p>
+            <h2 data-site-walk-title>Schedule a site walk</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Site
+          <select name="facilityId"></select>
+        </label>
+        <div class="form-grid">
+          <label>
+            Date
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            Start
+            <input name="startTime" type="time" required />
+          </label>
+          <label>
+            End
+            <input name="endTime" type="time" required />
+          </label>
+        </div>
+        <fieldset class="settings-section">
+          <legend>Who from BioRemedy is going</legend>
+          <p class="help-text">Everyone ticked joins the opportunity's Team, gets the walk on their calendar, and sees it on Front Line.</p>
+          <div class="record-list site-walk-people" data-site-walk-people></div>
+        </fieldset>
+        <label>
+          Notes
+          <textarea name="notes" rows="2" maxlength="400" placeholder="Access, PPE, what to look at"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Schedule site walk</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="groupMemberDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="group-member">
+        <input name="kind" type="hidden" />
+        <input name="groupId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Workforce</p>
+            <h2 data-group-member-title>Add member</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Employee
+          <select name="employeeId" required></select>
+        </label>
+        <label>
+          Role in this group
+          <input name="role" maxlength="60" placeholder="e.g. Confined-space entrant" />
+        </label>
+        <p class="help-text">A person keeps their home crew and team and can belong to any number of extra groups.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Add</button>
+        </menu>
+      </form>
+    </dialog>
+
     <dialog id="projectCreateDialog" class="modal">
       <form method="dialog" class="modal-panel" data-form="project-from-opportunity">
         <input name="opportunityId" type="hidden" />
@@ -2106,7 +2300,7 @@
         <div class="form-grid">
           <label>
             Quantity
-            <input name="quantity" required type="number" min="0" step="0.1" value="1" />
+            <input name="quantity" required type="number" min="1" step="1" value="1" />
           </label>
           <label>
             Unit
@@ -2371,6 +2565,14 @@
               <option>Pump</option>
               <option>Air Filtration</option>
               <option>General equipment</option>
+            </select>
+          </label>
+          <label>
+            Ownership
+            <select name="ownership">
+              <option>Owned</option>
+              <option>Rented</option>
+              <option>Subcontracted</option>
             </select>
           </label>
         </div>
@@ -4377,6 +4579,11 @@
           Employee
           <select name="employeeId" required></select>
         </label>
+        <label>
+          Or add a whole crew
+          <select name="crewId"></select>
+        </label>
+        <p class="help-text">A crew is a quick-pick: its members are added one by one and can be adjusted here afterwards.</p>
         <label>
           Role on this job
           <input name="role" maxlength="60" placeholder="Technician" />

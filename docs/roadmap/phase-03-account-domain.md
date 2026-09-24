@@ -294,6 +294,8 @@ Confirm during implementation whether an existing "company structure" panel is m
 
 ## Corrections found during implementation
 
+- **2026-09-23 (owner's bug list): paused accounts now block.** `accountPauseBlock(accountId, scope)` refuses new opportunities (`pauseOpportunities`), job requests and remediation projects and emergency intake (`pauseProjects`), scheduling (`pauseScheduling`) and the dispatch-to-Front-Line transition (`pauseFieldWork`), with the pause reason in the toast. `accountRelationshipExtensions.pauseHistory[]` keeps every pause and resume and prints under the pause summary.
+
 *(Record here anything that turned out to be different from the plan.)*
 
 - **2026-09-16 — items 4, 5, and part of 1 shipped outside formal phase sequencing.** A QoL-cleanup session (not scoped as "Phase 03 work" at the time) independently built the header fix and the "+ Create" dropdown, and fixed the Create Account Owner field's free-text problem, because a user reported them directly. Discovered afterward that all three were already documented here. Left unfinished, still open for whoever picks this phase up:

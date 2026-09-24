@@ -144,11 +144,11 @@ const PROJECT_STAGES = ["Intake", "Plan", "Mobilize", "Field Work", "Closeout"];
 // deliberately not required (list-type, matches the opportunity-side gate-scope decision).
 const PROJECT_STAGE_REQUIRED_FIELDS = {
   Plan: [
-    { key: "generatorName", label: "Generator" },
+    { key: "generatorName", label: "Generator", validate: (job) => Boolean(job.generatorName || projectIntakeFallbacks(job).generatorName) },
     { key: "facilityId", label: "Facility" },
-    { key: "insuranceCarrier", label: "Insurance" },
-    { key: "epaId", label: "EPA ID" },
-    { key: "tceqId", label: "TCEQ ID" },
+    { key: "insuranceCarrier", label: "Insurance", validate: (job) => Boolean(job.insuranceCarrier || projectIntakeFallbacks(job).insuranceCarrier) },
+    { key: "epaId", label: "EPA ID", validate: (job) => Boolean(job.epaId || projectIntakeFallbacks(job).epaId) },
+    { key: "tceqId", label: "TCEQ ID", validate: (job) => Boolean(job.tceqId || projectIntakeFallbacks(job).tceqId) },
     { key: "serviceProfile", label: "Services" },
     { key: "siteWalkStatus", label: "Site walk" },
     { key: "jobClass", label: "Project type" },
@@ -2390,7 +2390,7 @@ async function handleClick(event) {
   if (action === "reinstate-frontline-device") await reinstateFrontlineDevice(id);
   if (action === "retire-frontline-device") await retireFrontlineDevice(id);
   if (action === "delete-frontline-device") await deleteFrontlineDevice(id);
-  if (action === "quick-schedule-site-walk") openSiteWalkQuickSchedule(actionButton.dataset.opportunityId);
+  if (action === "quick-schedule-site-walk") openSiteWalkDialog(actionButton.dataset.opportunityId);
   if (action === "open-opportunity-location") openOpportunityLocationDialog(actionButton.dataset.opportunityId);
   if (action === "remove-opportunity-location") await unlinkOpportunityLocation(id);
   if (action === "open-standby-assignment") openStandbyAssignmentDialog(id);
@@ -2567,6 +2567,10 @@ async function handleClick(event) {
   if (action === "open-dispatch-assign-equipment") openDispatchAssignEquipmentDialog(actionButton.dataset.jobId);
   if (action === "open-dispatch-assign-material") openDispatchAssignMaterialDialog(actionButton.dataset.jobId);
   if (action === "remove-job-resource") await removeJobResource(id);
+  if (action === "open-dispatch-job-edit") openDispatchJobEditDialog(id);
+  if (action === "open-group-member") openGroupMemberDialog(actionButton.dataset.kind || "crew", id);
+  if (action === "remove-group-member") await removeGroupMember(id);
+  if (action === "open-inventory-onboard") openInventoryOnboardDialog(actionButton.dataset.kind || "consumable");
   if (action === "capture-weather") {
     actionButton.disabled = true;
     try {
@@ -2781,6 +2785,10 @@ async function handleSubmit(event) {
   if (form.dataset.form === "dispatch-operational-date") await saveDispatchOperationalDate(form);
   if (form.dataset.form === "dispatch-post-job-review") await saveDispatchPostJobReview(form);
   if (form.dataset.form === "permit") await savePermit(form);
+  if (form.dataset.form === "dispatch-job-edit") await saveDispatchJobEdit(form);
+  if (form.dataset.form === "site-walk") await saveSiteWalk(form);
+  if (form.dataset.form === "group-member") await saveGroupMember(form);
+  if (form.dataset.form === "inventory-onboard") await saveInventoryOnboard(form);
   if (form.dataset.form === "waste-record") await saveWasteRecord(form);
   if (form.dataset.form === "frontline-device") await saveFrontlineDevice(form);
   if (form.dataset.form === "opportunity-location") await saveOpportunityLocation(form);
@@ -2900,6 +2908,10 @@ function handleInput(event) {
 }
 
 function handleInputInner(event) {
+  if (event.type === "change" && event.target.matches?.("[data-onboard-category]")) {
+    renderInventoryOnboardOptions(event.target.closest("dialog"));
+    return;
+  }
   if (event.type === "change" && event.target.matches?.("[data-report-caption-id]")) {
     saveReportPhotoCaption(event.target.dataset.reportCaptionId, event.target.value.trim());
     return;
@@ -2946,6 +2958,12 @@ function handleInputInner(event) {
   // re-prices just that line; emergency / fuel % / fee % only change the totals.
   if (event.target.matches("[data-doc-tier]")) {
     applyDocTierToAllLines(event.target.closest("dialog"));
+    return;
+  }
+  if (event.target.matches("[data-line-uom]")) {
+    const row = event.target.closest(".doc-line-row");
+    const quantityField = row?.querySelector("[data-line-quantity]");
+    if (quantityField) quantityField.step = quantityStepForUom(event.target.value);
     return;
   }
   if (event.target.matches("[data-line-tier]")) {
@@ -3848,6 +3866,16 @@ const QUICK_FILTERS = {
     { id: "decision", label: "Decision makers", test: (contact) => /decision/i.test(contact.influence || contact.relationshipRole || "") },
     { id: "unaffiliated", label: "No account", test: (contact) => !contact.accountId },
     { id: "recent", label: "Added in 30 days", test: (contact) => Boolean(contact.createdAt) && daysUntil(contact.createdAt) >= -30 },
+  ],
+  projects: [
+    { id: "no-dispatch", label: "No dispatch yet", test: (job) => dispatchJobsForProject(job.id).length === 0 },
+    { id: "work-started", label: "Work started", test: (job) => dispatchWorkHasStarted(job.id) },
+    { id: "alerts", label: "Open alerts", test: (job) => alertsForJob(job.id).some((alert) => alert.status !== "Resolved") },
+    { id: "awaiting-lab", label: "Awaiting lab results", test: (job) => /Awaiting lab/.test(projectNextStep(job)) },
+    { id: "emergency", label: "Emergency", test: (job) => job.jobClass === "Emergency Response" },
+    { id: "scheduled", label: "Scheduled work", test: (job) => job.jobClass === "Scheduled Work" },
+    { id: "multi-stage", label: "Multi-stage", test: (job) => job.jobClass === "Multi-Stage Remediation" },
+    ...PROJECT_STAGES.map((stage) => ({ id: `stage-${stage.toLowerCase().replace(/\s+/g, "-")}`, label: stage, test: (job) => (job.projectStage || "Intake") === stage })),
   ],
   opportunities: [
     { id: "mine", label: "My opportunities", test: (opportunity) => isCurrentUsersRecord(opportunity.owner) },
@@ -8344,7 +8372,7 @@ function renderOperationsAllProjects() {
           <button class="mini-button" type="button" data-action="toggle-show-closed-projects">${showClosed ? "Hide closed projects" : "Show closed projects"}</button>
         </div>
       </section>
-      ${renderOperationsMetrics()}
+      ${renderOperationsMetrics(jobs)}
       <section class="metric-strip" aria-label="Dispatch connection metrics">
         <div class="metric">
           <p class="eyebrow">Completed dispatch jobs</p>
@@ -8375,7 +8403,9 @@ function renderOperationsAllProjects() {
 // project detail page, just not rendered on this screen anymore.
 function renderAllProjectsTable(jobs) {
   const jobClassLabel = { "Emergency Response": "ER", "Scheduled Work": "Scheduled", "Multi-Stage Remediation": "Multi-Stage" };
-  return renderDataTable({
+  // Owner 2026-09-23: the table needs filters, not just search. Each chip narrows the list.
+  const rows = applyQuickFilters("projects", jobs);
+  return renderQuickFilterChips("projects", jobs) + renderDataTable({
     tableId: "all-projects",
     searchPlaceholder: "Search projects...",
     emptyText: "No projects match.",
@@ -8390,7 +8420,7 @@ function renderAllProjectsTable(jobs) {
       { key: "stage", label: "Stage", sortValue: (job) => PROJECT_STAGES.indexOf(job.projectStage || "Intake") },
       { key: "alerts", label: "Alerts", sortValue: (job) => alertsForJob(job.id).filter((alert) => alert.status !== "Resolved").length },
     ],
-    rows: jobs,
+    rows,
     renderRow: (job) => {
       const account = findAccount(job.accountId);
       const scheduled = dispatchJobsForProject(job.id).length > 0;
@@ -8405,7 +8435,7 @@ function renderAllProjectsTable(jobs) {
           <td>${formatDate(job.startDate)}</td>
           <td>${scheduled ? `<span class="tag">Yes</span>` : `<span class="risk-badge medium">No</span>`}</td>
           <td>${started ? `<span class="tag">Yes</span>` : "No"}</td>
-          <td>${escapeHtml(job.projectStage || "Intake")}</td>
+          <td>${escapeHtml(job.projectStage || "Intake")}${projectNextStep(job) ? `<br /><small class="muted-text">${escapeHtml(projectNextStep(job))}</small>` : ""}</td>
           <td>${openAlerts ? `<span class="risk-badge high">${openAlerts}</span>` : "0"}</td>
         </tr>
       `;
@@ -8582,6 +8612,7 @@ function renderProjectDetail() {
           <div class="inline-actions">
             <span class="risk-badge ${progress.tone}">${progress.percent}% complete</span>
             <span class="stage-badge">${escapeHtml(job.status)}</span>
+            ${projectNextStep(job) ? `<span class="risk-badge medium">${escapeHtml(projectNextStep(job))}</span>` : ""}
             <span class="tag">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
             ${job.notToExceed ? `<span class="risk-badge medium">NTE ${money(job.notToExceed)}</span>` : `<span class="tag">Budget ${money(job.budget)}</span>`}
           </div>
@@ -8661,6 +8692,7 @@ const projectDetailTabs = [
   { id: "intake", label: "Intake" },
   { id: "plan", label: "Plan" },
   { id: "live", label: "Live" },
+  { id: "sampling", label: "Sampling" },
   { id: "report", label: "Report" },
 ];
 
@@ -8688,6 +8720,8 @@ function renderProjectTabBody(tab, job, ctx) {
       return renderProjectPlanTab(job, ctx);
     case "live":
       return renderProjectLiveTab(job, ctx);
+    case "sampling":
+      return renderProjectSamplingTab(job);
     case "report":
       return renderProjectReportTab(job);
     case "intake":
@@ -8902,14 +8936,7 @@ function renderProjectLiveTab(job, ctx) {
           </div>
         </article>
 
-        <article class="panel">
-          <div class="panel-header"><h3>Project team and logistics</h3></div>
-          <div class="panel-body record-list">
-            ${assignments.map(renderAssignmentCard).join("") || `<div class="empty-state">No assignments yet.</div>`}
-            ${materials.slice(0, 3).map(renderMaterialCard).join("")}
-            ${equipment.slice(0, 3).map(renderEquipmentCard).join("")}
-          </div>
-        </article>
+        ${renderProjectTeamAndLogistics(job)}
       </div>
     </section>
   `;
@@ -8989,7 +9016,7 @@ function renderProjectBillingPanel(job) {
           ${
             eligible
               ? `<div class="empty-state">This project has reached Closeout and is ready to close. Closing generates a cost report and P&amp;L from logged equipment, labor, and material usage, priced from the rate card, and feeds the invoice dialog.</div>`
-              : `<div class="empty-state">Project must reach the Closeout stage before it can be closed (currently ${escapeHtml(job.projectStage || "Intake")}). No cost report or P&amp;L exists yet.</div>`
+              : `<div class="empty-state">The project can be closed once field work has happened and no dispatch job or job request is open (stage: ${escapeHtml(job.projectStage || "Intake")}${projectNextStep(job) ? `, ${escapeHtml(projectNextStep(job).toLowerCase())}` : ""}). No cost report or P&amp;L exists yet.</div>`
           }
         </div>
       </article>
@@ -9329,7 +9356,7 @@ function operationsClassTableTitle(jobClass) {
     alerts: "Open Alerts",
     "resource-blocks": "Resource Blocks",
   };
-  return `${labels[state.opsClassTableFilter] || "Active Jobs"} - ${jobClass} projects`;
+  return `${labels[state.opsClassTableFilter] || "Active Jobs"} for ${jobClass} Projects`;
 }
 
 // A project is resource-blocked when equipment assigned to it (or checked out to it and not yet
@@ -9478,12 +9505,15 @@ function renderOperationsRaceTrack() {
   `;
 }
 
-function renderOperationsMetrics() {
-  const activeAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved");
-  const activeEmergency = state.projects.filter((job) => job.jobClass === "Emergency Response" && isActiveProject(job)).length;
+// Counts follow the account filter when one is set (owner 2026-09-23: the cards kept showing
+// company-wide numbers while the table was filtered to one account).
+function renderOperationsMetrics(jobs = state.projects) {
+  const jobIds = new Set(jobs.map((job) => job.id));
+  const activeAlerts = state.projectAlerts.filter((alert) => alert.status !== "Resolved" && jobIds.has(alert.projectId));
+  const activeEmergency = jobs.filter((job) => job.jobClass === "Emergency Response" && isActiveProject(job)).length;
   const maintenanceHolds = equipmentAssets.filter((asset) => asset.status === "Maintenance hold").length;
   const lowConsumables = getConsumableStatus().filter((item) => item.status !== "Healthy").length;
-  const activeProjectCount = state.projects.filter((job) => isActiveProject(job)).length;
+  const activeProjectCount = jobs.filter((job) => isActiveProject(job)).length;
 
   return `
     <section class="metric-strip" aria-label="Operations metrics">
@@ -9525,10 +9555,9 @@ function renderOperationsClassMetrics(jobClass) {
   const withResourceBlocks = activeJobs.filter((job) => resourceBlocksForProject(job.id).length > 0);
   const activeFilter = state.opsClassTableFilter;
 
-  const card2 =
-    jobClass === "Emergency Response"
-      ? { label: "Emergency response", value: activeJobs.length, filter: "" }
-      : { label: "Projects without scheduled dispatches", value: noDispatch.length, filter: "no-dispatch" };
+  // Owner 2026-09-23: on the Emergency Response view an "Emergency response" card said nothing, so
+  // every class view now carries the same four cards.
+  const card2 = { label: "Projects without scheduled dispatches", value: noDispatch.length, filter: "no-dispatch" };
 
   return `
     <section class="metric-strip" aria-label="${escapeAttribute(jobClass)} metrics">
@@ -9668,9 +9697,11 @@ function renderCalendarItem(item) {
   return `
     <article class="calendar-item ${item.kind.toLowerCase().replace(/\s+/g, "-")}">
       ${
-        item.id
-          ? `<button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.title)}</button>`
-          : `<strong>${escapeHtml(item.title)}</strong>`
+        item.opportunityId
+          ? `<button class="link-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(item.opportunityId)}">${escapeHtml(item.title)}</button>`
+          : item.id
+            ? `<button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(item.id)}">${escapeHtml(item.title)}</button>`
+            : `<strong>${escapeHtml(item.title)}</strong>`
       }
       <div class="row-meta">
         <span>${escapeHtml(item.kind)}</span>
@@ -10305,7 +10336,11 @@ function renderMapPopup(marker) {
       <span>${Number(marker.latitude).toFixed(5)}, ${Number(marker.longitude).toFixed(5)}</span>
       ${marker.assetTags?.length ? `<span>Assets: ${escapeHtml(marker.assetTags.join(", "))}</span>` : ""}
       ${marker.lastPingAt ? `<span>Last ping ${escapeHtml(formatDate(marker.lastPingAt))}</span>` : ""}
-      <button class="mini-button" type="button" data-action="open-map-location" data-id="${escapeAttribute(marker.locationId || marker.id || "")}">Edit GPS</button>
+      ${
+        marker.dispatchJobId
+          ? `<button class="mini-button" type="button" data-action="view-dispatch-job" data-id="${escapeAttribute(marker.dispatchJobId)}">Open job</button>`
+          : `<button class="mini-button" type="button" data-action="open-map-location" data-id="${escapeAttribute(marker.locationId || marker.id || "")}">Edit GPS</button>`
+      }
     </div>
   `;
 }
@@ -10949,7 +10984,7 @@ function renderWorkforceTeams() {
 
 function renderWorkforceTeamCard(team) {
   const manager = findEmployee(team.managerEmployeeId);
-  const members = getEmployees().filter((employee) => employee.teamId === team.id);
+  const members = teamMemberIds(team.id).map(findEmployee).filter(Boolean);
   return `
     <article class="workforce-group-card">
       <div class="group-card-head"><span class="group-code">${escapeHtml(team.code)}</span><span class="source-badge">${escapeHtml(team.status)}</span></div>
@@ -10957,14 +10992,14 @@ function renderWorkforceTeamCard(team) {
       <p>${escapeHtml(team.businessUnit)}</p>
       <div class="group-manager"><span>Manager</span><strong>${escapeHtml(manager?.displayName || "Not assigned")}</strong></div>
       <div class="avatar-stack">${members.map((member) => `<button type="button" data-action="view-employee" data-id="${member.id}" title="${escapeAttribute(member.displayName)}">${escapeHtml(getInitials(member.displayName, "BR"))}</button>`).join("")}</div>
-      <div class="inline-actions"><span class="table-subtext">${members.length} members</span><button class="mini-button" type="button" data-action="open-team" data-id="${escapeAttribute(team.id)}">Edit</button></div>
+      <div class="inline-actions"><span class="table-subtext">${members.length} members</span><button class="mini-button" type="button" data-action="open-team" data-id="${escapeAttribute(team.id)}">Edit</button><button class="mini-button" type="button" data-action="open-group-member" data-kind="team" data-id="${escapeAttribute(team.id)}">Add member</button></div>
     </article>
   `;
 }
 
 function renderCrewProfileCard(crew) {
   const supervisor = findEmployee(crew.supervisorEmployeeId);
-  const members = getEmployees().filter((employee) => employee.crewId === crew.id);
+  const members = crewMemberIds(crew.id).map(findEmployee).filter(Boolean);
   const requiredNames = (crew.requiredCertTypeIds || []).map((typeId) => findCertificationType(typeId)?.name).filter(Boolean);
   return `
     <article class="workforce-group-card">
@@ -10977,11 +11012,16 @@ function renderCrewProfileCard(crew) {
         ${members
           .map((member) => {
             const gaps = crewCertGapsForEmployee(crew, member.id);
-            return `<button type="button" data-action="view-employee" data-id="${member.id}" class="${gaps.length ? "cert-gap-warning" : ""}" title="${gaps.length ? escapeAttribute(`Missing: ${gaps.join(", ")}`) : escapeAttribute(member.displayName)}"><span>${escapeHtml(getInitials(member.displayName, "BR"))}${gaps.length ? " ⚠" : ""}</span><strong>${escapeHtml(member.displayName)}</strong><small>${escapeHtml(member.jobTitle)}</small></button>`;
+            const membership = groupMembershipFor("crew", crew.id, member.id);
+            const home = member.crewId === crew.id;
+            return `<span class="group-member-chip"><button type="button" data-action="view-employee" data-id="${member.id}" class="${gaps.length ? "cert-gap-warning" : ""}" title="${gaps.length ? escapeAttribute(`Missing: ${gaps.join(", ")}`) : escapeAttribute(member.displayName)}"><span>${escapeHtml(getInitials(member.displayName, "BR"))}${gaps.length ? " ⚠" : ""}</span><strong>${escapeHtml(member.displayName)}</strong><small>${escapeHtml(home ? "home crew" : membership?.role || member.jobTitle)}</small></button>${membership && !home ? `<button type="button" class="icon-button" data-action="remove-group-member" data-id="${escapeAttribute(membership.id)}" aria-label="Remove from crew" title="Remove from this crew">&times;</button>` : ""}</span>`;
           })
           .join("")}
       </div>
-      <div class="inline-actions"><button class="mini-button" type="button" data-action="open-crew" data-id="${escapeAttribute(crew.id)}">Edit</button></div>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="open-crew" data-id="${escapeAttribute(crew.id)}">Edit</button>
+        <button class="mini-button" type="button" data-action="open-group-member" data-kind="crew" data-id="${escapeAttribute(crew.id)}">Add member</button>
+      </div>
     </article>
   `;
 }
@@ -11229,8 +11269,19 @@ function renderWorkforceScheduleDay(day) {
 }
 
 function renderScheduleAssignmentCard(assignment) {
-  const job = findDispatchJob(assignment.jobId);
   const employee = findEmployee(assignment.employeeId);
+  if (assignment.siteWalkId) {
+    const event = siteWalkEvents().find((item) => item.id === assignment.siteWalkId);
+    const opportunity = event ? findOpportunity(event.opportunityId) : null;
+    return `
+      <button class="schedule-assignment-card sales-activity" type="button" data-action="view-opportunity" data-id="${escapeAttribute(event?.opportunityId || "")}">
+        <span class="person-avatar">${escapeHtml(getInitials(employee?.displayName, "BR"))}</span>
+        <span><strong>${escapeHtml(employee?.displayName || "Unassigned")}</strong><small>Site walk · ${escapeHtml(opportunity ? getCoreOpportunity(opportunity).opportunityName : event?.title || "")}</small></span>
+        <span class="schedule-time">${formatShortTime(assignment.plannedStart)}</span>
+      </button>
+    `;
+  }
+  const job = findDispatchJob(assignment.jobId);
   return `
     <button class="schedule-assignment-card" type="button" data-action="view-dispatch-job" data-id="${job?.id || ""}">
       <span class="person-avatar">${escapeHtml(getInitials(employee?.displayName, "BR"))}</span>
@@ -11780,18 +11831,19 @@ function renderDispatchBoard() {
         `<button class="primary-button" type="button" data-action="open-job-request">New job request</button>`,
       )}
       <section class="dispatch-board-grid">
-        ${columns.map((column) => renderDispatchBoardColumn(column, jobs.filter((job) => column.statuses.includes(job.status)))).join("")}
+        ${columns.map((column) => renderDispatchBoardColumn(column, jobs.filter((job) => column.statuses.includes(job.status)), column.id === "scheduled" ? siteWalkEvents().filter((event) => event.date >= todayIso()) : [])).join("")}
       </section>
     </section>
   `;
 }
 
-function renderDispatchBoardColumn(column, jobs) {
+function renderDispatchBoardColumn(column, jobs, siteWalks = []) {
   return `
     <section class="dispatch-column ${column.id}">
-      <div class="dispatch-column-head"><h3>${escapeHtml(column.label)}</h3><span>${jobs.length}</span></div>
+      <div class="dispatch-column-head"><h3>${escapeHtml(column.label)}</h3><span>${jobs.length + siteWalks.length}</span></div>
       <div class="dispatch-column-body">
-        ${jobs.map(renderDispatchBoardCard).join("") || `<div class="empty-state compact">No jobs</div>`}
+        ${siteWalks.map(renderSiteWalkBoardCard).join("")}
+        ${jobs.map(renderDispatchBoardCard).join("") || (siteWalks.length ? "" : `<div class="empty-state compact">No jobs</div>`)}
       </div>
     </section>
   `;
@@ -12404,11 +12456,8 @@ function renderDispatchJobDetail() {
         <button class="back-button" type="button" data-action="back-to-dispatch-jobs">Back to jobs</button>
         <div class="inline-actions">
           ${job.projectId ? `<button class="secondary-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.projectId)}">Back to project</button>` : ""}
-          ${
-            job.status === "closed"
-              ? `<button class="secondary-button" type="button" data-action="open-job-request" data-account-id="${escapeAttribute(job.accountId)}" data-project-id="${escapeAttribute(job.projectId)}">New dispatch request</button>`
-              : `<button class="secondary-button" type="button" data-action="open-job-schedule" data-job-id="${job.id}">Schedule</button>`
-          }
+          <button class="secondary-button" type="button" data-action="open-dispatch-job-edit" data-id="${job.id}">Edit details</button>
+          ${job.status === "closed" ? "" : `<button class="secondary-button" type="button" data-action="open-job-schedule" data-job-id="${job.id}">Schedule</button>`}
           ${nextTransition ? `<button class="primary-button" type="button" data-action="advance-dispatch-job" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>` : ""}
         </div>
       </div>
@@ -12526,7 +12575,7 @@ function renderDispatchJobDetailsTab(job) {
   return `
     <section class="crm-profile-grid">
       <article class="panel">
-        <div class="panel-header"><h3>Job overview</h3><span>${escapeHtml(job.projectName || "No parent project")}</span></div>
+        <div class="panel-header"><div><h3>Job overview</h3><span>${escapeHtml(job.projectName || "No parent project")}</span></div><button class="mini-button" type="button" data-action="open-dispatch-job-edit" data-id="${escapeAttribute(job.id)}">Edit details</button></div>
         <div class="panel-body">
           <p class="job-description">${escapeHtml(job.description)}</p>
           <dl class="detail-list job-overview-list">
@@ -13038,6 +13087,7 @@ function renderInventory() {
         `
           <button class="primary-button" type="button" data-action="open-purchase-order">Create PO</button>
           <button class="secondary-button" type="button" data-action="open-inventory-item">Add consumable</button>
+          <button class="secondary-button" type="button" data-action="open-inventory-onboard" data-kind="consumable">Add from rate sheet</button>
           <button class="secondary-button" type="button" data-action="open-equipment-asset">Add equipment</button>
           <button class="secondary-button" type="button" data-action="open-employee">Add labor</button>
         `,
@@ -13113,6 +13163,7 @@ function renderInventoryConsumables() {
         `
           <button class="primary-button" type="button" data-action="open-purchase-order">Create PO</button>
           <button class="secondary-button" type="button" data-action="open-inventory-item">Add consumable</button>
+          <button class="secondary-button" type="button" data-action="open-inventory-onboard" data-kind="consumable">Add from rate sheet</button>
         `,
       )}
       <article class="panel">
@@ -13403,7 +13454,8 @@ function renderInventoryEquipment() {
         "inventory",
         "Equipment",
         "Asset status, last use, maintenance schedule, and scheduler-blocking equipment issues.",
-        `<button class="primary-button" type="button" data-action="open-equipment-asset">Add equipment</button>`,
+        `<button class="primary-button" type="button" data-action="open-equipment-asset">Add equipment</button>
+         <button class="secondary-button" type="button" data-action="open-inventory-onboard" data-kind="equipment">Add from rate sheet</button>`,
       )}
       <article class="panel">
         <div class="panel-header"><h3>Equipment</h3></div>
@@ -14323,6 +14375,7 @@ function renderClientSpillDetail() {
           <div class="inline-actions">
             <span class="risk-badge ${progress.tone}">${progress.percent}% complete</span>
             <span class="stage-badge">${escapeHtml(job.status)}</span>
+            ${projectNextStep(job) ? `<span class="risk-badge medium">${escapeHtml(projectNextStep(job))}</span>` : ""}
             <span class="tag">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
             ${job.notToExceed ? `<span class="tag">Authorized NTE ${money(job.notToExceed)}</span>` : ""}
           </div>
@@ -15142,6 +15195,11 @@ function renderFrontlineJobBook() {
                 .join("")}
             </select>
           </div>
+          ${(() => {
+            const me = state.frontlineSession?.employeeId;
+            const walks = siteWalkEvents().filter((event) => event.date >= todayIso() && (filter.scope === "all" || (event.participantEmployeeIds || []).includes(me)));
+            return walks.length ? `<h3>Sales activities</h3><p class="help-text">Site walks and other sales work with no job behind them yet.</p><div class="frontline-job-list">${walks.map(renderFrontlineSiteWalkCard).join("")}</div><h3>Jobs</h3>` : "";
+          })()}
           <div class="frontline-job-list">
             ${jobs.map(renderFrontlineJobCard).join("") || `<div class="empty-state">No jobs match this filter.</div>`}
           </div>
@@ -15265,7 +15323,7 @@ function renderFrontlineTaskCapture(action, job) {
                       )
                       .join("")}
                   </select>
-                  <input type="number" name="materialQuantity" min="0" step="0.1" placeholder="Qty" />
+                  <input type="number" name="materialQuantity" min="1" step="1" placeholder="Qty" />
                 </div>
                 <div class="frontline-material-row">
                   <input type="text" name="materialWriteInName" maxlength="90" placeholder="...or write in an item not in the catalog" />
@@ -16907,6 +16965,7 @@ async function frontlineCompleteAction(form) {
     await frontlineMarkActionComplete(actionId);
     await frontlineAdvanceStepIfComplete(stepId, [actionId]);
     await refreshBackendState();
+    await frontlineAutoAdvanceJob(jobId, stepId);
 
     state.frontlineOpenActionId = "";
     state.frontlineSignatureStrokes = [];
@@ -17370,6 +17429,11 @@ function renderQueueItem(item) {
 async function saveOpportunity(form) {
   const data = new FormData(form);
   const existingId = data.get("id").toString();
+  const pauseBlock = !existingId ? accountPauseBlock((data.get("accountId") || "").toString(), "pauseOpportunities") : "";
+  if (pauseBlock) {
+    showToast(pauseBlock);
+    return;
+  }
   const existing = existingId ? findOpportunity(existingId) : null;
   const previousStage = existing?.stage || "";
   const stage = existing ? existing.stage : data.get("startingStage")?.toString() || "Lead";
@@ -17788,6 +17852,11 @@ async function saveEquipmentLog(form) {
 
 async function saveScheduleEvent(form) {
   const data = new FormData(form);
+  const pauseBlock = accountPauseBlock(findProject((data.get("projectId") || "").toString())?.accountId, "pauseScheduling");
+  if (pauseBlock) {
+    showToast(pauseBlock);
+    return;
+  }
   const equipmentAssetTag = (data.get("equipmentAssetTag") || "").toString();
   const laborResourceId = (data.get("laborResourceId") || "").toString();
   const requiredCertifications = Array.from(form.querySelector("select[name='requiredCertifications']")?.selectedOptions || []).map((option) => option.value);
@@ -17815,6 +17884,11 @@ async function saveScheduleEvent(form) {
 async function saveRemediation(form) {
   const data = new FormData(form);
   const account = findAccount((data.get("accountId") || "").toString());
+  const pauseBlock = accountPauseBlock(account?.id, "pauseProjects");
+  if (pauseBlock) {
+    showToast(pauseBlock);
+    return;
+  }
   if (!account) return;
 
   const job = buildCoreProjectRecord({
@@ -17943,6 +18017,7 @@ async function saveEquipmentAsset(form) {
       issue: data.get("issue").toString().trim(),
       assignedProjectId: existing?.assignedProjectId || "",
       productId: data.get("productId")?.toString() || "",
+      ownership: (data.get("ownership") || "").toString() || existing?.ownership || "Owned",
       specs,
       // Phase 11 (2026-09-23): PM interval + meter plan. This form is the only place a user can
       // edit or clear these, so we read them straight from the form rather than falling back to
@@ -18404,6 +18479,11 @@ async function saveCrewProfile(form) {
 async function saveJobRequest(form) {
   const data = new FormData(form);
   const account = findAccount((data.get("accountId") || "").toString());
+  const pauseBlock = accountPauseBlock(account?.id, "pauseProjects");
+  if (pauseBlock) {
+    showToast(pauseBlock);
+    return;
+  }
   if (!account) {
     showToast("Select a customer account before sending the request.");
     return;
@@ -18662,6 +18742,7 @@ async function convertJobRequest(requestId, templateId = "") {
 
   try {
     const savedJob = await saveBackendRecord("dispatchJobs", job);
+    await reopenProjectForNewDispatch(job.projectId, savedJob.id);
     await saveBackendRecord("jobRequests", { ...request, status: "Converted", convertedJobId: savedJob.id });
     if (template) {
       await applyJobTypeTemplateToJob(savedJob, template);
@@ -18761,6 +18842,11 @@ async function submitEmergencyIntake(form) {
   // twice") — guard at the very start, before any async work, same pattern as
   // jobRequestConversionsInFlight.
   if (emergencyIntakeSubmissionInFlight.active) return;
+  const intakePauseBlock = accountPauseBlock((new FormData(form).get("accountId") || "").toString(), "pauseProjects");
+  if (intakePauseBlock) {
+    showToast(intakePauseBlock);
+    return;
+  }
   emergencyIntakeSubmissionInFlight.active = true;
 
   try {
@@ -19022,6 +19108,11 @@ async function saveDispatchSchedule(form) {
   // The Schedule dialog lost its free-text resource quick-add on 2026-09-23 (resources are planned
   // on the job's Plan & resources tab, Q33); older rows it created still render there.
   const resourceName = data.get("resourceName")?.toString().trim() || "";
+  const pauseBlock = accountPauseBlock(job.accountId, "pauseScheduling");
+  if (pauseBlock) {
+    showToast(pauseBlock);
+    return;
+  }
   const eligibilityStatus = fieldLead.readinessStatus === "Blocked" ? "Blocked" : fieldLead.readinessStatus === "Expiring" ? "Warning" : "Eligible";
 
   try {
@@ -19051,7 +19142,7 @@ async function saveDispatchSchedule(form) {
       notes: data.get("notes").toString().trim(),
     });
 
-    const crewEmployeeIds = crewId ? getEmployees().filter((employee) => employee.crewId === crewId).map((employee) => employee.id) : [];
+    const crewEmployeeIds = crewMemberIds(crewId);
     const employeeIds = [...new Set([fieldLead.id, ...crewEmployeeIds])];
     for (const employeeId of employeeIds) {
       const employee = findEmployee(employeeId);
@@ -19124,6 +19215,9 @@ function openDispatchAssignEmployeeDialog(jobId) {
   form.reset();
   form.elements.jobId.value = jobId;
   populateEmployeeSelect(dialog, "employeeId", "Select an employee");
+  // A crew is a quick-pick that adds its members one by one; the picker stays per person.
+  fillSelect(form.elements.crewId, getCrewProfiles().filter((crew) => crew.status !== "Inactive").map((crew) => [crew.id, `${crew.name} (${crewMemberIds(crew.id).length})`]), "", "Add one person");
+  form.elements.employeeId.required = false;
   dialog.showModal();
 }
 
@@ -19131,9 +19225,26 @@ async function saveDispatchAssignEmployee(form) {
   const data = new FormData(form);
   const jobId = data.get("jobId").toString();
   const employeeId = (data.get("employeeId") || "").toString();
+  const crewId = (data.get("crewId") || "").toString();
+  if (crewId) {
+    const memberIds = crewMemberIds(crewId);
+    try {
+      let added = 0;
+      for (const memberId of memberIds) {
+        if (await assignEmployeeToDispatchJob(jobId, memberId, "", crewId)) added += 1;
+      }
+      closeDialogs();
+      await refreshBackendState();
+      render();
+      showToast(added ? `${added} crew member${added === 1 ? "" : "s"} assigned. Adjust individuals on the job as needed.` : "That crew has no members yet.");
+    } catch (error) {
+      showToast(error.message || "Crew could not be assigned.");
+    }
+    return;
+  }
   const employee = findEmployee(employeeId);
   if (!employee) {
-    showToast("Select an employee to assign.");
+    showToast("Select an employee or a crew to assign.");
     return;
   }
   const existing = getJobAssignments().find((assignment) => assignment.jobId === jobId && assignment.employeeId === employeeId);
@@ -19323,6 +19434,13 @@ async function advanceDispatchJob(jobId, { silent = false } = {}) {
     showToast("Answer the post-job review (accidents, near misses, injuries) on the Close-out tab before closing the job.");
     return;
   }
+  if (transition.status === "dispatched") {
+    const pauseBlock = accountPauseBlock(job.accountId, "pauseFieldWork");
+    if (pauseBlock) {
+      showToast(pauseBlock);
+      return;
+    }
+  }
 
   try {
     const occurredAt = new Date().toISOString();
@@ -19384,9 +19502,11 @@ async function advanceProjectStageFromDispatchStatus(projectId, dispatchStatus) 
     en_route: "Mobilize",
     on_site: "Field Work",
     in_progress: "Field Work",
-    field_complete: "Closeout",
-    office_review: "Closeout",
-    closed: "Closeout",
+    // Owner 2026-09-23: a finished dispatch is finished field work, not the end of the project. A
+    // sampling visit, for one, usually leads to more work. Closeout is only the explicit close.
+    field_complete: "Field Work",
+    office_review: "Field Work",
+    closed: "Field Work",
   };
   const targetStage = stageForDispatchStatus[dispatchStatus];
   if (!targetStage) return;
@@ -20760,15 +20880,739 @@ async function openNotification(id) {
   render();
 }
 
+// ============================================================================================
+// Owner's bug list, 2026-09-23 (after the audit): project stage and next step, a Sampling tab,
+// the Live tab's team panel, Front Line status following the work plan, dispatch jobs on the map,
+// editable dispatch details, rate-sheet onboarding for inventory, account pauses that bite.
+// ============================================================================================
+
+// ---- Samples: what the project is waiting on ----------------------------------------------
+
+// A sample is waiting on the lab until it has structured result rows or its status says results
+// are in. The owner's point: a project with samples out is waiting, not finished.
+function sampleAwaitingResults(sample) {
+  if ((state.backend.sampleResults || []).some((row) => row.sampleId === sample.id && !row.deletedAt)) return false;
+  return !/result|complete|reported/i.test(sample.labStatus || "");
+}
+
+// The one-line answer to "what happens next on this project" when no crew is in the field.
+function projectNextStep(project) {
+  if (!project || project.closedAt) return "";
+  const jobs = dispatchJobsForProject(project.id);
+  if (jobs.some((dispatchJob) => !isTerminalDispatchStatus(dispatchJob.status))) return "";
+  const waiting = samplesForJob(project.id).filter(sampleAwaitingResults).length;
+  if (waiting) return `Awaiting lab results (${waiting} sample${waiting === 1 ? "" : "s"})`;
+  const stageIndex = PROJECT_STAGES.indexOf(project.projectStage || "Intake");
+  if (jobs.length && stageIndex >= PROJECT_STAGES.indexOf("Field Work")) return "No further work scheduled";
+  return "";
+}
+
+function renderProjectSamplingTab(job) {
+  const samples = samplesForJob(job.id);
+  const sessions = groupSamplesIntoSessions(samples).sort((a, b) => new Date(b.samples[b.samples.length - 1]?.collectionTime || 0) - new Date(a.samples[a.samples.length - 1]?.collectionTime || 0));
+  const sampleIds = new Set(samples.map((sample) => sample.id));
+  const results = (state.backend.sampleResults || []).filter((row) => !row.deletedAt && sampleIds.has(row.sampleId));
+  const reports = (state.backend.sampleLabReports || []).filter((report) => sampleIds.has(report.sampleId));
+  const awaiting = samples.filter(sampleAwaitingResults);
+  const exceedances = results.filter((row) => row.exceedsActionLevel);
+  const labs = [...new Set(samples.map((sample) => sample.labName).filter(Boolean))];
+  const sampleLabel = (sampleId) => samples.find((sample) => sample.id === sampleId)?.sampleId || sampleId;
+  return `
+    <section class="detail-stack">
+      <section class="metric-strip" aria-label="Sampling metrics">
+        <div class="metric"><p class="eyebrow">Samples</p><strong>${samples.length}</strong><span>${sessions.length} sampling event${sessions.length === 1 ? "" : "s"}</span></div>
+        <div class="metric"><p class="eyebrow">Awaiting results</p><strong>${awaiting.length}</strong><span>${awaiting.length ? "The project is waiting on the lab" : "Nothing outstanding"}</span></div>
+        <div class="metric"><p class="eyebrow">Results in</p><strong>${results.length}</strong><span>analyte rows entered</span></div>
+        <div class="metric"><p class="eyebrow">Exceedances</p><strong>${exceedances.length}</strong><span>${labs.length ? `Lab: ${escapeHtml(labs.join(", "))}` : "No lab assigned yet"}</span></div>
+      </section>
+      ${awaiting.length ? `<div class="empty-state warning">${awaiting.length} sample${awaiting.length === 1 ? " is" : "s are"} out for analysis. Results decide whether more work is needed; the project stays open until they're in.</div>` : ""}
+      <section class="project-detail-layout">
+        <div class="detail-stack">
+          <article class="panel">
+            <div class="panel-header"><div><h3>Sampling events</h3><span>One per dispatch job that collected samples</span></div></div>
+            <div class="panel-body record-list">
+              ${sessions.map(renderSamplingSessionCard).join("") || `<div class="empty-state">No samples collected on this project yet.</div>`}
+            </div>
+          </article>
+        </div>
+        <div class="detail-stack">
+          <article class="panel${exceedances.length ? " panel-needs-attention" : ""}">
+            <div class="panel-header"><div><h3>Results${exceedances.length ? renderAlertDot(`${exceedances.length} above an action level`) : ""}</h3><span>Analyte rows entered on each sample's page</span></div></div>
+            <div class="panel-body">
+              ${
+                results.length
+                  ? `<table class="data-table"><thead><tr><th>Sample</th><th>Analyte</th><th class="num">Result</th><th class="num">Action level</th><th></th></tr></thead><tbody>
+                      ${results
+                        .map(
+                          (row) => `<tr class="${row.exceedsActionLevel ? "sample-result-row-exceeds" : ""}">
+                            <td>${escapeHtml(sampleLabel(row.sampleId))}</td>
+                            <td>${escapeHtml(row.analyte || "")}${row.method ? `<br /><small class="muted-text">${escapeHtml(row.method)}</small>` : ""}</td>
+                            <td class="num">${escapeHtml(`${row.resultValue ?? ""} ${row.units || ""}`.trim())}${row.qualifier ? ` ${escapeHtml(row.qualifier)}` : ""}</td>
+                            <td class="num">${row.actionLevel != null ? escapeHtml(`${row.actionLevel} ${row.units || ""}`.trim()) : "—"}</td>
+                            <td>${row.exceedsActionLevel ? `<span class="risk-badge high">Exceeds</span>` : ""}</td>
+                          </tr>`,
+                        )
+                        .join("")}
+                    </tbody></table>`
+                  : `<div class="empty-state">No analyte results entered yet.${samples.length ? " Open a sample and use Add result when the lab reports." : ""}</div>`
+              }
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><h3>Lab documents</h3><span>Reports received from the lab</span></div></div>
+            <div class="panel-body record-list">
+              ${
+                reports
+                  .map(
+                    (report) => `<article class="detail-card">
+                      <strong><a href="/api/sample-lab-reports/${encodeURIComponent(report.id)}/download" target="_blank" rel="noopener">${escapeHtml(report.fileName || "Lab report")}</a></strong>
+                      <div class="row-meta"><span>${escapeHtml(sampleLabel(report.sampleId))}</span><span>${report.uploadedAt ? formatDateTime(report.uploadedAt) : ""}</span></div>
+                    </article>`,
+                  )
+                  .join("") || `<div class="empty-state">No lab reports uploaded yet. Chain-of-custody and request forms will attach here once Phase 13's document store exists.</div>`
+              }
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+  `;
+}
+
+// ---- Live tab: who is on this project and what's on site --------------------------------------
+//
+// The old "Project team and logistics" panel read projectAssignments, which almost nothing writes.
+// The crews are on the dispatch jobs, so read them from there.
+function renderProjectTeamAndLogistics(job) {
+  const dispatchJobs = dispatchJobsForProject(job.id);
+  const people = new Map();
+  dispatchJobs.forEach((dispatchJob) => {
+    dispatchAssignmentsForJob(dispatchJob.id).forEach((assignment) => {
+      const employee = findEmployee(assignment.employeeId);
+      if (!employee) return;
+      const entry = people.get(employee.id) || { employee, roles: new Set(), jobs: new Set() };
+      entry.roles.add(assignment.isFieldLead ? "Field Lead" : assignment.role || employee.jobTitle || "Crew");
+      entry.jobs.add(dispatchJob.jobNumber);
+      people.set(employee.id, entry);
+    });
+  });
+  const resources = jobResourcesForProject(job.id).filter((resource) => resource.status !== "Removed");
+  const equipment = resources.filter((resource) => resource.type === "Equipment");
+  const vendors = resources.filter((resource) => resource.type === "Vendor");
+  const officeLogs = equipmentLogsForJob(job.id).filter((log) => !log.returned);
+  const salesAssignments = assignmentsForJob(job.id);
+  const office = [job.projectManager ? ["Project manager", job.projectManager] : null, job.salesLead ? ["Sales lead", job.salesLead] : null].filter(Boolean);
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Project team and logistics</h3><span>Read from the project's dispatch jobs</span></div></div>
+      <div class="panel-body">
+        <h4>People</h4>
+        <div class="record-list">
+          ${office.map(([role, name]) => `<div class="row-meta"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(role)}</span></div>`).join("")}
+          ${[...people.values()]
+            .map(
+              (entry) => `<div class="row-meta"><button class="link-button" type="button" data-action="view-employee" data-id="${escapeAttribute(entry.employee.id)}">${escapeHtml(entry.employee.displayName)}</button><span>${escapeHtml([...entry.roles].join(", "))} · ${escapeHtml([...entry.jobs].join(", "))}</span></div>`,
+            )
+            .join("")}
+          ${salesAssignments.map(renderAssignmentCard).join("")}
+          ${!office.length && !people.size && !salesAssignments.length ? `<div class="empty-state compact">Nobody assigned yet. Crews are assigned on each dispatch job's Plan &amp; resources tab.</div>` : ""}
+        </div>
+        <h4>Equipment on the job</h4>
+        <div class="record-list">
+          ${equipment.map((resource) => `<div class="row-meta"><strong>${escapeHtml(resource.name)}${resource.assetTag ? ` (${escapeHtml(resource.assetTag)})` : ""}</strong><span>${escapeHtml(findDispatchJob(resource.jobId)?.jobNumber || "")} · ${escapeHtml(resource.status || "Reserved")}</span></div>`).join("")}
+          ${officeLogs.map((log) => `<div class="row-meta"><strong>${escapeHtml(log.equipment)}${log.assetTag ? ` (${escapeHtml(log.assetTag)})` : ""}</strong><span>Checked out ${formatDate(log.checkedOut)} · office log</span></div>`).join("")}
+          ${!equipment.length && !officeLogs.length ? `<div class="empty-state compact">No equipment assigned.</div>` : ""}
+        </div>
+        <h4>Vendors and subcontractors</h4>
+        <div class="record-list">
+          ${vendors.map((resource) => `<div class="row-meta"><strong>${escapeHtml(resource.name)}</strong><span>${escapeHtml(resource.scopeNote || findDispatchJob(resource.jobId)?.jobNumber || "")}</span></div>`).join("") || `<div class="empty-state compact">None on this project.</div>`}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+// ---- Front Line: the job's status follows the work plan --------------------------------------
+//
+// Crews complete steps; they rarely tapped "Start work" or "Field complete" as separate acts, so
+// the tracker sat at "On site" through a whole job. Any step after Mobilize means work started;
+// every required step done means field work is complete. Between the two, completion tracks the
+// share of required tasks done.
+async function frontlineAutoAdvanceJob(jobId, completedStepId) {
+  const steps = stepsForDispatchJob(jobId);
+  if (!steps.length) return;
+  const completedStep = steps.find((step) => step.id === completedStepId);
+  const workStarted = completedStep && Number(completedStep.sequence) > 1;
+  const required = steps.filter((step) => step.required !== false);
+  const allDone = required.length > 0 && required.every((step) => step.status === "Complete");
+  const target = allDone ? "field_complete" : workStarted ? "in_progress" : "";
+  const order = ["dispatched", "acknowledged", "en_route", "on_site", "in_progress", "field_complete"];
+  let job = findDispatchJob(jobId);
+  let guard = 0;
+  while (target && job && order.includes(job.status) && order.indexOf(job.status) < order.indexOf(target) && guard < 6) {
+    guard += 1;
+    const before = job.status;
+    await advanceDispatchJob(jobId, { silent: true });
+    await refreshBackendState();
+    job = findDispatchJob(jobId);
+    if (!job || job.status === before) break;
+  }
+  if (job && job.status === "in_progress") {
+    const actions = required.flatMap((step) => actionsForDispatchStep(step.id)).filter((action) => action.required !== false);
+    const done = actions.filter((action) => action.status === "Complete").length;
+    const percent = actions.length ? Math.round(25 + (75 * done) / actions.length) : job.completionPercent;
+    if (percent !== Number(job.completionPercent || 0)) {
+      await saveBackendRecord("dispatchJobs", { ...job, completionPercent: percent }, { refresh: false });
+    }
+  }
+}
+
+// ---- Operations map: dispatch jobs plot too ---------------------------------------------------
+
+function dispatchJobMapMarkers() {
+  return getDispatchJobs()
+    .filter((job) => !isTerminalDispatchStatus(job.status) && job.latitude !== "" && job.latitude != null && Number(job.latitude) !== 0 && Number.isFinite(Number(job.latitude)) && Number.isFinite(Number(job.longitude)))
+    .map((job) => {
+      const project = job.projectId ? findProject(job.projectId) : null;
+      const type = project?.jobClass === "Emergency Response" ? "emergency" : project?.jobClass === "Multi-Stage Remediation" ? "remediation" : "scheduled";
+      return {
+        type,
+        id: `dispatch-${job.id}`,
+        dispatchJobId: job.id,
+        projectId: job.projectId || "",
+        accountId: job.accountId || "",
+        label: `${job.jobNumber} · ${job.jobName}`,
+        shortLabel: "JOB",
+        latitude: Number(job.latitude),
+        longitude: Number(job.longitude),
+        status: formatDispatchStatus(job.status),
+        projectStage: project?.projectStage || "",
+        lastPingAt: job.scheduledStart || "",
+        assetTags: [],
+      };
+    });
+}
+
+function getMapMarkers() {
+  return [...getLocationMapMarkers(), ...dispatchJobMapMarkers()];
+}
+
+// ---- Project stage: a new dispatch reopens the work --------------------------------------------
+
+// A finished dispatch used to push the project to Closeout, so a sampling-only visit looked like
+// the end of the job. Closeout is now only the explicit close. When another dispatch is created on
+// a project whose previous work is finished, the stage steps back to Plan and climbs again with it.
+async function reopenProjectForNewDispatch(projectId, newJobId) {
+  const project = projectId ? findProject(projectId) : null;
+  if (!project || project.closedAt) return;
+  const others = dispatchJobsForProject(project.id).filter((dispatchJob) => dispatchJob.id !== newJobId);
+  const anythingOpen = others.some((dispatchJob) => !isTerminalDispatchStatus(dispatchJob.status));
+  if (anythingOpen) return;
+  if (PROJECT_STAGES.indexOf(project.projectStage || "Intake") > PROJECT_STAGES.indexOf("Plan")) {
+    await saveBackendRecord("projects", { ...project, projectStage: "Plan", activePhase: "Plan" }, { refresh: false });
+  }
+}
+
+// ---- Paused accounts ---------------------------------------------------------------------------
+
+// Owner 2026-09-23: a pause blocks outright. The dialog already records which scopes are paused;
+// nothing ever read them.
+function accountPauseBlock(accountId, scope) {
+  const relationship = accountId ? relationshipExtensionForAccount(accountId) : null;
+  if (!relationship?.isPaused || !relationship[scope]) return "";
+  const account = findAccount(accountId);
+  return `${account?.name || "This account"} is paused for ${String(pauseScopeFieldLabels[scope] || scope).toLowerCase()}${relationship.pausedReason ? ` (${relationship.pausedReason})` : ""}. Lift the pause on the account page first.`;
+}
+
+// ---- Quantities: whole items, fractional time ---------------------------------------------------
+
+function quantityStepForUom(uomId) {
+  const name = (getUnitsOfMeasure().find((uom) => uom.id === uomId)?.name || "").toLowerCase();
+  if (/hour|\bhr\b/.test(name)) return "0.25";
+  if (/day|week|month/.test(name)) return "0.5";
+  return "1";
+}
+
+// A stored quantity that doesn't fit the unit's step (an old line, or a rate-card unit that changed)
+// keeps the row saveable rather than failing validation on a value the user never typed.
+function quantityStepForLine(line) {
+  const step = quantityStepForUom(line.uomId);
+  const quantity = Number(line.quantity);
+  if (Number.isFinite(quantity) && quantity > 0 && Math.abs(quantity / Number(step) - Math.round(quantity / Number(step))) > 1e-9) return "any";
+  return step;
+}
+
+// ---- Project intake: show what the page shows ---------------------------------------------------
+
+// The Intake panel falls back to the account and facility for generator details, so the page could
+// show a generator while the project's own fields (and therefore the edit dialog, and the "missing
+// generator" check) were blank. The dialog and the check now use the same fallbacks.
+function projectIntakeFallbacks(job) {
+  const account = findAccount(job.accountId);
+  const facility = findFacility(job.facilityId);
+  const contact = (job.contactIds || []).map(findContact).find(Boolean) || contactsForAccount(job.accountId)[0];
+  return {
+    generatorName: account?.name || "",
+    generatorSiteName: facility?.name || account?.siteName || "",
+    generatorContactName: contact?.name || account?.contact || "",
+    generatorContactPhone: contact?.phone || account?.phone || "",
+    epaId: account?.epaId || "",
+    tceqId: account?.tceqId || "",
+    insuranceContact: account?.insuranceContact || "",
+    insuranceCarrier: account?.insuranceCarrier || "",
+    claimNumber: account?.claimNumber || "",
+  };
+}
+
+// ---- Dispatch job details are editable ----------------------------------------------------------
+
+const DISPATCH_JOB_EDIT_FIELDS = ["jobName", "description", "addressText", "locationName", "onsiteContactName", "onsiteContactPhone", "generatorResponsibleParty", "customerPoNumber", "bioremedyPoNumber", "pricingSource", "equipmentNotes", "laborNotes", "vendorNotes"];
+
+function openDispatchJobEditDialog(jobId) {
+  const job = findDispatchJob(jobId);
+  if (!job) return;
+  const dialog = document.querySelector("#dispatchJobEditDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.id.value = job.id;
+  DISPATCH_JOB_EDIT_FIELDS.forEach((name) => {
+    form.elements[name].value = job[name] || "";
+  });
+  form.elements.latitude.value = job.latitude ?? "";
+  form.elements.longitude.value = job.longitude ?? "";
+  fillSelect(form.elements.priority, ["Emergency", "High", "Normal", "Low"], job.priority || "Normal");
+  dialog.querySelector("[data-job-edit-title]").textContent = `${job.jobNumber} details`;
+  dialog.showModal();
+}
+
+async function saveDispatchJobEdit(form) {
+  const data = new FormData(form);
+  const job = findDispatchJob(data.get("id").toString());
+  if (!job) return;
+  const text = (name) => (data.get(name) || "").toString().trim();
+  const updated = { ...job, updatedAt: new Date().toISOString() };
+  DISPATCH_JOB_EDIT_FIELDS.forEach((name) => {
+    updated[name] = text(name);
+  });
+  updated.locationName = updated.locationName || updated.addressText || job.locationName || "";
+  updated.priority = text("priority") || job.priority || "Normal";
+  updated.latitude = numberOrNull(data.get("latitude")) ?? "";
+  updated.longitude = numberOrNull(data.get("longitude")) ?? "";
+  try {
+    await saveBackendRecord("dispatchJobs", updated);
+    closeDialogs();
+    render();
+    showToast("Job details saved.");
+  } catch (error) {
+    showToast(error.message || "Job details could not be saved.");
+  }
+}
+
+// ---- Inventory: onboard consumables and equipment from the rate sheet ---------------------------
+
+function openInventoryOnboardDialog(kind) {
+  const dialog = document.querySelector("#inventoryOnboardDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.kind.value = kind;
+  const categories = (kind === "equipment" ? EQUIPMENT_RATE_CATEGORIES : CONSUMABLE_RATE_CATEGORIES).filter((category) => getProducts().some((product) => product.category === category));
+  fillSelect(form.elements.category, categories);
+  fillSelect(form.elements.ownership, EQUIPMENT_OWNERSHIP_TYPES, "Owned");
+  dialog.querySelector("[data-onboard-equipment-only]").hidden = kind !== "equipment";
+  dialog.querySelector("[data-onboard-title]").textContent = kind === "equipment" ? "Add equipment from the rate sheet" : "Add consumables from the rate sheet";
+  renderInventoryOnboardOptions(dialog);
+  dialog.showModal();
+}
+
+function renderInventoryOnboardOptions(dialog) {
+  const form = dialog.querySelector("form");
+  const category = form.elements.category.value;
+  const linked = new Set([...getEquipmentStatus().map((asset) => asset.productId), ...getConsumableStatus().map((item) => item.productId)].filter(Boolean));
+  const products = getProducts().filter((product) => product.category === category);
+  dialog.querySelector("[data-onboard-list]").innerHTML =
+    products
+      .map(
+        (product) => `
+          <label class="check-row">
+            <input type="checkbox" name="productIds" value="${escapeAttribute(product.id)}" ${linked.has(product.id) ? "disabled" : ""} />
+            <span>${escapeHtml(product.name)}${linked.has(product.id) ? ` <small class="muted-text">(already in inventory)</small>` : ""}</span>
+          </label>`,
+      )
+      .join("") || `<p class="help-text">No rate lines in this section.</p>`;
+}
+
+const EQUIPMENT_OWNERSHIP_TYPES = ["Owned", "Rented", "Subcontracted"];
+
+async function saveInventoryOnboard(form) {
+  const data = new FormData(form);
+  const kind = (data.get("kind") || "").toString();
+  const productIds = data.getAll("productIds").map((value) => value.toString());
+  if (!productIds.length) {
+    showToast("Tick at least one rate line to add.");
+    return;
+  }
+  const uomName = (uomId) => getUnitsOfMeasure().find((uom) => uom.id === uomId)?.name || "each";
+  const prefix = ((data.get("tagPrefix") || "RS").toString().trim().toUpperCase() || "RS").replace(/[^A-Z0-9-]/g, "");
+  const takenTags = new Set(getEquipmentStatus().map((asset) => asset.assetTag));
+  let counter = getEquipmentStatus().length;
+  const nextTag = () => {
+    let tag;
+    do {
+      counter += 1;
+      tag = `${prefix}-${String(counter).padStart(3, "0")}`;
+    } while (takenTags.has(tag));
+    takenTags.add(tag);
+    return tag;
+  };
+  let added = 0;
+  try {
+    for (const productId of productIds) {
+      const product = getProducts().find((item) => item.id === productId);
+      if (!product) continue;
+      const ppl = productPriceLevelRate(product.id, defaultPriceLevelId());
+      if (kind === "equipment") {
+        await saveBackendRecord(
+          "equipmentAssets",
+          {
+            assetTag: nextTag(),
+            equipment: product.name,
+            category: product.category || "General equipment",
+            status: "Available",
+            lastUsed: "",
+            maintenanceDue: "",
+            issue: "",
+            assignedProjectId: "",
+            productId: product.id,
+            specs: {},
+            ownership: (data.get("ownership") || "Owned").toString(),
+            pmIntervalDays: null,
+            pmIntervalMeter: null,
+            meterUnit: "",
+            currentMeter: null,
+            maintenanceDueMeter: null,
+          },
+          { refresh: false },
+        );
+      } else {
+        await saveBackendRecord(
+          "inventoryItems",
+          { materialType: product.name, unit: uomName(ppl?.uomId || product.defaultUomId), onHand: 0, reorderAt: 0, targetStock: 0, buyer: state.currentUser?.name || "Inventory", barcode: "", productId: product.id },
+          { refresh: false },
+        );
+      }
+      added += 1;
+    }
+    closeDialogs();
+    await refreshBackendState();
+    render();
+    showToast(`Added ${added} ${kind === "equipment" ? "equipment asset" : "consumable"}${added === 1 ? "" : "s"} from the rate sheet. Set counts, tags and details on each.`);
+  } catch (error) {
+    showToast(error.message || "Items could not be added.");
+  }
+}
+
+// ---- Site walks (owner 2026-09-23) ------------------------------------------------------------
+//
+// A site walk is a sales activity: it has no job yet, but it needs the opportunity's facility,
+// BioRemedy people, a slot on their calendars, a place on the dispatch board (in its own colour)
+// and a card on Front Line. It is stored as a scheduleEvents row with kind "site_walk", plus a
+// Meeting activity on the opportunity's timeline.
+
+function siteWalkEvents() {
+  return getScheduleEvents().filter((event) => event.kind === "site_walk" && event.status !== "Cancelled");
+}
+
+function siteWalkParticipants(event) {
+  return (event.participantEmployeeIds || []).map(findEmployee).filter(Boolean);
+}
+
+function siteWalkStart(event) {
+  return `${event.date}T${event.startTime || "08:00"}:00`;
+}
+
+function openSiteWalkDialog(opportunityId) {
+  const opportunity = findOpportunity(opportunityId);
+  if (!opportunity) return;
+  const dialog = document.querySelector("#siteWalkDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.opportunityId.value = opportunityId;
+  // The facilities already identified on the opportunity come first; the account's other sites are
+  // the fallback for an opportunity that hasn't named one yet.
+  const linkedIds = [...opportunityLocationsForOpportunity(opportunityId).map((entry) => entry.facilityId), opportunity.facilityId].filter(Boolean);
+  const linked = [...new Set(linkedIds)].map(findFacility).filter(Boolean);
+  const pool = linked.length ? linked : facilitiesForAccount(opportunity.accountId);
+  fillSelect(form.elements.facilityId, pool.map((facility) => [facility.id, facility.name]), opportunity.facilityId || pool[0]?.id || "", pool.length ? null : "No facility on this account yet");
+  form.elements.date.value = todayIso();
+  form.elements.startTime.value = "09:00";
+  form.elements.endTime.value = "11:00";
+  const team = new Set(assignmentsForOpportunity(opportunityId).map((entry) => entry.employeeId).filter(Boolean));
+  dialog.querySelector("[data-site-walk-people]").innerHTML = getEmployees()
+    .filter((employee) => !/terminated|inactive/i.test(employee.employmentStatus || ""))
+    .map(
+      (employee) => `
+        <label class="check-row">
+          <input type="checkbox" name="participantEmployeeIds" value="${escapeAttribute(employee.id)}" ${team.has(employee.id) ? "checked" : ""} />
+          <span>${escapeHtml(employee.displayName)}${employee.jobTitle ? ` <small class="muted-text">${escapeHtml(employee.jobTitle)}</small>` : ""}</span>
+        </label>`,
+    )
+    .join("");
+  dialog.querySelector("[data-site-walk-title]").textContent = `Site walk: ${getCoreOpportunity(opportunity).opportunityName}`;
+  dialog.showModal();
+}
+
+async function saveSiteWalk(form) {
+  const data = new FormData(form);
+  const opportunity = findOpportunity((data.get("opportunityId") || "").toString());
+  if (!opportunity) return;
+  const facilityId = (data.get("facilityId") || "").toString();
+  const facility = findFacility(facilityId);
+  const date = (data.get("date") || "").toString();
+  const startTime = (data.get("startTime") || "").toString();
+  const endTime = (data.get("endTime") || "").toString();
+  const participantEmployeeIds = data.getAll("participantEmployeeIds").map(String);
+  const notes = (data.get("notes") || "").toString().trim();
+  if (!date) {
+    showToast("Pick a date for the site walk.");
+    return;
+  }
+  if (!participantEmployeeIds.length) {
+    showToast("Pick who from BioRemedy is walking the site.");
+    return;
+  }
+  const core = getCoreOpportunity(opportunity);
+  const title = `Site walk — ${core.opportunityName}${facility ? ` at ${facility.name}` : ""}`;
+  try {
+    const activity = buildCoreActivityRecord({
+      id: makeId("act"),
+      createdAt: new Date().toISOString(),
+      owner: state.currentUser?.name || "Local user",
+      activityType: "Meeting",
+      subject: title,
+      activityDate: date,
+      dueDate: date,
+      accountId: opportunity.accountId,
+      opportunityId: opportunity.id,
+      channel: "In person",
+      meetingFormat: "Offline",
+      meetingLocation: facility ? [facility.name, facility.address, facility.city].filter(Boolean).join(", ") : "",
+      status: "Scheduled",
+      tags: ["Site Visit"],
+      relatedRecords: [{ type: "opportunity", id: opportunity.id }, ...(facilityId ? [{ type: "facility", id: facilityId }] : [])],
+      body: notes,
+    });
+    await saveBackendRecord("activities", activity, { refresh: false });
+    const event = {
+      id: makeId("site-walk"),
+      kind: "site_walk",
+      projectId: "",
+      opportunityId: opportunity.id,
+      accountId: opportunity.accountId,
+      facilityId,
+      title,
+      date,
+      startTime,
+      endTime,
+      participantEmployeeIds,
+      activityId: activity.id,
+      notes,
+      status: "Scheduled",
+      crew: "Sales",
+      equipmentAssetTags: [],
+      laborResourceIds: [],
+      requiredCertifications: [],
+    };
+    await saveBackendRecord("scheduleEvents", event, { refresh: false });
+    // Whoever walks the site is on the opportunity's team.
+    const team = assignmentsForOpportunity(opportunity.id);
+    for (const employeeId of participantEmployeeIds) {
+      if (team.some((entry) => entry.employeeId === employeeId)) continue;
+      const employee = findEmployee(employeeId);
+      await saveBackendRecord(
+        "opportunityAssignments",
+        { id: makeId("opp-assignment"), opportunityId: opportunity.id, purpose: "Sales", name: employee?.displayName || "", type: "Internal", employeeId, contactId: "", vendorAccountId: "", vendorContactId: "", assignedRole: "Site walk", status: "Assigned", notes: "" },
+        { refresh: false },
+      );
+    }
+    if (!opportunity.siteWalkStatus || /incomplete|not/i.test(opportunity.siteWalkStatus)) {
+      await saveBackendRecord("opportunities", buildCoreOpportunityRecord({ ...opportunity, siteWalkStatus: "Scheduled", updatedAt: new Date().toISOString() }), { refresh: false });
+    }
+    closeDialogs();
+    await refreshState();
+    render();
+    showToast(`Site walk scheduled for ${formatDate(date)}. ${participantEmployeeIds.length} from BioRemedy are on it and on the opportunity's team.`);
+  } catch (error) {
+    showToast(error.message || "Site walk could not be scheduled.");
+  }
+}
+
+function renderSiteWalkBoardCard(event) {
+  const opportunity = findOpportunity(event.opportunityId);
+  const facility = findFacility(event.facilityId);
+  const people = siteWalkParticipants(event);
+  return `
+    <button class="dispatch-board-card sales-activity" type="button" data-action="view-opportunity" data-id="${escapeAttribute(event.opportunityId)}">
+      <div class="dispatch-card-head"><span class="job-number">Site walk</span><span class="tag">Sales activity</span></div>
+      <strong>${escapeHtml(opportunity ? getCoreOpportunity(opportunity).opportunityName : event.title)}</strong>
+      <span>${escapeHtml(findAccount(event.accountId)?.name || "")}</span>
+      <div class="dispatch-card-time"><strong>${escapeHtml(formatDate(event.date))}${event.startTime ? ` ${escapeHtml(event.startTime)}` : ""}</strong><span>${escapeHtml(facility?.name || "")}</span></div>
+      <div class="dispatch-card-foot">
+        <span class="avatar-stack compact">${people.slice(0, 4).map((person) => `<i title="${escapeAttribute(person.displayName)}">${escapeHtml(getInitials(person.displayName, "BR"))}</i>`).join("")}</span>
+        <span>${people.length} from BioRemedy</span>
+        <span>Opportunity</span>
+      </div>
+    </button>
+  `;
+}
+
+function renderFrontlineSiteWalkCard(event) {
+  const opportunity = findOpportunity(event.opportunityId);
+  const facility = findFacility(event.facilityId);
+  const people = siteWalkParticipants(event);
+  return `
+    <div class="frontline-job-card sales-activity">
+      <div class="inline-actions"><span class="job-number">Site walk</span><span class="tag">Sales activity</span></div>
+      <strong>${escapeHtml(opportunity ? getCoreOpportunity(opportunity).opportunityName : event.title)}</strong>
+      <span>${escapeHtml(findAccount(event.accountId)?.name || "")}</span>
+      <span>${escapeHtml([facility?.name, facility?.address, facility?.city].filter(Boolean).join(", ") || "No site named")}</span>
+      <div class="inline-actions"><span>${escapeHtml(formatDate(event.date))} ${escapeHtml(event.startTime || "")}${event.endTime ? `–${escapeHtml(event.endTime)}` : ""}</span><span>${escapeHtml(people.map((person) => person.displayName).join(", "))}</span></div>
+      ${event.notes ? `<p class="help-text">${escapeHtml(event.notes)}</p>` : ""}
+    </div>
+  `;
+}
+
+// ---- Crews are quick-picks; a person can belong to several groups (owner 2026-09-23) ----------
+//
+// employees.crewId / teamId stay as the person's home crew and team. Extra memberships (a
+// confined-space group, a second crew) live in workforceTeamMemberships, which the server had
+// seeded and nothing read. Dispatch assigns individuals; a crew only pre-fills the list.
+
+function groupMemberships() {
+  return (state.backend.workforceTeamMemberships || []).filter((row) => !row.deletedAt && row.status !== "Removed");
+}
+
+function crewMemberIds(crewId) {
+  if (!crewId) return [];
+  return [...new Set([...getEmployees().filter((employee) => employee.crewId === crewId).map((employee) => employee.id), ...groupMemberships().filter((row) => row.crewId === crewId).map((row) => row.employeeId)])];
+}
+
+function teamMemberIds(teamId) {
+  if (!teamId) return [];
+  return [...new Set([...getEmployees().filter((employee) => employee.teamId === teamId).map((employee) => employee.id), ...groupMemberships().filter((row) => row.teamId === teamId).map((row) => row.employeeId)])];
+}
+
+function groupMembershipFor(kind, groupId, employeeId) {
+  return groupMemberships().find((row) => row.employeeId === employeeId && (kind === "crew" ? row.crewId === groupId : row.teamId === groupId)) || null;
+}
+
+function openGroupMemberDialog(kind, groupId) {
+  const dialog = document.querySelector("#groupMemberDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.kind.value = kind;
+  form.elements.groupId.value = groupId;
+  populateEmployeeSelect(dialog, "employeeId", "Select an employee");
+  const group = kind === "crew" ? getCrewProfiles().find((crew) => crew.id === groupId) : getWorkforceTeams().find((team) => team.id === groupId);
+  dialog.querySelector("[data-group-member-title]").textContent = `Add to ${group?.name || (kind === "crew" ? "crew" : "team")}`;
+  dialog.showModal();
+}
+
+async function saveGroupMember(form) {
+  const data = new FormData(form);
+  const kind = (data.get("kind") || "").toString();
+  const groupId = (data.get("groupId") || "").toString();
+  const employeeId = (data.get("employeeId") || "").toString();
+  const employee = findEmployee(employeeId);
+  if (!employee || !groupId) {
+    showToast("Select an employee.");
+    return;
+  }
+  const already = kind === "crew" ? crewMemberIds(groupId).includes(employeeId) : teamMemberIds(groupId).includes(employeeId);
+  if (already) {
+    showToast(`${employee.displayName} is already in this ${kind}.`);
+    return;
+  }
+  try {
+    await saveBackendRecord("workforceTeamMemberships", {
+      id: makeId("membership"),
+      employeeId,
+      crewId: kind === "crew" ? groupId : "",
+      teamId: kind === "team" ? groupId : "",
+      role: (data.get("role") || "").toString().trim() || employee.jobTitle || "",
+      primary: false,
+      status: "Active",
+    });
+    closeDialogs();
+    render();
+    showToast(`${employee.displayName} added.`);
+  } catch (error) {
+    showToast(error.message || "Membership could not be saved.");
+  }
+}
+
+async function removeGroupMember(membershipId) {
+  const membership = groupMemberships().find((row) => row.id === membershipId);
+  if (!membership) return;
+  try {
+    await saveBackendRecord("workforceTeamMemberships", { ...membership, status: "Removed", deletedAt: new Date().toISOString() });
+    render();
+    showToast("Membership removed.");
+  } catch (error) {
+    showToast(error.message || "Membership could not be removed.");
+  }
+}
+
+function renderGroupMemberButton(kind, groupId, member) {
+  const membership = groupMembershipFor(kind, groupId, member.id);
+  const home = kind === "crew" ? member.crewId === groupId : member.teamId === groupId;
+  return `
+    <span class="group-member-chip">
+      <button type="button" data-action="view-employee" data-id="${escapeAttribute(member.id)}" title="${escapeAttribute(member.displayName)}"><span>${escapeHtml(getInitials(member.displayName, "BR"))}</span><strong>${escapeHtml(member.displayName)}</strong><small>${escapeHtml(home ? "home " + kind : membership?.role || member.jobTitle || "")}</small></button>
+      ${membership && !home ? `<button type="button" class="icon-button" data-action="remove-group-member" data-id="${escapeAttribute(membership.id)}" aria-label="Remove from ${kind}" title="Remove from this ${kind}">&times;</button>` : ""}
+    </span>
+  `;
+}
+
+// Assigns one person to a dispatch job, keeping an existing assignment's places.
+async function assignEmployeeToDispatchJob(jobId, employeeId, role, crewId = "") {
+  const employee = findEmployee(employeeId);
+  if (!employee) return false;
+  const existing = getJobAssignments().find((assignment) => assignment.jobId === jobId && assignment.employeeId === employeeId);
+  await saveBackendRecord(
+    "jobAssignments",
+    {
+      ...(existing || {}),
+      id: existing?.id || makeId("assignment"),
+      jobId,
+      employeeId,
+      crewId: crewId || existing?.crewId || "",
+      role: role || existing?.role || employee.jobTitle || "Technician",
+      isFieldLead: existing?.isFieldLead || false,
+      status: "Assigned",
+      eligibilityStatus: employee.readinessStatus === "Blocked" ? "Blocked" : employee.readinessStatus === "Expiring" ? "Warning" : "Eligible",
+      eligibilityNote: employee.readinessStatus === "Blocked" ? "Employee has a blocking credential record" : "",
+      plannedStart: existing?.plannedStart || new Date().toISOString(),
+      plannedEnd: existing?.plannedEnd || "",
+    },
+    { refresh: false },
+  );
+  return true;
+}
+
 // ---- Phase 09: Billing & Invoicing — project close, cost report, and P&L ----
 
 // A project can only be explicitly closed once its dispatch-driven stage ladder (Phase 07 item 11,
 // advanceProjectStageFromDispatchStatus) has actually reached the terminal "Closeout" stage. Closing
 // is a distinct, explicit action layered on top of that stage, not a replacement for it — see the
 // phase doc's item 1.
+// Closable once field work has happened and nothing is still open: no active dispatch job, no job
+// request waiting to be scheduled. Closing is what moves the stage to Closeout.
 function projectCanClose(project) {
-  const stageIndex = PROJECT_STAGES.indexOf(project?.projectStage || "Intake");
-  return stageIndex >= PROJECT_STAGES.indexOf("Closeout");
+  if (!project || project.closedAt) return false;
+  const stageIndex = PROJECT_STAGES.indexOf(project.projectStage || "Intake");
+  if (stageIndex < PROJECT_STAGES.indexOf("Field Work")) return false;
+  if (dispatchJobsForProject(project.id).some((dispatchJob) => !isTerminalDispatchStatus(dispatchJob.status))) return false;
+  return !jobRequestsForProject(project.id).some((request) => !["Converted", "Declined", "Cancelled"].includes(request.status));
 }
 
 // Real per-project labor hours. `employee.hoursWorked` (fixed in Phase 07 item 12) is a cumulative,
@@ -20963,7 +21807,7 @@ async function closeProject(projectId) {
     return;
   }
   if (!projectCanClose(project)) {
-    showToast(`Project must reach the Closeout stage before it can be closed (currently ${project.projectStage || "Intake"}).`);
+    showToast("A project closes once field work has happened and no dispatch job or job request is still open.");
     return;
   }
   const report = buildProjectCostReport(project);
@@ -20971,6 +21815,8 @@ async function closeProject(projectId) {
   await saveBackendRecord("projects", {
     ...project,
     closedAt: generatedAt,
+    projectStage: "Closeout",
+    activePhase: "Closeout",
     closeReport: { ...report, generatedAt, regeneratedAt: null },
   });
   render();
@@ -21439,14 +22285,15 @@ function openProjectIntakeDialog(jobId) {
   const form = dialog.querySelector("form");
   form.reset();
   form.elements.id.value = job.id;
-  form.elements.generatorName.value = job.generatorName || "";
-  form.elements.generatorSiteName.value = job.generatorSiteName || "";
-  form.elements.generatorContactName.value = job.generatorContactName || "";
-  form.elements.generatorContactPhone.value = job.generatorContactPhone || "";
-  form.elements.epaId.value = job.epaId || "";
-  form.elements.tceqId.value = job.tceqId || "";
-  form.elements.insuranceContact.value = job.insuranceContact || "";
-  form.elements.insuranceCarrier.value = job.insuranceCarrier || "";
+  const fallback = projectIntakeFallbacks(job);
+  form.elements.generatorName.value = job.generatorName || fallback.generatorName;
+  form.elements.generatorSiteName.value = job.generatorSiteName || fallback.generatorSiteName;
+  form.elements.generatorContactName.value = job.generatorContactName || fallback.generatorContactName;
+  form.elements.generatorContactPhone.value = job.generatorContactPhone || fallback.generatorContactPhone;
+  form.elements.epaId.value = job.epaId || fallback.epaId;
+  form.elements.tceqId.value = job.tceqId || fallback.tceqId;
+  form.elements.insuranceContact.value = job.insuranceContact || fallback.insuranceContact;
+  form.elements.insuranceCarrier.value = job.insuranceCarrier || fallback.insuranceCarrier;
   form.elements.claimNumber.value = job.claimNumber || "";
   form.elements.serviceProfile.value = job.serviceProfile || "";
   form.elements.jobClass.value = job.jobClass || "Scheduled Work";
@@ -22539,7 +23386,7 @@ function renderDocLineRowHtml(line = {}, priceLevelId = defaultPriceLevelId(), d
         ${docLineProductOptions(priceLevelId, line.productId)}
       </select>
       <input type="text" data-line-description placeholder="Description" value="${escapeAttribute(line.productDescription || (!line.productId ? line.productName || "" : ""))}" />
-      <input type="number" min="0" step="0.01" data-line-quantity value="${escapeAttribute(qty)}" />
+      <input type="number" min="0" step="${quantityStepForLine({ ...line, quantity: qty })}" data-line-quantity value="${escapeAttribute(qty)}" />
       <select data-line-uom>
         <option value="">Unit</option>
         ${uoms.map((uom) => `<option value="${escapeAttribute(uom.id)}" ${uom.id === line.uomId ? "selected" : ""}>${escapeHtml(uom.name)}</option>`).join("")}
@@ -22715,6 +23562,8 @@ function applyLineProductDefaults(select) {
     const uomField = row.querySelector("[data-line-uom]");
     if (descriptionField) descriptionField.value = product.description || product.name;
     if (uomField) uomField.value = ppl?.uomId || product.defaultUomId || "";
+    const quantityField = row.querySelector("[data-line-quantity]");
+    if (quantityField && uomField) quantityField.step = quantityStepForUom(uomField.value);
   }
   repriceDocLine(row, settings.priceLevelId);
   recomputeDocTotal(dialog);
@@ -22909,7 +23758,7 @@ function addDocLinesFromNeeds(dialog) {
   let matched = 0;
   composeOpportunityScope(opportunity).needs.forEach((group) => {
     group.items.forEach((item) => {
-      const description = `${item.name}${item.note ? `: ${item.note}` : ""}`;
+      const description = `${/vendor/i.test(group.title) ? "Vendor / subcontractor: " : ""}${item.name}${item.note ? `: ${item.note}` : ""}`;
       if (existing.has(description.toLowerCase())) return;
       const product = matchRateLineForNeed(item.name, settings.priceLevelId);
       const ppl = product ? productPriceLevelRate(product.id, settings.priceLevelId) : null;
@@ -25713,6 +26562,20 @@ async function saveAccountPause(form) {
   [...pauseScopeFields, ...pauseNotifyFields].forEach((field) => {
     record[field] = form.elements[field].checked;
   });
+  // Owner 2026-09-23: keep every pause and resume.
+  const history = [...(existing?.pauseHistory || [])];
+  const wasPaused = Boolean(existing?.isPaused);
+  if (isPaused && !wasPaused) {
+    history.push({ pausedAt: record.pausedAt, pausedBy: record.pausedByName, reason: record.pausedReason, scopes: pauseScopeFields.filter((field) => record[field]).map((field) => pauseScopeFieldLabels[field]), resumedAt: "", resumedBy: "" });
+  }
+  if (!isPaused && wasPaused) {
+    const open = [...history].reverse().find((entry) => !entry.resumedAt);
+    if (open) {
+      open.resumedAt = new Date().toISOString();
+      open.resumedBy = state.currentUser?.name || "Local user";
+    }
+  }
+  record.pauseHistory = history;
 
   try {
     await saveBackendRecord("accountRelationshipExtensions", record);
@@ -25724,9 +26587,22 @@ async function saveAccountPause(form) {
   }
 }
 
+function renderAccountPauseHistory(relationship) {
+  const history = (relationship?.pauseHistory || []).slice().reverse();
+  if (!history.length) return "";
+  return `
+    <h4>Pause history</h4>
+    <ul class="compact-list">
+      ${history
+        .map((entry) => `<li>${formatDate(entry.pausedAt)} – ${entry.resumedAt ? formatDate(entry.resumedAt) : "open"}: ${escapeHtml(entry.reason || "no reason given")}${entry.scopes?.length ? ` (${escapeHtml(entry.scopes.join(", "))})` : ""} · ${escapeHtml(entry.pausedBy || "")}${entry.resumedBy ? `, resumed by ${escapeHtml(entry.resumedBy)}` : ""}</li>`)
+        .join("")}
+    </ul>
+  `;
+}
+
 function renderAccountPauseSummary(relationship) {
   if (!relationship?.isPaused) {
-    return `<p class="help-text">Account is active — not paused.</p>`;
+    return `<p class="help-text">Account is active — not paused.</p>${renderAccountPauseHistory(relationship)}`;
   }
   const activeScopes = pauseScopeFields.filter((field) => relationship[field]).map((field) => pauseScopeFieldLabels[field]);
   const activeNotify = pauseNotifyFields.filter((field) => relationship[field]).map((field) => pauseNotifyFieldLabels[field]);
@@ -25739,6 +26615,7 @@ function renderAccountPauseSummary(relationship) {
       <div><dt>Scope</dt><dd>${activeScopes.length ? activeScopes.map((label) => `<span class="tag">${escapeHtml(label)}</span>`).join(" ") : "None selected"}</dd></div>
       <div><dt>Notify</dt><dd>${activeNotify.length ? activeNotify.map((label) => `<span class="tag">${escapeHtml(label)}</span>`).join(" ") : "None selected"}</dd></div>
     </dl>
+    ${renderAccountPauseHistory(relationship)}
   `;
 }
 
@@ -26091,6 +26968,7 @@ function openEquipmentAssetDialog(assetTag = "") {
     form.elements.assetTag.value = asset.assetTag || "";
     form.elements.equipment.value = asset.equipment || "";
     form.elements.category.value = asset.category || "General equipment";
+    form.elements.ownership.value = asset.ownership || "Owned";
     form.elements.status.value = asset.status || "Ready";
     form.elements.lastUsed.value = asset.lastUsed || "";
     form.elements.maintenanceDue.value = asset.maintenanceDue || todayIso();
@@ -26621,6 +27499,22 @@ function openDispatchScheduleDialog(jobId = "") {
     form.elements.endTime.value = job.scheduledEnd ? timeInputValue(job.scheduledEnd) : "17:00";
     const assignment = dispatchAssignmentsForJob(job.id)[0];
     if (assignment?.crewId) form.elements.crewId.value = assignment.crewId;
+    // Owner 2026-09-23: "Schedule" re-asked for things already set. Workers assigned on Plan &
+    // resources stay; the crew pick is only offered when nobody is assigned yet.
+    const assigned = dispatchAssignmentsForJob(job.id).length;
+    const crewLabel = form.elements.crewId.closest("label");
+    if (crewLabel) {
+      crewLabel.hidden = assigned > 0;
+      let note = crewLabel.parentElement.querySelector("[data-schedule-assigned-note]");
+      if (!note) {
+        note = document.createElement("p");
+        note.className = "help-text";
+        note.dataset.scheduleAssignedNote = "true";
+        crewLabel.insertAdjacentElement("afterend", note);
+      }
+      note.hidden = assigned === 0;
+      note.textContent = `${assigned} worker${assigned === 1 ? "" : "s"} already assigned on Plan & resources; they keep their places.`;
+    }
   } else {
     form.elements.date.value = todayIso();
   }
@@ -26706,18 +27600,6 @@ function openQuickNoteDialog(accountId = "", contactId = "", opportunityId = "")
 // exactly when a site walk is both needed and not yet done (status "Incomplete"), and opens the
 // real Meeting scheduling dialog pre-filled with the Site Visit tag — reusing the timeline/tagging
 // machinery from Phase 05 rather than building a parallel scheduling mechanism.
-function openSiteWalkQuickSchedule(opportunityId) {
-  const opportunity = findOpportunity(opportunityId);
-  if (!opportunity) return;
-  const core = getCoreOpportunity(opportunity);
-  openActivityMeetingDialog(opportunity.accountId, "", opportunityId);
-  const dialog = document.querySelector("#activityMeetingDialog");
-  const form = dialog.querySelector("form");
-  form.elements.subject.value = `Site walk — ${core.opportunityName}`;
-  const siteVisitTag = form.querySelector('input[name="tags"][value="Site Visit"]');
-  if (siteVisitTag) siteVisitTag.checked = true;
-}
-
 function openActivityMeetingDialog(accountId = "", contactId = "", opportunityId = "") {
   closeActivityPickers();
   const dialog = document.querySelector("#activityMeetingDialog");
@@ -28325,11 +29207,14 @@ function getProjectGenerator(job) {
 function groupSamplesIntoSessions(samples) {
   const sessionMap = new Map();
   samples.forEach((sample) => {
-    const key = sample.samplingSessionId || sample.chainOfCustody || sample.projectId || "session";
+    // One event per dispatch visit (owner 2026-09-23: every Front Line sample used to be its own
+    // "event" because each has its own chain-of-custody number).
+    const key = sample.samplingSessionId || sample.dispatchJobId || sample.chainOfCustody || sample.projectId || "session";
     if (!sessionMap.has(key)) {
+      const dispatchJob = sample.dispatchJobId ? findDispatchJob(sample.dispatchJobId) : null;
       sessionMap.set(key, {
         id: key,
-        label: sample.samplingSessionName || `Sampling session ${sample.chainOfCustody || sample.collectionTime?.slice(0, 10) || ""}`.trim(),
+        label: dispatchJob ? `${dispatchJob.jobNumber} · ${sample.collectionTime?.slice(0, 10) || ""}`.trim() : sample.samplingSessionName || `Sampling session ${sample.chainOfCustody || sample.collectionTime?.slice(0, 10) || ""}`.trim(),
         labName: sample.labName || "Lab not assigned",
         samples: [],
       });
@@ -28544,7 +29429,7 @@ function getJobProgress(job) {
 }
 
 function isOpsProjectClosed(job) {
-  return getJobProgress(job).stageIndex === 4;
+  return !isActiveProject(job);
 }
 
 // Returns null when either date is missing or unparseable, so callers fall back to stage progress
@@ -28568,9 +29453,10 @@ function populateCalendarDayItems(daysByDate) {
     if (day) {
       day.items.push({
         id: work.projectId,
-        kind: "Scheduled",
+        kind: work.kind === "site_walk" ? "Site walk" : "Scheduled",
         title: work.title,
         accountId: findProject(work.projectId)?.accountId || work.accountId,
+        opportunityId: work.kind === "site_walk" ? work.opportunityId : "",
       });
     }
   });
@@ -28620,7 +29506,7 @@ function buildCalendarMonthDays(monthAnchorIso) {
   return { year, month, days };
 }
 
-function getMapMarkers() {
+function getLocationMapMarkers() {
   const backendLocations = state.backend.locations || [];
   if (backendLocations.length) {
     return backendLocations.flatMap((location) => {
@@ -29663,9 +30549,12 @@ function getWorkforceScheduleDates() {
   const days = getDispatchCalendarDays();
   return days.map((day) => ({
     ...day,
-    assignments: getJobAssignments()
-      .filter((assignment) => assignment.plannedStart?.slice(0, 10) === day.date)
-      .sort((a, b) => new Date(a.plannedStart) - new Date(b.plannedStart)),
+    assignments: [
+      ...getJobAssignments().filter((assignment) => assignment.plannedStart?.slice(0, 10) === day.date),
+      ...siteWalkEvents()
+        .filter((event) => event.date === day.date)
+        .flatMap((event) => (event.participantEmployeeIds || []).map((employeeId) => ({ id: `${event.id}-${employeeId}`, siteWalkId: event.id, employeeId, role: "Site walk", plannedStart: siteWalkStart(event) }))),
+    ].sort((a, b) => new Date(a.plannedStart) - new Date(b.plannedStart)),
   }));
 }
 

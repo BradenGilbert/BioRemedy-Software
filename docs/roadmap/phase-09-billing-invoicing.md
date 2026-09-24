@@ -128,6 +128,8 @@ See `docs/database-handoff-map.md`'s Phase 09 note for the full inventory.
 
 ## Corrections found during implementation
 
+- **2026-09-23 (owner's bug list): a finished dispatch no longer moves the project to Closeout.** `advanceProjectStageFromDispatchStatus` maps field_complete/office_review/closed to *Field Work*; `projectCanClose` now requires stage ≥ Field Work, no open dispatch job and no pending job request; `closeProject` is what writes Closeout. `reopenProjectForNewDispatch` steps a finished project back to Plan when another dispatch is created. The Close-project button and the cost-report panel wording follow.
+
 - **2026-09-23 (sprint Wave 5): the operational day (Q5) now exists.** `dispatchJobs.operationalDate` is stamped when the crew taps Start work and is correctable on the job's Close-out tab. Phase 11's post-work report already groups billables by it, so the invoice's day grouping should read the same field; see Phase 11's corrections for how a genuinely multi-day job is handled.
 - **2026-09-23 (Wave 5): waste disposal now feeds the report.** `closeReport.costs.waste` sums `wasteRecords.disposalCost`, the fourth bucket this doc deferred to Phase 11. Reports generated earlier say so and pick it up on Regenerate.
 - **2026-09-23 (Wave 5, found building the QuickBooks payload): invoices have no line items.** `saveInvoice()` writes only `quotedAmount`/`invoiceAmount`; nothing generates `invoiceLines` (one seed invoice has lines, and they don't sum to its total). The QBO export therefore falls back to a single "Services" line and marks the export "Blocked - fix mapping issues". **Fixed the same day by the Lone Star pass (Wave 5b):** invoices now carry itemized lines, and a clean export queues with no issues.

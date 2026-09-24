@@ -4522,7 +4522,7 @@
       "id": "equip-i130-vac",
       "projectId": "job-north-river-i130",
       "accountId": "acct-north-river",
-      "assetTag": "VAC-204",
+      "assetTag": "VAC TRAILER - 204",
       "equipment": "Vacuum trailer",
       "truckId": "TRK-18",
       "checkedOut": "2026-07-03T15:40:00.000Z",
@@ -4530,7 +4530,7 @@
       "condition": "In service",
       "user": "Priya Patel",
       "createdAt": "2026-09-16T05:18:19.595Z",
-      "updatedAt": "2026-09-16T05:18:19.595Z"
+      "updatedAt": "2026-09-23T23:50:26.841Z"
     },
     {
       "id": "equip-riverbend-pump",
@@ -4730,12 +4730,18 @@
       "latitude": 30.59,
       "longitude": -97.593251,
       "assetTags": [
-        "VAC-204",
+        "VAC TRAILER - 204",
         "TRK-18"
       ],
       "status": "Active dispatch",
       "lastPingAt": "2026-07-07T06:09:13.825Z",
-      "source": "Manual"
+      "source": "Manual",
+      "locationType": "",
+      "linearReference": "",
+      "isTemporary": false,
+      "retainUntil": "",
+      "retentionReason": "",
+      "reportedByEmployeeId": ""
     },
     {
       "id": "owntracks-7q",
@@ -4856,6 +4862,24 @@
       "retainUntil": "",
       "retentionReason": "",
       "reportedByEmployeeId": "emp-mu6e7iib-4oz5uk"
+    },
+    {
+      "id": "location-muel0m4l-ohjilm",
+      "projectId": "",
+      "scheduleEventId": "",
+      "label": "Field check-in",
+      "latitude": 30.545157628827177,
+      "longitude": -97.69370716445378,
+      "assetTags": [],
+      "status": "Field ping",
+      "lastPingAt": "2026-09-23T20:55:07.269Z",
+      "source": "Manual",
+      "locationType": "",
+      "linearReference": "",
+      "isTemporary": false,
+      "retainUntil": "",
+      "retentionReason": "",
+      "reportedByEmployeeId": "emp-logan"
     }
   ],
   "inventoryItems": [
@@ -5032,6 +5056,7 @@
       "receivedQuantity": 0
     }
   ],
+  "inventoryMovements": [],
   "equipmentAssets": [
     {
       "id": "asset-vac-204",
@@ -5122,13 +5147,15 @@
     },
     {
       "id": "maint-vac-204-service",
-      "assetTag": "VAC-204",
+      "assetTag": "VAC TRAILER - 204",
       "type": "Scheduled service",
       "date": "2026-06-18",
       "description": "Routine vacuum trailer service: hoses inspected, decon complete.",
       "performedBy": "Priya Patel",
       "cost": 0,
-      "nextDueDate": "2026-07-18"
+      "nextDueDate": "2026-07-18",
+      "createdAt": "2026-09-23T23:50:26.951Z",
+      "updatedAt": "2026-09-23T23:50:26.951Z"
     },
     {
       "assetTag": "TRK-18",
@@ -7705,9 +7732,9 @@
       "jobType": "Emergency Response",
       "jobTypeCode": "ER",
       "jobTypeVersion": 3,
-      "status": "office_review",
-      "dispatchStatus": "Returned",
-      "officeReviewStatus": "In review",
+      "status": "closed",
+      "dispatchStatus": "Closed",
+      "officeReviewStatus": "Closed",
       "priority": "Emergency",
       "requestedServiceAt": "2026-07-24T13:12:00-05:00",
       "scheduledStart": "2026-07-26T16:30:00-05:00",
@@ -7727,9 +7754,18 @@
       "description": "Oil spill on pavement after a vehicle crash. Protect drains and soil, recover free product, apply bacteria where appropriate, and document time and truck usage.",
       "readinessStatus": "Ready",
       "completionPercent": 100,
-      "updatedAt": "2026-09-23T15:38:07.380Z",
+      "updatedAt": "2026-09-23T20:57:46.510Z",
       "accountId": "acct-city-georgetown",
-      "createdAt": "2026-08-16T23:03:28.119Z"
+      "createdAt": "2026-08-16T23:03:28.119Z",
+      "postJobReview": {
+        "notes": "closed out the job safe and sound",
+        "answeredBy": "Olivia Grant",
+        "answeredAt": "2026-09-23T20:49:26.918Z",
+        "accidents": "No",
+        "nearMisses": "No",
+        "injuries": "No"
+      },
+      "operationalDate": ""
     },
     {
       "id": "dispatch-job-riverbend",
@@ -7952,9 +7988,9 @@
       "jobType": "Emergency Response",
       "jobTypeCode": "ER",
       "jobTypeVersion": 1,
-      "status": "in_progress",
-      "dispatchStatus": "In field",
-      "officeReviewStatus": "Not ready",
+      "status": "closed",
+      "dispatchStatus": "Closed",
+      "officeReviewStatus": "Closed",
       "priority": "Normal",
       "requestedServiceAt": "2026-07-27T23:25:00.000Z",
       "scheduledStart": "2026-07-28T10:26:00.000Z",
@@ -7971,9 +8007,27 @@
       "pricingSource": "69",
       "description": "zeke wraped that gay as webe car around a old lady on the way to the post office. clean dat szheet up",
       "readinessStatus": "Blocked",
-      "completionPercent": 25,
-      "updatedAt": "2026-08-16T23:10:43.031Z",
-      "createdAt": "2026-07-27T23:28:27.616Z"
+      "completionPercent": 100,
+      "updatedAt": "2026-09-23T21:00:21.277Z",
+      "createdAt": "2026-07-27T23:28:27.616Z",
+      "dailyNarratives": [
+        {
+          "date": "2026-07-28",
+          "sceneDescription": "fghgfngfjvh",
+          "sceneActivities": "6:10 PM: Emergency Response Perform Work: yep we did it.\n3:58 PM: Emergency Response Document Work: ekfljgbesljbvlebfv.\n3:59 PM: Emergency Response Field Closeout: ;osaefgnklwqerbg.",
+          "updatedBy": "Logan Gallman",
+          "updatedAt": "2026-09-23T20:59:35.203Z"
+        }
+      ],
+      "postJobReview": {
+        "notes": "",
+        "answeredBy": "Logan Gallman",
+        "answeredAt": "2026-09-23T20:59:39.840Z",
+        "accidents": "No",
+        "nearMisses": "No",
+        "injuries": "No"
+      },
+      "operationalDate": ""
     },
     {
       "id": "dispatch-job-ms46ffb0-cqytth",
@@ -8635,8 +8689,8 @@
       "jobType": "Scheduled Environmental Service",
       "jobTypeCode": "SVC",
       "jobTypeVersion": 1,
-      "status": "draft",
-      "dispatchStatus": "Unassigned",
+      "status": "scheduled",
+      "dispatchStatus": "Scheduled",
       "officeReviewStatus": "Not ready",
       "priority": "Normal",
       "requestedServiceAt": "2026-07-30T15:55:00.000Z",
@@ -8655,8 +8709,9 @@
       "description": "Asbestos abatement for boiler upgrade — Investigation and planning",
       "readinessStatus": "Blocked",
       "completionPercent": 0,
-      "updatedAt": "2026-07-29T16:04:50.191Z",
-      "createdAt": "2026-07-29T16:04:50.191Z"
+      "updatedAt": "2026-09-23T20:58:22.103Z",
+      "createdAt": "2026-07-29T16:04:50.191Z",
+      "operationalDate": ""
     },
     {
       "id": "dispatch-job-ms69zmqj-fvpcwe",
@@ -10387,9 +10442,11 @@
       "jobId": "dispatch-job-georgetown",
       "type": "Equipment",
       "name": "Vactron",
-      "assetTag": "VAC-204",
+      "assetTag": "VAC TRAILER - 204",
       "quantity": 1,
-      "status": "Reserved"
+      "status": "Reserved",
+      "createdAt": "2026-09-23T23:50:26.884Z",
+      "updatedAt": "2026-09-23T23:50:26.884Z"
     },
     {
       "id": "jr-geo-hand-unit",
@@ -10443,9 +10500,11 @@
       "jobId": "dispatch-job-i130",
       "type": "Equipment",
       "name": "Vacuum trailer",
-      "assetTag": "VAC-204",
+      "assetTag": "VAC TRAILER - 204",
       "quantity": 1,
-      "status": "In use"
+      "status": "In use",
+      "createdAt": "2026-09-23T23:50:26.913Z",
+      "updatedAt": "2026-09-23T23:50:26.913Z"
     },
     {
       "id": "resource-ms2go5jb-jlzz1o",
@@ -11363,6 +11422,51 @@
       "status": "Consumed",
       "consumedAt": "2026-09-23T19:01:43.404Z",
       "consumedBy": "Zeke bowser"
+    },
+    {
+      "id": "resource-mueiqon7-rxhtf3",
+      "jobId": "dispatch-job-georgetown",
+      "type": "Vendor",
+      "name": "Balfour Services",
+      "vendorAccountId": "acct-mu4ge94c-2tvpaj",
+      "subcontractorAssignmentId": "subcontractor-assignment-mu4ht6tz-q4290p",
+      "scopeNote": "do the nasty",
+      "assetTag": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Removed",
+      "createdAt": "2026-09-23T19:51:24.812Z",
+      "updatedAt": "2026-09-23T19:55:03.941Z"
+    },
+    {
+      "id": "resource-mueix2cu-3ncz78",
+      "jobId": "dispatch-job-georgetown",
+      "type": "Vendor",
+      "name": "Balfour Services",
+      "vendorAccountId": "acct-mu4ge94c-2tvpaj",
+      "subcontractorAssignmentId": "subcontractor-assignment-mu4ht6tz-q4290p",
+      "scopeNote": "rawr",
+      "assetTag": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Reserved",
+      "createdAt": "2026-09-23T19:56:22.525Z",
+      "updatedAt": "2026-09-23T19:56:22.525Z"
+    },
+    {
+      "id": "resource-muem4aih-u39m61",
+      "jobId": "dispatch-job-clearwater",
+      "type": "Vendor",
+      "name": "Balfour Services",
+      "vendorAccountId": "acct-mu4ge94c-2tvpaj",
+      "subcontractorAssignmentId": "",
+      "scopeNote": "",
+      "assetTag": "",
+      "quantity": 1,
+      "unit": "",
+      "status": "Reserved",
+      "createdAt": "2026-09-23T21:25:58.640Z",
+      "updatedAt": "2026-09-23T21:25:58.640Z"
     }
   ],
   "jobConflicts": [
@@ -11637,10 +11741,10 @@
       "key": "document",
       "name": "Document Work",
       "sequence": 3,
-      "status": "Available",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-07-27T23:28:28.447Z",
-      "updatedAt": "2026-08-16T23:10:58.672Z"
+      "updatedAt": "2026-09-23T20:58:56.730Z"
     },
     {
       "id": "step-ms3uyfbb-3pyue4",
@@ -11648,10 +11752,10 @@
       "key": "closeout",
       "name": "Field Closeout",
       "sequence": 4,
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "createdAt": "2026-07-27T23:28:28.716Z",
-      "updatedAt": "2026-07-27T23:28:28.716Z"
+      "updatedAt": "2026-09-23T20:59:03.162Z"
     },
     {
       "id": "step-ms46ffcg-8zt19o",
@@ -13666,12 +13770,12 @@
       "name": "Document Work checklist",
       "sequence": 1,
       "type": "Form",
-      "status": "Available",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Emergency Response Document Work",
       "createdAt": "2026-07-27T23:28:28.573Z",
-      "updatedAt": "2026-08-16T23:10:58.709Z"
+      "updatedAt": "2026-09-23T20:58:56.651Z"
     },
     {
       "id": "action-ms3uyff4-ek1hy8",
@@ -13681,12 +13785,12 @@
       "name": "Complete job recap and signature",
       "sequence": 1,
       "type": "Form",
-      "status": "Not started",
+      "status": "Complete",
       "required": true,
       "assigneeScope": "Field Lead",
       "formName": "Emergency Response Field Closeout",
       "createdAt": "2026-07-27T23:28:28.851Z",
-      "updatedAt": "2026-07-27T23:28:28.851Z"
+      "updatedAt": "2026-09-23T20:59:03.054Z"
     },
     {
       "id": "action-ms46ffd2-5kvhvf",
@@ -20697,6 +20801,32 @@
       },
       "createdAt": "2026-09-23T19:02:25.180Z",
       "updatedAt": "2026-09-23T19:02:25.180Z"
+    },
+    {
+      "id": "form-sub-muel5izw-hq98ik",
+      "jobId": "dispatch-job-ms3uyegj-qk89u4",
+      "actionId": "action-ms3uyf7c-lqsesk",
+      "formName": "Emergency Response Document Work",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-23T20:58:56.492Z",
+      "summary": "ekfljgbesljbvlebfv",
+      "payload": {},
+      "createdAt": "2026-09-23T20:58:56.573Z",
+      "updatedAt": "2026-09-23T20:58:56.573Z"
+    },
+    {
+      "id": "form-sub-muel5o24-ky5nnu",
+      "jobId": "dispatch-job-ms3uyegj-qk89u4",
+      "actionId": "action-ms3uyff4-ek1hy8",
+      "formName": "Emergency Response Field Closeout",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-23T20:59:03.052Z",
+      "summary": ";osaefgnklwqerbg",
+      "payload": {},
+      "createdAt": "2026-09-23T20:59:02.977Z",
+      "updatedAt": "2026-09-23T20:59:02.977Z"
     }
   ],
   "jobTypeTemplates": [
@@ -22378,6 +22508,66 @@
       "by": "Zeke bowser",
       "createdAt": "2026-09-23T19:02:33.258Z",
       "updatedAt": "2026-09-23T19:02:33.258Z"
+    },
+    {
+      "id": "job-status-event-muel414t-p8bziu",
+      "jobId": "dispatch-job-georgetown",
+      "fromStatus": "office_review",
+      "toStatus": "closed",
+      "occurredAt": "2026-09-23T20:57:46.600Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-23T20:57:46.619Z",
+      "updatedAt": "2026-09-23T20:57:46.619Z"
+    },
+    {
+      "id": "job-status-event-muel4pas-5dl5jq",
+      "jobId": "dispatch-job-ms69zkws-6xjpaq",
+      "fromStatus": "draft",
+      "toStatus": "ready",
+      "occurredAt": "2026-09-23T20:58:17.895Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-23T20:58:17.920Z",
+      "updatedAt": "2026-09-23T20:58:17.920Z"
+    },
+    {
+      "id": "job-status-event-muel4sll-igadpc",
+      "jobId": "dispatch-job-ms69zkws-6xjpaq",
+      "fromStatus": "ready",
+      "toStatus": "scheduled",
+      "occurredAt": "2026-09-23T20:58:22.179Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-23T20:58:22.203Z",
+      "updatedAt": "2026-09-23T20:58:22.203Z"
+    },
+    {
+      "id": "job-status-event-muel6m48-tka9tw",
+      "jobId": "dispatch-job-ms3uyegj-qk89u4",
+      "fromStatus": "in_progress",
+      "toStatus": "field_complete",
+      "occurredAt": "2026-09-23T20:59:47.075Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-23T20:59:47.108Z",
+      "updatedAt": "2026-09-23T20:59:47.108Z"
+    },
+    {
+      "id": "job-status-event-muel6o6m-p148xy",
+      "jobId": "dispatch-job-ms3uyegj-qk89u4",
+      "fromStatus": "field_complete",
+      "toStatus": "office_review",
+      "occurredAt": "2026-09-23T20:59:49.775Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-23T20:59:49.780Z",
+      "updatedAt": "2026-09-23T20:59:49.780Z"
+    },
+    {
+      "id": "job-status-event-muel7cjz-lxls1e",
+      "jobId": "dispatch-job-ms3uyegj-qk89u4",
+      "fromStatus": "office_review",
+      "toStatus": "closed",
+      "occurredAt": "2026-09-23T21:00:21.146Z",
+      "by": "Logan Gallman",
+      "createdAt": "2026-09-23T21:00:21.369Z",
+      "updatedAt": "2026-09-23T21:00:21.369Z"
     }
   ],
   "jobTaskAttachments": [
@@ -22652,7 +22842,10 @@
       "sizeBytes": 843506,
       "caption": "the plumbus juice has turned outside into the amazon river it seems.",
       "uploadedAt": "2026-09-23T17:37:56.681Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:37.407Z",
+      "updatedAt": "2026-09-23T20:40:37.407Z"
     },
     {
       "id": "job-task-attachment-muedz1ul-teyunm",
@@ -22665,7 +22858,10 @@
       "sizeBytes": 478577,
       "caption": "North view",
       "uploadedAt": "2026-09-23T17:37:57.021Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:38.119Z",
+      "updatedAt": "2026-09-23T20:40:38.119Z"
     },
     {
       "id": "job-task-attachment-muedz23z-jab5yw",
@@ -22678,7 +22874,10 @@
       "sizeBytes": 532831,
       "caption": "Sample interval",
       "uploadedAt": "2026-09-23T17:37:57.359Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:38.816Z",
+      "updatedAt": "2026-09-23T20:40:38.816Z"
     },
     {
       "id": "job-task-attachment-muedz3hv-mmdfsb",
@@ -22691,7 +22890,10 @@
       "sizeBytes": 3234522,
       "caption": "Container label",
       "uploadedAt": "2026-09-23T17:37:59.155Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:39.648Z",
+      "updatedAt": "2026-09-23T20:40:39.648Z"
     },
     {
       "id": "job-task-attachment-muee264n-qeh7us",
@@ -22704,7 +22906,10 @@
       "sizeBytes": 873976,
       "caption": "the plumbus juice is def here.",
       "uploadedAt": "2026-09-23T17:40:22.535Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:40.551Z",
+      "updatedAt": "2026-09-23T20:40:40.551Z"
     },
     {
       "id": "job-task-attachment-muee266q-qulaf8",
@@ -22717,7 +22922,10 @@
       "sizeBytes": 47664,
       "caption": "North view",
       "uploadedAt": "2026-09-23T17:40:22.610Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:41.802Z",
+      "updatedAt": "2026-09-23T20:40:41.802Z"
     },
     {
       "id": "job-task-attachment-muee268v-zmpgrh",
@@ -22730,7 +22938,10 @@
       "sizeBytes": 52580,
       "caption": "Sample interval",
       "uploadedAt": "2026-09-23T17:40:22.687Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:42.593Z",
+      "updatedAt": "2026-09-23T20:40:42.593Z"
     },
     {
       "id": "job-task-attachment-muee27g4-xbejqn",
@@ -22743,7 +22954,10 @@
       "sizeBytes": 3234522,
       "caption": "Container label",
       "uploadedAt": "2026-09-23T17:40:24.244Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:36.588Z",
+      "updatedAt": "2026-09-23T20:40:36.588Z"
     },
     {
       "id": "job-task-attachment-muee56ye-twgamv",
@@ -22782,7 +22996,10 @@
       "sizeBytes": 15298053,
       "caption": "send backup!",
       "uploadedAt": "2026-09-23T18:50:34.166Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:35.727Z",
+      "updatedAt": "2026-09-23T20:40:35.727Z"
     },
     {
       "id": "job-task-attachment-muegwzlu-nkbpc5",
@@ -22795,7 +23012,10 @@
       "sizeBytes": 161864,
       "caption": "North view",
       "uploadedAt": "2026-09-23T19:00:19.650Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:47.762Z",
+      "updatedAt": "2026-09-23T20:40:47.762Z"
     },
     {
       "id": "job-task-attachment-muegwzru-4wdgim",
@@ -22808,7 +23028,10 @@
       "sizeBytes": 186679,
       "caption": "Sample interval",
       "uploadedAt": "2026-09-23T19:00:19.866Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:46.929Z",
+      "updatedAt": "2026-09-23T20:40:46.929Z"
     },
     {
       "id": "job-task-attachment-muegwzxg-1ooj7l",
@@ -22821,7 +23044,10 @@
       "sizeBytes": 242525,
       "caption": "Container label",
       "uploadedAt": "2026-09-23T19:00:20.068Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:45.161Z",
+      "updatedAt": "2026-09-23T20:40:45.161Z"
     },
     {
       "id": "job-task-attachment-muegy9kf-j8ops7",
@@ -22834,7 +23060,10 @@
       "sizeBytes": 132668,
       "caption": "tadaaa",
       "uploadedAt": "2026-09-23T19:01:19.215Z",
-      "uploadedBy": "Olivia Grant"
+      "uploadedBy": "Olivia Grant",
+      "includeInReport": true,
+      "createdAt": "2026-09-23T20:40:43.594Z",
+      "updatedAt": "2026-09-23T20:40:43.594Z"
     },
     {
       "id": "job-task-attachment-muegzoel-tvlqtu",
@@ -22851,8 +23080,127 @@
     }
   ],
   "jobExpenses": [],
+  "weatherSnapshots": [
+    {
+      "id": "weather-muekhmu1-6p5erp",
+      "projectId": "proj-muedbopd-kmyuz8",
+      "dispatchJobId": "dispatch-job-muedhqcf-nzpmxi",
+      "kind": "response",
+      "observedFor": "2026-09-23T17:42:49.938Z",
+      "latitude": 30.66089427657082,
+      "longitude": -97.68304881495438,
+      "anchorSource": "GPS location",
+      "anchorLocationId": "location-mueglwy0-hlu13d",
+      "anchorLabel": "Field check-in",
+      "requestedBy": "Admin User",
+      "fetchedAt": "2026-09-23T20:40:21.721Z",
+      "status": "captured",
+      "error": "",
+      "provider": "Open-Meteo",
+      "providerEndpoint": "https://api.open-meteo.com/v1/forecast",
+      "observationTime": "2026-09-23T18:00:00Z",
+      "conditions": "Mainly clear",
+      "weatherCode": 1,
+      "temperatureF": 92.3,
+      "relativeHumidity": 53,
+      "precipitationIn": 0,
+      "windSpeedMph": 5.9,
+      "windGustMph": 9.4,
+      "windDirectionDeg": 127,
+      "windDirection": "SE"
+    },
+    {
+      "id": "weather-muekhnox-refxeq",
+      "projectId": "proj-muedbopd-kmyuz8",
+      "dispatchJobId": "dispatch-job-mueexr7l-fanmqu",
+      "kind": "response",
+      "observedFor": "2026-09-23T19:02:07.363Z",
+      "latitude": 30.66089427657082,
+      "longitude": -97.68304881495438,
+      "anchorSource": "GPS location",
+      "anchorLocationId": "location-mueglwy0-hlu13d",
+      "anchorLabel": "Field check-in",
+      "requestedBy": "Admin User",
+      "fetchedAt": "2026-09-23T20:40:22.833Z",
+      "status": "captured",
+      "error": "",
+      "provider": "Open-Meteo",
+      "providerEndpoint": "https://api.open-meteo.com/v1/forecast",
+      "observationTime": "2026-09-23T19:00:00Z",
+      "conditions": "Partly cloudy",
+      "weatherCode": 2,
+      "temperatureF": 94.4,
+      "relativeHumidity": 48,
+      "precipitationIn": 0,
+      "windSpeedMph": 6.8,
+      "windGustMph": 12.1,
+      "windDirectionDeg": 113,
+      "windDirection": "ESE"
+    },
+    {
+      "id": "weather-mueksles-gabuz7",
+      "projectId": "job-riverbend-ust",
+      "dispatchJobId": "dispatch-job-riverbend",
+      "kind": "response",
+      "observedFor": "2026-09-17T05:28:12.166Z",
+      "latitude": 30.051,
+      "longitude": -97.81438,
+      "anchorSource": "GPS location",
+      "anchorLocationId": "map-riverbend-yard",
+      "anchorLabel": "Riverbend south yard",
+      "requestedBy": "Olivia Grant",
+      "fetchedAt": "2026-09-23T20:48:53.092Z",
+      "status": "captured",
+      "error": "",
+      "provider": "Open-Meteo",
+      "providerEndpoint": "https://api.open-meteo.com/v1/forecast",
+      "observationTime": "2026-09-17T05:00:00Z",
+      "conditions": "Clear sky",
+      "weatherCode": 0,
+      "temperatureF": 82.3,
+      "relativeHumidity": 77,
+      "precipitationIn": 0,
+      "windSpeedMph": 6.9,
+      "windGustMph": 16.8,
+      "windDirectionDeg": 167,
+      "windDirection": "SSE"
+    }
+  ],
+  "permits": [
+    {
+      "id": "permit-10-day-storage",
+      "name": "10-day waste storage permit",
+      "permitType": "Waste storage",
+      "permitNumber": "",
+      "issuingAgency": "",
+      "issuedOn": "",
+      "expiresOn": "",
+      "renewalLeadDays": 60,
+      "storageLimitDays": 10,
+      "wasteTypesCovered": "",
+      "status": "Active",
+      "notes": "Named by the owner 2026-09-16. Permit number, agency and dates still to be entered."
+    },
+    {
+      "id": "permit-oily-waste-handler",
+      "name": "Oily waste handler permit",
+      "permitType": "Waste handler",
+      "permitNumber": "",
+      "issuingAgency": "",
+      "issuedOn": "",
+      "expiresOn": "",
+      "renewalLeadDays": 60,
+      "storageLimitDays": null,
+      "wasteTypesCovered": "Oily waste",
+      "status": "Active",
+      "notes": "Named by the owner 2026-09-16. Permit number, agency and dates still to be entered."
+    }
+  ],
+  "wasteRecords": [],
+  "notifications": [],
   "laborAssignments": [],
   "sampleLabReports": [],
+  "sampleResults": [],
   "sampleRecords": [
     {
       "id": "sample-riverbend-b1",
@@ -39754,7 +40102,7 @@
       "weightedAmount": 11250,
       "forecastAmount": 11250,
       "rating": "Q3 2026 (this quarter)",
-      "updatedAt": "2026-09-18T20:16:32.856Z",
+      "updatedAt": "2026-09-23T21:02:25.522Z",
       "opportunityId": "opp-mu7efomy-uhe3su",
       "opportunityUniqueIdentifier": "opp-mu7efomy-uhe3su",
       "accountName": "CENTERLINE GROUP",
@@ -39794,14 +40142,24 @@
       "decisionMaker": "",
       "purchaseProcess": "",
       "purchaseTimeframe": "",
-      "quoteId": "",
-      "estimateId": "",
+      "quoteId": "quote-muel9zy2-7v9166",
+      "estimateId": "estimate-muel9s8x-6fa55p",
       "priceList": "",
       "recordSource": "Local CRM",
       "description": "SEND QUOTE",
       "createdAt": "2026-09-18T20:16:32.856Z",
       "closeBand": "0-30",
-      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z",
+      "resourceNeeds": [
+        {
+          "name": "foreman",
+          "note": ""
+        },
+        {
+          "name": "stainless steel dumper boc",
+          "note": ""
+        }
+      ]
     },
     {
       "id": "opp-muczcy1i-18ew5e",
@@ -40620,6 +40978,33 @@
       "notes": "this not could be internal or external not sur",
       "createdAt": "2026-09-23T17:18:09.162Z",
       "updatedAt": "2026-09-23T17:18:09.162Z"
+    },
+    {
+      "id": "quote-muel9zy2-7v9166",
+      "opportunityId": "opp-mu7efomy-uhe3su",
+      "customerId": "acct-mu7c1i4q-3m0tni",
+      "customerLogicalName": "account",
+      "priceLevelId": "price-standard-2026",
+      "name": "REBRAND OF A TA SITE IN SAN ANTONIO, 1 OF 2 quote",
+      "totalAmount": 150.45,
+      "totalAmountBase": 150.45,
+      "rateTier": "standard",
+      "isEmergencyCallout": false,
+      "fuelSurchargePercent": 10,
+      "energySecurityFeePercent": 18,
+      "subtotalAmount": 127.5,
+      "fuelSurchargeAmount": 0,
+      "energySecurityFeeAmount": 22.95,
+      "statusCode": "Draft",
+      "stateCode": "Active",
+      "effectiveFrom": "2026-09-23",
+      "effectiveTo": "2026-10-23",
+      "billingAddressId": "",
+      "shippingAddressId": "",
+      "notes": "",
+      "sourceEstimateId": "estimate-muel9s8x-6fa55p",
+      "createdAt": "2026-09-23T21:02:25.025Z",
+      "updatedAt": "2026-09-23T21:02:25.025Z"
     }
   ],
   "quoteLines": [
@@ -41812,6 +42197,134 @@
       "sequenceNumber": 14,
       "createdAt": "2026-09-23T18:28:28.308Z",
       "updatedAt": "2026-09-23T18:28:28.308Z"
+    },
+    {
+      "lineKind": "item",
+      "productId": "prod-rs-supervisor",
+      "productName": "Supervisor",
+      "productDescription": "Supervisor",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 4,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 127.5,
+      "extendedAmount": 127.5,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 1,
+      "id": "quote-line-muela015-eri2be",
+      "quoteId": "quote-muel9zy2-7v9166",
+      "createdAt": "2026-09-23T21:02:25.104Z",
+      "updatedAt": "2026-09-23T21:02:25.104Z"
+    },
+    {
+      "lineKind": "item",
+      "productId": "",
+      "productName": "Custom line",
+      "productDescription": "",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "standard",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 0,
+      "extendedAmount": 0,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 2,
+      "id": "quote-line-muela03i-r7l1km",
+      "quoteId": "quote-muel9zy2-7v9166",
+      "createdAt": "2026-09-23T21:02:25.187Z",
+      "updatedAt": "2026-09-23T21:02:25.187Z"
+    },
+    {
+      "lineKind": "item",
+      "productId": "prod-rs-foreman",
+      "productName": "Foreman",
+      "productDescription": "foreman",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 4,
+      "minimumApplied": false,
+      "rateTier": "standard",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 75,
+      "extendedAmount": 75,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": true,
+      "sequenceNumber": 3,
+      "id": "quote-line-muela05p-bhde0o",
+      "quoteId": "quote-muel9zy2-7v9166",
+      "createdAt": "2026-09-23T21:02:25.268Z",
+      "updatedAt": "2026-09-23T21:02:25.268Z"
+    },
+    {
+      "lineKind": "item",
+      "productId": "",
+      "productName": "stainless steel dumper boc",
+      "productDescription": "stainless steel dumper boc",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "standard",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 0,
+      "extendedAmount": 0,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 4,
+      "id": "quote-line-muela07z-06myo8",
+      "quoteId": "quote-muel9zy2-7v9166",
+      "createdAt": "2026-09-23T21:02:25.362Z",
+      "updatedAt": "2026-09-23T21:02:25.362Z"
+    },
+    {
+      "lineKind": "energy_security_fee",
+      "productId": "",
+      "productName": "Energy, Security & Insurance (18%)",
+      "productDescription": "18% of the $127.50 subtotal; fuel surcharge excluded",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "pricePerUnit": 22.95,
+      "extendedAmount": 22.95,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 5,
+      "id": "quote-line-muela0aj-s38jwx",
+      "quoteId": "quote-muel9zy2-7v9166",
+      "createdAt": "2026-09-23T21:02:25.437Z",
+      "updatedAt": "2026-09-23T21:02:25.437Z"
     }
   ],
   "estimates": [
@@ -41890,6 +42403,32 @@
       "notes": "this not could be internal or external not sur",
       "createdAt": "2026-09-23T17:17:12.644Z",
       "updatedAt": "2026-09-23T17:17:12.644Z"
+    },
+    {
+      "id": "estimate-muel9s8x-6fa55p",
+      "opportunityId": "opp-mu7efomy-uhe3su",
+      "customerId": "acct-mu7c1i4q-3m0tni",
+      "customerLogicalName": "account",
+      "priceLevelId": "price-standard-2026",
+      "name": "REBRAND OF A TA SITE IN SAN ANTONIO, 1 OF 2 estimate",
+      "rateTier": "standard",
+      "isEmergencyCallout": false,
+      "fuelSurchargePercent": 10,
+      "energySecurityFeePercent": 18,
+      "subtotalAmount": 127.5,
+      "fuelSurchargeAmount": 0,
+      "energySecurityFeeAmount": 22.95,
+      "totalAmount": 150.45,
+      "totalAmountBase": 150.45,
+      "statusCode": "Draft",
+      "stateCode": "Active",
+      "effectiveFrom": "",
+      "effectiveTo": "",
+      "billingAddressId": "",
+      "shippingAddressId": "",
+      "notes": "",
+      "createdAt": "2026-09-23T21:02:15.055Z",
+      "updatedAt": "2026-09-23T21:02:15.055Z"
     }
   ],
   "estimateLines": [
@@ -42114,6 +42653,134 @@
       "isOptional": true,
       "createdAt": "2026-09-23T17:17:13.031Z",
       "updatedAt": "2026-09-23T17:17:13.031Z"
+    },
+    {
+      "id": "estimate-line-muel9scc-buvxdu",
+      "estimateId": "estimate-muel9s8x-6fa55p",
+      "lineKind": "item",
+      "productId": "prod-rs-supervisor",
+      "productName": "Supervisor",
+      "productDescription": "Supervisor",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 4,
+      "minimumApplied": false,
+      "rateTier": "ot_emergency",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 127.5,
+      "extendedAmount": 127.5,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 1,
+      "createdAt": "2026-09-23T21:02:15.140Z",
+      "updatedAt": "2026-09-23T21:02:15.140Z"
+    },
+    {
+      "id": "estimate-line-muel9ses-l6t973",
+      "estimateId": "estimate-muel9s8x-6fa55p",
+      "lineKind": "item",
+      "productId": "",
+      "productName": "Custom line",
+      "productDescription": "",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "standard",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 0,
+      "extendedAmount": 0,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 2,
+      "createdAt": "2026-09-23T21:02:15.226Z",
+      "updatedAt": "2026-09-23T21:02:15.226Z"
+    },
+    {
+      "id": "estimate-line-muel9shb-dd1590",
+      "estimateId": "estimate-muel9s8x-6fa55p",
+      "lineKind": "item",
+      "productId": "prod-rs-foreman",
+      "productName": "Foreman",
+      "productDescription": "foreman",
+      "isProductOverridden": false,
+      "uomId": "uom-hour",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 4,
+      "minimumApplied": false,
+      "rateTier": "standard",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 75,
+      "extendedAmount": 75,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": true,
+      "sequenceNumber": 3,
+      "createdAt": "2026-09-23T21:02:15.328Z",
+      "updatedAt": "2026-09-23T21:02:15.328Z"
+    },
+    {
+      "id": "estimate-line-muel9sjt-o7fpvt",
+      "estimateId": "estimate-muel9s8x-6fa55p",
+      "lineKind": "item",
+      "productId": "",
+      "productName": "stainless steel dumper boc",
+      "productDescription": "stainless steel dumper boc",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "minimumQuantity": 0,
+      "minimumApplied": false,
+      "rateTier": "standard",
+      "pricingMethod": "rate",
+      "unitCost": null,
+      "markupPercent": null,
+      "pricePerUnit": 0,
+      "extendedAmount": 0,
+      "fuelSurchargeApplies": false,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 4,
+      "createdAt": "2026-09-23T21:02:15.417Z",
+      "updatedAt": "2026-09-23T21:02:15.417Z"
+    },
+    {
+      "id": "estimate-line-muel9sma-qkz49j",
+      "estimateId": "estimate-muel9s8x-6fa55p",
+      "lineKind": "energy_security_fee",
+      "productId": "",
+      "productName": "Energy, Security & Insurance (18%)",
+      "productDescription": "18% of the $127.50 subtotal; fuel surcharge excluded",
+      "isProductOverridden": true,
+      "uomId": "",
+      "quantity": 1,
+      "billableQuantity": 1,
+      "pricePerUnit": 22.95,
+      "extendedAmount": 22.95,
+      "manualDiscountAmount": 0,
+      "tax": 0,
+      "isOptional": false,
+      "sequenceNumber": 5,
+      "createdAt": "2026-09-23T21:02:15.499Z",
+      "updatedAt": "2026-09-23T21:02:15.499Z"
     }
   ],
   "salesOrders": [
@@ -43312,14 +43979,14 @@
     {
       "id": "account-relationship-mskqs0ae-kk3fow",
       "accountId": "acct-clearwater",
-      "accountTypeId": "",
+      "accountTypeId": "account-type-commercial",
       "sicCode": "1731",
       "ownershipType": "",
       "taxAddressId": "",
       "relationshipStatus": "Active",
       "primaryRelationship": "Customer",
-      "customerStatus": "Never purchased",
-      "isClient": false,
+      "customerStatus": "Active customer",
+      "isClient": true,
       "isProspect": false,
       "isVendor": false,
       "isSubcontractor": false,
@@ -43332,7 +43999,7 @@
       "businessDescription": "Verify: K-12 school district remediation client.",
       "workingRelationshipNotes": "Verify: escalate through Sam Ortega, night-shift access.",
       "createdAt": "2026-08-08T19:03:35.802Z",
-      "updatedAt": "2026-08-08T19:04:30.651Z"
+      "updatedAt": "2026-09-23T21:26:56.748Z"
     },
     {
       "id": "account-relationship-msw52cux-czftvm",
@@ -43448,7 +44115,7 @@
       "isProspect": false,
       "isVendor": false,
       "isSubcontractor": false,
-      "subcontractorPermitted": "Unknown",
+      "subcontractorPermitted": "Approved",
       "subcontractorPreapprovalRequired": false,
       "msaStatus": "On File",
       "coiStatus": "On File",
@@ -43457,7 +44124,7 @@
       "businessDescription": "business description",
       "workingRelationshipNotes": "work we do with them boiiiss",
       "createdAt": "2026-09-16T16:43:59.773Z",
-      "updatedAt": "2026-09-23T15:52:08.745Z"
+      "updatedAt": "2026-09-23T21:25:15.943Z"
     },
     {
       "id": "account-relationship-mu4ge9ks-4ljlh3",
@@ -43482,7 +44149,7 @@
       "businessDescription": "they do asbestos abatment",
       "workingRelationshipNotes": "",
       "createdAt": "2026-09-16T18:48:04.397Z",
-      "updatedAt": "2026-09-16T19:29:26.947Z"
+      "updatedAt": "2026-09-23T19:53:35.934Z"
     },
     {
       "id": "account-relationship-mu4xw1df-mwplkx",
@@ -43820,14 +44487,14 @@
       "id": "vendor-profile-msja9t5k-aii0jk",
       "accountId": "acct-city-georgetown",
       "vendorNumber": "00001",
-      "subcontractorTypeId": "subcontractor-type-subcontractor",
+      "subcontractorTypeId": "",
       "onboardingStatus": "Pending",
       "isSuspended": false,
       "approvalDate": "",
       "approvedById": "",
       "w9Status": "Approved",
       "insuranceStatus": "Valid",
-      "insuranceExpiration": "2026-08-27",
+      "insuranceExpiration": "2027-11-18",
       "safetyStatus": "Approved",
       "paymentTerms": "",
       "defaultPriceLevelId": "price-standard-2026",
@@ -43839,8 +44506,8 @@
       "billingAddressId": "",
       "operationsContactId": "",
       "notes": "erwrerw",
-      "createdAt": "2026-08-07T18:33:47.020Z",
-      "updatedAt": "2026-08-07T18:33:47.020Z"
+      "createdAt": "2026-09-23T21:25:15.454Z",
+      "updatedAt": "2026-09-23T21:25:15.454Z"
     },
     {
       "id": "vendor-profile-mu4gsb3h-mjy66o",
@@ -43853,20 +44520,20 @@
       "approvedById": "emp-priya",
       "w9Status": "Approved",
       "insuranceStatus": "Valid",
-      "insuranceExpiration": "2026-09-17",
+      "insuranceExpiration": "2027-10-19",
       "safetyStatus": "Approved",
       "paymentTerms": "",
       "defaultPriceLevelId": "price-standard-2026",
       "serviceTerritory": "Central Texas",
-      "performanceRating": "F",
+      "performanceRating": "A-",
       "accountingVendorId": "",
       "remitToAddressId": "address-mu4gws1g-mx70ze",
       "dispatchAddressId": "address-mu4gtqi4-p9cinq",
       "billingAddressId": "address-mu4gv47i-uoaysc",
       "operationsContactId": "cont-mu4gucws-vt25qh",
       "notes": "test venfor coimpliance",
-      "createdAt": "2026-09-16T19:25:39.538Z",
-      "updatedAt": "2026-09-16T19:25:39.538Z"
+      "createdAt": "2026-09-23T19:53:35.255Z",
+      "updatedAt": "2026-09-23T19:53:35.255Z"
     }
   ],
   "serviceAgreements": [
@@ -43915,21 +44582,60 @@
     {
       "id": "subcontractor-assignment-mu4ht6tz-q4290p",
       "vendorProfileId": "vendor-profile-mu4gsb3h-mjy66o",
-      "assignmentName": "Georgetown help sometimes maybe",
+      "assignmentName": "Asbestois fill in",
       "assignmentStatus": "Confirmed",
+      "pricingBasis": "fixed",
       "rateType": "Hourly",
       "rateAmount": 15,
-      "priceLevelId": "price-standard-2026",
+      "priceLevelId": "",
       "startDate": "2026-09-08",
       "endDate": "2030-01-16",
       "relatedJobReference": "",
       "scopeOfWork": "no clue",
       "notes": "test",
-      "createdAt": "2026-09-16T19:27:40.437Z",
-      "updatedAt": "2026-09-16T19:27:40.437Z"
+      "createdAt": "2026-09-23T19:56:52.025Z",
+      "updatedAt": "2026-09-23T19:56:52.025Z"
     }
   ],
-  "accountApprovedSubcontractors": [],
+  "accountApprovedSubcontractors": [
+    {
+      "id": "approved-sub-mueisvpz-ngqab9",
+      "accountId": "acct-mu4ge94c-2tvpaj",
+      "subcontractorAccountId": "acct-city-georgetown",
+      "status": "Approved",
+      "approvedScope": "yeet the scope bro",
+      "approvedFrom": "2026-09-23",
+      "approvedUntil": "2030-11-08",
+      "notes": "they are approved",
+      "createdAt": "2026-09-23T19:53:07.459Z",
+      "updatedAt": "2026-09-23T19:57:03.555Z",
+      "deletedAt": "2026-09-23T19:57:03.466Z"
+    },
+    {
+      "id": "approved-sub-mueiw6kr-tb3c8w",
+      "accountId": "acct-city-georgetown",
+      "subcontractorAccountId": "acct-mu4ge94c-2tvpaj",
+      "status": "Approved",
+      "approvedScope": "they did it",
+      "approvedFrom": "2026-09-16",
+      "approvedUntil": "",
+      "notes": "tadaaa",
+      "createdAt": "2026-09-23T19:55:41.333Z",
+      "updatedAt": "2026-09-23T19:55:41.333Z"
+    },
+    {
+      "id": "approved-sub-muem5vf8-i4gmfj",
+      "accountId": "acct-clearwater",
+      "subcontractorAccountId": "acct-mu4ge94c-2tvpaj",
+      "status": "Approved",
+      "approvedScope": "kjhlgbdrfgjkl;grs",
+      "approvedFrom": "2026-09-22",
+      "approvedUntil": "",
+      "notes": "",
+      "createdAt": "2026-09-23T21:27:12.268Z",
+      "updatedAt": "2026-09-23T21:27:12.268Z"
+    }
+  ],
   "qboSettings": {
     "connectionStatus": "Not connected",
     "realmId": "",
