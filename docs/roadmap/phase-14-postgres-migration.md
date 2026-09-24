@@ -1,7 +1,7 @@
 # Phase 14 — PostgreSQL Migration
 
 **Status:** Not started
-**Depends on:** Phases 01–07. Do not start early.
+**Depends on:** Phases 01–13 (every data-model change that lands before the pilot, plus identity and documents). Do not start early. *(Corrected 2026-09-23: this line and the two bullets below used pre-renumbering phase numbers.)*
 **Estimated sessions:** Many. This is the largest phase on the roadmap.
 
 ---
@@ -38,8 +38,8 @@
   - `facility_contacts`, location retention (02)
   - `account_approved_subcontractors` (04)
   - activity tags (05)
-  - identity / RBAC / audit (06)
-  - entity attachments (07)
+  - identity / RBAC / audit (12)
+  - entity attachments (13)
 - Seed and reference data: industries, account types, subcontractor types, job status definitions, units, currencies
 - **Backups and a tested restore.** Not an assumed restore — a tested one.
 

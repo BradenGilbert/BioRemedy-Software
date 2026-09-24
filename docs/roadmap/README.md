@@ -101,7 +101,8 @@ The gate before real customer data enters the system.
 
 | Phase | Name | Status |
 |---|---|---|
-| 12 | [Identity, Authorization & Audit](phase-12-identity-and-audit.md) | Not started |
+| 20 | [Engineering Hardening](phase-20-engineering-hardening.md) | 🔴 **New 2026-09-23. Not started — item 0 is urgent.** Written from a code review after Wave 5b: the static file server exposes the whole project folder including `data/backend.json` (confirmed on a scratch server), saves are last-write-wins with no version check, every save re-downloads the whole backend, backups are manual and on the same disk, demo seed data self-heals, there is no delete path, and the audit's fuzz was thrown away. Item 0 (static-file allowlist) ships before the next tunnel session; items 1–6 are one wave before Phase 12, whose done criteria then inherit the tests. Numbered 20 because 19 was taken — it sits *before* 12 in sequence. **Part B** of the same doc parks twelve unsorted sales/project/billing flow findings (dual Won/Lost truth, unbillable project-less dispatch jobs, quote lifecycle, quoted-vs-actual, stale deals, planned visits…) for a later triage session. |
+| 12 | [Identity, Authorization & Audit](phase-12-identity-and-audit.md) | Not started. Phase 20 recommends splitting into 12a (local sessions, API enforcement, audit, break-glass — no Entra) and 12b (Entra provider). |
 | 13 | [Document Storage](phase-13-documents.md) | Not started. **Grew on 2026-09-22** from "attachment storage" to attachment storage *plus* a document requirement/review/sign-off workflow — the customer packet and third-party waste authorization gate the Negotiation stage, and Phase 04's vendor compliance items are blocked on the same model. |
 
 > ### ◆ PILOT MILESTONE
