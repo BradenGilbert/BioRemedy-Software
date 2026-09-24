@@ -215,10 +215,10 @@ Update `docs/database-handoff-map.md` (Priority 1 item 4 partially closes) and `
 - [ ] Allocate a subcontractor to a job and see the approval check fire for that job's customer — blocked on item 5, not started
 - [x] An account that is both a client and a vendor shows both sections correctly (2026-09-17, verified live on Balfour Services)
 - [x] Vendor Compliance approvals attribute to a real employee, not a placeholder name (2026-09-17)
-- [ ] Uploading a W-9 or COI triggers a review step before the status can reach Approved/Valid — blocked on Phase 13
+- [x] Uploading a W-9 or COI triggers a review step before the status can reach Approved/Valid *(2026-09-24, on Phase 13: "Vendor paperwork" on the account's Vendor & Subcontractor tab; upload → In review → office decision; approval writes the profile's W-9 status / insurance expiry)*
 - [x] Performance rating renders as a real letter-grade dropdown (2026-09-17)
 - [x] A new vendor account gets an auto-generated Vendor ID with no manual entry (2026-09-17, verified live — `VEND-0001` suggested, still editable)
-- [ ] Selecting an agreement type (MSA / Standing Work Order / Rate Agreement) offers its matching template — not started, needs Phase 13 for custom-upload review
+- [x] Selecting an agreement type (MSA / Standing Work Order / Rate Agreement) offers its matching template *(2026-09-24: three document types; the office uploads each template on Identity & Sync › Document types; a custom agreement comes back through the same requirement → review path)*
 - [x] The three-way client/vendor/both document matrix (item 13) is written down and the service-agreement panel matches it (2026-09-17 — see item 13's resolved matrix; panel now labels each tracker by direction)
 
 ---
@@ -235,6 +235,8 @@ Update `docs/database-handoff-map.md` (Priority 1 item 4 partially closes) and `
 ---
 
 ## Corrections found during implementation
+
+- **Items 8, 9, 12 (2026-09-24, via Phase 13):** built as document requirements of counterparty `vendor` rather than fields on the vendor profile. The "notification to office admin on submission" is the requirement's **In review** state: the red dot on the vendor paperwork panel and on the requirement row for review roles. No `notifications` row is written — decide with Phase 11's approvals whether one should be.
 
 *(Record here anything that turned out to be different from the plan.)*
 

@@ -7098,3 +7098,104 @@ body[data-theme="dark"] .frontline-thread-avatar.office {
   display: block;
   margin-top: 4px;
 }
+
+/* Phase 13 (2026-09-24): documents, requirements, photos, account logo, portal preview. */
+
+.document-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.document-main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.document-thumb {
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.document-ext {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--teal-dark);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.document-versions summary {
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.document-versions a {
+  display: block;
+  font-size: 0.8rem;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.photo-tile {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.photo-tile img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.photo-tile figcaption {
+  display: grid;
+  gap: 2px;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-tile figcaption small {
+  color: var(--muted);
+}
+
+.requirement-row .help-text {
+  margin: 0;
+}
+
+.account-logo {
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  object-fit: contain;
+  background: #ffffff;
+}
+
+.portal-preview {
+  max-width: 360px;
+}
+
+body[data-theme="dark"] .document-ext {
+  background: var(--surface-alt);
+}

@@ -1,7 +1,7 @@
 # Phase 13 — Document Storage
 
-**Status:** Not started
-**Depends on:** Phase 12 (documents must be access-controlled from day one, not retrofitted)
+**Status:** **Shipped 2026-09-24 (sprint Wave 7)** — the generic document store, every Files tab, the document-type catalog with the two supplied PDFs as fixed forms, the requirement → instance → review → gate model, vendor paperwork (Phase 04 items 8/9/12), site photos (06/15), emergency onsite paperwork (16), and the Client Portal scoped server-side. Left: SharePoint links for bulk material, e-signature/delivery (Phase 19), PDF form-filling of Republic's form (the fields are captured; the PDF is not written).
+**Depends on:** Phase 12 (documents must be access-controlled from day one, not retrofitted) — 12a shipped first, and every document route rides on its sessions.
 **Estimated sessions:** 2
 **Gate:** Last phase before the Pilot Milestone.
 
@@ -86,15 +86,15 @@ Decide early: extend `files` or supersede it. **Recommendation: extend.** A seco
 
 ## Verification / done criteria
 
-- [ ] Upload a PDF to an account's Files tab; it persists across a reload and is visible to a second user
-- [ ] Upload the same file twice — the hash catches the duplicate
-- [ ] Attach a certificate of insurance to a vendor profile (Phase 04's deferred dependency)
-- [ ] Attach a customer approval letter to an `account_approved_subcontractors` row
-- [ ] Mark a file internal-only; confirm a Client Portal role cannot retrieve it **via direct URL**, not just via hidden UI
-- [ ] Upload a new version of an existing file; both versions are retrievable
-- [ ] Signed-out file request is refused
-- [ ] Account logo displays on the account header
-- [ ] A form tagged for the Negotiation stage can be pulled up from the Negotiation stage and no other
+- [x] Upload a PDF to an account's Files tab; it persists across a reload and is visible to a second user *(2026-09-24: second session sees it)*
+- [x] Upload the same file twice — the hash catches the duplicate *(409 "That exact file is already attached", per record)*
+- [x] Attach a certificate of insurance to a vendor profile (Phase 04's deferred dependency) *(COI requirement → upload → In review → Approve with a valid-until date; the vendor profile's insurance status and expiry are written by the approval)*
+- [x] Attach a customer approval letter to an `account_approved_subcontractors` row *(sets `evidenceDocumentId`, linked on the card)*
+- [x] Mark a file internal-only; confirm a Client Portal role cannot retrieve it **via direct URL**, not just via hidden UI *(403 for an internal file, 403 for another account's file, 200 once shared)*
+- [x] Upload a new version of an existing file; both versions are retrievable *(v1 and v2 both download)*
+- [x] Signed-out file request is refused *(401)*
+- [x] Account logo displays on the account header
+- [x] A form tagged for the Negotiation stage can be pulled up from the Negotiation stage and no other *(the Negotiation panel's picker offers exactly the packet and the waste authorization; the account-level picker offers the full customer set)*
 
 ---
 
@@ -109,7 +109,12 @@ Decide early: extend `files` or supersede it. **Recommendation: extend.** A seco
 
 ## Corrections found during implementation
 
-*(Record here anything that turned out to be different from the plan.)*
+- **2026-09-24 — what shipped.** Three collections: `documents` (polymorphic `entityType`/`entityId`, `accountId` for the portal scope, `sha256`, `groupId` + `versionNumber`, `visibility` internal|customer, `documentTypeId`, `requirementId`), `documentTypes` (14 seeded, self-healing; `kind` external-form|upload, `counterparty`, `appliesTo`, `stageGate`, `requiresReview`, `expiryDays`, `templateFile` for the two supplied PDFs or `templateDocumentId` for an uploaded template, `formFields` for Republic's form), and `documentRequirements` (`status` Not started → Sent → Returned → In review → Approved | Rejected, `currentDocumentId`, `reviewedBy/At`, `reviewNote`, `expiresAt`, `formData`, `source`). Routes: `POST /api/documents` (raw body + headers), `GET /api/documents/{id}/view|download`, `GET /api/document-types/{id}/template`; requirement writes go through the generic route with a server-side lifecycle guard (`normalizeRequirementWrite`: "In review" only from an upload, Approved/Rejected only from Admin, Office Manager, Sales Manager or Operations Manager).
+- **`files` extended, not superseded — but as a JSON collection, not `crm-schema/012_files.sql` yet.** The SQL table gets rewritten in Phase 14 to this shape (the handoff map has the column list). The three per-feature stores that already worked (`jobRequestDocuments`, `sampleLabReports`, `jobTaskAttachments`) were **left in place**: migrating binary metadata mid-sprint was more risk than value, and the Files tabs and the project's Sampling tab still show them. Fold them into `documents` in the Phase 14 migration.
+- **"Fill" for Republic's form means capturing the fields, not writing the PDF.** `requirement.formData` holds the generator/agent fields and the Republic profile number (Q19), prefilled from the account; the blank form downloads from `docs/uploaded files/` (served by an authenticated API route, never the static branch) and the signed scan comes back as the instance. Writing the AcroForm fields into the PDF needs a PDF library, which the zero-install rule rules out for now.
+- **Approval side effects live on the server** (`applyRequirementApproval`): a COI stamps the vendor profile's `insuranceStatus`/`insuranceExpiration`, a W-9 its `w9Status`, the customer packet marks the account's opportunities `accountPaperworkStatus: "Signed"` (the Won gate). The Negotiation gate itself reads approved, unexpired requirements (`paperworkApproved`). The project's Intake paperwork flag reads the same requirements when they exist and falls back to the old job-request heuristic when they don't.
+- **Client Portal (Q21):** a portal user is a `systemUsers` row with role `Client Portal` and a `clientAccountId`; the session carries it and `filterBackendForRole` returns `portalView()` — the customer's own account, contacts, facilities, projects, alerts, samples, schedule, customer-visible documents and customer-counterparty requirements, nothing else, with employees and every other collection empty and the collection routes 403. Customers can download blank forms and upload signed copies against their own requirements (always customer-visible); they cannot write anything else. An administrator previews the portal as any account from the dashboard.
+- **Not built:** SharePoint links for bulk material (Q20's other half — a URL field is trivial once the SharePoint decision is made), sending documents (Phase 19), e-signature, retention automation, full-text search.
 
 ---
 

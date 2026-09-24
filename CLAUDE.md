@@ -30,9 +30,9 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 
 | File | What |
 |---|---|
-| `app.js` | ~31,300 lines, ~1,300 functions, one ES module. The entire front end. |
-| `index.html` | ~5,900 lines. App shell + 98 `<dialog>` forms. |
-| `styles.css` | ~7,100 lines. |
+| `app.js` | ~31,900 lines, ~1,340 functions, one ES module. The entire front end. |
+| `index.html` | ~6,000 lines. App shell + 102 `<dialog>` forms. |
+| `styles.css` | ~7,200 lines. |
 | `server.mjs` | Node server. `/api/backend/{collection}` routes over `data/backend.json`; API requests run one at a time and writes are atomic. Every record carries a server-owned `version` (stale save → 409); `DELETE .../{id}` soft-deletes with a cascade table; static files are an allowlist; scheduled backups; demo seed only under `CRM_SEED_DEMO=1` (Phase 20, 2026-09-23). |
 | `scripts/` | `smoke.mjs` (run before every commit), `backup-data.mjs`/`backup-lib.mjs`, `clean-orphans.mjs`, `reset-demo-data.mjs`, `import-rate-sheet.mjs`. |
 | `data/demo-seed.json` | The demo data set the server seeds into empty collections under `CRM_SEED_DEMO=1`. |
@@ -41,7 +41,7 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 
 **Where data lives (updated 2026-09-22):**
 
-- **JSON backend** (`data/backend.json`, server, shared) — **everything.** ~103 collections. Phase 01 (2026-09-16) migrated every core CRM collection here from browser storage.
+- **JSON backend** (`data/backend.json`, server, shared) — **everything.** ~107 collections. Phase 01 (2026-09-16) migrated every core CRM collection here from browser storage.
 - **IndexedDB** — device-scoped state only: `syncQueue` and `settings`. Nothing else. If you find yourself writing a record to IndexedDB, you are doing something wrong.
 - **PostgreSQL** — designed (`crm-schema/`), never deployed. Phase 14, after the pilot.
 

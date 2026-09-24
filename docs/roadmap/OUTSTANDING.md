@@ -59,9 +59,8 @@ Two answers from that second round changed earlier entries and are already corre
 *2026-09-23 (Wave 2): industries added (plus DOT under Government, and a NAICS code per industry), `accountIndustries` confirmed authoritative, opportunity industry is now a curated picker, and facility-level environmental risk (Q55) built. "Remove the Account Table" was dropped (Q30).*
 - ~~List-filter cleanup (item 6)~~: quick-filter chips shipped 2026-09-23 (Wave 3) on Accounts, Contacts and Opportunities.
 
-### Phase 04 — Vendor & Subcontractor · *3 items, all blocked on Phase 13*
-*2026-09-23: Compliance list (4), rate sheets (7), dispatch-time approval check + vendor links on jobs (5) and the subcontractor pricing basis (14) all shipped.*
-- W-9/COI upload → review workflow; agreement templates by type (items 8, 9, 12; blocked on Phase 13)
+### Phase 04 — Vendor & Subcontractor · ✅ complete 2026-09-24
+*2026-09-23: Compliance list (4), rate sheets (7), dispatch-time approval check + vendor links on jobs (5) and the subcontractor pricing basis (14). 2026-09-24 (Wave 7, on Phase 13): W-9/COI upload → review, agreement templates by type (8, 9, 12).*
 
 ### Phase 05 — Contacts & Timeline · ✅ complete 2026-09-23
 Phone formatter (Wave 2); shared record lookup, timeline "Related" filter and Connected-via links (Wave 3).
@@ -70,7 +69,7 @@ Phone formatter (Wave 2); shared record lookup, timeline "Related" filter and Co
 **Shipped:** account-context hint relabel + "Use this text"; stage badges no longer look like buttons; `proposedSolution`/`customerNeed`/`description` write-through fallbacks removed, 12 contaminated `proposedSolution` records blanked; needs lists renamed + comma splitting + combined dialog; industry inherits for display only; close forecast replaced with relative bands (`closeBand`/`closeBandSetAt`, all existing data migrated, reverses the earlier `closeQuarter` decision); new `opportunityLocations` junction + Sites & Locations / Associated Locations panels with inline facility creation; red-dot tab/panel validation highlighting + tab contrast; site-walk quick-schedule; `customerNeed` moved to Lead & Qualification. List search (item 3) was already working.
 **Sprint (2026-09-23):** Proposed Solution scope summary (Wave 1), Connected-via panel finished and the "Regarding" cross-entity field with a new Facility timeline (Wave 3).
 Wave 4: vendor needs pick from the approved list (13).
-**Still open:** item 16 (blocked on Phase 13).
+**Still open:** item 16's guided capture flow (its photos/documents shipped on Phase 13, 2026-09-24).
 
 ### Phase 07 — Dispatch & Operations · ✅ 4 new items shipped 2026-09-23; 1 old item remains
 **Shipped 2026-09-23:** intake feed now empties (open-only by default, toggle for converted/closed); Job Register gained search + sortable columns (adopted Phase 17's shared `renderDataTable()`); dispatch schedule is a real 7-day window, no skip-ahead; conflicts gained a "Go to blocker" button (employee-credential conflicts only — no equipment/material reference field exists yet to jump to) with a transient red-outline highlight (`state.highlightPanel`, shared mechanism Phase 06 item 32 can reuse).
@@ -184,11 +183,8 @@ All of Part A is in: the static-file allowlist (live), per-record `version` with
 ### Phase 12 — Identity, Authorization & Audit · *12a shipped 2026-09-23; 12b (Entra) not started*
 Server sessions (cookie), local sign-in with passwords set by an admin, the role taken from the session on every API call (the `X-CRM-Role` header is dead), an append-only audit log naming the real user and the changed fields, revocation and disabling on the next request, break-glass emergency admin, the attachment route closed. Left: the Entra provider (needs the app registration in the bioremedy.com tenant), a per-device token for the OwnTracks endpoint, per-job scoping of sign-on-link sessions.
 
-### Phase 13 — Documents · *not started, 9 criteria + the new workflow*
-- Generic attachment store (every Files tab is a stub today)
-- **Document requirement → instance → office-admin review → stage gate**, one mechanism for the customer packet, the Republic waste authorization, vendor COIs and service agreements
-- Republic's form is a third party's PDF: fill/route/store only, never regenerate — and one packet splits into two tracked requirements
-- Unblocks Phase 04
+### Phase 13 — Documents · ✅ shipped 2026-09-24 (Wave 7)
+Generic document store with hash de-duplication and versions, every Files tab live, 14 document types (the customer packet and Republic's waste authorization as fixed PDFs), requirement → review → gate (the Negotiation gate reads approved paperwork; the project and emergency intake read the same state), vendor paperwork, site photos, account logo, and the Client Portal scoped server-side with customer uploads of returned paperwork. Left: SharePoint links, sending/e-signature (Phase 19), PDF form-filling.
 
 > ### ◆ PILOT MILESTONE
 
@@ -206,7 +202,7 @@ Server sessions (cookie), local sign-in with passwords set by an admin, the role
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
 **Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, Phase 09's Lone Star invoice also shipped (Wave 5b). **Phase 20 shipped 2026-09-23 (item 0 on its own commit, then Wave 5c). Wave 6 shipped 2026-09-23: Phase 12a (sessions, local sign-in, API enforcement, audit, revocation, break-glass) and Phase 18 item 4 (sign-on links + GPS consent).** Wave 6 was: the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
-**Before real users:** Phase 13 (12a and 20 done); Phase 12b (Entra) when the bioremedy.com app registration exists.
+**Before real users:** Phase 12b (Entra) when the bioremedy.com app registration exists — everything else in Stage C is done (20, 12a, 13). The Pilot Milestone's software is in place.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 
 Phase 10's remaining two small items are independent — a good candidate to clear in a single session when a bigger phase is blocked on a decision.

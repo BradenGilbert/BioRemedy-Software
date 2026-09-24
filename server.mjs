@@ -79,6 +79,9 @@ const roleAccess = {
     "Field Lead",
     "Inventory Manager",
     "Finance Manager",
+    // Phase 13 (2026-09-24): a customer login reads the backend too -- filterBackendForRole scopes it
+    // to their own account before it leaves the server.
+    "Client Portal",
   ],
 };
 
@@ -120,6 +123,10 @@ const collectionAccess = {
   inventoryAlerts: "dispatch",
   // Phase 18 item 4 (2026-09-23): append-only GPS consent records; written only by /api/auth/consent.
   gpsConsents: "dispatch",
+  // Phase 13 (2026-09-24): the document store, its type catalog and tracked requirements.
+  documents: "customerDirectory",
+  documentTypes: "customerDirectory",
+  documentRequirements: "customerDirectory",
   jobRequests: "dispatch",
   jobRequestDocuments: "dispatch",
   dispatchJobs: "dispatch",
@@ -675,6 +682,9 @@ const defaultBackend = {
   // building a full alerts inbox UI was out of scope for this pass.
   inventoryAlerts: [],
   gpsConsents: [],
+  documents: [],
+  documentTypes: [],
+  documentRequirements: [],
   jobRequests: [
     {
       id: "req-georgetown-072426",
@@ -2449,12 +2459,15 @@ async function loadBackend() {
     role: KNOWN_ROLES.includes(user.role) ? user.role : KNOWN_ROLES.includes(user.title) ? user.title : user.role || "",
     username: user.username || (user.internalEmailAddress || "").split("@")[0] || "",
     employeeId: user.employeeId || "",
+    clientAccountId: user.clientAccountId || "",
     isDisabled: Boolean(user.isDisabled),
   }));
   if (!data.systemUsers.some((user) => user.id === "user-braden")) {
     data.systemUsers.push({ id: "user-braden", businessUnitId: "bu-bioremedy", fullName: "Braden Gilbert", username: "bgilbert", internalEmailAddress: "bgilbert@bioremedy.com", title: "Owner", role: "Admin", employeeId: "", isDisabled: false, createdAt: new Date().toISOString() });
   }
-  if (seedDemoData && (await seedDemoCollections(data))) await saveBackend(data);
+  let dirty = seedDemoData && (await seedDemoCollections(data));
+  if (ensureDocumentTypes(data)) dirty = true;
+  if (dirty) await saveBackend(data);
   return data;
 }
 
@@ -2561,8 +2574,12 @@ function appendInventoryMovement(data, movement) {
   });
 }
 
-function filterBackendForRole(data, role) {
+function filterBackendForRole(data, role, session = null) {
+  if (isPortalRole(role)) return portalView(data, session);
   return {
+    documents: canAccess(role, "customerDirectory") ? data.documents || [] : [],
+    documentTypes: data.documentTypes || [],
+    documentRequirements: canAccess(role, "customerDirectory") ? data.documentRequirements || [] : [],
     accounts: canAccess(role, "customerDirectory") ? data.accounts : [],
     contacts: canAccess(role, "customerDirectory") ? data.contacts : [],
     projects: canAccess(role, "customerDirectory") ? data.projects : [],
@@ -3688,6 +3705,7 @@ function publicSession(session) {
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,
     dispatchJobId: session.dispatchJobId || "",
+    clientAccountId: session.clientAccountId || "",
     consentId: session.consentId || "",
     consentRequired: session.kind === "dispatch-link" && !session.consentId,
     termsVersion: CONSENT_TERMS.version,
@@ -3699,7 +3717,7 @@ function pruneSessions(auth) {
   auth.sessions = auth.sessions.filter((session) => new Date(session.expiresAt).getTime() > cutoff);
 }
 
-async function createSession(auth, request, { kind, systemUserId = "", employeeId = "", name, email = "", role, dispatchJobId = "", expiresAt = "" }) {
+async function createSession(auth, request, { kind, systemUserId = "", employeeId = "", name, email = "", role, dispatchJobId = "", expiresAt = "", clientAccountId = "" }) {
   const token = newToken();
   const now = new Date();
   const session = {
@@ -3712,6 +3730,7 @@ async function createSession(auth, request, { kind, systemUserId = "", employeeI
     email,
     role,
     dispatchJobId,
+    clientAccountId,
     consentId: "",
     createdAt: now.toISOString(),
     lastSeenAt: now.toISOString(),
@@ -3887,6 +3906,7 @@ async function handleAuth(request, response, pathname) {
       name: user.fullName,
       email: user.internalEmailAddress || "",
       role,
+      clientAccountId: role === "Client Portal" ? user.clientAccountId || "" : "",
     });
     request.session = created;
     await audit(request, { action: "login", provider: "local", summary: user.fullName });
@@ -4078,6 +4098,357 @@ async function handleSignOnLink(request, response, token) {
   response.end();
 }
 
+// ---- Phase 13 (2026-09-24): documents, document types, requirements, review, Client Portal scope ----
+//
+// One store any record can hang a file on (`documents`: polymorphic entityType/entityId, sha-256,
+// versions by groupId, internal/customer visibility), a catalog of document types (`documentTypes`:
+// the customer packet and Republic's waste authorization are fixed external PDFs that are filled,
+// routed and stored -- never regenerated), and tracked requirements (`documentRequirements`) with the
+// lifecycle Not started -> Sent -> Returned -> In review -> Approved | Rejected. Review is a human
+// step: an upload can only ever put a requirement "In review". Q20: the CRM holds state-carrying
+// documents; bulk material stays in SharePoint. Q22: 25 MB, PDF / images / Office formats.
+const DOCUMENT_UPLOAD_MIME_TYPES = new Map([
+  ...jobRequestDocumentMimeTypes,
+  [".webp", "image/webp"],
+  [".heic", "image/heic"],
+  [".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+  [".txt", "text/plain; charset=utf-8"],
+]);
+const DOCUMENT_ENTITY_TYPES = new Map([
+  ["account", "accounts"],
+  ["contact", "contacts"],
+  ["opportunity", "opportunities"],
+  ["project", "projects"],
+  ["facility", "facilities"],
+  ["dispatchJob", "dispatchJobs"],
+  ["jobRequest", "jobRequests"],
+  ["accountApprovedSubcontractors", "accountApprovedSubcontractors"],
+  ["vendorProfile", "vendorProfiles"],
+  ["documentType", "documentTypes"],
+  ["sample", "sampleRecords"],
+]);
+const REQUIREMENT_STATUSES = ["Not started", "Sent", "Returned", "In review", "Approved", "Rejected"];
+const REVIEW_ROLES = ["Admin", "Office Manager", "Sales Manager", "Operations Manager"];
+const templatesDir = path.join(root, "docs", "uploaded files");
+
+const documentTypeSeed = [
+  { id: "doctype-customer-packet", code: "customer-packet", name: "New customer packet", kind: "external-form", counterparty: "customer", appliesTo: ["account", "opportunity", "project"], stageGate: "Negotiation", requiresReview: true, expiryDays: null, templateFile: "New Customer Packet trey.pdf", description: "BioRemedy's new-account paperwork: sent to the customer, returned signed, reviewed by the office before the deal moves to Negotiation." },
+  { id: "doctype-waste-authorization", code: "waste-authorization", name: "Third-party waste authorization (Republic)", kind: "external-form", counterparty: "customer", appliesTo: ["account", "opportunity", "project"], stageGate: "Negotiation", requiresReview: true, expiryDays: null, templateFile: "New Customer Packet trey.pdf", templateNote: "Republic's own form, the last page of the customer packet. It authorises BioRemedy as the generator's agent at the disposal facility. Fill it, route it for signature and store the signed copy; never regenerate or restyle it.", formFields: [["generatorName", "Name of generator"], ["generatorMailingAddress", "Generator mailing address"], ["generatorContactName", "Generator contact (print name)"], ["generatorContactTitle", "Generator contact title"], ["generatorContactPhone", "Generator contact phone"], ["profileNumber", "Republic profile number (internal)"], ["agentCompany", "Agent company"], ["agentAddress", "Agent company address"], ["agentIndividual", "Agent individual"], ["agentIndividualTitle", "Agent individual title"]], description: "Republic's waste profile authorization. One packet, two tracked requirements." },
+  { id: "doctype-service-agreement-msa", code: "service-agreement-msa", name: "Service agreement — MSA", kind: "upload", counterparty: "customer", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: 365, description: "Master service agreement. Upload the office template on Identity & Sync › Document types; custom versions come back for review." },
+  { id: "doctype-service-agreement-standing", code: "service-agreement-standing", name: "Service agreement — standing work order", kind: "upload", counterparty: "customer", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: 365, description: "Standing work order agreement." },
+  { id: "doctype-service-agreement-rate", code: "service-agreement-rate", name: "Service agreement — rate agreement", kind: "upload", counterparty: "customer", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: 365, description: "Rate agreement." },
+  { id: "doctype-signed-quote", code: "signed-quote", name: "Signed quote", kind: "upload", counterparty: "customer", appliesTo: ["opportunity"], stageGate: "", requiresReview: false, expiryDays: null, description: "The customer's signed copy of a quote." },
+  { id: "doctype-vendor-form", code: "vendor-form", name: "New vendor form", kind: "external-form", counterparty: "vendor", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: null, templateFile: "New Vendor Form.pdf", description: "BioRemedy's vendor onboarding form." },
+  { id: "doctype-vendor-w9", code: "vendor-w9", name: "W-9", kind: "upload", counterparty: "vendor", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: null, description: "The vendor's W-9. Approval marks the vendor profile's W-9 as approved." },
+  { id: "doctype-vendor-coi", code: "vendor-coi", name: "Certificate of insurance (COI)", kind: "upload", counterparty: "vendor", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: 365, description: "Approval sets the vendor profile's insurance expiry from the certificate." },
+  { id: "doctype-approval-letter", code: "approval-letter", name: "Customer approval letter (subcontractor)", kind: "upload", counterparty: "customer", appliesTo: ["accountApprovedSubcontractors"], stageGate: "", requiresReview: false, expiryDays: null, description: "The customer's written approval of a subcontractor." },
+  { id: "doctype-site-photo", code: "site-photo", name: "Site photo", kind: "upload", counterparty: "internal", appliesTo: ["opportunity", "project", "facility", "account", "dispatchJob"], stageGate: "", requiresReview: false, expiryDays: null, isImage: true, description: "Photos from a site walk or from the field." },
+  { id: "doctype-account-logo", code: "account-logo", name: "Account logo", kind: "upload", counterparty: "internal", appliesTo: ["account"], stageGate: "", requiresReview: false, expiryDays: null, isImage: true, description: "Shown on the account header." },
+  { id: "doctype-lab-report", code: "lab-report", name: "Lab report", kind: "upload", counterparty: "internal", appliesTo: ["project", "sample", "dispatchJob"], stageGate: "", requiresReview: false, expiryDays: null, description: "A laboratory's report." },
+  { id: "doctype-other", code: "other", name: "Other document", kind: "upload", counterparty: "internal", appliesTo: ["account", "contact", "opportunity", "project", "facility", "dispatchJob", "jobRequest"], stageGate: "", requiresReview: false, expiryDays: null, description: "Anything else worth keeping with the record." },
+];
+
+// Adds any seeded type that is missing; never overwrites an existing row (the office may have
+// renamed one or uploaded a template).
+function ensureDocumentTypes(data) {
+  if (!Array.isArray(data.documentTypes)) data.documentTypes = [];
+  let added = false;
+  for (const type of documentTypeSeed) {
+    if (data.documentTypes.some((item) => item.id === type.id)) continue;
+    data.documentTypes.push(touchRecord(structuredClone(type)));
+    added = true;
+  }
+  return added;
+}
+
+function documentEntityCollection(entityType) {
+  return DOCUMENT_ENTITY_TYPES.get(entityType) || "";
+}
+
+function findEntityRecord(data, entityType, entityId) {
+  const collection = documentEntityCollection(entityType);
+  if (!collection) return null;
+  return (data[collection] || []).find((item) => item.id === entityId && !item.deletedAt) || null;
+}
+
+// The account a document belongs to, for the Client Portal scope.
+function accountIdForEntity(data, entityType, record) {
+  if (!record) return "";
+  if (entityType === "account") return record.id;
+  if (entityType === "documentType") return "";
+  if (record.accountId) return record.accountId;
+  if (entityType === "dispatchJob" && record.projectId) return (data.projects || []).find((item) => item.id === record.projectId)?.accountId || "";
+  if (entityType === "sample" && record.projectId) return (data.projects || []).find((item) => item.id === record.projectId)?.accountId || "";
+  return "";
+}
+
+function isPortalRole(role) {
+  return role === "Client Portal";
+}
+
+function portalCanSeeDocument(session, document) {
+  return Boolean(session?.clientAccountId && document.accountId === session.clientAccountId && document.visibility === "customer" && !document.deletedAt);
+}
+
+// What a customer sees when they sign in: their own account and what hangs off it, and nothing
+// about anyone else, any employee, or any internal document. Enforced here, not in the UI.
+function portalView(data, session) {
+  const accountId = session?.clientAccountId || "";
+  const own = (rows, key = "accountId") => (rows || []).filter((row) => !row.deletedAt && row[key] === accountId);
+  const projects = own(data.projects);
+  const projectIds = new Set(projects.map((project) => project.id));
+  const byProject = (rows) => (rows || []).filter((row) => !row.deletedAt && projectIds.has(row.projectId));
+  const view = {};
+  for (const key of Object.keys(data)) view[key] = Array.isArray(data[key]) ? [] : data[key] && typeof data[key] === "object" ? {} : data[key];
+  view.accounts = own(data.accounts, "id");
+  view.contacts = own(data.contacts);
+  view.facilities = own(data.facilities);
+  view.addresses = own(data.addresses);
+  view.projects = projects;
+  view.projectAlerts = byProject(data.projectAlerts);
+  view.sampleRecords = byProject(data.sampleRecords);
+  view.spatialData = byProject(data.spatialData);
+  view.scheduleEvents = byProject(data.scheduleEvents);
+  view.scheduledWork = own(data.scheduledWork);
+  view.dispatchJobs = own(data.dispatchJobs).map((job) => ({ id: job.id, jobNumber: job.jobNumber, jobName: job.jobName, projectId: job.projectId, status: job.status, scheduledStart: job.scheduledStart, scheduledEnd: job.scheduledEnd, locationName: job.locationName }));
+  view.documentTypes = (data.documentTypes || []).filter((type) => !type.deletedAt && type.counterparty === "customer");
+  view.documents = (data.documents || []).filter((document) => portalCanSeeDocument(session, document));
+  view.documentRequirements = (data.documentRequirements || []).filter((requirement) => !requirement.deletedAt && requirement.accountId === accountId && requirement.counterparty === "customer");
+  view.systemUsers = [];
+  return view;
+}
+
+function documentSummary(document) {
+  return { ...document };
+}
+
+async function handleDocumentUpload(request, response) {
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const session = request.session;
+  const role = getRole(request);
+  const header = (name) => decodeHeaderText(request.headers[name]?.toString() || "");
+  const entityType = header("x-entity-type");
+  const entityId = header("x-entity-id");
+  const documentTypeId = header("x-document-type");
+  const requirementId = header("x-requirement-id");
+  const groupId = header("x-group-id");
+  const caption = header("x-caption").slice(0, 200);
+  let visibility = header("x-visibility") === "customer" ? "customer" : "internal";
+  if (!documentEntityCollection(entityType)) return json(response, 400, { error: "Unknown record type for this document." });
+
+  const fileName = normalizeUploadFileName(request.headers["x-file-name"]?.toString());
+  const extension = path.extname(fileName).toLowerCase();
+  const mimeType = DOCUMENT_UPLOAD_MIME_TYPES.get(extension);
+  if (!fileName || !mimeType) return json(response, 415, { error: "Upload a PDF, image, or Office document (25 MB max)." });
+
+  const data = await loadBackend();
+  const entity = findEntityRecord(data, entityType, entityId);
+  if (!entity) return json(response, 404, { error: "The record this document belongs to was not found." });
+  const accountId = accountIdForEntity(data, entityType, entity);
+  const requirement = requirementId ? (data.documentRequirements || []).find((item) => item.id === requirementId && !item.deletedAt) : null;
+  if (requirementId && !requirement) return json(response, 404, { error: "Requirement not found." });
+  const type = documentTypeId ? (data.documentTypes || []).find((item) => item.id === documentTypeId) : requirement ? (data.documentTypes || []).find((item) => item.id === requirement.documentTypeId) : null;
+
+  if (isPortalRole(role)) {
+    // A customer may only return paperwork on their own requirements; what they send is theirs to see.
+    if (!requirement || requirement.accountId !== session.clientAccountId || requirement.counterparty !== "customer") {
+      return json(response, 403, { error: "Customers can only upload paperwork that was requested from them." });
+    }
+    visibility = "customer";
+  } else if (!canAccess(role, "customerDirectory")) {
+    return json(response, 403, { error: "Your role cannot upload documents." });
+  }
+  if (entityType === "documentType" && role !== "Admin") return json(response, 403, { error: "Only an administrator can upload a document type's template." });
+
+  const body = await readRequestBody(request, maxJobRequestDocumentBytes);
+  if (!body.length) return json(response, 400, { error: "The selected file is empty." });
+  const sha256 = createHash("sha256").update(body).digest("hex");
+  const duplicate = (data.documents || []).find((item) => !item.deletedAt && item.sha256 === sha256 && item.entityType === entityType && item.entityId === entityId);
+  if (duplicate) return json(response, 409, { error: `That exact file is already attached (${duplicate.fileName}, uploaded ${duplicate.uploadedAt.slice(0, 10)}).`, duplicate: true, documentId: duplicate.id });
+
+  const previous = groupId ? (data.documents || []).filter((item) => item.groupId === groupId).sort((a, b) => b.versionNumber - a.versionNumber)[0] : null;
+  const document = touchRecord({
+    id: makeId("document"),
+    entityType,
+    entityId,
+    accountId,
+    documentTypeId: type?.id || previous?.documentTypeId || "",
+    requirementId: requirement?.id || previous?.requirementId || "",
+    fileName,
+    mimeType,
+    sizeBytes: body.length,
+    sha256,
+    storageName: "",
+    groupId: previous?.groupId || "",
+    versionNumber: previous ? Number(previous.versionNumber || 1) + 1 : 1,
+    visibility: previous ? previous.visibility : visibility,
+    caption: caption || previous?.caption || "",
+    tags: previous?.tags || [],
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: attribution(request),
+    uploadedBySessionKind: session?.kind || "",
+    retainUntil: "",
+    deletedAt: "",
+  });
+  document.groupId = document.groupId || document.id;
+  document.storageName = `${document.id}${extension}`;
+  await mkdir(uploadsDir, { recursive: true });
+  await writeFile(path.join(uploadsDir, document.storageName), body);
+  if (!Array.isArray(data.documents)) data.documents = [];
+  data.documents.push(document);
+
+  if (requirement) {
+    // Ingest never satisfies a requirement by itself: it goes to a person for review.
+    requirement.currentDocumentId = document.id;
+    requirement.documentIds = [...(requirement.documentIds || []), document.id];
+    requirement.returnedAt = new Date().toISOString();
+    requirement.status = type?.requiresReview === false ? "Approved" : "In review";
+    if (requirement.status === "Approved") {
+      requirement.reviewedAt = requirement.returnedAt;
+      requirement.reviewedBy = "auto (no review required)";
+    }
+    touchRecord(requirement);
+  }
+  if (entityType === "accountApprovedSubcontractors") {
+    entity.evidenceDocumentId = document.id;
+    touchRecord(entity);
+  }
+  if (entityType === "documentType") {
+    entity.templateDocumentId = document.id;
+    touchRecord(entity);
+  }
+  await saveBackend(data);
+  await audit(request, { action: "upload", collection: "documents", recordId: document.id, summary: `${document.fileName} → ${entityType}/${entityId}`, requirementId: requirement?.id || "", version: document.versionNumber });
+  return json(response, 201, documentSummary(document));
+}
+
+async function handleDocumentFile(request, response, documentId, inline) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  const role = getRole(request);
+  const data = await loadBackend();
+  const document = (data.documents || []).find((item) => item.id === documentId);
+  if (!document || document.deletedAt) return json(response, 404, { error: "Document not found." });
+  if (isPortalRole(role)) {
+    if (!portalCanSeeDocument(request.session, document)) return json(response, 403, { error: "This document is not shared with your account." });
+  } else if (!canAccess(role, "customerDirectory")) {
+    return json(response, 403, { error: "Your role cannot open documents." });
+  }
+  const filePath = path.resolve(uploadsDir, document.storageName);
+  if (path.dirname(filePath) !== path.resolve(uploadsDir) || !existsSync(filePath)) return json(response, 404, { error: "Stored file is unavailable." });
+  const body = await readFile(filePath);
+  response.writeHead(200, {
+    "Content-Type": document.mimeType || "application/octet-stream",
+    "Content-Length": body.length,
+    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(document.fileName)}`,
+    "Cache-Control": "private, no-store",
+  });
+  response.end(body);
+}
+
+// A type's blank form: the supplied PDF in docs/uploaded files (never served by the static branch),
+// or the template the office uploaded for the type.
+async function handleDocumentTemplate(request, response, typeId) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  const role = getRole(request);
+  const data = await loadBackend();
+  const type = (data.documentTypes || []).find((item) => item.id === typeId && !item.deletedAt);
+  if (!type) return json(response, 404, { error: "Document type not found." });
+  if (isPortalRole(role) && type.counterparty !== "customer") return json(response, 403, { error: "Not available to customers." });
+  if (type.templateDocumentId) {
+    const template = (data.documents || []).find((item) => item.id === type.templateDocumentId && !item.deletedAt);
+    if (template) {
+      const filePath = path.resolve(uploadsDir, template.storageName);
+      if (existsSync(filePath)) {
+        const body = await readFile(filePath);
+        response.writeHead(200, { "Content-Type": template.mimeType, "Content-Length": body.length, "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(template.fileName)}`, "Cache-Control": "private, no-store" });
+        response.end(body);
+        return;
+      }
+    }
+  }
+  if (!type.templateFile) return json(response, 404, { error: "This document type has no blank form on file yet." });
+  const filePath = path.resolve(templatesDir, type.templateFile);
+  if (path.dirname(filePath) !== path.resolve(templatesDir) || !existsSync(filePath)) return json(response, 404, { error: "The blank form is missing from the templates folder." });
+  const body = await readFile(filePath);
+  response.writeHead(200, { "Content-Type": "application/pdf", "Content-Length": body.length, "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(type.templateFile)}`, "Cache-Control": "private, no-store" });
+  response.end(body);
+}
+
+// Side effects of an approved requirement, so the rest of the app reads one state instead of asking
+// again: a COI stamps the vendor profile's insurance expiry, a W-9 its W-9 status, the customer
+// packet marks the account's opportunities' paperwork signed (the Won gate reads that field).
+function applyRequirementApproval(data, requirement, type) {
+  if (!type) return;
+  if (type.counterparty === "vendor" && requirement.accountId) {
+    const profile = (data.vendorProfiles || []).find((item) => item.accountId === requirement.accountId && !item.deletedAt);
+    if (profile) {
+      if (type.code === "vendor-coi") {
+        profile.insuranceStatus = "Valid";
+        if (requirement.expiresAt) profile.insuranceExpiration = requirement.expiresAt.slice(0, 10);
+        touchRecord(profile);
+      }
+      if (type.code === "vendor-w9") {
+        profile.w9Status = "Approved";
+        touchRecord(profile);
+      }
+    }
+  }
+  if (type.code === "customer-packet" && requirement.accountId) {
+    for (const opportunity of data.opportunities || []) {
+      if (opportunity.deletedAt || opportunity.accountId !== requirement.accountId) continue;
+      if (requirement.entityType === "opportunity" && requirement.entityId !== opportunity.id) continue;
+      if (opportunity.accountPaperworkStatus !== "Signed") {
+        opportunity.accountPaperworkStatus = "Signed";
+        touchRecord(opportunity);
+      }
+    }
+  }
+}
+
+// Generic-route guard for documentRequirements: the lifecycle is enforced here. "In review" comes
+// only from an upload; Approved / Rejected only from a review role, stamped with who and when.
+function normalizeRequirementWrite(data, request, body, stored) {
+  const role = getRole(request);
+  if (isPortalRole(role)) return { error: "Customers cannot change requirements.", status: 403 };
+  const type = (data.documentTypes || []).find((item) => item.id === body.documentTypeId);
+  if (!type) return { error: "Choose a document type.", status: 400 };
+  const status = REQUIREMENT_STATUSES.includes(body.status) ? body.status : stored?.status || "Not started";
+  const record = {
+    ...(stored || {}),
+    ...body,
+    id: body.id || stored?.id,
+    documentTypeId: type.id,
+    counterparty: type.counterparty,
+    status,
+    documentIds: stored?.documentIds || body.documentIds || [],
+    currentDocumentId: stored?.currentDocumentId || "",
+    createdAt: stored?.createdAt || new Date().toISOString(),
+    createdBy: stored?.createdBy || attribution(request),
+  };
+  const now = new Date().toISOString();
+  if (status !== stored?.status) {
+    if (status === "In review") return { error: "A requirement goes into review when a document is uploaded against it.", status: 400 };
+    if (["Approved", "Rejected"].includes(status)) {
+      if (!REVIEW_ROLES.includes(role)) return { error: "Only an administrator, office manager, sales manager or operations manager can approve or reject paperwork.", status: 403 };
+      if (status === "Approved" && type.requiresReview && !record.currentDocumentId) return { error: "Nothing has been returned yet — upload the signed document before approving.", status: 400 };
+      record.reviewedAt = now;
+      record.reviewedBy = request.session?.name || attribution(request);
+      record.reviewNote = String(body.reviewNote || "").slice(0, 500);
+      if (status === "Approved") {
+        if (!record.expiresAt && type.expiryDays) record.expiresAt = new Date(Date.now() + type.expiryDays * 86400000).toISOString();
+        applyRequirementApproval(data, record, type);
+      }
+    }
+    if (status === "Sent") record.sentAt = record.sentAt || now;
+    if (status === "Not started") {
+      record.sentAt = "";
+      record.reviewedAt = "";
+      record.reviewedBy = "";
+    }
+  }
+  return { record };
+}
+
 async function handleApi(request, response, pathname) {
   const role = getRole(request);
 
@@ -4121,6 +4492,13 @@ async function handleApi(request, response, pathname) {
     return handleJobExpenseReceiptUpload(request, response, jobExpenseReceiptMatch[1]);
   }
 
+  // Phase 13 (2026-09-24): the generic document store.
+  if (pathname === "/api/documents") return handleDocumentUpload(request, response);
+  const documentFileMatch = pathname.match(/^\/api\/documents\/([^/]+)\/(download|view)$/);
+  if (documentFileMatch) return handleDocumentFile(request, response, documentFileMatch[1], documentFileMatch[2] === "view");
+  const documentTemplateMatch = pathname.match(/^\/api\/document-types\/([^/]+)\/template$/);
+  if (documentTemplateMatch) return handleDocumentTemplate(request, response, documentTemplateMatch[1]);
+
   const jobTaskAttachmentViewMatch = pathname.match(/^\/api\/job-task-attachments\/([^/]+)\/view$/);
   if (jobTaskAttachmentViewMatch) {
     return handleJobTaskAttachmentView(request, response, jobTaskAttachmentViewMatch[1]);
@@ -4134,7 +4512,7 @@ async function handleApi(request, response, pathname) {
   if (pathname === "/api/backend" && request.method === "GET") {
     if (!canAccess(role, "identity")) return json(response, 403, { error: "Role is not allowed to read backend data." });
     const data = await loadBackend();
-    return json(response, 200, filterBackendForRole(data, role));
+    return json(response, 200, filterBackendForRole(data, role, request.session));
   }
 
   if (pathname === "/api/qbo/export" && request.method === "POST") {
@@ -4201,15 +4579,35 @@ async function handleApi(request, response, pathname) {
     if (collection === "systemUsers" && role !== "Admin") {
       return json(response, 403, { error: "Only an administrator can change users." });
     }
+    if (collection === "documentTypes" && role !== "Admin") {
+      return json(response, 403, { error: "Only an administrator can change document types." });
+    }
+    if (isPortalRole(role)) {
+      return json(response, 403, { error: "Customers cannot write records directly." });
+    }
     const body = await readJsonBody(request);
     if (collection === "systemUsers") {
       if (body.role && !KNOWN_ROLES.includes(body.role)) return json(response, 400, { error: `Unknown role "${body.role}".` });
       body.username = String(body.username || "").trim().toLowerCase();
       body.internalEmailAddress = String(body.internalEmailAddress || "").trim().toLowerCase();
+      body.clientAccountId = body.role === "Client Portal" ? String(body.clientAccountId || "") : "";
+      if (body.role === "Client Portal" && !body.clientAccountId) return json(response, 400, { error: "A Client Portal user needs the customer account they belong to." });
       const clash = (data.systemUsers || []).find((user) => user.id !== body.id && !user.deletedAt && ((body.username && (user.username || "").toLowerCase() === body.username) || (body.internalEmailAddress && (user.internalEmailAddress || "").toLowerCase() === body.internalEmailAddress)));
       if (clash) return json(response, 409, { error: `${clash.fullName} already uses that username or email.` });
     }
-    const record = normalizeRecord(collection, body, data);
+    let record = normalizeRecord(collection, body, data);
+    if (collection === "documents") {
+      // Files enter only through /api/documents; this route edits a document's metadata.
+      const storedDocument = (data.documents || []).find((item) => item.id === body.id);
+      if (!storedDocument) return json(response, 405, { error: "Upload files through the document store, not this route." });
+      record = { ...storedDocument, visibility: body.visibility === "customer" ? "customer" : "internal", caption: String(body.caption || "").slice(0, 200), tags: Array.isArray(body.tags) ? body.tags : storedDocument.tags || [], documentTypeId: body.documentTypeId || storedDocument.documentTypeId, retainUntil: body.retainUntil || "" };
+    }
+    if (collection === "documentRequirements") {
+      const storedRequirement = (data.documentRequirements || []).find((item) => item.id === body.id);
+      const result = normalizeRequirementWrite(data, request, body, storedRequirement);
+      if (result.error) return json(response, result.status, { error: result.error });
+      record = result.record;
+    }
     if (collection === "scheduleEvents") {
       const block = validateScheduleEvent(data, record);
       if (block) return json(response, 409, { error: block, blocked: true });

@@ -339,6 +339,7 @@ Update `docs/database-handoff-map.md` when any of the above land.
 
 ## Corrections found during implementation
 
+- **Item 16 (2026-09-24, partial, via Phase 13):** site-walk photos and documents now attach to the **opportunity** (Files & Activity tab: Documents, Site walk photos) and follow the deal onto the project's Files tab. The "sales-side field capture app" itself — a Front Line-style capture flow for sales — was not built; the phone can already use the same upload dialog through the browser. Reopen as its own item if the owner wants a guided capture flow.
 - **2026-09-23 (owner's bug list): site walks are scheduled properly.** "Schedule" on Develop & Planning opens `#siteWalkDialog`: the opportunity's facility (linked facilities first, then the account's), date and times, a BioRemedy participant picker and notes. Saving writes a `scheduleEvents` row (`kind: "site_walk"`, `opportunityId`, `facilityId`, `participantEmployeeIds`, `startTime`/`endTime`, `activityId`), a Site Visit meeting on the timeline, adds participants to the opportunity's Team (`opportunityAssignments`, purpose Sales, role "Site walk") and sets `siteWalkStatus` to Scheduled. The walk shows on the workforce schedule, the operations calendar, the dispatch board's Scheduled column (blue "Sales activity" card) and Front Line's Job Book. The old quick-schedule shortcut into the meeting dialog was removed.
 
 *(Record here anything that turned out to be different from the plan.)*

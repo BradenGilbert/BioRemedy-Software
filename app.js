@@ -60,6 +60,9 @@ const STAGE_REQUIRED_FIELDS = {
     { key: "siteWalkStatus", label: "Site walk status" },
   ],
   Negotiation: [
+    // Phase 13 (2026-09-24): the office-approved requirement, not "is a file attached".
+    { key: "customerPacketApproved", label: "New customer packet approved", validate: (opportunity) => paperworkApproved(opportunity.accountId, "customer-packet", opportunity.id) },
+    { key: "wasteAuthorizationApproved", label: "Waste authorization approved", validate: (opportunity) => paperworkApproved(opportunity.accountId, "waste-authorization", opportunity.id) },
     { key: "proposalDevelopedStatus", label: "Develop proposal", validate: (opportunity) => opportunity.proposalDevelopedStatus === "Complete" },
     { key: "internalReviewStatus", label: "Complete internal review", validate: (opportunity) => opportunity.internalReviewStatus === "Complete" },
     { key: "proposalPresentedStatus", label: "Present proposal", validate: (opportunity) => opportunity.proposalPresentedStatus === "Complete" },
@@ -123,6 +126,8 @@ const OPPORTUNITY_FIELD_LOCATIONS = {
   proposalPresentedStatus: { tab: "proposal-documents", panel: "proposal-status" },
   quoteId: { tab: "proposal-documents", panel: "quote" },
   accountPaperworkStatus: { tab: "proposal-documents", panel: "negotiation-signoff" },
+  customerPacketApproved: { tab: "proposal-documents", panel: "paperwork" },
+  wasteAuthorizationApproved: { tab: "proposal-documents", panel: "paperwork" },
   quoteSignedStatus: { tab: "proposal-documents", panel: "negotiation-signoff" },
   workAuthorizationStatus: { tab: "proposal-documents", panel: "negotiation-signoff" },
 };
@@ -293,7 +298,7 @@ const workspaces = [
     id: "client",
     label: "Client Portal",
     defaultView: "client-dashboard",
-    roles: ["Admin", "Client"],
+    roles: ["Admin", "Client Portal"],
   },
   {
     id: "sync",
@@ -1044,6 +1049,7 @@ const state = {
   freshDispatchLink: null,
   consentTerms: null,
   consentTermsLoading: false,
+  portalPreviewAccountId: "",
   accountSearch: "",
   accountIndustryFilter: "",
   accountTableView: "sales",
@@ -2145,6 +2151,17 @@ async function dispatchClick(event) {
   if (action === "create-dispatch-link") await createDispatchLink(actionButton.dataset.jobId, actionButton.dataset.employeeId);
   if (action === "copy-text") await copyTextToClipboard(actionButton.dataset.text || "");
   if (action === "accept-consent") await acceptConsent();
+  if (action === "open-document-upload") openDocumentUploadDialog({ entityType: actionButton.dataset.entityType, entityId: actionButton.dataset.entityId, typeId: actionButton.dataset.typeId || "", groupId: actionButton.dataset.groupId || "" });
+  if (action === "toggle-document-visibility") await toggleDocumentVisibility(id);
+  if (action === "open-requirement") openRequirementDialog({ accountId: actionButton.dataset.accountId, entityType: actionButton.dataset.entityType, entityId: actionButton.dataset.entityId, counterparty: actionButton.dataset.counterparty || null, stageGate: actionButton.dataset.stageGate });
+  if (action === "start-required-paperwork") await startRequiredPaperwork(actionButton);
+  if (action === "mark-requirement-sent") await markRequirementSent(id);
+  if (action === "open-requirement-upload") {
+    const requirement = getDocumentRequirements().find((item) => item.id === id);
+    if (requirement) openDocumentUploadDialog({ entityType: requirement.entityType, entityId: requirement.entityId, requirementId: requirement.id });
+  }
+  if (action === "open-requirement-review") openRequirementReviewDialog(id);
+  if (action === "open-requirement-form") openRequirementFormDialog(id);
   if (action === "start-microsoft-signin") await startMicrosoftSignIn();
   if (action === "frontline-login") await frontlineLogin();
   if (action === "frontline-go-home") {
@@ -2347,6 +2364,10 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "break-glass") await breakGlassSignIn(form);
   if (form.dataset.form === "system-user") await saveSystemUser(form);
   if (form.dataset.form === "set-password") await saveSetPassword(form);
+  if (form.dataset.form === "document-upload") await uploadDocument(form);
+  if (form.dataset.form === "requirement") await saveRequirement(form);
+  if (form.dataset.form === "requirement-review") await saveRequirementReview(form);
+  if (form.dataset.form === "requirement-form") await saveRequirementForm(form);
   if (form.dataset.form === "dispatch-message") await dispatchSendMessage(form);
   if (form.dataset.form === "frontline-location-ping") await frontlineRecordLocationPing(form);
   if (form.dataset.form === "frontline-clock-in") await frontlineClockIn(form);
@@ -2511,6 +2532,11 @@ function handleInputInner(event) {
     return;
   }
 
+  if (event.target.id === "portalPreviewAccount") {
+    state.portalPreviewAccountId = event.target.value;
+    render();
+    return;
+  }
   if (event.target.id === "frontlineRegionSelect") {
     state.frontlineJobFilter.region = event.target.value;
     renderFrontlineJobBook();
@@ -3049,6 +3075,8 @@ function canCreateProjectFromOpportunity() {
 }
 
 function ensureAllowedView() {
+  // A customer login has no office Home: the portal dashboard is its home.
+  if (state.view === "home" && state.currentUser?.role === "Client Portal") state.view = "client-dashboard";
   if (canAccessView(state.view)) return;
   state.selectedAccountId = "";
   state.selectedContactId = "";
@@ -3060,7 +3088,7 @@ function ensureAllowedView() {
 }
 
 function getDefaultAllowedView() {
-  return "home";
+  return state.currentUser?.role === "Client Portal" ? "client-dashboard" : "home";
 }
 
 function isActiveModule(moduleView) {
@@ -4161,6 +4189,8 @@ function renderOpportunityProposalDocumentsTab(opportunity, missingFields = []) 
           </dl>
         </div>
       </article>
+
+      ${renderRequirementsPanel({ entityType: "opportunity", entityId: opportunity.id, accountId: opportunity.accountId, counterparty: "customer", stageGate: "Negotiation", title: "Paperwork that gates Negotiation", subtitle: "Sent to the customer, returned signed, approved by the office — then the deal can move", panelClass: panelNeedsAttention(missingFields, "paperwork") ? "panel-needs-attention" : "", quickCodes: ["customer-packet", "waste-authorization"] })}
     </section>
   `;
 }
@@ -4170,6 +4200,8 @@ function renderOpportunityFilesActivityTab(opportunity) {
   const tasks = openTasksForAccount(opportunity.accountId);
   return `
     <section class="crm-profile-grid">
+      ${renderDocumentsPanel({ entityType: "opportunity", entityId: opportunity.id, title: "Documents", subtitle: "Signed quotes, correspondence, renderings", exclude: isImageDocument })}
+      ${renderDocumentsPanel({ entityType: "opportunity", entityId: opportunity.id, title: "Site walk photos", subtitle: "Taken before the sale; they follow the deal onto the project", typeId: documentTypeByCode("site-photo")?.id || "", imagesOnly: true })}
       <article class="panel">
         <div class="panel-header"><h3>Log activity</h3></div>
         <div class="panel-body">
@@ -5382,7 +5414,7 @@ function renderAccountDetailHeader(account) {
   return `
     <div class="account-hero">
       <div class="account-hero-identity">
-        <span class="person-avatar large">${escapeHtml(getInitials(account.name, "AC"))}</span>
+        ${renderAccountLogo(account)}
         <div>
           <div class="account-hero-backrow">
             <button class="text-button" type="button" data-action="back-to-accounts">Back to accounts</button>
@@ -5729,6 +5761,7 @@ function renderAccountVendorSubcontractorTab(account) {
                   ${renderVendorProfileSummary(vendorProfile)}
                 </div>
               </article>
+              ${renderRequirementsPanel({ entityType: "account", entityId: account.id, accountId: account.id, counterparty: "vendor", title: "Vendor paperwork", subtitle: "W-9, certificate of insurance, vendor form, agreements — approval writes the profile's W-9 and insurance fields", quickCodes: ["vendor-w9", "vendor-coi"] })}
             `
             : `
               <article class="${compliancePanelClass}">
@@ -5809,7 +5842,9 @@ function renderApprovedSubcontractorCard(link) {
         ${link.approvedUntil ? `<span>Until ${formatDate(link.approvedUntil)}</span>` : ""}
       </div>
       ${link.notes ? `<p class="help-text">${escapeHtml(link.notes)}</p>` : ""}
+      ${link.evidenceDocumentId && findDocument(link.evidenceDocumentId) ? `<span class="help-text">Approval letter: <a href="/api/documents/${encodeURIComponent(link.evidenceDocumentId)}/view" target="_blank" rel="noopener">${escapeHtml(findDocument(link.evidenceDocumentId).fileName)}</a></span>` : ""}
       <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="open-document-upload" data-entity-type="accountApprovedSubcontractors" data-entity-id="${escapeAttribute(link.id)}" data-type-id="${escapeAttribute(documentTypeByCode("approval-letter")?.id || "")}">${link.evidenceDocumentId ? "Replace approval letter" : "Attach approval letter"}</button>
         <button class="mini-button" type="button" data-action="open-approved-subcontractor" data-account-id="${escapeAttribute(link.accountId)}" data-id="${escapeAttribute(link.id)}">Edit</button>
         <button class="mini-button" type="button" data-action="remove-approved-subcontractor" data-id="${escapeAttribute(link.id)}">Remove</button>
       </div>
@@ -6180,18 +6215,9 @@ function renderAccountLabWorkTab(account) {
 function renderAccountFilesTab(account) {
   return `
     <section class="crm-profile-grid">
-      <article class="panel">
-        <div class="panel-header"><h3>Documents</h3></div>
-        <div class="panel-body"><div class="empty-state">Document storage isn't built yet.</div></div>
-      </article>
-      <article class="panel">
-        <div class="panel-header"><h3>Photos</h3></div>
-        <div class="panel-body"><div class="empty-state">Photo storage isn't built yet.</div></div>
-      </article>
-      <article class="panel">
-        <div class="panel-header"><h3>Signed agreements</h3></div>
-        <div class="panel-body"><div class="empty-state">Signed agreement storage isn't built yet.</div></div>
-      </article>
+      ${renderRequirementsPanel({ entityType: "account", entityId: account.id, accountId: account.id, counterparty: "customer", title: "Paperwork & agreements", subtitle: "Customer packet, waste authorization, service agreements — tracked, reviewed, and read by the pipeline and dispatch", quickCodes: ["customer-packet", "waste-authorization"] })}
+      ${renderDocumentsPanel({ entityType: "account", entityId: account.id, title: "Documents", subtitle: "Anything kept with this account; share individual files to the customer's portal", exclude: isImageDocument })}
+      ${renderDocumentsPanel({ entityType: "account", entityId: account.id, title: "Photos & logo", subtitle: "Site photos, and the logo shown on the header (type: Account logo)", typeId: documentTypeByCode("site-photo")?.id || "", imagesOnly: true })}
     </section>
   `;
 }
@@ -6680,14 +6706,10 @@ function renderFacilityWorkHistoryPanel(facility) {
   `;
 }
 
-function renderFacilityPhotosPanel() {
+function renderFacilityPhotosPanel(facility) {
   return `
-    <article class="panel">
-      <div class="panel-header"><h3>Site photos</h3></div>
-      <div class="panel-body">
-        <div class="empty-state">Photo uploads depend on Phase 11 (Document Storage), which hasn't shipped yet.</div>
-      </div>
-    </article>
+    ${renderDocumentsPanel({ entityType: "facility", entityId: facility.id, title: "Site photos", subtitle: "Photos of this site", typeId: documentTypeByCode("site-photo")?.id || "", imagesOnly: true })}
+    ${renderDocumentsPanel({ entityType: "facility", entityId: facility.id, title: "Site documents", subtitle: "Permits, site plans, access instructions", exclude: isImageDocument })}
   `;
 }
 
@@ -7796,19 +7818,15 @@ function renderContactRelationshipsTab(contact) {
 }
 
 function renderContactFilesTab(contact) {
+  const accountShared = contact.accountId ? getDocuments().filter((document) => document.accountId === contact.accountId && document.visibility === "customer").sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt))) : [];
   return `
     <section class="crm-profile-grid">
+      ${renderDocumentsPanel({ entityType: "contact", entityId: contact.id, title: "Documents for this contact", subtitle: "Cards, correspondence, signed forms that belong to the person rather than the account" })}
       <article class="panel">
-        <div class="panel-header"><h3>Shared with this contact</h3></div>
-        <div class="panel-body"><div class="empty-state">Document storage isn't built yet.</div></div>
-      </article>
-      <article class="panel">
-        <div class="panel-header"><h3>Received from this contact</h3></div>
-        <div class="panel-body"><div class="empty-state">Document storage isn't built yet.</div></div>
-      </article>
-      <article class="panel">
-        <div class="panel-header"><h3>Project and opportunity files</h3></div>
-        <div class="panel-body"><div class="empty-state">Document storage isn't built yet.</div></div>
+        <div class="panel-header"><div><h3>Shared with the customer</h3><span>Everything on this contact's account that is visible in the portal</span></div></div>
+        <div class="panel-body record-list document-list">
+          ${accountShared.map(renderDocumentRow).join("") || `<div class="empty-state compact">Nothing shared with this account's portal yet.</div>`}
+        </div>
       </article>
     </section>
   `;
@@ -8188,6 +8206,7 @@ const projectDetailTabs = [
   { id: "plan", label: "Plan" },
   { id: "live", label: "Live" },
   { id: "sampling", label: "Sampling" },
+  { id: "files", label: "Files" },
   { id: "report", label: "Report" },
 ];
 
@@ -8217,6 +8236,8 @@ function renderProjectTabBody(tab, job, ctx) {
       return renderProjectLiveTab(job, ctx);
     case "sampling":
       return renderProjectSamplingTab(job);
+    case "files":
+      return renderProjectFilesTab(job);
     case "report":
       return renderProjectReportTab(job);
     case "intake":
@@ -8441,6 +8462,17 @@ function renderProjectLiveTab(job, ctx) {
 // customerPacketStatus/document data the job-request dialog already uses (see the "prior packet"
 // logic near openJobRequestDialog) rather than inventing a second paperwork-tracking mechanism.
 function projectPaperworkFlag(job) {
+  // Phase 13 (2026-09-24): when the account's paperwork is tracked as requirements, that is the truth.
+  if (job.accountId) {
+    const tracked = requirementsForAccount(job.accountId).filter((requirement) => ["customer-packet", "waste-authorization"].includes(findDocumentType(requirement.documentTypeId)?.code));
+    if (tracked.length) {
+      const packetOk = paperworkApproved(job.accountId, "customer-packet");
+      const wasteOk = paperworkApproved(job.accountId, "waste-authorization");
+      if (packetOk && wasteOk) return { status: "On file", tone: "low", note: "Customer packet and waste authorization approved by the office (see the Files tab)." };
+      const pending = tracked.filter((requirement) => requirement.status === "In review").length;
+      return { status: pending ? "In review" : "Missing", tone: pending ? "medium" : "high", note: `${packetOk ? "" : "Customer packet"}${!packetOk && !wasteOk ? " and " : ""}${wasteOk ? "" : "waste authorization"} not yet approved${pending ? ` — ${pending} waiting for office review` : ""}. Tracked on the Files tab.` };
+    }
+  }
   const requests = jobRequestsForProject(job.id);
   if (!requests.length) {
     return { status: "Unknown", tone: "medium", note: "No job request has been raised for this project yet, so paperwork status has not been captured." };
@@ -12376,6 +12408,7 @@ function renderDispatchJobFilesActivityTab(job) {
   const submissions = submissionsForDispatchJob(job.id);
   return `
     <section class="detail-stack">
+      ${renderDocumentsPanel({ entityType: "dispatchJob", entityId: job.id, title: "Documents", subtitle: "Permits, manifests, signed paperwork for this dispatch" })}
       <article class="panel">
         <div class="panel-header"><div><h3>Work plan</h3><span>Frozen steps, actions, and linked forms</span></div></div>
         <div class="panel-body work-plan-list">
@@ -13658,6 +13691,7 @@ function renderClientDashboard() {
         "Client Dashboard",
         `${account?.name || "Client"} spill response status, samples, site history, and documents.`,
       )}
+      ${renderPortalPreviewPicker()}
       <section class="account-hero client-hero">
         <div>
           <p class="eyebrow">Account portal</p>
@@ -13783,12 +13817,13 @@ function renderClientDocuments() {
           </div>
         </article>
         <article class="panel">
-          <div class="panel-header"><h3>Documents and spatial files</h3></div>
+          <div class="panel-header"><h3>Spatial files</h3></div>
           <div class="panel-body record-list">
-            ${spatial.map(renderClientDocumentCard).join("") || `<div class="empty-state">No documents or spatial files have been published yet.</div>`}
+            ${spatial.map(renderClientDocumentCard).join("") || `<div class="empty-state">No spatial files have been published yet.</div>`}
           </div>
         </article>
       </section>
+      ${getClientAccountId() ? `<section class="detail-grid">${renderClientPaperworkPanel(getClientAccountId())}${renderClientDocumentsPanel(getClientAccountId())}</section>` : ""}
     </section>
   `;
 }
@@ -14521,6 +14556,7 @@ function renderSync() {
         </article>
       </section>
       ${renderUsersAndAccessPanel()}
+      ${renderDocumentTypesPanel()}
       ${renderSessionsPanel()}
       ${renderAuditPanel()}
       ${renderRecentlyDeletedPanel()}
@@ -18762,6 +18798,9 @@ async function submitEmergencyIntake(form) {
       updatedAt: new Date().toISOString(),
     };
     await saveBackendRecord("dispatchJobs", dispatchJob, { refresh: false });
+    // Phase 16 item 2, via Phase 13 (2026-09-24): the onsite paperwork this emergency needs is a tracked
+    // requirement from the first minute -- the packet and a service agreement, unless already on file.
+    await ensurePaperworkRequirements(account.id, ["customer-packet", "waste-authorization", "service-agreement-msa"], { entityType: "project", entityId: project.id, source: "emergency-intake" });
 
     closeDialogs();
     await refreshState();
@@ -27418,6 +27457,8 @@ const deletableRecordLabels = {
   projects: { noun: "project", name: (record) => record.name, after: () => ({ view: "ops-projects", selectedProjectId: "" }) },
   facilities: { noun: "facility", name: (record) => record.name, after: (record) => (record.accountId ? { view: "account-detail", selectedAccountId: record.accountId, selectedFacilityId: "" } : { view: "accounts" }) },
   dispatchJobs: { noun: "dispatch job", name: (record) => `${record.jobNumber} ${record.jobName || ""}`.trim(), after: () => ({ view: "dispatch-jobs", selectedDispatchJobId: "" }) },
+  documents: { noun: "document", name: (record) => record.fileName, after: () => ({}) },
+  documentRequirements: { noun: "paperwork requirement", name: (record) => findDocumentType(record.documentTypeId)?.name || "requirement", after: () => ({}) },
 };
 
 const cascadeCollectionLabels = {
@@ -27658,7 +27699,7 @@ async function afterSignIn(session) {
   state.authAdmin = null;
   appShell.classList.remove("auth-mode");
   await refreshState();
-  if (!applyRouteFromHash()) state.view = "home";
+  if (!applyRouteFromHash() || !canAccessView(state.view)) state.view = getDefaultAllowedView();
   render();
   showToast(`Signed in as ${session.name}.`);
 }
@@ -27870,6 +27911,7 @@ function openSystemUserDialog(userId = "") {
   form.elements.username.value = user?.username || "";
   form.elements.internalEmailAddress.value = user?.internalEmailAddress || "";
   form.elements.isDisabled.checked = Boolean(user?.isDisabled);
+  fillSelect(form.elements.clientAccountId, state.accounts.map((account) => [account.id, account.name]), user?.clientAccountId || "", "Choose the customer account…");
   dialog.querySelector("[data-system-user-title]").textContent = user ? `Edit ${user.fullName}` : "Add user";
   dialog.showModal();
 }
@@ -27886,6 +27928,7 @@ async function saveSystemUser(form) {
     internalEmailAddress: (data.get("internalEmailAddress") || "").toString().trim().toLowerCase(),
     role: (data.get("role") || "").toString(),
     employeeId: (data.get("employeeId") || "").toString(),
+    clientAccountId: (data.get("clientAccountId") || "").toString(),
     isDisabled: form.elements.isDisabled.checked,
   };
   if (!user.fullName || (!user.username && !user.internalEmailAddress)) {
@@ -28099,6 +28142,576 @@ async function acceptConsent() {
   } catch (error) {
     showToast(error.message || "Could not record your agreement.");
   }
+}
+
+// ---- Phase 13 (2026-09-24): documents, requirements, review, templates, Client Portal ----
+//
+// Files live in the generic `documents` store (see server.mjs: /api/documents). Paperwork that gates
+// something is a `documentRequirements` row with the lifecycle Not started → Sent → Returned → In
+// review → Approved | Rejected; the office reviews, the app reads the approved state everywhere it
+// used to ask again. One panel component for files, one for requirements, used on every record.
+const REQUIREMENT_STATUS_TONE = { "Not started": "medium", Sent: "medium", Returned: "medium", "In review": "medium", Approved: "low", Rejected: "high" };
+const REVIEW_ROLES = ["Admin", "Office Manager", "Sales Manager", "Operations Manager"];
+
+function getDocumentTypes() {
+  return liveRows(state.backend.documentTypes);
+}
+
+function findDocumentType(typeId) {
+  return (state.backend.documentTypes || []).find((type) => type.id === typeId) || null;
+}
+
+function documentTypeByCode(code) {
+  return getDocumentTypes().find((type) => type.code === code) || null;
+}
+
+function getDocuments() {
+  return liveRows(state.backend.documents);
+}
+
+function documentsForEntity(entityType, entityId) {
+  return getDocuments()
+    .filter((document) => document.entityType === entityType && document.entityId === entityId)
+    .sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+}
+
+// The newest version of each document group.
+function latestDocumentsForEntity(entityType, entityId) {
+  const groups = new Map();
+  for (const document of documentsForEntity(entityType, entityId)) {
+    const key = document.groupId || document.id;
+    const current = groups.get(key);
+    if (!current || Number(document.versionNumber || 1) > Number(current.versionNumber || 1)) groups.set(key, document);
+  }
+  return [...groups.values()].sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+}
+
+function documentVersions(document) {
+  const key = document.groupId || document.id;
+  return getDocuments()
+    .filter((item) => (item.groupId || item.id) === key)
+    .sort((a, b) => Number(b.versionNumber || 1) - Number(a.versionNumber || 1));
+}
+
+function findDocument(documentId) {
+  return (state.backend.documents || []).find((document) => document.id === documentId) || null;
+}
+
+function isImageDocument(document) {
+  return String(document.mimeType || "").startsWith("image/");
+}
+
+function getDocumentRequirements() {
+  return liveRows(state.backend.documentRequirements);
+}
+
+function requirementsForAccount(accountId) {
+  return getDocumentRequirements()
+    .filter((requirement) => requirement.accountId === accountId)
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+}
+
+function requirementIsExpired(requirement) {
+  if (requirement.status !== "Approved" || !requirement.expiresAt) return false;
+  const value = String(requirement.expiresAt);
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T23:59:59`) : new Date(value);
+  return end < new Date();
+}
+
+function requirementIsSatisfied(requirement) {
+  return requirement.status === "Approved" && !requirementIsExpired(requirement);
+}
+
+// The Negotiation gate and the project's paperwork flag read this: an approved, unexpired
+// requirement of that type for the account (or for this opportunity specifically).
+function paperworkApproved(accountId, typeCode, opportunityId = "") {
+  const type = documentTypeByCode(typeCode);
+  if (!type) return false;
+  return requirementsForAccount(accountId).some(
+    (requirement) => requirement.documentTypeId === type.id && requirementIsSatisfied(requirement) && (requirement.entityType !== "opportunity" || !opportunityId || requirement.entityId === opportunityId),
+  );
+}
+
+function canReviewPaperwork() {
+  return REVIEW_ROLES.includes(state.currentUser?.role || "");
+}
+
+function isPortalUser() {
+  return state.currentUser?.role === "Client Portal";
+}
+
+function documentTypeHasTemplate(type) {
+  return Boolean(type?.templateFile || type?.templateDocumentId);
+}
+
+function documentTypesFor({ entityType, counterparty = null, stageGate = null }) {
+  return getDocumentTypes().filter(
+    (type) =>
+      (type.appliesTo || []).includes(entityType) &&
+      (!counterparty || type.counterparty === counterparty) &&
+      (stageGate === null || (stageGate ? type.stageGate === stageGate : !type.stageGate)),
+  );
+}
+
+// ---- Documents panel --------------------------------------------------------------------------
+function renderDocumentRow(document) {
+  const type = findDocumentType(document.documentTypeId);
+  const versions = documentVersions(document);
+  const internal = !isPortalUser();
+  const viewUrl = `/api/documents/${encodeURIComponent(document.id)}/view`;
+  const extension = (document.fileName.split(".").pop() || "file").slice(0, 4).toUpperCase();
+  return `
+    <div class="detail-card document-row">
+      ${isImageDocument(document) ? `<a class="document-thumb-link" href="${viewUrl}" target="_blank" rel="noopener"><img class="document-thumb" src="${viewUrl}" alt="" loading="lazy" /></a>` : `<span class="document-ext">${escapeHtml(extension)}</span>`}
+      <div class="document-main">
+        <div class="row-meta">
+          <strong>${escapeHtml(document.fileName)}</strong>
+          <span>${escapeHtml(type?.name || "Document")} · v${Number(document.versionNumber || 1)}${versions.length > 1 ? ` of ${versions.length}` : ""} · ${escapeHtml(formatFileSize(document.sizeBytes))} · ${escapeHtml(document.uploadedBy || "")} · ${formatDateTime(document.uploadedAt)}</span>
+        </div>
+        ${document.caption ? `<p class="help-text">${escapeHtml(document.caption)}</p>` : ""}
+        <div class="inline-actions">
+          <span class="risk-badge ${document.visibility === "customer" ? "low" : "medium"}">${document.visibility === "customer" ? "Shared with customer" : "Internal only"}</span>
+          <a class="mini-button" href="${viewUrl}" target="_blank" rel="noopener">Open</a>
+          <a class="mini-button" href="/api/documents/${encodeURIComponent(document.id)}/download">Download</a>
+          ${
+            internal
+              ? `
+                <button class="mini-button" type="button" data-action="open-document-upload" data-entity-type="${escapeAttribute(document.entityType)}" data-entity-id="${escapeAttribute(document.entityId)}" data-group-id="${escapeAttribute(document.groupId || document.id)}" data-type-id="${escapeAttribute(document.documentTypeId || "")}">New version</button>
+                <button class="mini-button" type="button" data-action="toggle-document-visibility" data-id="${escapeAttribute(document.id)}">${document.visibility === "customer" ? "Make internal" : "Share with customer"}</button>
+                <button class="mini-button" type="button" data-action="delete-record" data-collection="documents" data-id="${escapeAttribute(document.id)}">Delete</button>
+              `
+              : ""
+          }
+        </div>
+        ${
+          versions.length > 1
+            ? `<details class="document-versions"><summary>All ${versions.length} versions</summary>${versions
+                .map((version) => `<a href="/api/documents/${encodeURIComponent(version.id)}/download">v${Number(version.versionNumber || 1)} · ${escapeHtml(version.fileName)} · ${formatDateTime(version.uploadedAt)}</a>`)
+                .join("")}</details>`
+            : ""
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderDocumentsPanel({ entityType, entityId, title = "Documents", subtitle = "", typeId = "", imagesOnly = false, exclude = null, panelClass = "" }) {
+  const documents = latestDocumentsForEntity(entityType, entityId).filter((document) => (!imagesOnly || isImageDocument(document)) && (!exclude || !exclude(document)));
+  return `
+    <article class="panel ${panelClass}">
+      <div class="panel-header">
+        <div><h3>${escapeHtml(title)}</h3>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}</div>
+        ${isPortalUser() ? "" : `<button class="mini-button" type="button" data-action="open-document-upload" data-entity-type="${escapeAttribute(entityType)}" data-entity-id="${escapeAttribute(entityId)}" data-type-id="${escapeAttribute(typeId)}">${imagesOnly ? "Add photo" : "Upload"}</button>`}
+      </div>
+      <div class="panel-body record-list document-list ${imagesOnly ? "photo-grid" : ""}">
+        ${documents.map(imagesOnly ? renderPhotoTile : renderDocumentRow).join("") || `<div class="empty-state compact">${imagesOnly ? "No photos yet." : "No documents yet."}</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderPhotoTile(document) {
+  const viewUrl = `/api/documents/${encodeURIComponent(document.id)}/view`;
+  return `
+    <figure class="photo-tile">
+      <a href="${viewUrl}" target="_blank" rel="noopener"><img src="${viewUrl}" alt="${escapeAttribute(document.caption || document.fileName)}" loading="lazy" /></a>
+      <figcaption>${escapeHtml(document.caption || document.fileName)}<small>${formatDate(document.uploadedAt)}${isPortalUser() ? "" : ` · <button class="link-button" type="button" data-action="delete-record" data-collection="documents" data-id="${escapeAttribute(document.id)}">Delete</button>`}</small></figcaption>
+    </figure>
+  `;
+}
+
+function openDocumentUploadDialog({ entityType, entityId, typeId = "", requirementId = "", groupId = "", counterparty = null }) {
+  const dialog = document.querySelector("#documentUploadDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.entityType.value = entityType;
+  form.elements.entityId.value = entityId;
+  form.elements.requirementId.value = requirementId;
+  form.elements.groupId.value = groupId;
+  const requirement = requirementId ? getDocumentRequirements().find((item) => item.id === requirementId) : null;
+  // A requirement (or a type's own template) pins the type; a panel only suggests a default.
+  const fixedType = requirement ? findDocumentType(requirement.documentTypeId) : entityType === "documentType" ? findDocumentType(entityId) : null;
+  const defaultType = fixedType || (typeId ? findDocumentType(typeId) : null);
+  const types = fixedType ? [fixedType] : documentTypesFor({ entityType, counterparty });
+  fillSelect(form.elements.documentTypeId, types.map((type) => [type.id, type.name]), defaultType?.id || types[0]?.id || "", fixedType ? null : "Choose a type…");
+  form.elements.documentTypeId.disabled = Boolean(fixedType);
+  form.elements.visibility.value = requirement || defaultType?.counterparty === "customer" ? "customer" : "internal";
+  const title = groupId ? "Upload a new version" : requirement ? `Upload the returned ${fixedType?.name || "document"}` : entityType === "documentType" ? `Template for ${fixedType?.name || "this type"}` : "Upload a document";
+  dialog.querySelector("[data-upload-title]").textContent = title;
+  dialog.querySelector("[data-upload-hint]").textContent = requirement ? "Uploading puts this requirement in review; the office approves it." : "PDF, images or Office files up to 25 MB. The same file twice is refused.";
+  form.elements.file.accept = defaultType?.isImage ? "image/*" : ".pdf,.doc,.docx,.xls,.xlsx,.pptx,.csv,.txt,image/*";
+  if (defaultType?.isImage) form.elements.file.setAttribute("capture", "environment");
+  else form.elements.file.removeAttribute("capture");
+  dialog.showModal();
+}
+
+async function uploadDocument(form) {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) return;
+  const picked = form.elements.file?.files?.[0];
+  if (!picked) {
+    showToast("Choose a file first.");
+    return;
+  }
+  const extensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+  const file = /\.[a-z0-9]+$/i.test(picked.name) ? picked : new File([picked], `upload.${extensions[picked.type] || "jpg"}`, { type: picked.type });
+  const data = new FormData(form);
+  if (submitButton) submitButton.disabled = true;
+  try {
+    const saved = await uploadRawFile("/api/documents", file, {
+      "X-Entity-Type": (data.get("entityType") || "").toString(),
+      "X-Entity-Id": (data.get("entityId") || "").toString(),
+      "X-Document-Type": form.elements.documentTypeId.value || "",
+      "X-Requirement-Id": (data.get("requirementId") || "").toString(),
+      "X-Group-Id": (data.get("groupId") || "").toString(),
+      "X-Visibility": (data.get("visibility") || "internal").toString(),
+      "X-Caption": encodeURIComponent((data.get("caption") || "").toString().trim().slice(0, 200)),
+    });
+    closeDialogs();
+    await refreshBackendState();
+    render();
+    showToast(`${saved.fileName} uploaded${saved.versionNumber > 1 ? ` as version ${saved.versionNumber}` : ""}.`);
+  } catch (error) {
+    showToast(error.message || "Upload failed.");
+  } finally {
+    if (submitButton) submitButton.disabled = false;
+  }
+}
+
+async function toggleDocumentVisibility(documentId) {
+  const document = findDocument(documentId);
+  if (!document) return;
+  try {
+    await saveBackendRecord("documents", { ...document, visibility: document.visibility === "customer" ? "internal" : "customer" });
+    render();
+    showToast(document.visibility === "customer" ? "Now internal only." : "Shared with the customer's portal.");
+  } catch (error) {
+    showToast(error.message || "Could not change visibility.");
+  }
+}
+
+// ---- Requirements panel -----------------------------------------------------------------------
+function requirementCurrentDocument(requirement) {
+  return requirement.currentDocumentId ? findDocument(requirement.currentDocumentId) : null;
+}
+
+function describeRequirementState(requirement) {
+  if (requirementIsExpired(requirement)) return `Expired ${formatDate(requirement.expiresAt)}`;
+  if (requirement.status === "Approved") return `Approved ${formatDate(requirement.reviewedAt)}${requirement.reviewedBy ? ` by ${requirement.reviewedBy}` : ""}${requirement.expiresAt ? ` · expires ${formatDate(requirement.expiresAt)}` : ""}`;
+  if (requirement.status === "Rejected") return `Rejected ${formatDate(requirement.reviewedAt)}${requirement.reviewedBy ? ` by ${requirement.reviewedBy}` : ""}${requirement.reviewNote ? ` — ${requirement.reviewNote}` : ""}`;
+  if (requirement.status === "In review") return `Returned ${formatDate(requirement.returnedAt)} · waiting for office review`;
+  if (requirement.status === "Sent") return `Sent ${formatDate(requirement.sentAt)} · waiting for the signed copy`;
+  return "Not started";
+}
+
+function renderRequirementRow(requirement, { entityType, entityId } = {}) {
+  const type = findDocumentType(requirement.documentTypeId);
+  const current = requirementCurrentDocument(requirement);
+  const expired = requirementIsExpired(requirement);
+  const tone = expired ? "high" : REQUIREMENT_STATUS_TONE[requirement.status] || "medium";
+  const portal = isPortalUser();
+  const reviewable = requirement.status === "In review" && canReviewPaperwork() && !portal;
+  const uploadable = requirement.status !== "Approved" || expired;
+  const formData = requirement.formData || {};
+  const filledFields = (type?.formFields || []).filter(([key]) => formData[key]);
+  return `
+    <div class="detail-card requirement-row ${requirement.status === "In review" && !portal ? "panel-needs-attention" : ""}">
+      <div class="row-meta">
+        <strong>${escapeHtml(type?.name || "Document")}${requirement.status === "In review" && canReviewPaperwork() ? renderAlertDot("Waiting for your review") : ""}</strong>
+        <span class="risk-badge ${tone}">${escapeHtml(expired ? "Expired" : requirement.status)}</span>
+      </div>
+      <span class="help-text">${escapeHtml(describeRequirementState(requirement))}${requirement.entityType === "opportunity" ? " · for this opportunity" : ""}${requirement.source === "emergency-intake" ? " · required by emergency intake" : ""}</span>
+      ${current ? `<span class="help-text">Current file: <a href="/api/documents/${encodeURIComponent(current.id)}/view" target="_blank" rel="noopener">${escapeHtml(current.fileName)}</a> (v${Number(current.versionNumber || 1)}, ${formatDateTime(current.uploadedAt)})</span>` : ""}
+      ${filledFields.length ? `<span class="help-text">${filledFields.map(([key, label]) => `${escapeHtml(label)}: ${escapeHtml(formData[key])}`).join(" · ")}</span>` : ""}
+      <div class="inline-actions">
+        ${documentTypeHasTemplate(type) ? `<a class="mini-button" href="/api/document-types/${encodeURIComponent(type.id)}/template">Blank form</a>` : ""}
+        ${type?.formFields && !portal ? `<button class="mini-button" type="button" data-action="open-requirement-form" data-id="${escapeAttribute(requirement.id)}">${filledFields.length ? "Edit form details" : "Fill form details"}</button>` : ""}
+        ${requirement.status === "Not started" && !portal ? `<button class="mini-button" type="button" data-action="mark-requirement-sent" data-id="${escapeAttribute(requirement.id)}">Mark sent</button>` : ""}
+        ${uploadable ? `<button class="mini-button" type="button" data-action="open-requirement-upload" data-id="${escapeAttribute(requirement.id)}">${portal ? "Upload signed copy" : current ? "Upload another copy" : "Upload returned copy"}</button>` : ""}
+        ${reviewable ? `<button class="primary-button" type="button" data-action="open-requirement-review" data-id="${escapeAttribute(requirement.id)}">Review</button>` : ""}
+        ${!portal ? `<button class="mini-button" type="button" data-action="delete-record" data-collection="documentRequirements" data-id="${escapeAttribute(requirement.id)}">Remove</button>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderRequirementsPanel({ entityType, entityId, accountId, counterparty = "customer", stageGate = null, title = "Paperwork", subtitle = "", panelClass = "", quickCodes = [] }) {
+  const requirements = requirementsForAccount(accountId).filter((requirement) => {
+    const type = findDocumentType(requirement.documentTypeId);
+    if (!type || (counterparty && type.counterparty !== counterparty)) return false;
+    if (stageGate !== null && (stageGate ? type.stageGate !== stageGate : Boolean(type.stageGate))) return false;
+    if (entityType === "opportunity" && requirement.entityType === "opportunity" && requirement.entityId !== entityId) return false;
+    return true;
+  });
+  const needsReview = requirements.some((requirement) => requirement.status === "In review");
+  const missingQuick = quickCodes.filter((code) => {
+    const type = documentTypeByCode(code);
+    return type && !requirements.some((requirement) => requirement.documentTypeId === type.id && requirement.status !== "Rejected");
+  });
+  return `
+    <article class="panel ${panelClass} ${needsReview && canReviewPaperwork() ? "panel-needs-attention" : ""}">
+      <div class="panel-header">
+        <div><h3>${escapeHtml(title)}</h3>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}</div>
+        ${
+          isPortalUser()
+            ? ""
+            : `<div class="inline-actions">
+                ${missingQuick.length ? `<button class="mini-button" type="button" data-action="start-required-paperwork" data-account-id="${escapeAttribute(accountId)}" data-entity-type="${escapeAttribute(entityType)}" data-entity-id="${escapeAttribute(entityId)}" data-codes="${escapeAttribute(missingQuick.join(","))}">Start required paperwork</button>` : ""}
+                <button class="mini-button" type="button" data-action="open-requirement" data-account-id="${escapeAttribute(accountId)}" data-entity-type="${escapeAttribute(entityType)}" data-entity-id="${escapeAttribute(entityId)}" data-counterparty="${escapeAttribute(counterparty || "")}" data-stage-gate="${escapeAttribute(stageGate === null ? "any" : stageGate || "none")}">Add requirement</button>
+              </div>`
+        }
+      </div>
+      <div class="panel-body record-list">
+        ${requirements.map((requirement) => renderRequirementRow(requirement, { entityType, entityId })).join("") || `<div class="empty-state compact">${isPortalUser() ? "Nothing is being requested from you right now." : "No paperwork tracked yet."}</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function openRequirementDialog({ accountId, entityType, entityId, counterparty, stageGate }) {
+  const dialog = document.querySelector("#requirementDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.accountId.value = accountId;
+  form.elements.entityType.value = entityType;
+  form.elements.entityId.value = entityId;
+  const gate = stageGate === "any" ? null : stageGate === "none" ? "" : stageGate;
+  const types = documentTypesFor({ entityType, counterparty: counterparty || null, stageGate: gate });
+  fillSelect(form.elements.documentTypeId, types.map((type) => [type.id, type.name]), types[0]?.id || "", "Choose the document…");
+  dialog.querySelector("[data-requirement-hint]").textContent = gate ? `Only paperwork that gates the ${gate} stage is offered here.` : "Which document does this record need?";
+  dialog.showModal();
+}
+
+async function saveRequirement(form) {
+  const data = new FormData(form);
+  const documentTypeId = (data.get("documentTypeId") || "").toString();
+  if (!documentTypeId) {
+    showToast("Choose the document.");
+    return;
+  }
+  try {
+    await saveBackendRecord("documentRequirements", {
+      id: makeId("requirement"),
+      documentTypeId,
+      entityType: (data.get("entityType") || "").toString(),
+      entityId: (data.get("entityId") || "").toString(),
+      accountId: (data.get("accountId") || "").toString(),
+      status: "Not started",
+      source: "manual",
+      notes: (data.get("notes") || "").toString().trim(),
+    });
+    closeDialogs();
+    render();
+    showToast("Requirement added.");
+  } catch (error) {
+    showToast(error.message || "Could not add that requirement.");
+  }
+}
+
+// Creates the standard set for an account in one go (Negotiation paperwork, emergency onsite paperwork).
+async function ensurePaperworkRequirements(accountId, codes, { entityType = "account", entityId = accountId, source = "stage-gate" } = {}) {
+  let created = 0;
+  for (const code of codes) {
+    const type = documentTypeByCode(code);
+    if (!type) continue;
+    const exists = requirementsForAccount(accountId).some((requirement) => requirement.documentTypeId === type.id && requirement.status !== "Rejected");
+    if (exists) continue;
+    await saveBackendRecord("documentRequirements", { id: makeId("requirement"), documentTypeId: type.id, entityType, entityId, accountId, status: "Not started", source });
+    created += 1;
+  }
+  return created;
+}
+
+async function startRequiredPaperwork(button) {
+  const codes = (button.dataset.codes || "").split(",").filter(Boolean);
+  try {
+    const created = await ensurePaperworkRequirements(button.dataset.accountId, codes, { entityType: button.dataset.entityType, entityId: button.dataset.entityId, source: "stage-gate" });
+    render();
+    showToast(created ? `${created} requirement${created === 1 ? "" : "s"} added. Download the blank forms and send them.` : "Already tracked.");
+  } catch (error) {
+    showToast(error.message || "Could not add the paperwork.");
+  }
+}
+
+async function markRequirementSent(requirementId) {
+  const requirement = getDocumentRequirements().find((item) => item.id === requirementId);
+  if (!requirement) return;
+  try {
+    await saveBackendRecord("documentRequirements", { ...requirement, status: "Sent" });
+    render();
+    showToast("Marked as sent.");
+  } catch (error) {
+    showToast(error.message || "Could not update that requirement.");
+  }
+}
+
+function openRequirementReviewDialog(requirementId) {
+  const requirement = getDocumentRequirements().find((item) => item.id === requirementId);
+  if (!requirement) return;
+  const type = findDocumentType(requirement.documentTypeId);
+  const current = requirementCurrentDocument(requirement);
+  const dialog = document.querySelector("#requirementReviewDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.id.value = requirement.id;
+  dialog.querySelector("[data-review-title]").textContent = `Review: ${type?.name || "document"}`;
+  dialog.querySelector("[data-review-file]").innerHTML = current ? `<a href="/api/documents/${encodeURIComponent(current.id)}/view" target="_blank" rel="noopener">${escapeHtml(current.fileName)}</a> · uploaded ${formatDateTime(current.uploadedAt)} by ${escapeHtml(current.uploadedBy || "")}` : "No file attached.";
+  const expiryRow = dialog.querySelector("[data-review-expiry]");
+  expiryRow.hidden = !type?.expiryDays;
+  if (type?.expiryDays) form.elements.expiresAt.value = addDays(type.expiryDays);
+  dialog.showModal();
+}
+
+async function saveRequirementReview(form) {
+  const data = new FormData(form);
+  const requirement = getDocumentRequirements().find((item) => item.id === (data.get("id") || "").toString());
+  if (!requirement) return;
+  const decision = (data.get("decision") || "").toString();
+  if (!["Approved", "Rejected"].includes(decision)) {
+    showToast("Choose approve or reject.");
+    return;
+  }
+  try {
+    await saveBackendRecord("documentRequirements", {
+      ...requirement,
+      status: decision,
+      reviewNote: (data.get("reviewNote") || "").toString().trim(),
+      // Stored as the plain date the reviewer typed; "expired" means after the end of that day.
+      expiresAt: (data.get("expiresAt") || "").toString() || requirement.expiresAt || "",
+    });
+    closeDialogs();
+    await refreshBackendState();
+    render();
+    showToast(decision === "Approved" ? "Approved." : "Rejected — the customer can send a corrected copy.");
+  } catch (error) {
+    showToast(error.message || "Could not record the review.");
+  }
+}
+
+// Republic's form: the values are captured here (prefilled from the account) so they can be typed
+// onto the fixed PDF and so the profile number is a real field (Q19), not something inside a scan.
+function openRequirementFormDialog(requirementId) {
+  const requirement = getDocumentRequirements().find((item) => item.id === requirementId);
+  if (!requirement) return;
+  const type = findDocumentType(requirement.documentTypeId);
+  const account = findAccount(requirement.accountId);
+  const primaryAddress = account ? addressesForAccount(account.id).find((address) => address.isPrimary) : null;
+  const defaults = {
+    generatorName: account?.name || "",
+    generatorMailingAddress: primaryAddress ? [primaryAddress.street1, primaryAddress.city, primaryAddress.stateOrProvince, primaryAddress.postalCode].filter(Boolean).join(", ") : "",
+    generatorContactName: account?.contact || "",
+    generatorContactPhone: account?.phone || "",
+    agentCompany: "BioRemedy",
+  };
+  const values = { ...defaults, ...(requirement.formData || {}) };
+  const dialog = document.querySelector("#requirementFormDialog");
+  const form = dialog.querySelector("form");
+  form.elements.id.value = requirement.id;
+  dialog.querySelector("[data-requirement-form-title]").textContent = type?.name || "Form details";
+  dialog.querySelector("[data-requirement-form-note]").textContent = type?.templateNote || "";
+  dialog.querySelector("[data-requirement-form-fields]").innerHTML = (type?.formFields || [])
+    .map(([key, label]) => `<label>${escapeHtml(label)}<input name="field:${escapeAttribute(key)}" maxlength="200" value="${escapeAttribute(values[key] || "")}" /></label>`)
+    .join("");
+  dialog.showModal();
+}
+
+async function saveRequirementForm(form) {
+  const data = new FormData(form);
+  const requirement = getDocumentRequirements().find((item) => item.id === (data.get("id") || "").toString());
+  if (!requirement) return;
+  const formData = {};
+  for (const [name, value] of data.entries()) {
+    if (name.startsWith("field:")) formData[name.slice(6)] = value.toString().trim();
+  }
+  try {
+    await saveBackendRecord("documentRequirements", { ...requirement, formData });
+    closeDialogs();
+    render();
+    showToast("Form details saved.");
+  } catch (error) {
+    showToast(error.message || "Could not save the form details.");
+  }
+}
+
+// ---- Places that use the panels ----------------------------------------------------------------
+function renderAccountLogo(account) {
+  const logo = latestDocumentsForEntity("account", account.id).find((document) => findDocumentType(document.documentTypeId)?.code === "account-logo" && isImageDocument(document));
+  return logo
+    ? `<img class="account-logo" src="/api/documents/${encodeURIComponent(logo.id)}/view" alt="${escapeAttribute(account.name)} logo" />`
+    : `<span class="person-avatar large">${escapeHtml(getInitials(account.name, "AC"))}</span>`;
+}
+
+function renderProjectFilesTab(job) {
+  const opportunityPhotos = job.opportunityId ? latestDocumentsForEntity("opportunity", job.opportunityId).filter(isImageDocument) : [];
+  return `
+    <section class="crm-profile-grid">
+      ${renderDocumentsPanel({ entityType: "project", entityId: job.id, title: "Project documents", subtitle: "Reports, permits, correspondence, lab results", exclude: isImageDocument })}
+      ${renderDocumentsPanel({ entityType: "project", entityId: job.id, title: "Site photos", subtitle: opportunityPhotos.length ? `${opportunityPhotos.length} more from the sales site walk below` : "From the field and the site walk", typeId: documentTypeByCode("site-photo")?.id || "", imagesOnly: true })}
+      ${
+        opportunityPhotos.length
+          ? `<article class="panel"><div class="panel-header"><div><h3>Site walk photos</h3><span>Taken on the opportunity before this project existed</span></div></div><div class="panel-body record-list document-list photo-grid">${opportunityPhotos.map(renderPhotoTile).join("")}</div></article>`
+          : ""
+      }
+      ${job.accountId ? renderRequirementsPanel({ entityType: "project", entityId: job.id, accountId: job.accountId, counterparty: "customer", title: "Customer paperwork", subtitle: "Read from the account — the same state sales and dispatch see", quickCodes: ["customer-packet", "waste-authorization"] }) : ""}
+    </section>
+  `;
+}
+
+function renderDocumentTypesPanel() {
+  if (state.currentUser?.role !== "Admin") return "";
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Document types</h3><span>The paperwork catalog. Upload a template for the agreement types the office generates; the customer packet and Republic's form are supplied as-is.</span></div></div>
+      <div class="panel-body record-list">
+        ${getDocumentTypes()
+          .map((type) => {
+            const template = type.templateDocumentId ? findDocument(type.templateDocumentId) : null;
+            return `
+              <div class="detail-card">
+                <div class="row-meta"><strong>${escapeHtml(type.name)}</strong><span>${escapeHtml(type.counterparty)} · ${type.requiresReview ? "office review" : "no review"}${type.stageGate ? ` · gates ${escapeHtml(type.stageGate)}` : ""}${type.expiryDays ? ` · expires after ${type.expiryDays} days` : ""}</span></div>
+                <span class="help-text">${escapeHtml(type.description || "")} ${template ? `Template: ${escapeHtml(template.fileName)}.` : type.templateFile ? `Blank form: ${escapeHtml(type.templateFile)}.` : "No template yet."}</span>
+                <div class="inline-actions">
+                  ${documentTypeHasTemplate(type) ? `<a class="mini-button" href="/api/document-types/${encodeURIComponent(type.id)}/template">Download blank form</a>` : ""}
+                  ${type.kind === "external-form" ? "" : `<button class="mini-button" type="button" data-action="open-document-upload" data-entity-type="documentType" data-entity-id="${escapeAttribute(type.id)}" data-type-id="${escapeAttribute(type.id)}">${template ? "Replace template" : "Upload template"}</button>`}
+                </div>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    </article>
+  `;
+}
+
+// Client Portal: what the customer sees and can return.
+function renderClientPaperworkPanel(accountId) {
+  return renderRequirementsPanel({ entityType: "account", entityId: accountId, accountId, counterparty: "customer", title: "Paperwork requested from you", subtitle: "Download the blank form, sign it, and upload the signed copy here. BioRemedy's office reviews it." });
+}
+
+function renderClientDocumentsPanel(accountId) {
+  const shared = getDocuments()
+    .filter((document) => document.accountId === accountId && document.visibility === "customer")
+    .sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Documents shared with you</h3><span>Reports, agreements and photos BioRemedy has published to this account</span></div></div>
+      <div class="panel-body record-list document-list">
+        ${shared.map(renderDocumentRow).join("") || `<div class="empty-state compact">Nothing has been shared yet.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderPortalPreviewPicker() {
+  if (state.currentUser?.role !== "Admin") return "";
+  return `
+    <label class="portal-preview">Preview the portal as
+      <select id="portalPreviewAccount">
+        <option value="">Choose a customer account…</option>
+        ${state.accounts.map((account) => `<option value="${escapeAttribute(account.id)}" ${state.portalPreviewAccountId === account.id ? "selected" : ""}>${escapeHtml(account.name)}</option>`).join("")}
+      </select>
+    </label>
+  `;
 }
 
 function closeDialogs() {
@@ -28695,7 +29308,7 @@ function viewClientSpill(jobId) {
 }
 
 function getClientAccountId() {
-  return state.currentUser?.clientAccountId || "acct-north-river";
+  return state.session?.clientAccountId || state.portalPreviewAccountId || "";
 }
 
 function getClientAccount() {

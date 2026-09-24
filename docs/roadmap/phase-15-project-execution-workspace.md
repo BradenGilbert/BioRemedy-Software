@@ -38,7 +38,7 @@ What must carry over:
 | `vendorNeeds` | Plan tab, plus the vendor/subcontractor check | Phase 04's approval check applies here |
 | `resourceNeeds` | Plan tab resource draft | |
 | Site walk record and status | Intake tab | Today overwritten with `"Incomplete"` |
-| Site photos | Plan tab | Blocked on Phase 13 for pre-sale photos |
+| Site photos | Files tab *(2026-09-24: project photos plus the opportunity's site-walk photos)* | Shipped with Phase 13 |
 | Sites/facilities on the opportunity | Intake tab | Needs Phase 06 item 30's junction for multi-site |
 | Quote / estimate lines | Plan tab as the priced baseline | Total already carries; lines do not |
 | Customer paperwork status | Intake tab, as a blocking flag | See item 2 |
@@ -95,6 +95,8 @@ All three CONFIRMED:
 ---
 
 ## Corrections found during implementation
+
+- **2026-09-24 (Phase 13):** the project gained a **Files** tab (documents, site photos, the site-walk photos from the originating opportunity, and the customer paperwork requirements read from the account). `projectPaperworkFlag` now reads approved requirements first and falls back to the job-request heuristic only for accounts with no tracked paperwork.
 
 - **2026-09-23 (owner's bug list):** the Intake dialog opened blank on projects whose generator details were shown from the account/facility fallback; `projectIntakeFallbacks()` now feeds the dialog and the "missing generator" check. The Live tab's "Project team and logistics" panel read `projectAssignments`, which nothing writes; it now reads the dispatch jobs' crews, equipment resources and vendors. A new **Sampling** tab (events per dispatch job, awaiting results, analyte rows, lab documents) and a "next step" line (`projectNextStep`: awaiting lab results / no further work scheduled) were added. The account Projects tab's "Closed projects" panel used stage index 4; it now uses `closedAt`.
 

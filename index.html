@@ -5862,6 +5862,10 @@
             <select name="employeeId"></select>
           </label>
         </div>
+        <label>
+          Customer account (Client Portal role only)
+          <select name="clientAccountId"></select>
+        </label>
         <label class="check-row">
           <input type="checkbox" name="isDisabled" />
           <span>Disabled — cannot sign in; any open sessions end now</span>
@@ -5896,6 +5900,126 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save password</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="documentUploadDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="document-upload">
+        <input name="entityType" type="hidden" />
+        <input name="entityId" type="hidden" />
+        <input name="requirementId" type="hidden" />
+        <input name="groupId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Documents</p>
+            <h2 data-upload-title>Upload a document</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          File
+          <input name="file" type="file" required />
+        </label>
+        <div class="form-grid">
+          <label>
+            Document type
+            <select name="documentTypeId"></select>
+          </label>
+          <label>
+            Visibility
+            <select name="visibility">
+              <option value="internal">Internal only</option>
+              <option value="customer">Shared with the customer's portal</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          Caption
+          <input name="caption" maxlength="200" placeholder="What is this?" />
+        </label>
+        <p class="help-text" data-upload-hint>PDF, images or Office files up to 25 MB.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Upload</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="requirementDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="requirement">
+        <input name="accountId" type="hidden" />
+        <input name="entityType" type="hidden" />
+        <input name="entityId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Paperwork</p>
+            <h2>Add a requirement</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Document
+          <select name="documentTypeId" required></select>
+        </label>
+        <label>
+          Notes
+          <input name="notes" maxlength="200" placeholder="Optional" />
+        </label>
+        <p class="help-text" data-requirement-hint></p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Add</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="requirementReviewDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="requirement-review">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Office review</p>
+            <h2 data-review-title>Review</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text" data-review-file></p>
+        <fieldset class="settings-section">
+          <legend>Decision</legend>
+          <label class="check-row"><input type="radio" name="decision" value="Approved" required /><span>Approve — the requirement is satisfied</span></label>
+          <label class="check-row"><input type="radio" name="decision" value="Rejected" /><span>Reject — ask for a corrected copy</span></label>
+        </fieldset>
+        <label data-review-expiry hidden>
+          Valid until
+          <input name="expiresAt" type="date" />
+        </label>
+        <label>
+          Note
+          <textarea name="reviewNote" rows="2" maxlength="500" placeholder="What was checked, or what is wrong"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Record decision</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="requirementFormDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="requirement-form">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Form details</p>
+            <h2 data-requirement-form-title>Form</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text" data-requirement-form-note></p>
+        <div class="form-grid" data-requirement-form-fields></div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save details</button>
         </menu>
       </form>
     </dialog>
