@@ -6732,6 +6732,313 @@
       "createdAt": "2026-09-23T19:01:00.707Z"
     }
   ],
+  "gpsConsents": [],
+  "documents": [],
+  "documentTypes": [
+    {
+      "id": "doctype-customer-packet",
+      "code": "customer-packet",
+      "name": "New customer packet",
+      "kind": "external-form",
+      "counterparty": "customer",
+      "appliesTo": [
+        "account",
+        "opportunity",
+        "project"
+      ],
+      "stageGate": "Negotiation",
+      "requiresReview": true,
+      "expiryDays": null,
+      "templateFile": "New Customer Packet trey.pdf",
+      "description": "BioRemedy's new-account paperwork: sent to the customer, returned signed, reviewed by the office before the deal moves to Negotiation.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-waste-authorization",
+      "code": "waste-authorization",
+      "name": "Third-party waste authorization (Republic)",
+      "kind": "external-form",
+      "counterparty": "customer",
+      "appliesTo": [
+        "account",
+        "opportunity",
+        "project"
+      ],
+      "stageGate": "Negotiation",
+      "requiresReview": true,
+      "expiryDays": null,
+      "templateFile": "New Customer Packet trey.pdf",
+      "templateNote": "Republic's own form, the last page of the customer packet. It authorises BioRemedy as the generator's agent at the disposal facility. Fill it, route it for signature and store the signed copy; never regenerate or restyle it.",
+      "formFields": [
+        [
+          "generatorName",
+          "Name of generator"
+        ],
+        [
+          "generatorMailingAddress",
+          "Generator mailing address"
+        ],
+        [
+          "generatorContactName",
+          "Generator contact (print name)"
+        ],
+        [
+          "generatorContactTitle",
+          "Generator contact title"
+        ],
+        [
+          "generatorContactPhone",
+          "Generator contact phone"
+        ],
+        [
+          "profileNumber",
+          "Republic profile number (internal)"
+        ],
+        [
+          "agentCompany",
+          "Agent company"
+        ],
+        [
+          "agentAddress",
+          "Agent company address"
+        ],
+        [
+          "agentIndividual",
+          "Agent individual"
+        ],
+        [
+          "agentIndividualTitle",
+          "Agent individual title"
+        ]
+      ],
+      "description": "Republic's waste profile authorization. One packet, two tracked requirements.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-service-agreement-msa",
+      "code": "service-agreement-msa",
+      "name": "Service agreement — MSA",
+      "kind": "upload",
+      "counterparty": "customer",
+      "appliesTo": [
+        "account"
+      ],
+      "stageGate": "",
+      "requiresReview": true,
+      "expiryDays": 365,
+      "description": "Master service agreement. Upload the office template on Identity & Sync › Document types; custom versions come back for review.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-service-agreement-standing",
+      "code": "service-agreement-standing",
+      "name": "Service agreement — standing work order",
+      "kind": "upload",
+      "counterparty": "customer",
+      "appliesTo": [
+        "account"
+      ],
+      "stageGate": "",
+      "requiresReview": true,
+      "expiryDays": 365,
+      "description": "Standing work order agreement.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-service-agreement-rate",
+      "code": "service-agreement-rate",
+      "name": "Service agreement — rate agreement",
+      "kind": "upload",
+      "counterparty": "customer",
+      "appliesTo": [
+        "account"
+      ],
+      "stageGate": "",
+      "requiresReview": true,
+      "expiryDays": 365,
+      "description": "Rate agreement.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-signed-quote",
+      "code": "signed-quote",
+      "name": "Signed quote",
+      "kind": "upload",
+      "counterparty": "customer",
+      "appliesTo": [
+        "opportunity"
+      ],
+      "stageGate": "",
+      "requiresReview": false,
+      "expiryDays": null,
+      "description": "The customer's signed copy of a quote.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-vendor-form",
+      "code": "vendor-form",
+      "name": "New vendor form",
+      "kind": "external-form",
+      "counterparty": "vendor",
+      "appliesTo": [
+        "account"
+      ],
+      "stageGate": "",
+      "requiresReview": true,
+      "expiryDays": null,
+      "templateFile": "New Vendor Form.pdf",
+      "description": "BioRemedy's vendor onboarding form.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-vendor-w9",
+      "code": "vendor-w9",
+      "name": "W-9",
+      "kind": "upload",
+      "counterparty": "vendor",
+      "appliesTo": [
+        "account"
+      ],
+      "stageGate": "",
+      "requiresReview": true,
+      "expiryDays": null,
+      "description": "The vendor's W-9. Approval marks the vendor profile's W-9 as approved.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-vendor-coi",
+      "code": "vendor-coi",
+      "name": "Certificate of insurance (COI)",
+      "kind": "upload",
+      "counterparty": "vendor",
+      "appliesTo": [
+        "account"
+      ],
+      "stageGate": "",
+      "requiresReview": true,
+      "expiryDays": 365,
+      "description": "Approval sets the vendor profile's insurance expiry from the certificate.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-approval-letter",
+      "code": "approval-letter",
+      "name": "Customer approval letter (subcontractor)",
+      "kind": "upload",
+      "counterparty": "customer",
+      "appliesTo": [
+        "accountApprovedSubcontractors"
+      ],
+      "stageGate": "",
+      "requiresReview": false,
+      "expiryDays": null,
+      "description": "The customer's written approval of a subcontractor.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-site-photo",
+      "code": "site-photo",
+      "name": "Site photo",
+      "kind": "upload",
+      "counterparty": "internal",
+      "appliesTo": [
+        "opportunity",
+        "project",
+        "facility",
+        "account",
+        "dispatchJob"
+      ],
+      "stageGate": "",
+      "requiresReview": false,
+      "expiryDays": null,
+      "isImage": true,
+      "description": "Photos from a site walk or from the field.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-account-logo",
+      "code": "account-logo",
+      "name": "Account logo",
+      "kind": "upload",
+      "counterparty": "internal",
+      "appliesTo": [
+        "account"
+      ],
+      "stageGate": "",
+      "requiresReview": false,
+      "expiryDays": null,
+      "isImage": true,
+      "description": "Shown on the account header.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-lab-report",
+      "code": "lab-report",
+      "name": "Lab report",
+      "kind": "upload",
+      "counterparty": "internal",
+      "appliesTo": [
+        "project",
+        "sample",
+        "dispatchJob"
+      ],
+      "stageGate": "",
+      "requiresReview": false,
+      "expiryDays": null,
+      "description": "A laboratory's report.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    },
+    {
+      "id": "doctype-other",
+      "code": "other",
+      "name": "Other document",
+      "kind": "upload",
+      "counterparty": "internal",
+      "appliesTo": [
+        "account",
+        "contact",
+        "opportunity",
+        "project",
+        "facility",
+        "dispatchJob",
+        "jobRequest"
+      ],
+      "stageGate": "",
+      "requiresReview": false,
+      "expiryDays": null,
+      "description": "Anything else worth keeping with the record.",
+      "version": 1,
+      "updatedAt": "2026-09-24T17:25:34.631Z",
+      "createdAt": "2026-09-24T17:25:34.631Z"
+    }
+  ],
+  "documentRequirements": [],
   "jobRequests": [
     {
       "id": "req-georgetown-072426",
@@ -24815,7 +25122,11 @@
       "domainName": "BIOREMEDY\\maya.chen",
       "internalEmailAddress": "maya.chen@example.com",
       "title": "Sales Manager",
-      "isDisabled": false
+      "isDisabled": false,
+      "role": "Sales Manager",
+      "username": "maya.chen",
+      "employeeId": "",
+      "clientAccountId": ""
     },
     {
       "id": "user-luis",
@@ -24824,7 +25135,11 @@
       "domainName": "BIOREMEDY\\luis.romero",
       "internalEmailAddress": "luis.romero@example.com",
       "title": "Account Manager",
-      "isDisabled": false
+      "isDisabled": false,
+      "role": "Account Manager",
+      "username": "luis.romero",
+      "employeeId": "",
+      "clientAccountId": ""
     },
     {
       "id": "user-priya",
@@ -24833,7 +25148,26 @@
       "domainName": "BIOREMEDY\\priya.patel",
       "internalEmailAddress": "priya.patel@example.com",
       "title": "Operations Manager",
-      "isDisabled": false
+      "isDisabled": false,
+      "role": "Operations Manager",
+      "username": "priya.patel",
+      "employeeId": "",
+      "clientAccountId": ""
+    },
+    {
+      "id": "user-braden",
+      "businessUnitId": "bu-bioremedy",
+      "fullName": "Braden Gilbert",
+      "username": "braden",
+      "internalEmailAddress": "braden@bioremedy.com",
+      "title": "Owner",
+      "role": "Admin",
+      "employeeId": "",
+      "isDisabled": false,
+      "createdAt": "2026-09-24T17:25:34.631Z",
+      "clientAccountId": "",
+      "updatedAt": "2026-09-24T17:29:58.600Z",
+      "version": 2
     }
   ],
   "teams": [

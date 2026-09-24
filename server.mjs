@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { readFile, mkdir, writeFile, rename, appendFile } from "node:fs/promises";
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual, createPublicKey, verify } from "node:crypto";
 import { existsSync, statSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -3896,9 +3896,191 @@ async function respondWithSession(request, response, auth, session, token) {
   response.end(JSON.stringify(publicSession(session)));
 }
 
+// ---- Phase 12b (2026-09-24): Microsoft Entra ID sign-in ----
+//
+// The browser runs the Authorization Code + PKCE flow against the bioremedy.com tenant and hands
+// the resulting ID token to POST /api/auth/login { provider: "entra" }. Nothing in that token is
+// trusted until this code has checked its RS256 signature against the keys Microsoft publishes for
+// the tenant, its issuer, audience, lifetime, tenant and nonce. The CRM role comes from the app
+// roles assigned in Entra (the `roles` claim; values below, highest first). A person who reaches
+// here has already passed Entra's "assignment required", so an unknown one gets a user record on
+// first sign-in. Local passwords stay as the fallback (CRM_LOCAL_LOGIN=off retires them once
+// everyone is on Entra); break-glass always works.
+const entraTenantId = process.env.CRM_ENTRA_TENANT_ID || "";
+const entraClientId = process.env.CRM_ENTRA_CLIENT_ID || "";
+const entraEnabled = Boolean(entraTenantId && entraClientId);
+const entraScopes = "openid profile email offline_access User.Read";
+const localLoginEnabled = (process.env.CRM_LOCAL_LOGIN || "on").toLowerCase() !== "off";
+// Test hooks for a scratch server only: a JWKS file and issuer stand in for Microsoft's discovery
+// endpoint so the validator can be exercised without a tenant. Never set these in production.
+const entraTestJwksFile = process.env.CRM_ENTRA_TEST_JWKS_FILE || "";
+const entraTestIssuer = process.env.CRM_ENTRA_TEST_ISSUER || "";
+// App-role VALUES as created in the Entra app registration (2026-09-24), highest privilege first.
+const ENTRA_ROLE_VALUES = [
+  ["Admin", "Admin"],
+  ["OfficeManager", "Office Manager"],
+  ["SalesManager", "Sales Manager"],
+  ["AccountManager", "Account Manager"],
+  ["OperationsManager", "Operations Manager"],
+  ["Scheduler", "Scheduler"],
+  ["FieldLead", "Field Lead"],
+  ["InventoryManager", "Inventory Manager"],
+  ["FinanceManager", "Finance Manager"],
+  ["ClientPortal", "Client Portal"],
+];
+let entraKeysCache = { keys: [], fetchedAt: 0, issuer: "" };
+
+function base64UrlDecode(value) {
+  return Buffer.from(String(value).replace(/-/g, "+").replace(/_/g, "/"), "base64");
+}
+
+async function entraDiscovery() {
+  if (entraTestJwksFile) {
+    return { issuer: entraTestIssuer, jwks: JSON.parse(await readFile(entraTestJwksFile, "utf8")) };
+  }
+  const configResponse = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(entraTenantId)}/v2.0/.well-known/openid-configuration`);
+  if (!configResponse.ok) throw new Error(`Microsoft's discovery document could not be fetched (${configResponse.status}).`);
+  const config = await configResponse.json();
+  const jwksResponse = await fetch(config.jwks_uri);
+  if (!jwksResponse.ok) throw new Error(`Microsoft's signing keys could not be fetched (${jwksResponse.status}).`);
+  return { issuer: config.issuer, jwks: await jwksResponse.json() };
+}
+
+// Keys are cached for a day; an unknown `kid` refreshes them, at most once a minute (key rollover).
+async function entraSigningKey(kid) {
+  const age = Date.now() - entraKeysCache.fetchedAt;
+  let key = entraKeysCache.keys.find((item) => item.kid === kid);
+  if ((!key || age > 24 * 3600000) && age > 60000) {
+    const { issuer, jwks } = await entraDiscovery();
+    entraKeysCache = { keys: Array.isArray(jwks.keys) ? jwks.keys : [], fetchedAt: Date.now(), issuer: issuer || "" };
+    key = entraKeysCache.keys.find((item) => item.kid === kid);
+  }
+  return key ? { key, issuer: entraKeysCache.issuer } : null;
+}
+
+async function verifyEntraIdToken(idToken, expectedNonce) {
+  const parts = String(idToken || "").split(".");
+  if (parts.length !== 3) throw new Error("Malformed ID token.");
+  let header;
+  let claims;
+  try {
+    header = JSON.parse(base64UrlDecode(parts[0]).toString("utf8"));
+    claims = JSON.parse(base64UrlDecode(parts[1]).toString("utf8"));
+  } catch {
+    throw new Error("Malformed ID token.");
+  }
+  if (header.alg !== "RS256") throw new Error(`Unexpected token algorithm (${header.alg}).`);
+  const found = await entraSigningKey(header.kid);
+  if (!found) throw new Error("The token was signed with a key Microsoft does not publish for this tenant.");
+  const publicKey = createPublicKey({ key: found.key, format: "jwk" });
+  const signatureValid = verify("RSA-SHA256", Buffer.from(`${parts[0]}.${parts[1]}`), publicKey, base64UrlDecode(parts[2]));
+  if (!signatureValid) throw new Error("The token signature is not valid.");
+  const expectedIssuer = String(found.issuer || "").replace("{tenantid}", entraTenantId);
+  if (!claims.iss || (expectedIssuer && claims.iss !== expectedIssuer)) throw new Error("The token was not issued by the bioremedy.com tenant.");
+  if (claims.aud !== entraClientId) throw new Error("The token is not for this application.");
+  const now = Math.floor(Date.now() / 1000);
+  if (!claims.exp || claims.exp < now - 60) throw new Error("The sign-in token has expired. Sign in again.");
+  if (claims.nbf && claims.nbf > now + 300) throw new Error("The token is not valid yet.");
+  if (claims.tid && claims.tid !== entraTenantId) throw new Error("The token is from a different tenant.");
+  if (expectedNonce && claims.nonce !== expectedNonce) throw new Error("Sign-in nonce did not match. Please try again.");
+  return claims;
+}
+
+function entraRoleFromClaims(claims, fallbackRole) {
+  const values = Array.isArray(claims.roles) ? claims.roles : [];
+  for (const [value, role] of ENTRA_ROLE_VALUES) {
+    if (values.includes(value)) return role;
+  }
+  return KNOWN_ROLES.includes(fallbackRole) ? fallbackRole : "";
+}
+
+async function handleEntraLogin(request, response, body) {
+  if (!entraEnabled) return json(response, 400, { error: "Microsoft sign-in is not configured on this server." });
+  const key = loginKey(request, "entra");
+  if (loginLocked(key)) return json(response, 429, { error: `Too many failed sign-ins. Try again in ${LOGIN_LOCK_MINUTES} minutes.` });
+  let claims;
+  try {
+    claims = await verifyEntraIdToken(body.idToken, String(body.nonce || ""));
+  } catch (error) {
+    noteLoginFailure(key);
+    await audit(request, { action: "login-failed", provider: "entra", severity: "medium", reason: error.message });
+    return json(response, 401, { error: error.message });
+  }
+  const data = await loadBackend();
+  const oid = String(claims.oid || claims.sub || "");
+  const email = String(claims.preferred_username || claims.email || "").trim().toLowerCase();
+  const name = String(claims.name || email || "Microsoft user").trim();
+  let user = (data.systemUsers || []).find((item) => !item.deletedAt && oid && item.entraObjectId === oid) || (email ? findSystemUser(data, email) : null);
+  const role = entraRoleFromClaims(claims, user?.role || "");
+  const now = new Date().toISOString();
+  if (!role) {
+    await audit(request, { action: "login-failed", provider: "entra", severity: "medium", summary: email || name, reason: "no app role" });
+    return json(response, 403, { error: "Your Microsoft account has no BioRemedy role yet. Ask an administrator to assign one in Entra (Enterprise applications › Users and groups)." });
+  }
+  if (!user) {
+    user = touchRecord({
+      id: makeId("user"),
+      businessUnitId: "bu-bioremedy",
+      fullName: name,
+      username: email.split("@")[0] || "",
+      internalEmailAddress: email,
+      title: "",
+      role,
+      employeeId: "",
+      clientAccountId: "",
+      isDisabled: false,
+      entraObjectId: oid,
+      createdAt: now,
+      createdBy: "entra",
+    });
+    data.systemUsers.push(user);
+    await audit(request, { action: "user-provisioned", provider: "entra", collection: "systemUsers", recordId: user.id, summary: `${user.fullName} as ${role}` });
+  } else {
+    if (user.isDisabled) {
+      await audit(request, { action: "login-failed", provider: "entra", severity: "medium", summary: user.fullName, reason: "disabled" });
+      return json(response, 403, { error: "This account is disabled in the CRM. Ask an administrator." });
+    }
+    // Entra is the source of truth for the role once a person signs in with it.
+    let changed = false;
+    if (oid && user.entraObjectId !== oid) (user.entraObjectId = oid), (changed = true);
+    if (user.role !== role) (user.role = role), (changed = true);
+    if (!user.fullName && name) (user.fullName = name), (changed = true);
+    if (!user.internalEmailAddress && email) (user.internalEmailAddress = email), (changed = true);
+    if (changed) touchRecord(user);
+  }
+  await saveBackend(data);
+  if (role === "Client Portal" && !user.clientAccountId) {
+    await audit(request, { action: "login-failed", provider: "entra", severity: "low", summary: user.fullName, reason: "portal user not linked to an account" });
+    return json(response, 403, { error: "Your login is not linked to a customer account yet. BioRemedy links it under Users & access; try again afterwards." });
+  }
+  loginFailures.delete(key);
+  const auth = await loadAuth();
+  const { session, token } = await createSession(auth, request, {
+    kind: "entra",
+    systemUserId: user.id,
+    employeeId: user.employeeId || "",
+    name: user.fullName,
+    email: user.internalEmailAddress || email,
+    role,
+    clientAccountId: role === "Client Portal" ? user.clientAccountId || "" : "",
+  });
+  request.session = session;
+  await audit(request, { action: "login", provider: "entra", summary: user.fullName, roles: Array.isArray(claims.roles) ? claims.roles : [] });
+  return respondWithSession(request, response, auth, session, token);
+}
+
 async function handleAuth(request, response, pathname) {
   const session = request.session;
   const method = request.method;
+
+  // Which ways in this server offers; public, so the sign-in screen can show the right buttons.
+  if (pathname === "/api/auth/providers" && method === "GET") {
+    return json(response, 200, {
+      entra: entraEnabled ? { tenantId: entraTenantId, clientId: entraClientId, scopes: entraScopes } : null,
+      local: localLoginEnabled,
+      breakGlass: true,
+    });
+  }
 
   if (pathname === "/api/auth/me" && method === "GET") {
     if (!session) return json(response, 401, { error: "Sign in required.", unauthenticated: true });
@@ -3911,6 +4093,8 @@ async function handleAuth(request, response, pathname) {
 
   if (pathname === "/api/auth/login" && method === "POST") {
     const body = await readJsonBody(request);
+    if (body.provider === "entra") return handleEntraLogin(request, response, body);
+    if (!localLoginEnabled) return json(response, 400, { error: "Password sign-in is turned off here. Use Sign in with Microsoft." });
     const username = String(body.username || "").trim();
     const key = loginKey(request, username);
     if (loginLocked(key)) return json(response, 429, { error: `Too many failed sign-ins. Try again in ${LOGIN_LOCK_MINUTES} minutes.` });

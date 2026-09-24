@@ -7216,3 +7216,32 @@ body[data-theme="dark"] .frontline-thread-avatar.office {
 body[data-theme="dark"] .document-ext {
   background: var(--surface-alt);
 }
+
+/* Phase 12b (2026-09-24): Microsoft sign-in on the login card. */
+.microsoft-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.login-form[hidden] {
+  display: none;
+}

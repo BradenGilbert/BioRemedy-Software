@@ -36,6 +36,9 @@ Put machine settings in a `.env` file in the project root (gitignored; one `KEY=
 | `CRM_SEED_DEMO` | unset | `1` seeds the demo data set (`data/demo-seed.json`) into empty collections. Off by default: an emptied collection stays empty. |
 | `CRM_WEATHER_PROVIDER` | `open-meteo` | Weather snapshot source; `off` makes every capture fail (for testing). |
 | `CRM_BREAK_GLASS_PASSWORD` | unset | Sets the emergency-admin password at startup. When unset, a fresh data folder gets a generated one written to `<data>/break-glass-password.txt`. |
+| `CRM_ENTRA_TENANT_ID` | unset | The bioremedy.com Directory (tenant) ID. With `CRM_ENTRA_CLIENT_ID` it turns on "Sign in with Microsoft"; the server verifies each ID token against the tenant's published keys. |
+| `CRM_ENTRA_CLIENT_ID` | unset | The app registration's Application (client) ID. Register `https://<host>/` (and `http://localhost:4173/`) as single-page-application redirect URIs. |
+| `CRM_LOCAL_LOGIN` | `on` | `off` retires password sign-in once everyone uses Microsoft: the password form and Set password buttons disappear and password sign-ins are refused. Break-glass always works. |
 
 ### Scratch instance for testing
 

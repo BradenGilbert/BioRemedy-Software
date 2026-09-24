@@ -1041,6 +1041,8 @@ function getEquipmentCategoryConfig(category) {
 const state = {
   view: "home",
   session: null,
+  authProviders: null,
+  loginErrorFrom: "",
   authRequired: false,
   loginError: "",
   loginEmergencyOpen: false,
@@ -1546,6 +1548,7 @@ async function handleSaveConflict(error) {
 
 async function init() {
   await ensureSeedData();
+  await loadAuthProviders();
   await handleAuthRedirect();
   await loadSession();
   await refreshState();
@@ -14519,7 +14522,11 @@ function renderSync() {
           ${renderCurrentUser()}
           <form class="identity-panel" data-form="identity">
             <h3>Microsoft Entra ID configuration</h3>
-            <p class="help-text">Create an app registration for a single-page application, then enter its tenant and client IDs here.</p>
+            ${
+              state.authProviders?.entra
+                ? `<p class="help-text">Configured on the server (<code>.env</code>): tenant <code>${escapeHtml(state.authProviders.entra.tenantId)}</code>, client <code>${escapeHtml(state.authProviders.entra.clientId)}</code>. Everyone gets "Sign in with Microsoft" on the sign-in screen. The fields below are a browser-only override for testing another registration.</p>`
+                : `<p class="help-text">Not configured on the server yet. Put <code>CRM_ENTRA_TENANT_ID</code> and <code>CRM_ENTRA_CLIENT_ID</code> in <code>.env</code> and restart, or enter them here for this browser only.</p>`
+            }
             <div class="identity-grid">
               <label>
                 Tenant ID
@@ -27637,12 +27644,29 @@ function sessionToUser(session) {
     name: session.name,
     email: session.email || "",
     role: session.role,
-    source: session.kind === "breakglass" ? "Emergency access" : session.kind === "dispatch-link" ? "Sign-on link" : "Signed in",
+    source: session.kind === "breakglass" ? "Emergency access" : session.kind === "dispatch-link" ? "Sign-on link" : session.kind === "entra" ? "Microsoft" : "Signed in",
     signedInAt: session.createdAt,
     employeeId: session.employeeId || "",
     kind: session.kind,
     sessionId: session.id,
   };
+}
+
+// Which sign-in methods the server offers (Entra configured in .env, password sign-in on/off).
+async function loadAuthProviders() {
+  try {
+    state.authProviders = await apiRequest("/api/auth/providers");
+  } catch {
+    state.authProviders = { entra: null, local: true, breakGlass: true };
+  }
+}
+
+// The Entra settings: from the server when configured there, else the browser-side override on
+// Identity & Sync (kept for testing against another registration).
+function entraConfig() {
+  if (state.authProviders?.entra) return state.authProviders.entra;
+  if (state.identityConfig?.tenantId && state.identityConfig?.clientId) return { ...state.identityConfig, scopes: state.identityConfig.scopes || defaultIdentityConfig.scopes };
+  return null;
 }
 
 async function loadSession() {
@@ -27678,16 +27702,28 @@ function renderLoginScreen() {
         <div>
           <p class="eyebrow">BioRemedy Operations Platform</p>
           <h2>Sign in</h2>
-          <p class="help-text">Use the username or email on your BioRemedy user record.</p>
+          <p class="help-text">${entraConfig() ? "Use your bioremedy.com Microsoft account." : "Use the username or email on your BioRemedy user record."}</p>
         </div>
-        <form class="login-form" data-form="login">
+        ${
+          entraConfig()
+            ? `
+              <button class="primary-button microsoft-button" type="button" data-action="start-microsoft-signin">
+                <svg aria-hidden="true" viewBox="0 0 21 21" width="18" height="18"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+                Sign in with Microsoft
+              </button>
+              ${state.loginError && state.loginErrorFrom === "microsoft" ? `<p class="login-error" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
+              ${state.authProviders?.local === false ? "" : `<div class="login-divider"><span>or with a BioRemedy password</span></div>`}
+            `
+            : ""
+        }
+        <form class="login-form" data-form="login" ${state.authProviders?.local === false ? "hidden" : ""}>
           <label>Username or email
             <input name="username" autocomplete="username" value="${escapeAttribute(state.loginUsername || "")}" required autofocus />
           </label>
           <label>Password
             <input name="password" type="password" autocomplete="current-password" required />
           </label>
-          ${state.loginError ? `<p class="login-error" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
+          ${state.loginError && state.loginErrorFrom !== "microsoft" ? `<p class="login-error" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
           <button class="primary-button" type="submit">Sign in</button>
         </form>
         <details class="login-emergency" ${state.loginEmergencyOpen ? "open" : ""}>
@@ -27700,7 +27736,7 @@ function renderLoginScreen() {
             <button class="secondary-button" type="submit">Use emergency access</button>
           </form>
         </details>
-        <p class="help-text login-foot">Microsoft sign-in for bioremedy.com accounts arrives with Phase 12b.</p>
+        <p class="help-text login-foot">${entraConfig() ? "Passwords are only a fallback; your Microsoft account is the way in." : "Microsoft sign-in appears here once the server is configured for the bioremedy.com tenant."}</p>
       </div>
     </section>
   `;
@@ -27726,6 +27762,7 @@ async function signIn(form) {
   if (submitButton) submitButton.disabled = true;
   // Kept so a wrong password re-renders the form with the name still filled in.
   state.loginUsername = (data.get("username") || "").toString().trim();
+  state.loginErrorFrom = "";
   try {
     const session = await apiRequest("/api/auth/login", {
       method: "POST",
@@ -27746,6 +27783,7 @@ async function breakGlassSignIn(form) {
     await afterSignIn(session);
   } catch (error) {
     state.loginError = error.message || "Emergency access failed.";
+    state.loginErrorFrom = "";
     state.loginEmergencyOpen = true;
     render();
   }
@@ -27823,17 +27861,17 @@ function getSystemUsers() {
 function renderSystemUserRow(user) {
   const status = state.authAdmin?.usersStatus?.[user.id] || {};
   const employee = user.employeeId ? findEmployee(user.employeeId) : null;
-  const facts = [user.username ? `@${user.username}` : "", user.internalEmailAddress || "", user.role || "no role", employee ? `field: ${employee.displayName}` : ""].filter(Boolean);
+  const facts = [user.username ? `@${user.username}` : "", user.internalEmailAddress || "", user.role || "no role", employee ? `field: ${employee.displayName}` : "", user.entraObjectId ? "Microsoft sign-in" : ""].filter(Boolean);
   return `
     <div class="detail-card ${user.isDisabled ? "muted-card" : ""}">
       <div class="row-meta">
-        <strong>${escapeHtml(user.fullName)}${user.isDisabled ? " · Disabled" : ""}${!user.role ? renderAlertDot("No role: cannot sign in") : !status.hasPassword ? renderAlertDot("No password set yet") : ""}</strong>
+        <strong>${escapeHtml(user.fullName)}${user.isDisabled ? " · Disabled" : ""}${!user.role ? renderAlertDot("No role: cannot sign in") : !status.hasPassword && !user.entraObjectId && !entraConfig() ? renderAlertDot("No password set yet") : ""}</strong>
         <span>${escapeHtml(facts.join(" · "))}</span>
       </div>
-      <span class="help-text">${status.hasPassword ? `Password set ${formatDateTime(status.passwordSetAt)}` : "No password yet"}${status.lastSignInAt ? ` · last sign-in ${formatDateTime(status.lastSignInAt)}` : ""}</span>
+      <span class="help-text">${user.entraObjectId ? "Signs in with Microsoft" : entraConfig() ? "Not signed in with Microsoft yet" : ""}${status.hasPassword ? `${user.entraObjectId || entraConfig() ? " · " : ""}Password set ${formatDateTime(status.passwordSetAt)}` : user.entraObjectId || entraConfig() ? "" : "No password yet"}${status.lastSignInAt ? ` · last sign-in ${formatDateTime(status.lastSignInAt)}` : ""}</span>
       <div class="inline-actions">
         <button class="mini-button" type="button" data-action="open-system-user" data-id="${escapeAttribute(user.id)}">Edit</button>
-        <button class="mini-button" type="button" data-action="open-set-password" data-id="${escapeAttribute(user.id)}">Set password</button>
+        ${state.authProviders?.local === false ? "" : `<button class="mini-button" type="button" data-action="open-set-password" data-id="${escapeAttribute(user.id)}">Set password</button>`}
         <button class="mini-button" type="button" data-action="toggle-system-user" data-id="${escapeAttribute(user.id)}">${user.isDisabled ? "Enable" : "Disable"}</button>
       </div>
     </div>
@@ -27846,7 +27884,7 @@ function renderUsersAndAccessPanel() {
   return `
     <article class="panel">
       <div class="panel-header">
-        <div><h3>Users &amp; access</h3><span>Who can sign in, and as what. An administrator sets each person's first password here.</span></div>
+        <div><h3>Users &amp; access</h3><span>${entraConfig() ? "Who can sign in, and as what. People sign in with their bioremedy.com Microsoft account and get a record here on their first sign-in; the role comes from the app role assigned in Entra. Add someone ahead of time (same email) to link them to a field employee or a customer account first." : "Who can sign in, and as what. An administrator sets each person's first password here."}</span></div>
         <button class="mini-button" type="button" data-action="open-system-user">Add user</button>
       </div>
       <div class="panel-body record-list">
@@ -27868,7 +27906,7 @@ function renderSessionsPanel() {
             .map(
               (session) => `
                 <div class="detail-card">
-                  <div class="row-meta"><strong>${escapeHtml(session.name)}${session.current ? " (this session)" : ""}</strong><span>${escapeHtml(session.role)} · ${escapeHtml(session.kind === "breakglass" ? "emergency access" : session.kind === "dispatch-link" ? "sign-on link" : "sign-in")} · since ${formatDateTime(session.createdAt)} · last seen ${formatDateTime(session.lastSeenAt)}${session.ip ? ` · ${escapeHtml(session.ip)}` : ""}</span></div>
+                  <div class="row-meta"><strong>${escapeHtml(session.name)}${session.current ? " (this session)" : ""}</strong><span>${escapeHtml(session.role)} · ${escapeHtml(session.kind === "breakglass" ? "emergency access" : session.kind === "dispatch-link" ? "sign-on link" : session.kind === "entra" ? "Microsoft" : "password sign-in")} · since ${formatDateTime(session.createdAt)} · last seen ${formatDateTime(session.lastSeenAt)}${session.ip ? ` · ${escapeHtml(session.ip)}` : ""}</span></div>
                   ${session.current ? "" : `<div class="inline-actions"><button class="mini-button" type="button" data-action="revoke-session" data-id="${escapeAttribute(session.id)}">Revoke</button></div>`}
                 </div>
               `,
@@ -28993,9 +29031,9 @@ function populateInventoryItemSelect(root) {
 }
 
 async function startMicrosoftSignIn() {
-  const config = state.identityConfig;
-  if (!config.tenantId || !config.clientId) {
-    showToast("Add tenant and client IDs first.");
+  const config = entraConfig();
+  if (!config) {
+    showToast("Microsoft sign-in is not configured yet (CRM_ENTRA_TENANT_ID / CRM_ENTRA_CLIENT_ID on the server).");
     return;
   }
 
@@ -29025,6 +29063,7 @@ async function startMicrosoftSignIn() {
     nonce,
     code_challenge: challenge,
     code_challenge_method: "S256",
+    prompt: "select_account",
   });
 
   window.location.assign(
@@ -29039,6 +29078,8 @@ async function handleAuthRedirect() {
 
   if (authError) {
     const description = params.get("error_description") || "Microsoft sign-in did not complete.";
+    state.loginError = description;
+    state.loginErrorFrom = "microsoft";
     await putSetting("authError", description);
     cleanAuthQuery();
     return;
@@ -29052,7 +29093,7 @@ async function handleAuthRedirect() {
       throw new Error("Sign-in state did not match. Please try again.");
     }
 
-    const config = await getSetting("identityConfig", defaultIdentityConfig);
+    const config = entraConfig() || (await getSetting("identityConfig", defaultIdentityConfig));
     const body = new URLSearchParams({
       client_id: config.clientId,
       grant_type: "authorization_code",
@@ -29090,26 +29131,22 @@ async function handleAuthRedirect() {
       throw new Error("Sign-in nonce did not match. Please try again.");
     }
 
-    const profile = {
-      name: claims.name || claims.preferred_username || claims.email || "Microsoft user",
-      email: claims.preferred_username || claims.email || "",
-      role: "Microsoft 365 user",
-      source: "Microsoft Entra ID",
-      tenantId: claims.tid || config.tenantId,
-      objectId: claims.oid || claims.sub || "",
-      signedInAt: new Date().toISOString(),
-    };
-
+    // Phase 12b: the server verifies the ID token and owns the session from here.
+    await apiRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ provider: "entra", idToken: tokenPayload.id_token, nonce: stored.nonce || "" }),
+    });
     if (tokenPayload.access_token) {
       sessionStorage.setItem(ACCESS_TOKEN_KEY, tokenPayload.access_token);
     }
-
-    await putSetting("currentUser", profile);
+    state.loginError = "";
     await putSetting("authError", "");
     sessionStorage.removeItem(AUTH_SESSION_KEY);
     cleanAuthQuery();
     showToast("Signed in with Microsoft.");
   } catch (error) {
+    state.loginError = error.message || "Microsoft sign-in failed.";
+    state.loginErrorFrom = "microsoft";
     await putSetting("authError", error.message || "Microsoft sign-in failed.");
     sessionStorage.removeItem(AUTH_SESSION_KEY);
     cleanAuthQuery();

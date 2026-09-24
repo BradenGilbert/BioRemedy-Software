@@ -10,9 +10,9 @@ Shipped work is deliberately not repeated here; `README.md` has the "already shi
 
 | | Count |
 |---|---|
-| Phases shipped | 16 (00, 01, 02, 04, 05, 08, 09, 10, 11, 12a, 13, 15, 16, 17, 18, 20) — the 2026-09-23/24 sprint (Waves 0–8) closed 04, 11, 12a, 13, 18 item 4 and 20, and every second-round item in 08, 09, 10 |
+| Phases shipped | 17 (00, 01, 02, 04, 05, 08, 09, 10, 11, 12a, 12b, 13, 15, 16, 17, 18, 20) — the 2026-09-23/24 sprint (Waves 0–8) closed 04, 11, 12a, 13, 18 item 4 and 20, and every second-round item in 08, 09, 10; 12b (Entra sign-in) followed on 2026-09-24 once the app registration existed |
 | Phases substantially done, with named leftovers | 3 (03, 06, 07) |
-| Phases not started | 12b (Entra — waits for the bioremedy.com app registration), 14 (Postgres — after the pilot; inventory and runbook ready), 19 (email/Teams — needs Entra) |
+| Phases not started | 14 (Postgres — after the pilot; inventory and runbook ready), 19 (email/Teams — the Entra registration now exists; needs Graph permissions and a design pass) |
 | Open items with a checkbox against them | ~80 |
 | Blocked on an owner decision, not on engineering | 14 |
 
@@ -26,7 +26,7 @@ Three things dominate what is left, and they are worth naming because they are n
 
 ## Sprint result — 2026-09-23/24 (Waves 0–8)
 
-Everything on the JSON backend that could be finished before the switch to Postgres + Entra is finished: the rate card and itemized invoice (08/09), field-ops depth (11), the owner's 22-item bug list and Front Line clean-up, engineering hardening (20, live), identity without Entra (12a, live — sign in with the break-glass password in `data/break-glass-password.txt`, then set your own), documents and the Client Portal (13, live), and the cutover inventory + runbook (Wave 8). **Open for the owner:** `CRM_BACKUP_DIR` (a OneDrive folder), the July demo draft jobs (B9), Part B triage, the Entra app registration.
+Everything on the JSON backend that could be finished before the switch to Postgres + Entra is finished: the rate card and itemized invoice (08/09), field-ops depth (11), the owner's 22-item bug list and Front Line clean-up, engineering hardening (20, live), identity without Entra (12a, live — sign in with the break-glass password in `data/break-glass-password.txt`, then set your own), documents and the Client Portal (13, live), and the cutover inventory + runbook (Wave 8). **Open for the owner:** the July demo draft jobs (B9), Part B triage, and the Directory (tenant) ID + Application (client) ID for `.env` so the shipped Entra sign-in (12b, 2026-09-24) can be tried against the real tenant. `CRM_BACKUP_DIR` was set 2026-09-24 (the bioremedy OneDrive folder).
 
 ## Decisions — 44 of 52 answered 2026-09-22
 
@@ -184,8 +184,8 @@ All of Part A is in: the static-file allowlist (live), per-record `version` with
 
 **Part B — flow findings, unsorted (B1–B12), parked in the same doc for a later triage session:** Won/Lost dual truth + no lost reason (B1); Won owes no project and close never writes back (B2); 22 of 50 dispatch jobs have no project so can't be billed (B3); quotes have no Sent/Accepted/Expired state (B4); no quoted-vs-actual, NTE never enforced (B5); no stale-deal signal, stage age resets on any edit (B6); no planned-visit schedule for Multi-Stage (B7); project status/stage/activePhase triple (B8); 19 July draft jobs inflate Blocked counts (B9); derive account lifecycle for Q54 (B10); "Needs information" has no return loop (B11); verify the account-role/job-title split actually shipped (B12).
 
-### Phase 12 — Identity, Authorization & Audit · *12a shipped 2026-09-23; 12b (Entra) not started*
-Server sessions (cookie), local sign-in with passwords set by an admin, the role taken from the session on every API call (the `X-CRM-Role` header is dead), an append-only audit log naming the real user and the changed fields, revocation and disabling on the next request, break-glass emergency admin, the attachment route closed. Left: the Entra provider (needs the app registration in the bioremedy.com tenant), a per-device token for the OwnTracks endpoint, per-job scoping of sign-on-link sessions.
+### Phase 12 — Identity, Authorization & Audit · ✅ *12a shipped 2026-09-23; 12b shipped 2026-09-24*
+Server sessions (cookie), local sign-in with passwords set by an admin, the role taken from the session on every API call (the `X-CRM-Role` header is dead), an append-only audit log naming the real user and the changed fields, revocation and disabling on the next request, break-glass emergency admin, the attachment route closed. 12b: "Sign in with Microsoft" with the ID token verified server-side against the bioremedy.com tenant's keys, the role from the Entra app role, users created on first sign-in, refusals with guidance, `CRM_LOCAL_LOGIN=off` to retire passwords. Left: the owner's tenant/client IDs in `.env` and the first real-tenant sign-in; a per-device token for the OwnTracks endpoint; per-job scoping of sign-on-link sessions; someone disabled in Entra keeps a CRM session for up to 12 hours unless revoked here.
 
 ### Phase 13 — Documents · ✅ shipped 2026-09-24 (Wave 7)
 Generic document store with hash de-duplication and versions, every Files tab live, 14 document types (the customer packet and Republic's waste authorization as fixed PDFs), requirement → review → gate (the Negotiation gate reads approved paperwork; the project and emergency intake read the same state), vendor paperwork, site photos, account logo, and the Client Portal scoped server-side with customer uploads of returned paperwork. Left: SharePoint links, sending/e-signature (Phase 19), PDF form-filling.
@@ -206,7 +206,7 @@ Generic document store with hash de-duplication and versions, every Files tab li
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
 **Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, Phase 09's Lone Star invoice also shipped (Wave 5b). **Phase 20 shipped 2026-09-23 (item 0 on its own commit, then Wave 5c). Wave 6 shipped 2026-09-23: Phase 12a (sessions, local sign-in, API enforcement, audit, revocation, break-glass) and Phase 18 item 4 (sign-on links + GPS consent).** Wave 6 was: the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
-**Before real users:** Phase 12b (Entra) when the bioremedy.com app registration exists — everything else in Stage C is done (20, 12a, 13). The Pilot Milestone's software is in place.
+**Before real users:** put the tenant and client IDs in `.env`, restart, and sign in with Microsoft once (12b shipped 2026-09-24) — everything in Stage C is done (20, 12a, 12b, 13). The Pilot Milestone's software is in place.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 
 Phase 10's remaining two small items are independent — a good candidate to clear in a single session when a bigger phase is blocked on a decision.
