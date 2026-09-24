@@ -35,13 +35,6 @@
           <div id="quickActions" class="quick-actions" aria-label="Quick actions"></div>
           <span id="notificationBell" class="notification-bell"></span>
           <span id="currentUserChip" class="current-user-chip" title="Signed in as"></span>
-          <button class="icon-button signout-button" type="button" data-action="sign-out" aria-label="Sign out" title="Sign out">
-            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M16 17l5-5-5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M21 12H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
           <button class="icon-button settings-button" type="button" data-action="open-settings" aria-label="Open settings" title="Settings">
             <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
               <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
@@ -77,6 +70,19 @@
         </div>
 
         <div class="settings-grid">
+          <fieldset class="settings-section settings-session">
+            <legend>Account</legend>
+            <div class="settings-status-list">
+              <div>
+                <strong data-settings-session-name>Signed in</strong>
+                <span data-settings-session-role></span>
+              </div>
+            </div>
+            <div class="inline-actions">
+              <button class="danger-button" type="button" data-action="sign-out">Logout</button>
+            </div>
+          </fieldset>
+
           <fieldset class="settings-section">
             <legend>GPS and Tracking</legend>
             <label>

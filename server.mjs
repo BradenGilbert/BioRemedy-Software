@@ -2482,7 +2482,14 @@ async function loadBackend() {
     isDisabled: Boolean(user.isDisabled),
   }));
   if (!data.systemUsers.some((user) => user.id === "user-braden")) {
-    data.systemUsers.push({ id: "user-braden", businessUnitId: "bu-bioremedy", fullName: "Braden Gilbert", username: "bgilbert", internalEmailAddress: "bgilbert@bioremedy.com", title: "Owner", role: "Admin", employeeId: "", isDisabled: false, createdAt: new Date().toISOString() });
+    data.systemUsers.push({ id: "user-braden", businessUnitId: "bu-bioremedy", fullName: "Braden Gilbert", username: "braden", internalEmailAddress: "braden@bioremedy.com", title: "Owner", role: "Admin", employeeId: "", isDisabled: false, createdAt: new Date().toISOString() });
+  }
+  // 2026-09-24: the owner's record was first seeded with a guessed address; the real one is
+  // braden@bioremedy.com. Corrected in place unless it has already been edited to something else.
+  const owner = data.systemUsers.find((user) => user.id === "user-braden");
+  if (owner && owner.internalEmailAddress === "bgilbert@bioremedy.com") {
+    owner.internalEmailAddress = "braden@bioremedy.com";
+    if (owner.username === "bgilbert") owner.username = "braden";
   }
   let dirty = seedDemoData && (await seedDemoCollections(data));
   if (ensureDocumentTypes(data)) dirty = true;
@@ -3978,10 +3985,27 @@ async function handleAuth(request, response, pathname) {
     const record = { id: existing?.id || makeId("credential"), systemUserId: user.id, algorithm: "scrypt", ...hashPassword(password), updatedAt: new Date().toISOString(), updatedBy: session.name };
     if (existing) Object.assign(existing, record);
     else auth.credentials.push(record);
+    // Persist first (2026-09-24 fix: this used to rely on revokeSessions() saving, which it only
+    // does when there was a session to revoke -- a first password was lost on the next restart).
+    await saveAuth(auth);
     // A new password ends every other session that user has.
     await revokeSessions(auth, (item) => item.systemUserId === user.id && item.id !== session.id, session.name);
     await audit(request, { action: "password-set", collection: "systemUsers", recordId: user.id, summary: user.fullName, self: user.id === session.systemUserId });
     return json(response, 200, { ok: true, userId: user.id });
+  }
+
+  // An administrator changes the emergency password from the app (2026-09-24). The generated file
+  // is not rewritten: the new password lives only where the administrator keeps it.
+  if (pathname === "/api/auth/break-glass/password" && method === "POST") {
+    if (!isAdmin) return json(response, 403, { error: "Only an administrator can change the emergency password." });
+    const body = await readJsonBody(request);
+    const password = String(body.password || "");
+    if (password.length < MIN_PASSWORD_LENGTH) return json(response, 400, { error: `Use at least ${MIN_PASSWORD_LENGTH} characters.` });
+    const auth = await loadAuth();
+    auth.breakGlass = { ...hashPassword(password), createdAt: auth.breakGlass?.createdAt || new Date().toISOString(), changedAt: new Date().toISOString(), changedBy: session.name, source: "admin" };
+    await saveAuth(auth);
+    await audit(request, { action: "break-glass-password-changed", severity: "high", summary: `by ${session.name}` });
+    return json(response, 200, { ok: true });
   }
 
   if (pathname === "/api/auth/users" && method === "GET") {

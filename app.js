@@ -22239,6 +22239,10 @@ function openSettingsDialog() {
   };
   const form = settingsDialog.querySelector("form");
   form.reset();
+  const sessionName = settingsDialog.querySelector("[data-settings-session-name]");
+  const sessionRole = settingsDialog.querySelector("[data-settings-session-role]");
+  if (sessionName) sessionName.textContent = state.currentUser?.name || "Signed in";
+  if (sessionRole) sessionRole.textContent = `${state.currentUser?.role || ""}${state.currentUser?.email ? ` · ${state.currentUser.email}` : ""}${state.currentUser?.source ? ` · ${state.currentUser.source}` : ""}`;
   form.elements.theme.value = settings.theme;
   form.elements.density.value = settings.density;
   form.elements.gpsMode.value = settings.gpsMode;
@@ -27785,8 +27789,10 @@ function renderCurrentUser() {
       </div>
       <div class="inline-actions">
         ${state.session?.systemUserId ? `<button class="secondary-button" type="button" data-action="open-set-password" data-id="${escapeAttribute(state.session.systemUserId)}">Change my password</button>` : ""}
+        ${state.currentUser?.role === "Admin" ? `<button class="secondary-button" type="button" data-action="open-set-password" data-id="break-glass">Change emergency password</button>` : ""}
         <button class="danger-button" type="button" data-action="sign-out">Sign out</button>
       </div>
+      ${state.currentUser?.role === "Admin" ? `<p class="help-text">The emergency (break-glass) password is not tied to any user. It was written to <code>data/break-glass-password.txt</code> when the server first started; changing it here replaces it, and the file is not updated — keep the new one somewhere safe.</p>` : ""}
     </section>
   `;
 }
@@ -27981,7 +27987,8 @@ function openSetPasswordDialog(userId) {
   form.reset();
   const user = getSystemUsers().find((item) => item.id === userId);
   form.elements.userId.value = userId;
-  dialog.querySelector("[data-password-title]").textContent = userId === state.session?.systemUserId ? "Change my password" : `Set password for ${user?.fullName || "user"}`;
+  dialog.querySelector("[data-password-title]").textContent =
+    userId === "break-glass" ? "Change the emergency password" : userId === state.session?.systemUserId ? "Change my password" : `Set password for ${user?.fullName || "user"}`;
   dialog.showModal();
 }
 
@@ -27993,11 +28000,16 @@ async function saveSetPassword(form) {
     return;
   }
   try {
-    await apiRequest("/api/auth/password", { method: "POST", body: JSON.stringify({ userId: (data.get("userId") || "").toString(), password }) });
+    const userId = (data.get("userId") || "").toString();
+    if (userId === "break-glass") {
+      await apiRequest("/api/auth/break-glass/password", { method: "POST", body: JSON.stringify({ password }) });
+    } else {
+      await apiRequest("/api/auth/password", { method: "POST", body: JSON.stringify({ userId, password }) });
+    }
     closeDialogs();
     state.authAdmin = null;
     render();
-    showToast("Password set.");
+    showToast(userId === "break-glass" ? "Emergency password changed. Keep it somewhere safe — the file was not updated." : "Password set.");
   } catch (error) {
     showToast(error.message || "Could not set that password.");
   }
