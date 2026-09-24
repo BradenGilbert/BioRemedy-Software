@@ -30,9 +30,9 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 
 | File | What |
 |---|---|
-| `app.js` | ~30,900 lines, ~1,250 functions, one ES module. The entire front end. |
+| `app.js` | ~31,200 lines, ~1,260 functions, one ES module. The entire front end. |
 | `index.html` | ~5,800 lines. App shell + 96 `<dialog>` forms. |
-| `styles.css` | ~6,600 lines. |
+| `styles.css` | ~6,950 lines. |
 | `server.mjs` | Node server. `/api/backend/{collection}` routes over `data/backend.json`; API requests run one at a time and writes are atomic (2026-09-23). |
 | `crm-schema/` | 28 SQL files, 141 tables. **Designed, not deployed.** The intended target model. |
 | `laravel-ready/` | **Deprecated.** Stack decision is Node + Postgres. Reference only — do not add to it. |

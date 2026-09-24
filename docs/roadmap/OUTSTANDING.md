@@ -162,6 +162,8 @@ The owner sent 22 findings from using the app. Three needed decisions; all were 
 
 **Not built (deferred):** "Anticipate results in project notes" beyond the next-step line; a laboratory master table; per-person notification of site walks (waits for Phase 12 identities).
 
+**Later the same day -- Front Line clean-up (owner: "the messaging section just has a ton of job ids to click or general chat"):** Messaging is an inbox (Dispatch, your open jobs, earlier jobs with a conversation) opening into a real thread; the office answers from the dispatch job's new Messages tab or the Dispatch Board's Field messages panel, with red dots while a field message is unread. Home tiles show unread messages and open jobs; the job page has "Message dispatch"; Settings wording and checkbox rows fixed. See Phase 10's corrections.
+
 ---
 
 ## Stage C — Pilot gate

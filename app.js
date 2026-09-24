@@ -1744,7 +1744,7 @@ const state = {
   // "+ Activity" ad hoc capture (Phase 10, Part 2 gap item 4) -- open type picker on the job detail
   // screen, independent of the template's work-plan gating.
   frontlineAdHocType: "",
-  frontlineMessagingJobId: "",
+  frontlineMessagingThreadKey: null,
   frontlineMessageDraft: "",
   frontlineOpenFormKey: "",
 };
@@ -2208,6 +2208,8 @@ async function handleClick(event) {
     }
 
     state.view = targetView;
+    // The Messaging tile always lands on the inbox; only an explicit "open thread" action deep-links.
+    if (targetView === "frontline-messaging") state.frontlineMessagingThreadKey = null;
     state.pipelineAccountFilter = "";
     state.projectsAccountFilter = "";
     state.dispatchAccountFilter = "";
@@ -2557,6 +2559,17 @@ async function handleClick(event) {
   if (action === "view-client-spill") viewClientSpill(id);
   if (action === "view-employee") viewEmployee(id);
   if (action === "view-dispatch-job") viewDispatchJob(id);
+  if (action === "view-dispatch-job-messages") {
+    viewDispatchJob(id);
+    if (state.view === "dispatch-job-detail" && state.selectedDispatchJobId === id) {
+      state.dispatchJobDetailTab = "messages";
+      render();
+    }
+  }
+  if (action === "dispatch-mark-general-read") {
+    await dispatchMarkFieldMessagesRead("");
+    render();
+  }
   if (action === "download-job-request-document") await downloadJobRequestDocument(id);
   if (action === "download-sample-lab-report") await downloadSampleLabReport(id);
   if (action === "convert-job-request") openJobTemplateSelectDialog(id);
@@ -2693,6 +2706,7 @@ async function handleClick(event) {
   if (action === "frontline-login") await frontlineLogin();
   if (action === "frontline-go-home") {
     state.view = "frontline-home";
+    state.frontlineMessagingThreadKey = null;
     render();
   }
   if (action === "frontline-refresh") {
@@ -2729,8 +2743,13 @@ async function handleClick(event) {
     state.frontlineAdHocType = "";
     render();
   }
-  if (action === "frontline-messaging-select-job") {
-    state.frontlineMessagingJobId = actionButton.dataset.jobId || "";
+  if (action === "frontline-messaging-open-thread") {
+    state.frontlineMessagingThreadKey = actionButton.dataset.thread || "general";
+    state.view = "frontline-messaging";
+    render();
+  }
+  if (action === "frontline-messaging-inbox") {
+    state.frontlineMessagingThreadKey = null;
     render();
   }
   if (action === "frontline-open-form") {
@@ -2873,6 +2892,7 @@ async function handleSubmit(event) {
   if (form.dataset.form === "frontline-adhoc-activity") await frontlineSubmitAdHocActivity(form);
   if (form.dataset.form === "frontline-form-submission") await frontlineSubmitStandaloneForm(form);
   if (form.dataset.form === "frontline-message") await frontlineSendMessage(form);
+  if (form.dataset.form === "dispatch-message") await dispatchSendMessage(form);
   if (form.dataset.form === "frontline-location-ping") await frontlineRecordLocationPing(form);
   if (form.dataset.form === "frontline-clock-in") await frontlineClockIn(form);
   if (form.dataset.form === "frontline-clock-out") await frontlineClockOut(form);
@@ -11787,7 +11807,7 @@ function dispatchJobReadinessAlertTitle(job, readiness = getJobReadiness(job)) {
 
 // List rows and board cards carry every alert on the job; on the detail page each tab carries its own.
 function dispatchJobAlertTitle(job, readiness = getJobReadiness(job)) {
-  return [dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job)].filter(Boolean).join("; ");
+  return [dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job), dispatchJobMessageAlertTitle(job)].filter(Boolean).join("; ");
 }
 
 function renderDispatchJobTableRow(job) {
@@ -11833,6 +11853,7 @@ function renderDispatchBoard() {
       <section class="dispatch-board-grid">
         ${columns.map((column) => renderDispatchBoardColumn(column, jobs.filter((job) => column.statuses.includes(job.status)), column.id === "scheduled" ? siteWalkEvents().filter((event) => event.date >= todayIso()) : [])).join("")}
       </section>
+      ${renderDispatchFieldMessagesPanel()}
     </section>
   `;
 }
@@ -11852,9 +11873,10 @@ function renderDispatchBoardColumn(column, jobs, siteWalks = []) {
 function renderDispatchBoardCard(job) {
   const readiness = getJobReadiness(job);
   const assignments = dispatchAssignmentsForJob(job.id);
+  const alertTitle = dispatchJobAlertTitle(job, readiness);
   return `
     <button class="dispatch-board-card" type="button" data-action="view-dispatch-job" data-id="${job.id}">
-      <div class="dispatch-card-head"><span class="job-number">${escapeHtml(job.jobNumber)}</span>${renderReadinessBadge(readiness.status)}</div>
+      <div class="dispatch-card-head"><span class="job-number">${escapeHtml(job.jobNumber)}${alertTitle ? renderAlertDot(alertTitle) : ""}</span>${renderReadinessBadge(readiness.status)}</div>
       <strong>${escapeHtml(job.jobName)}</strong>
       <span>${escapeHtml(job.customerName)}</span>
       <div class="dispatch-card-time"><strong>${formatDateTime(job.scheduledStart)}</strong><span>${escapeHtml(job.locationName)}</span></div>
@@ -12432,6 +12454,7 @@ const dispatchJobDetailTabs = [
   { id: "summary", label: "Summary" },
   { id: "details", label: "Details" },
   { id: "assignment", label: "Plan & resources" },
+  { id: "messages", label: "Messages" },
   { id: "closeout", label: "Close-out" },
   { id: "files-activity", label: "Files & Activity" },
 ];
@@ -12481,7 +12504,7 @@ function renderDispatchJobDetail() {
       </section>
 
       <div class="account-detail-tabs-row">
-        ${renderDispatchJobDetailTabs(activeTab, dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job))}
+        ${renderDispatchJobDetailTabs(activeTab, dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job), dispatchJobMessageAlertTitle(job))}
       </div>
       <div class="account-detail-tabbody">
         ${renderDispatchJobTabBody(activeTab, job, readiness)}
@@ -12492,14 +12515,14 @@ function renderDispatchJobDetail() {
 
 // Readiness and exceptions live on Summary, so Summary carries that dot; close-out gaps (Phase 11)
 // dot the Close-out tab.
-function renderDispatchJobDetailTabs(activeTab, alertTitle = "", closeoutTitle = "") {
+function renderDispatchJobDetailTabs(activeTab, alertTitle = "", closeoutTitle = "", messagesTitle = "") {
   return `
     <div class="segment-tabs" role="tablist" aria-label="Dispatch job detail sections">
       ${dispatchJobDetailTabs
         .map(
           (tab) => `
             <button type="button" role="tab" aria-selected="${tab.id === activeTab}" class="${tab.id === activeTab ? "active" : ""}" data-action="switch-dispatch-job-tab" data-tab="${tab.id}">
-              ${escapeHtml(tab.label)}${tab.id === "summary" && alertTitle ? renderAlertDot(alertTitle) : ""}${tab.id === "closeout" && closeoutTitle ? renderAlertDot(closeoutTitle) : ""}
+              ${escapeHtml(tab.label)}${tab.id === "summary" && alertTitle ? renderAlertDot(alertTitle) : ""}${tab.id === "closeout" && closeoutTitle ? renderAlertDot(closeoutTitle) : ""}${tab.id === "messages" && messagesTitle && activeTab !== "messages" ? renderAlertDot(messagesTitle) : ""}
             </button>
           `,
         )
@@ -12514,6 +12537,8 @@ function renderDispatchJobTabBody(tab, job, readiness) {
       return renderDispatchJobDetailsTab(job);
     case "assignment":
       return renderDispatchJobAssignmentTab(job);
+    case "messages":
+      return renderDispatchJobMessagesTab(job);
     case "closeout":
       return renderDispatchJobCloseoutTab(job);
     case "files-activity":
@@ -15112,9 +15137,12 @@ function frontlineTileIcon(key) {
   return `<svg aria-hidden="true" viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
 
-function renderFrontlineTile(tile) {
+// A badge is a count worth seeing before opening the tile: unread messages (red, an alert) or the
+// number of open jobs (neutral).
+function renderFrontlineTile(tile, badge = null) {
   return `
     <button class="frontline-tile" type="button" data-view="${tile.view}">
+      ${badge?.count ? `<span class="frontline-tile-badge ${badge.alert ? "alert" : ""}">${badge.count}</span>` : ""}
       <span class="frontline-tile-icon">${frontlineTileIcon(tile.key)}</span>
       <span>${escapeHtml(tile.label)}</span>
     </button>
@@ -15122,7 +15150,12 @@ function renderFrontlineTile(tile) {
 }
 
 function renderFrontlineHome() {
-  const employee = findEmployee(state.frontlineSession?.employeeId);
+  const employeeId = state.frontlineSession?.employeeId;
+  const employee = findEmployee(employeeId);
+  const badges = {
+    messaging: { count: frontlineUnreadTotal(employeeId), alert: true },
+    jobbook: { count: frontlineMyDispatchJobs(employeeId).filter((job) => !isTerminalDispatchStatus(job.status)).length, alert: false },
+  };
   app.innerHTML = `
     <div class="frontline-shell">
       <div class="frontline-device">
@@ -15133,7 +15166,7 @@ function renderFrontlineHome() {
             <h2>${escapeHtml(employee?.displayName || "Field crew")}</h2>
           </div>
           <div class="frontline-grid">
-            ${FRONTLINE_TILES.map(renderFrontlineTile).join("")}
+            ${FRONTLINE_TILES.map((tile) => renderFrontlineTile(tile, badges[tile.key])).join("")}
           </div>
           <!-- Owner, 2026-09-22: Exit is a short full-width bar under the grid, so its old cell holds Receipts. -->
           <button class="frontline-exit-bar" type="button" data-action="frontline-exit">
@@ -15517,6 +15550,7 @@ function renderFrontlineJobDetail() {
   const adHocSubmissions = submissions.filter((submission) => submission.adHoc);
   const templateSubmissions = submissions.filter((submission) => !submission.adHoc);
   const assignments = dispatchAssignmentsForJob(job.id);
+  const unreadFromDispatch = unreadMessageCount(job.id, "office");
 
   app.innerHTML = `
     <div class="frontline-shell">
@@ -15542,6 +15576,9 @@ function renderFrontlineJobDetail() {
               : ""
           }
           ${job.description ? `<p class="help-text">${escapeHtml(job.description)}</p>` : ""}
+          <div class="inline-actions">
+            <button class="mini-button" type="button" data-action="frontline-messaging-open-thread" data-thread="${escapeAttribute(job.id)}">Message dispatch${unreadFromDispatch ? ` (${unreadFromDispatch} new)` : ""}</button>
+          </div>
 
           <h3>Work plan</h3>
           <div class="work-plan-list">
@@ -16099,7 +16136,7 @@ function renderFrontlineSettings() {
           <h3>Connection</h3>
           <div class="frontline-record-card">
             <div class="inline-actions"><span class="status-pill ${state.online ? "" : "offline"}">${state.online ? "Online" : "Offline"}</span><span>${pendingSyncCount} pending sync item${pendingSyncCount === 1 ? "" : "s"}</span></div>
-            <span>Front Line writes directly to the shared backend API in this simulator — there is no offline queue yet (see phase-10-frontline.md).</span>
+            <span>Changes save straight to the office while you're online. Offline capture and sync come with the production field app.</span>
           </div>
 
           <h3>Registered devices</h3>
@@ -16109,9 +16146,9 @@ function renderFrontlineSettings() {
 
           <h3>Notifications</h3>
           <form class="frontline-action-form frontline-record-card" data-form="frontline-notification-prefs">
-            <label class="frontline-checkbox-row"><input type="checkbox" name="jobAssignedAlerts" ${prefs.jobAssignedAlerts ? "checked" : ""} /> Notify me when a new job is assigned</label>
-            <label class="frontline-checkbox-row"><input type="checkbox" name="messageAlerts" ${prefs.messageAlerts ? "checked" : ""} /> Notify me on new dispatch messages</label>
-            <label class="frontline-checkbox-row"><input type="checkbox" name="endOfDayReminder" ${prefs.endOfDayReminder ? "checked" : ""} /> Remind me to clock out at end of day</label>
+            <label class="frontline-checkbox-row"><input type="checkbox" name="jobAssignedAlerts" ${prefs.jobAssignedAlerts ? "checked" : ""} /> <span>Notify me when a new job is assigned</span></label>
+            <label class="frontline-checkbox-row"><input type="checkbox" name="messageAlerts" ${prefs.messageAlerts ? "checked" : ""} /> <span>Notify me on new dispatch messages</span></label>
+            <label class="frontline-checkbox-row"><input type="checkbox" name="endOfDayReminder" ${prefs.endOfDayReminder ? "checked" : ""} /> <span>Remind me to clock out at end of day</span></label>
             <button class="primary-button" type="submit">Save preferences</button>
           </form>
         </div>
@@ -16301,99 +16338,239 @@ async function frontlineSubmitStandaloneForm(form) {
   }
 }
 
-// ---- Phase 10, Part 2: Messaging tile ----
+// ---- Phase 10, Part 2: Messaging tile (inbox + thread redesign, 2026-09-23) ----
 //
-// A new `messages` collection (server.mjs), threaded by dispatch job when one is picked, or a shared
-// "general" thread when it isn't. No group channels, no attachments, no per-person office directory
-// to address -- the simulator has no office-side session to message as, so the recipient is always
-// "Dispatch." Enough for a pilot: a field worker messaging their dispatcher/field lead, threaded by
-// job or by a general channel.
+// `messages` rows are threaded by dispatch job (`threadKey` = the job id) or the shared "general"
+// thread between a crew and Dispatch. The field side is an inbox -- one row per conversation, latest
+// first, unread counts -- that opens into a thread with a pinned composer. The office answers the same
+// rows from the dispatch job's Messages tab and the Dispatch Board's Field messages panel; before this
+// pass nothing office-side could read or reply, so field messages went nowhere. `readAt` means "read by
+// the other side": the field marks office messages read when it opens the thread, the office marks
+// field messages read when it opens the job's Messages tab (or the board, for the general channel).
 function frontlineThreadKey(jobId) {
   return jobId || "general";
 }
 
+function getMessages() {
+  return (state.backend.messages || []).filter((message) => !message.deletedAt);
+}
+
 function frontlineMessagesForThread(threadKey) {
-  return (state.backend.messages || [])
+  return getMessages()
     .filter((message) => message.threadKey === threadKey)
     .sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
 }
 
+function unreadMessageCount(threadKey, fromRole) {
+  return getMessages().filter((message) => message.threadKey === threadKey && message.senderRole === fromRole && !message.readAt).length;
+}
+
+// Conversations a field worker can see: Dispatch (the general channel), their open jobs, and earlier
+// jobs that still hold a conversation. Closed jobs with nothing said stay out of the way.
+function frontlineConversations(employeeId) {
+  const myJobs = frontlineMyDispatchJobs(employeeId);
+  const row = (threadKey, job) => {
+    const latest = frontlineMessagesForThread(threadKey).slice(-1)[0] || null;
+    const sortAt = latest ? new Date(latest.sentAt).getTime() : new Date(job?.scheduledStart || 0).getTime() || 0;
+    return { threadKey, job, latest, unread: unreadMessageCount(threadKey, "office"), sortAt };
+  };
+  const bySortAt = (a, b) => b.sortAt - a.sortAt;
+  return {
+    general: row("general", null),
+    open: myJobs
+      .filter((job) => !isTerminalDispatchStatus(job.status))
+      .map((job) => row(job.id, job))
+      .sort(bySortAt),
+    earlier: myJobs
+      .filter((job) => isTerminalDispatchStatus(job.status))
+      .map((job) => row(job.id, job))
+      .filter((entry) => entry.latest)
+      .sort(bySortAt),
+  };
+}
+
+function frontlineUnreadTotal(employeeId) {
+  const conversations = frontlineConversations(employeeId);
+  return [conversations.general, ...conversations.open, ...conversations.earlier].reduce((sum, entry) => sum + entry.unread, 0);
+}
+
+// "Just now", "12m", a time for today, "Yesterday", a weekday inside the week, otherwise "Sep 17".
+function chatRelativeTime(value) {
+  const date = parseDate(value);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  const now = new Date();
+  const minutes = Math.round((now - date) / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m`;
+  if (localIsoDate(date) === localIsoDate(now)) return formatShortTime(value);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (localIsoDate(date) === localIsoDate(yesterday)) return "Yesterday";
+  if (now - date < 6 * 86400000) return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(date);
+}
+
+function chatDateLabel(value) {
+  const date = parseDate(value);
+  const now = new Date();
+  const day = localIsoDate(date);
+  if (day === localIsoDate(now)) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (day === localIsoDate(yesterday)) return "Yesterday";
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  }).format(date);
+}
+
+// Shared by the phone and the office: `mineRole` is the side reading the thread, whose messages sit
+// on the right. Messages are grouped under a date pill.
+function renderChatThread(messages, mineRole, emptyText) {
+  if (!messages.length) return `<div class="chat-empty">${escapeHtml(emptyText)}</div>`;
+  let lastDay = "";
+  return messages
+    .map((message) => {
+      const day = localIsoDate(parseDate(message.sentAt));
+      const separator = day !== lastDay ? `<div class="chat-date"><span>${escapeHtml(chatDateLabel(message.sentAt))}</span></div>` : "";
+      lastDay = day;
+      const mine = message.senderRole === mineRole;
+      const sender = message.senderName || (message.senderRole === "office" ? "Dispatch" : "Field crew");
+      return `
+        ${separator}
+        <article class="chat-bubble ${mine ? "mine" : "theirs"}">
+          ${mine ? "" : `<span class="chat-sender">${escapeHtml(sender)}</span>`}
+          <p>${escapeHtml(message.body)}</p>
+          <time datetime="${escapeAttribute(message.sentAt)}">${formatShortTime(message.sentAt)}</time>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderChatComposer(formName, hiddenFields, placeholder) {
+  return `
+    <form class="chat-composer" data-form="${escapeAttribute(formName)}">
+      ${Object.entries(hiddenFields)
+        .map(([name, value]) => `<input type="hidden" name="${escapeAttribute(name)}" value="${escapeAttribute(value)}" />`)
+        .join("")}
+      <textarea name="body" rows="1" maxlength="1000" placeholder="${escapeAttribute(placeholder)}" aria-label="Message" required></textarea>
+      <button class="chat-send" type="submit" aria-label="Send" title="Send">
+        <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4Z" /></svg>
+      </button>
+    </form>
+  `;
+}
+
+function scrollChatToBottom() {
+  requestAnimationFrame(() => {
+    document.querySelectorAll(".chat-scroll").forEach((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+  });
+}
+
 function renderFrontlineMessaging() {
   const employeeId = state.frontlineSession?.employeeId;
-  const myJobs = frontlineMyDispatchJobs(employeeId);
-  const activeJobId = state.frontlineMessagingJobId;
-  const threadKey = frontlineThreadKey(activeJobId);
-  const thread = frontlineMessagesForThread(threadKey);
-  const unreadByThread = {};
-  (state.backend.messages || []).forEach((message) => {
-    if (message.senderRole === "office" && !message.readAt) {
-      unreadByThread[message.threadKey] = (unreadByThread[message.threadKey] || 0) + 1;
-    }
-  });
+  if (state.frontlineMessagingThreadKey) {
+    renderFrontlineMessageThread(state.frontlineMessagingThreadKey);
+    return;
+  }
+  const conversations = frontlineConversations(employeeId);
+  const unreadTotal = [conversations.general, ...conversations.open, ...conversations.earlier].reduce((sum, entry) => sum + entry.unread, 0);
 
   app.innerHTML = `
     <div class="frontline-shell">
       <div class="frontline-device">
         ${renderFrontlineHeader()}
         <div class="frontline-body">
-          <h2>Messaging</h2>
-          <div class="frontline-filter-row">
-            <button class="mini-button ${!activeJobId ? "active" : ""}" type="button" data-action="frontline-messaging-select-job" data-job-id="">
-              General${unreadByThread.general ? ` (${unreadByThread.general})` : ""}
-            </button>
-            ${myJobs
-              .map(
-                (job) => `
-                  <button class="mini-button ${activeJobId === job.id ? "active" : ""}" type="button" data-action="frontline-messaging-select-job" data-job-id="${escapeAttribute(job.id)}">
-                    ${escapeHtml(job.jobNumber)}${unreadByThread[job.id] ? ` (${unreadByThread[job.id]})` : ""}
-                  </button>
-                `,
-              )
-              .join("")}
+          <div class="frontline-page-head">
+            <h2>Messages</h2>
+            <span class="help-text">${unreadTotal ? `${unreadTotal} unread` : "Dispatch and your jobs"}</span>
           </div>
-
-          <div class="frontline-message-list">
-            ${
-              thread
-                .map(
-                  (message) => `
-                    <article class="frontline-message ${message.senderRole === "office" ? "from-office" : "from-field"}">
-                      <div class="inline-actions"><strong>${escapeHtml(message.senderName)}</strong><span>${formatDateTime(message.sentAt)}</span></div>
-                      <p>${escapeHtml(message.body)}</p>
-                    </article>
-                  `,
-                )
-                .join("") || `<div class="empty-state compact">No messages in this thread yet.</div>`
-            }
+          <div class="frontline-thread-list">
+            ${renderFrontlineConversationRow(conversations.general)}
           </div>
-
-          <form class="frontline-action-form" data-form="frontline-message">
-            <input type="hidden" name="jobId" value="${escapeAttribute(activeJobId)}" />
-            <label>Message
-              <textarea name="body" rows="2" placeholder="Message dispatch..." required></textarea>
-            </label>
-            <button class="primary-button" type="submit">Send</button>
-          </form>
+          <h3 class="frontline-section-label">Your jobs</h3>
+          <div class="frontline-thread-list">
+            ${conversations.open.map(renderFrontlineConversationRow).join("") || `<div class="empty-state compact">No open jobs assigned to you.</div>`}
+          </div>
+          ${
+            conversations.earlier.length
+              ? `
+                <h3 class="frontline-section-label">Earlier jobs</h3>
+                <div class="frontline-thread-list">${conversations.earlier.map(renderFrontlineConversationRow).join("")}</div>
+              `
+              : ""
+          }
         </div>
       </div>
     </div>
   `;
-  // Viewing a thread marks any unread office messages in it as read -- a real write, not a fake badge.
-  frontlineMarkMessagesRead(activeJobId);
+}
+
+function renderFrontlineConversationRow(entry) {
+  const { threadKey, job, latest, unread } = entry;
+  const title = job ? job.jobNumber : "Dispatch";
+  const subtitle = job ? job.jobName : "General channel for anything not about one job";
+  const preview = latest ? `${latest.senderRole === "field" ? "You: " : ""}${latest.body}` : job ? "No messages yet" : "Start a conversation with dispatch";
+  return `
+    <button class="frontline-thread-row ${unread ? "unread" : ""}" type="button" data-action="frontline-messaging-open-thread" data-thread="${escapeAttribute(threadKey)}">
+      <span class="frontline-thread-avatar ${job ? "job" : "office"}">${frontlineTileIcon(job ? "jobbook" : "messaging")}</span>
+      <span class="frontline-thread-main">
+        <span class="frontline-thread-title"><strong>${escapeHtml(title)}</strong>${latest ? `<time>${escapeHtml(chatRelativeTime(latest.sentAt))}</time>` : ""}</span>
+        <span class="frontline-thread-sub">${escapeHtml(subtitle)}</span>
+        <span class="frontline-thread-preview">${escapeHtml(preview)}</span>
+      </span>
+      ${unread ? `<span class="frontline-unread-count" aria-label="${unread} unread">${unread}</span>` : ""}
+    </button>
+  `;
+}
+
+function renderFrontlineMessageThread(threadKey) {
+  const job = threadKey === "general" ? null : findDispatchJob(threadKey);
+  const messages = frontlineMessagesForThread(job ? job.id : "general");
+  const title = job ? job.jobNumber : "Dispatch";
+  const subtitle = job ? `${job.jobName} · ${job.customerName}` : "General channel";
+  const emptyText = job ? `No messages about ${job.jobNumber} yet. Dispatch sees what you send here right away.` : "No messages yet. Dispatch sees what you send here right away.";
+
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body frontline-body-chat">
+          <div class="frontline-thread-head">
+            <button class="frontline-back-link" type="button" data-action="frontline-messaging-inbox">&lsaquo; Messages</button>
+            <div class="frontline-thread-head-text">
+              <strong>${escapeHtml(title)}</strong>
+              <span>${escapeHtml(subtitle)}</span>
+            </div>
+            ${job ? `<button class="mini-button" type="button" data-action="frontline-open-job" data-id="${escapeAttribute(job.id)}">Open job</button>` : ""}
+          </div>
+          <div class="chat-scroll">
+            ${renderChatThread(messages, "field", emptyText)}
+          </div>
+          ${renderChatComposer("frontline-message", { jobId: job ? job.id : "" }, job ? `Message dispatch about ${job.jobNumber}` : "Message dispatch")}
+        </div>
+      </div>
+    </div>
+  `;
+  scrollChatToBottom();
+  // Opening a thread marks the office's unread messages in it as read -- a real write, not a fake badge.
+  frontlineMarkMessagesRead(job ? job.id : "");
 }
 
 async function frontlineSendMessage(form) {
   const submitButton = form.querySelector('button[type="submit"]');
   if (submitButton?.disabled) return;
-  if (submitButton) submitButton.disabled = true;
 
   const data = new FormData(form);
   const jobId = (data.get("jobId") || "").toString();
   const body = (data.get("body") || "").toString().trim();
-  if (!body) {
-    if (submitButton) submitButton.disabled = false;
-    return;
-  }
+  if (!body) return;
+  if (submitButton) submitButton.disabled = true;
   const employee = findEmployee(state.frontlineSession?.employeeId);
   const job = jobId ? findDispatchJob(jobId) : null;
 
@@ -16424,17 +16601,150 @@ async function frontlineSendMessage(form) {
   }
 }
 
-async function frontlineMarkMessagesRead(jobId) {
-  const threadKey = frontlineThreadKey(jobId);
-  const unread = (state.backend.messages || []).filter(
-    (message) => message.threadKey === threadKey && message.senderRole === "office" && !message.readAt,
-  );
+async function markThreadMessagesRead(threadKey, fromRole) {
+  const unread = getMessages().filter((message) => message.threadKey === threadKey && message.senderRole === fromRole && !message.readAt);
   if (!unread.length) return;
   const readAt = new Date().toISOString();
   for (const message of unread) {
     await saveBackendRecord("messages", { ...message, readAt }, { refresh: false });
   }
   await refreshBackendState();
+}
+
+function frontlineMarkMessagesRead(jobId) {
+  return markThreadMessagesRead(frontlineThreadKey(jobId), "office");
+}
+
+function dispatchMarkFieldMessagesRead(jobId) {
+  return markThreadMessagesRead(frontlineThreadKey(jobId), "field");
+}
+
+// Red-dot rule: unread field messages on a job dot its Messages tab, its list row and its board card.
+function dispatchJobMessageAlertTitle(job) {
+  const unread = unreadMessageCount(job.id, "field");
+  return unread ? `${unread} unread field message${unread === 1 ? "" : "s"}` : "";
+}
+
+function renderDispatchJobMessagesTab(job) {
+  const messages = frontlineMessagesForThread(job.id);
+  const lead = findEmployee(job.fieldLeadEmployeeId);
+  const crew = dispatchAssignmentsForJob(job.id);
+  scrollChatToBottom();
+  dispatchMarkFieldMessagesRead(job.id);
+  return `
+    <section class="detail-stack">
+      <article class="panel dispatch-job-messages">
+        <div class="panel-header">
+          <div>
+            <h3>Messages with the crew</h3>
+            <span>${lead ? `Field lead ${escapeHtml(lead.displayName)}` : "No field lead yet"} · ${crew.length} assigned · the crew sees this thread in Front Line under ${escapeHtml(job.jobNumber)}</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="chat-scroll">
+            ${renderChatThread(messages, "office", `No messages on ${job.jobNumber} yet. Anything you send here reaches the crew's Front Line inbox.`)}
+          </div>
+          ${renderChatComposer("dispatch-message", { jobId: job.id }, `Message the crew on ${job.jobNumber}`)}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+// Dispatch Board: the general channel with every crew, plus the job threads waiting on a reply.
+function renderDispatchFieldMessagesPanel() {
+  const general = frontlineMessagesForThread("general");
+  const unreadGeneral = unreadMessageCount("general", "field");
+  const waiting = getDispatchJobs()
+    .map((job) => ({ job, unread: unreadMessageCount(job.id, "field"), latest: frontlineMessagesForThread(job.id).slice(-1)[0] }))
+    .filter((entry) => entry.unread)
+    .sort((a, b) => new Date(b.latest?.sentAt || 0) - new Date(a.latest?.sentAt || 0));
+  const waitingCount = waiting.reduce((sum, entry) => sum + entry.unread, 0);
+  const summary = waiting.length
+    ? `${waitingCount} unread on ${waiting.length} job${waiting.length === 1 ? "" : "s"}`
+    : "The general channel every Front Line crew sees, plus the job threads waiting on a reply";
+  scrollChatToBottom();
+  // The general channel is not marked read just because the board rendered -- it sits below the
+  // columns and may never have been looked at. Replying marks it read; so does the explicit button.
+  return `
+    <article class="panel dispatch-field-messages ${unreadGeneral || waiting.length ? "panel-needs-attention" : ""}">
+      <div class="panel-header">
+        <div><h3>Field messages</h3><span>${summary}</span></div>
+        ${unreadGeneral ? `<button class="mini-button" type="button" data-action="dispatch-mark-general-read">Mark general channel read</button>` : ""}
+      </div>
+      <div class="panel-body dispatch-messages-layout">
+        <div>
+          <h4 class="frontline-section-label">General channel${unreadGeneral ? ` · ${unreadGeneral} new` : ""}</h4>
+          <div class="chat-scroll">
+            ${renderChatThread(general, "office", "Nothing in the general channel yet. Crews use it for anything not about one job.")}
+          </div>
+          ${renderChatComposer("dispatch-message", { jobId: "" }, "Message every Front Line crew")}
+        </div>
+        <div>
+          <h4 class="frontline-section-label">Job threads waiting on a reply</h4>
+          <div class="dispatch-unread-list">
+            ${
+              waiting
+                .map(
+                  ({ job, unread, latest }) => `
+                    <button class="frontline-thread-row unread" type="button" data-action="view-dispatch-job-messages" data-id="${escapeAttribute(job.id)}">
+                      <span class="frontline-thread-avatar job">${frontlineTileIcon("jobbook")}</span>
+                      <span class="frontline-thread-main">
+                        <span class="frontline-thread-title"><strong>${escapeHtml(job.jobNumber)}</strong><time>${escapeHtml(chatRelativeTime(latest?.sentAt))}</time></span>
+                        <span class="frontline-thread-sub">${escapeHtml(job.jobName)}</span>
+                        <span class="frontline-thread-preview">${escapeHtml(latest ? `${latest.senderName}: ${latest.body}` : "")}</span>
+                      </span>
+                      <span class="frontline-unread-count" aria-label="${unread} unread">${unread}</span>
+                    </button>
+                  `,
+                )
+                .join("") || `<div class="empty-state compact">No job messages waiting. Each job's Messages tab holds its own thread.</div>`
+            }
+          </div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+async function dispatchSendMessage(form) {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) return;
+  const data = new FormData(form);
+  const jobId = (data.get("jobId") || "").toString();
+  const body = (data.get("body") || "").toString().trim();
+  if (!body) return;
+  if (submitButton) submitButton.disabled = true;
+  const job = jobId ? findDispatchJob(jobId) : null;
+  const lead = job ? findEmployee(job.fieldLeadEmployeeId) : null;
+
+  try {
+    await saveBackendRecord(
+      "messages",
+      {
+        id: makeId("message"),
+        threadKey: frontlineThreadKey(jobId),
+        dispatchJobId: jobId,
+        senderId: "office",
+        senderName: state.currentUser?.name || "Dispatch",
+        senderRole: "office",
+        recipientId: lead?.id || "field",
+        recipientName: lead?.displayName || (job ? "Crew" : "All crews"),
+        body,
+        sentAt: new Date().toISOString(),
+        readAt: null,
+      },
+      { refresh: false },
+    );
+    // Replying in the general channel means it was read.
+    if (!jobId) await markThreadMessagesRead("general", "field");
+    await refreshBackendState();
+    form.reset();
+    render();
+  } catch (error) {
+    if (submitButton) submitButton.disabled = false;
+    showToast(error.message || "Could not send that message.");
+  }
 }
 
 // ---- Phase 10, Part 2: Location tile ----
@@ -16670,6 +16980,7 @@ function frontlineExit() {
   state.frontlineJobFilter = { scope: "mine", region: "all" };
   state.frontlineSelectedJobId = "";
   state.frontlineOpenActionId = "";
+  state.frontlineMessagingThreadKey = null;
   state.view = "home";
   render();
 }

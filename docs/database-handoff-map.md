@@ -578,6 +578,8 @@ writeup.
 - **`qboExports`** gained `payload` (the QBO v3 Invoice JSON) and `validationIssues[]`, and `invoices.qboStatus` can now be `Blocked - fix mapping issues`. **`products.qboItemName`** and **`accounts.qboCustomerName`** override the names sent.
 - **`projects.closeReport.costs`** gained `waste: { items, total }`.
 
+**Front Line messaging clean-up (2026-09-23).** No new collections or fields. `messages` rows are now written from both sides: the phone (`senderRole: "field"`, `senderId` = employee) and the office (`senderRole: "office"`, `senderId: "office"`, `senderName` = the session user, `recipientId` = the job's field lead or `"field"` for the general channel). `readAt` means "read by the other side" for both directions. SQL: `messages` still maps to a single table (sender_role, sender_employee_id nullable, dispatch_job_id nullable, thread_key, body, sent_at, read_at); a per-reader receipt table can wait until Phase 12 gives office users identities.
+
 **Owner's bug list (2026-09-23, after the audit).** No new collections.
 - **`scheduleEvents`** gained `kind` (`work` | `site_walk`), `opportunityId`, `accountId`, `facilityId`, `startTime`, `endTime`, `participantEmployeeIds[]`, `activityId`, `notes` (all whitelisted in `normalizeRecord()`). A site walk is a `kind: "site_walk"` row with no project. SQL: add these columns to the schedule table, with a `schedule_event_participants` join for the employees.
 - **`workforceTeamMemberships`** rows now carry `crewId` or `teamId` (one of them), `role`, `primary`, `status` (`Removed` + `deletedAt` on removal). `employees.crewId`/`teamId` remain the home crew/team.
