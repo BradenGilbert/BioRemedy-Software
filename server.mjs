@@ -2352,6 +2352,36 @@ function makeId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Phase 20 item 1 (2026-09-23): every stored record carries a server-owned `version` (monotonic) and
+// `updatedAt`. touchRecord() runs on every write, including the server's own (purchase-order receipt,
+// material consumption, uploads, the QuickBooks export), so a client holding an older version is told
+// so on its next save instead of silently overwriting. `previous` is the stored row being replaced;
+// with none, the record's own version is bumped in place.
+function touchRecord(record, previous = null) {
+  const base = previous || record;
+  const now = new Date().toISOString();
+  record.version = Number(base.version || 0) + 1;
+  record.updatedAt = now;
+  record.createdAt = base.createdAt || record.createdAt || now;
+  return record;
+}
+
+// A save carries the version the client read. A newer stored version means someone else saved in
+// between: refuse with the current record so the client can show it. No claim at all (a brand-new
+// record, or an older client) is accepted -- records written before this shipped have no version.
+function versionConflict(stored, payload) {
+  if (!stored) return null;
+  const raw = payload.version;
+  if (raw === undefined || raw === null || raw === "") return null;
+  const claimed = Number(raw);
+  if (!Number.isFinite(claimed) || Number(stored.version || 0) <= claimed) return null;
+  return {
+    error: "This record was changed by someone else since you opened it. Your edit was not saved.",
+    conflict: true,
+    current: stored,
+  };
+}
+
 // Phase 11 (2026-09-23): every write to inventoryItems.onHand goes through here so the ledger can
 // never drift from the stock number it explains. Called from inside the same loadBackend/saveBackend
 // pair as the mutation itself (purchase-order receipt, material consumption, manual onHand edit).
@@ -2775,8 +2805,8 @@ async function handleOwnTracks(request, response, requestUrl) {
 
   const data = await loadBackend();
   const index = data.locations.findIndex((location) => location.id === ping.id);
-  if (index >= 0) data.locations[index] = { ...data.locations[index], ...ping };
-  else data.locations.push(ping);
+  if (index >= 0) data.locations[index] = touchRecord({ ...data.locations[index], ...ping });
+  else data.locations.push(touchRecord(ping));
   await saveBackend(data);
 
   return json(response, 200, { ok: true, location: ping });
@@ -2806,6 +2836,8 @@ async function handleReceivePurchaseOrder(request, response, orderId) {
   order.receivedAt = new Date().toISOString();
   order.receivedBy = payload.receivedBy || "Local user";
   order.receivedQuantity = receivedQuantity;
+  touchRecord(order);
+  touchRecord(inventoryItem);
   appendInventoryMovement(data, {
     inventoryItemId: inventoryItem.id,
     quantityDelta: receivedQuantity,
@@ -2891,7 +2923,7 @@ async function handleJobRequestDocumentUpload(request, response, requestId) {
   );
   if (documentRole === "customer_packet") jobRequest.customerPacketStatus = `${roleDocuments.length} uploaded`;
   if (documentRole === "quote") jobRequest.quoteStatus = `${roleDocuments.length} uploaded`;
-  jobRequest.updatedAt = document.uploadedAt;
+  touchRecord(jobRequest);
 
   await saveBackend(data);
   return json(response, 201, document);
@@ -3046,7 +3078,7 @@ async function handleJobExpenseReceiptUpload(request, response, expenseId) {
   await writeFile(path.join(uploadsDir, attachment.storageName), body);
   data.jobTaskAttachments.push(attachment);
   expense.receiptAttachmentId = attachment.id;
-  expense.updatedAt = new Date().toISOString();
+  touchRecord(expense);
   await saveBackend(data);
 
   return json(response, 201, attachment);
@@ -3192,6 +3224,7 @@ async function handleJobTaskConsume(request, response, actionId) {
   const dispatchJob = data.dispatchJobs.find((job) => job.id === action.jobId);
   const created = planned.map(({ inventoryItem, quantity }) => {
     inventoryItem.onHand = Number(inventoryItem.onHand || 0) - quantity;
+    touchRecord(inventoryItem);
     const resource = {
       id: makeId("job-resource"),
       jobId: action.jobId,
@@ -3419,6 +3452,7 @@ async function handleApi(request, response, pathname) {
     const { payload, validationIssues } = buildQboInvoicePayload(invoice, data);
     const status = validationIssues.length ? "Blocked - fix mapping issues" : "Queued - QuickBooks credentials not connected";
     invoice.qboStatus = status;
+    touchRecord(invoice);
     data.qboSettings.lastExportAt = new Date().toISOString();
     data.qboExports.push({
       id: makeId("qbo-export"),
@@ -3480,6 +3514,9 @@ async function handleApi(request, response, pathname) {
     }
 
     const index = data[collection].findIndex((item) => item.id === record.id);
+    const stored = index >= 0 ? data[collection][index] : null;
+    const conflict = versionConflict(stored, body);
+    if (conflict) return json(response, 409, conflict);
     // Phase 11 (2026-09-23): manual onHand edits (the only other path that changes stock) get a
     // ledger row too, so the ledger stays the complete explanation for every onHand change. `body`
     // is the raw payload (pre-whitelist) so the transient adjustmentNote survives to here even though
@@ -3501,6 +3538,7 @@ async function handleApi(request, response, pathname) {
         });
       }
     }
+    touchRecord(record, stored);
     if (index >= 0) data[collection][index] = record;
     else data[collection].push(record);
     await saveBackend(data);

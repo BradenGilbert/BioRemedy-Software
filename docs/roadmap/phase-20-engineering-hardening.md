@@ -53,9 +53,9 @@ The `POST /api/backend/{collection}` route replaces the whole record by `id`. Th
 - Records created before this ships have no `version`; treat missing as 0 and accept the first save.
 
 **Verification:**
-- [ ] Two browser contexts open the same account; both edit; second save is refused with 409 and the dialog shows the first user's value
-- [ ] A normal single-user edit round-trips with no extra prompts
-- [ ] `saveJobRequest` → upload → refresh still works (multi-step flows that save the same record twice in one action pass the fresh version forward)
+- [x] Two browser contexts open the same account; both edit; second save is refused with 409 and the dialog shows the first user's value *(2026-09-23: B's dialog closes with the conflict toast and the page shows A's name; the stored record is A's)*
+- [x] A normal single-user edit round-trips with no extra prompts *(version 1 → 2 → 3 on successive saves; a save with no claim is accepted)*
+- [x] `saveJobRequest` → upload → refresh still works (multi-step flows that save the same record twice in one action pass the fresh version forward) *(two chained saves of one contact: v1 then v2, both 200; the Front Line submit, site-walk, crew quick-pick and request→convert→reopen flows re-run clean)*
 
 ### 2. Saves return the record; stop re-downloading the whole backend
 
@@ -64,7 +64,7 @@ The `POST /api/backend/{collection}` route replaces the whole record by `id`. Th
 **Build:** the POST already returns the saved record. Merge it into `state.backend[collection]` by `id` and re-run only the projection for that collection (the `state.accounts = …` style derivations in `refreshBackendState()`), then render. Keep the full refresh for navigation between views, the explicit refresh action, and the 409 path in item 1. Flip the default to `refresh: false` and audit the call sites that genuinely need a full reload (the seed loop, multi-collection flows like `convertJobRequest`).
 
 **Verification:**
-- [ ] Edit an account name; the list and the header update with no `/api/backend` GET in the network log
+- [x] Edit an account name; the list and the header update with no `/api/backend` GET in the network log *(2026-09-23: zero GETs; header shows the new name)*
 - [ ] Item 6's smoke script passes unchanged
 - [ ] Front Line task submit on a throttled "Slow 3G" profile completes in under 2 s
 
@@ -180,7 +180,9 @@ Small, all found during the same review; do them in whichever session touches th
 
 ## Corrections found during implementation
 
-*(Record here anything that turned out to be different from the plan.)*
+- **Item 0 (2026-09-23):** `/.git/config` has no file extension, so the plan's "404 for extensioned misses, SPA fallback otherwise" would have answered it with `index.html` and a 200. The rule shipped as: allowed and a file → serve; exists on disk but not allowed, or outside the root, or an extensioned miss → 404; only an extensionless *non-existent* path is a view route. Bare directories (`/public`, `/data`) are 404 too.
+- **Item 1 (2026-09-23):** the plan said "a save carries the version it was read at"; with ~214 save call sites, most of which build the record fresh rather than spreading the read copy, that would have meant touching every one. Instead `saveBackendRecord()` attaches the claim itself from `state.backend` — the copy this client last read — so every call site is covered unchanged, and because each save merges the returned record before the next one runs, chained saves in one action carry the fresh version. A save with **no** claim (a new record, a record the role cannot read, an older client) is accepted; records written before this shipped have no version and start at 0. On a 409 the dialog **closes** and the page re-renders with the other person's values (reopening the dialog shows them) rather than re-filling the open dialog in place — each dialog has its own opener and there is no generic re-fill. Server-side writers (purchase-order receipt, consumption, receipt upload, request-document upload, QuickBooks export, OwnTracks pings) bump versions through `touchRecord()`.
+- **Item 2 (2026-09-23):** the default is now merge-only and `saveAccount` finishes with `refreshState({ backend: false })`. The other multi-save flows that end in an explicit `refreshBackendState()` were left alone: most call an upload, consume or receive route in between, whose side effects only a full fetch sees. They are correct, one fetch heavier than they need to be; trim them as they are touched.
 
 ---
 

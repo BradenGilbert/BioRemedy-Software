@@ -578,6 +578,8 @@ writeup.
 - **`qboExports`** gained `payload` (the QBO v3 Invoice JSON) and `validationIssues[]`, and `invoices.qboStatus` can now be `Blocked - fix mapping issues`. **`products.qboItemName`** and **`accounts.qboCustomerName`** override the names sent.
 - **`projects.closeReport.costs`** gained `waste: { items, total }`.
 
+**Phase 20 items 1–2 (2026-09-23).** Every record written through `POST /api/backend/{collection}` or a server-side route now carries a server-owned **`version`** (integer, +1 per write; records from before this have none and count as 0) and server-owned `updatedAt`/`createdAt` (`touchRecord()` in `server.mjs`). A save sends the version the client read; a newer stored version answers 409 `{ conflict: true, current }` and the client drops its edit. SQL: `version integer not null default 1`, `updated_at timestamptz`, and every UPDATE carries `WHERE id = $1 AND version = $2` with the row count checked.
+
 **Front Line messaging clean-up (2026-09-23).** No new collections or fields. `messages` rows are now written from both sides: the phone (`senderRole: "field"`, `senderId` = employee) and the office (`senderRole: "office"`, `senderId: "office"`, `senderName` = the session user, `recipientId` = the job's field lead or `"field"` for the general channel). `readAt` means "read by the other side" for both directions. SQL: `messages` still maps to a single table (sender_role, sender_employee_id nullable, dispatch_job_id nullable, thread_key, body, sent_at, read_at); a per-reader receipt table can wait until Phase 12 gives office users identities.
 
 **Owner's bug list (2026-09-23, after the audit).** No new collections.

@@ -1984,7 +1984,7 @@ async function ensureBackendSeedData() {
   }
 }
 
-async function refreshState() {
+async function refreshState({ backend = true } = {}) {
   const syncQueue = await getAll("syncQueue");
 
   // state.accounts, state.contacts, state.projects, state.tasks, state.activities,
@@ -2001,7 +2001,7 @@ async function refreshState() {
   state.authError = await getSetting("authError", "");
   state.frontlineNotificationPrefs = await getSetting("frontlineNotificationPrefs", defaultFrontlineNotificationPrefs);
   applyPlatformSettings();
-  await refreshBackendState();
+  if (backend) await refreshBackendState();
 }
 
 async function refreshBackendState() {
@@ -2011,61 +2011,68 @@ async function refreshBackendState() {
       ...state.backend,
       ...backend,
     };
-    // Item 26 — bands aren't a fixed-width sortable string like "YYYY-Q#" was; sort by band index
-    // (0-30 first, no-band last), tie-broken by how long the band has been set (staler first).
-    state.opportunities = (state.backend.opportunities || [])
-      .filter((opportunity) => !opportunity.deletedAt)
-      .sort((a, b) => {
-        const bandDiff = closeBandSortValue(a.closeBand) - closeBandSortValue(b.closeBand);
-        if (bandDiff) return bandDiff;
-        return (a.closeBandSetAt || "9999").localeCompare(b.closeBandSetAt || "9999");
-      });
-    state.sampleRecords = (state.backend.sampleRecords || [])
-      .slice()
-      .sort((a, b) => new Date(b.collectionTime) - new Date(a.collectionTime));
-    state.facilities = (state.backend.facilities || [])
-      .filter((facility) => !facility.deletedAt)
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
-    state.accounts = (state.backend.accounts || [])
-      .filter((account) => !account.deletedAt)
-      .sort((a, b) => a.name.localeCompare(b.name));
-    state.contacts = (state.backend.contacts || [])
-      .filter((contact) => !contact.deletedAt)
-      .sort((a, b) => a.name.localeCompare(b.name));
-    state.projects = (state.backend.projects || [])
-      .filter((project) => !project.deletedAt)
-      .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
-    state.tasks = (state.backend.tasks || [])
-      .filter((task) => !task.deletedAt)
-      .map(buildCoreTaskRecord)
-      .sort((a, b) => parseDate(a.dueDate) - parseDate(b.dueDate));
-    state.activities = (state.backend.activities || [])
-      .filter((activity) => !activity.deletedAt)
-      .map(buildCoreActivityRecord)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    state.projectAssignments = (state.backend.projectAssignments || [])
-      .filter((assignment) => !assignment.deletedAt)
-      .sort((a, b) => a.assignedRole.localeCompare(b.assignedRole));
-    state.projectAlerts = (state.backend.projectAlerts || [])
-      .filter((alert) => !alert.deletedAt)
-      .sort((a, b) => new Date(b.reportedAt) - new Date(a.reportedAt));
-    state.materialUsage = (state.backend.materialUsage || [])
-      .filter((item) => !item.deletedAt)
-      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    state.equipmentLogs = (state.backend.equipmentLogs || [])
-      .filter((item) => !item.deletedAt)
-      .sort((a, b) => new Date(b.checkedOut) - new Date(a.checkedOut));
-    state.scheduledWork = (state.backend.scheduledWork || [])
-      .filter((work) => !work.deletedAt)
-      .sort((a, b) => parseDate(a.date) - parseDate(b.date));
-    state.spatialData = (state.backend.spatialData || [])
-      .filter((item) => !item.deletedAt)
-      .sort((a, b) => parseDate(b.scanDate) - parseDate(a.scanDate));
+    projectBackendState();
     state.authError = state.authError === "Backend API unavailable." ? "" : state.authError;
   } catch (error) {
     state.authError = "Backend API unavailable.";
   }
+}
+
+// The derived lists (state.accounts, state.projects, ...) are recomputed from state.backend here.
+// Called after a full fetch and after every merged save (Phase 20 item 2), so a save never needs to
+// re-download the backend just to see its own result in a list.
+function projectBackendState() {
+  // Item 26 — bands aren't a fixed-width sortable string like "YYYY-Q#" was; sort by band index
+  // (0-30 first, no-band last), tie-broken by how long the band has been set (staler first).
+  state.opportunities = (state.backend.opportunities || [])
+    .filter((opportunity) => !opportunity.deletedAt)
+    .sort((a, b) => {
+      const bandDiff = closeBandSortValue(a.closeBand) - closeBandSortValue(b.closeBand);
+      if (bandDiff) return bandDiff;
+      return (a.closeBandSetAt || "9999").localeCompare(b.closeBandSetAt || "9999");
+    });
+  state.sampleRecords = (state.backend.sampleRecords || [])
+    .slice()
+    .sort((a, b) => new Date(b.collectionTime) - new Date(a.collectionTime));
+  state.facilities = (state.backend.facilities || [])
+    .filter((facility) => !facility.deletedAt)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
+  state.accounts = (state.backend.accounts || [])
+    .filter((account) => !account.deletedAt)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  state.contacts = (state.backend.contacts || [])
+    .filter((contact) => !contact.deletedAt)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  state.projects = (state.backend.projects || [])
+    .filter((project) => !project.deletedAt)
+    .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
+  state.tasks = (state.backend.tasks || [])
+    .filter((task) => !task.deletedAt)
+    .map(buildCoreTaskRecord)
+    .sort((a, b) => parseDate(a.dueDate) - parseDate(b.dueDate));
+  state.activities = (state.backend.activities || [])
+    .filter((activity) => !activity.deletedAt)
+    .map(buildCoreActivityRecord)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  state.projectAssignments = (state.backend.projectAssignments || [])
+    .filter((assignment) => !assignment.deletedAt)
+    .sort((a, b) => a.assignedRole.localeCompare(b.assignedRole));
+  state.projectAlerts = (state.backend.projectAlerts || [])
+    .filter((alert) => !alert.deletedAt)
+    .sort((a, b) => new Date(b.reportedAt) - new Date(a.reportedAt));
+  state.materialUsage = (state.backend.materialUsage || [])
+    .filter((item) => !item.deletedAt)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  state.equipmentLogs = (state.backend.equipmentLogs || [])
+    .filter((item) => !item.deletedAt)
+    .sort((a, b) => new Date(b.checkedOut) - new Date(a.checkedOut));
+  state.scheduledWork = (state.backend.scheduledWork || [])
+    .filter((work) => !work.deletedAt)
+    .sort((a, b) => parseDate(a.date) - parseDate(b.date));
+  state.spatialData = (state.backend.spatialData || [])
+    .filter((item) => !item.deletedAt)
+    .sort((a, b) => parseDate(b.scanDate) - parseDate(a.scanDate));
 }
 
 function applyPlatformSettings() {
@@ -2097,17 +2104,58 @@ async function apiRequest(pathname, options = {}) {
   return payload;
 }
 
-// Pass { refresh: false } when chaining several writes, then call refreshBackendState() once at
-// the end. Each refresh re-downloads the whole backend, so a multi-write flow that refreshes every
-// time is needlessly slow on a field device.
-async function saveBackendRecord(collection, record, { refresh = true, headers } = {}) {
-  const saved = await apiRequest(`/api/backend/${collection}`, {
-    method: "POST",
-    body: JSON.stringify(record),
-    headers,
-  });
-  if (refresh) await refreshBackendState();
+// Phase 20 items 1 + 2 (2026-09-23). The save carries the version this client last read for the
+// record (from state.backend, which is the read), so the server can refuse a stale save with 409
+// instead of overwriting someone else's edit. The returned record is merged into state.backend and
+// the derived lists are recomputed, so nothing re-downloads the backend after an ordinary save.
+// Pass { refresh: true } only when the server changed other collections as a side effect;
+// inventoryItems always refreshes because every onHand change writes a ledger row.
+const collectionsWithServerSideEffects = new Set(["inventoryItems"]);
+
+function mergeBackendRecord(collection, record) {
+  if (!record || !record.id) return;
+  const list = Array.isArray(state.backend[collection]) ? state.backend[collection] : (state.backend[collection] = []);
+  const index = list.findIndex((item) => item.id === record.id);
+  if (index >= 0) list[index] = record;
+  else list.push(record);
+}
+
+async function saveBackendRecord(collection, record, { refresh = false, headers } = {}) {
+  const current = (state.backend[collection] || []).find((item) => item.id === record.id);
+  const payload = current && current.version !== undefined ? { ...record, version: current.version } : record;
+  let saved;
+  try {
+    saved = await apiRequest(`/api/backend/${collection}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers,
+    });
+  } catch (error) {
+    if (error.status === 409 && error.payload?.conflict) {
+      // Show the other person's values on the next render; the user's edit is dropped, not merged.
+      if (error.payload.current) {
+        mergeBackendRecord(collection, error.payload.current);
+        projectBackendState();
+      }
+      error.conflict = true;
+      error.message = "This record was changed by someone else — your edit was not saved. Review the current values and try again.";
+    }
+    throw error;
+  }
+  mergeBackendRecord(collection, saved);
+  if (refresh || collectionsWithServerSideEffects.has(collection)) await refreshBackendState();
+  else projectBackendState();
   return saved;
+}
+
+// A refused stale save closes whatever dialog held the edit and re-renders with the current values.
+// Save handlers that catch their own errors show the same message through their toast instead.
+async function handleSaveConflict(error) {
+  if (!error?.conflict) return false;
+  closeDialogs();
+  render();
+  showToast(error.message);
+  return true;
 }
 
 async function init() {
@@ -2161,6 +2209,14 @@ async function updateOnlineStatus(isOnline) {
 }
 
 async function handleClick(event) {
+  try {
+    await dispatchClick(event);
+  } catch (error) {
+    if (!(await handleSaveConflict(error))) throw error;
+  }
+}
+
+async function dispatchClick(event) {
   // Any click outside a lookup closes its results list.
   closeRecordLookups(event.target.closest?.(".record-lookup"));
   const lookupButton = event.target.closest?.('[data-action="lookup-pick"], [data-action="lookup-remove"]');
@@ -2778,6 +2834,14 @@ function frontlineAddMaterialRow(button) {
 }
 
 async function handleSubmit(event) {
+  try {
+    await dispatchSubmit(event);
+  } catch (error) {
+    if (!(await handleSaveConflict(error))) throw error;
+  }
+}
+
+async function dispatchSubmit(event) {
   const form = event.target.closest("form[data-form]");
   if (!form) return;
 
@@ -17895,7 +17959,7 @@ async function saveAccount(form) {
   }
   await queueChange("Account", existing ? "updated" : "created", account);
   closeDialogs();
-  await refreshState();
+  await refreshState({ backend: false });
   state.selectedAccountId = account.id;
   state.view = "account-detail";
   render();
