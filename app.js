@@ -21140,6 +21140,14 @@ async function itCaptureScreen() {
     return;
   }
   const dialog = document.querySelector("#itMessagesDialog");
+  // Owner, 2026-09-24: the shot must show the page, not this window. Close the dialog (its backdrop
+  // too) before the browser's picker appears, and reopen it afterwards with the draft intact.
+  const wasOpen = dialog.open;
+  if (wasOpen) dialog.close();
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const reopen = () => {
+    if (wasOpen && !dialog.open) dialog.showModal();
+  };
   let stream = null;
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "browser" }, audio: false, preferCurrentTab: true, selfBrowserSurface: "include" });
@@ -21149,21 +21157,47 @@ async function itCaptureScreen() {
     video.playsInline = true;
     await video.play();
     if (video.readyState < 2) await new Promise((resolve) => video.addEventListener("loadeddata", resolve, { once: true }));
-    dialog.classList.add("capturing");
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    // Two fresh frames after sharing starts, so the picker and any stale frame are gone.
+    await itWaitForVideoFrames(video, 2);
+    await new Promise((resolve) => setTimeout(resolve, 200));
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
-    dialog.classList.remove("capturing");
     stream.getTracks().forEach((track) => track.stop());
     const image = await itLoadImage(canvas.toDataURL("image/png"));
+    reopen();
     itSetScreenshot(image);
+    scrollChatToBottom();
   } catch (error) {
-    dialog.classList.remove("capturing");
     if (stream) stream.getTracks().forEach((track) => track.stop());
+    reopen();
     if (error?.name !== "NotAllowedError") showToast("Could not capture the screen. Use Choose image instead.");
   }
+}
+
+function itWaitForVideoFrames(video, count) {
+  return new Promise((resolve) => {
+    const failSafe = setTimeout(resolve, 1500);
+    if (typeof video.requestVideoFrameCallback !== "function") {
+      setTimeout(() => {
+        clearTimeout(failSafe);
+        resolve();
+      }, 400);
+      return;
+    }
+    let remaining = count;
+    const tick = () => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearTimeout(failSafe);
+        resolve();
+      } else {
+        video.requestVideoFrameCallback(tick);
+      }
+    };
+    video.requestVideoFrameCallback(tick);
+  });
 }
 
 async function markNotificationsRead(ids) {

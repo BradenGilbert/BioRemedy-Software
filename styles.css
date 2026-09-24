@@ -7497,10 +7497,6 @@ label > .camera-capture-button {
   border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
-dialog.capturing {
-  opacity: 0;
-}
-
 @media (max-width: 760px) {
   .it-messages-layout.has-threads {
     grid-template-columns: 1fr;

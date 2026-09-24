@@ -7089,6 +7089,26 @@
     }
   ],
   "gpsConsents": [],
+  "itMessages": [
+    {
+      "id": "it-message-mug446hd-zm63lm",
+      "threadKey": "user-braden",
+      "threadName": "Braden Gilbert",
+      "authorUserId": "user-braden",
+      "authorName": "Braden Gilbert",
+      "authorRole": "Admin",
+      "fromIT": false,
+      "body": "lol this is broken",
+      "screenshotDocumentId": "document-mug446p6-dea241",
+      "pageUrl": "/#view=client-contacts&accountDetailTab=summary",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+      "createdAt": "2026-09-24T22:37:32.497Z",
+      "userReadAt": "2026-09-24T22:37:32.497Z",
+      "itReadAt": "",
+      "version": 2,
+      "updatedAt": "2026-09-24T22:37:32.866Z"
+    }
+  ],
   "documents": [
     {
       "id": "document-mufzeury-0aci0f",
@@ -7141,6 +7161,32 @@
       "version": 1,
       "updatedAt": "2026-09-24T20:26:19.354Z",
       "createdAt": "2026-09-24T20:26:19.354Z"
+    },
+    {
+      "id": "document-mug446p6-dea241",
+      "entityType": "itMessage",
+      "entityId": "it-message-mug446hd-zm63lm",
+      "accountId": "",
+      "documentTypeId": "",
+      "requirementId": "",
+      "fileName": "screenshot-1790289452582.png",
+      "mimeType": "image/png",
+      "sizeBytes": 310063,
+      "sha256": "63e343370a89250a7df3d0125bfd13879b14ee5682a175993d702aeecfca89cb",
+      "storageName": "document-mug446p6-dea241.png",
+      "groupId": "document-mug446p6-dea241",
+      "versionNumber": 1,
+      "visibility": "internal",
+      "caption": "Screenshot sent to IT",
+      "tags": [],
+      "uploadedAt": "2026-09-24T22:37:32.778Z",
+      "uploadedBy": "Braden Gilbert",
+      "uploadedBySessionKind": "entra",
+      "retainUntil": "",
+      "deletedAt": "",
+      "version": 1,
+      "updatedAt": "2026-09-24T22:37:32.778Z",
+      "createdAt": "2026-09-24T22:37:32.778Z"
     }
   ],
   "documentTypes": [
@@ -25549,7 +25595,24 @@
     }
   ],
   "wasteRecords": [],
-  "notifications": [],
+  "notifications": [
+    {
+      "id": "notif-it-message-it-message-mug446hd-zm63lm",
+      "dedupeKey": "it-message-it-message-mug446hd-zm63lm",
+      "title": "Message to IT from Braden Gilbert",
+      "body": "lol this is broken",
+      "severity": "info",
+      "audienceRoles": [
+        "Admin"
+      ],
+      "recipientUserId": "",
+      "link": "",
+      "createdAt": "2026-09-24T22:37:32.898Z",
+      "readBy": [],
+      "updatedAt": "2026-09-24T22:37:32.938Z",
+      "version": 1
+    }
+  ],
   "laborAssignments": [],
   "sampleLabReports": [],
   "sampleResults": [],
