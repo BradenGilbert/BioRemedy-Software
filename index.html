@@ -4355,10 +4355,11 @@
     <dialog id="jobRequestDialog" class="modal">
       <form method="dialog" class="modal-panel wide-modal-panel" data-form="job-request">
         <input name="projectId" type="hidden" />
+        <input name="id" type="hidden" />
         <div class="modal-header">
           <div>
-            <p class="eyebrow">Sales to Dispatch</p>
-            <h2>New job request</h2>
+            <p class="eyebrow" data-job-request-eyebrow>Sales to Dispatch</p>
+            <h2 data-job-request-title>New job request</h2>
           </div>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
@@ -4500,7 +4501,7 @@
         </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
-          <button class="primary-button" type="submit">Send to dispatch</button>
+          <button class="primary-button" type="submit" data-job-request-submit>Send to dispatch</button>
         </menu>
       </form>
     </dialog>

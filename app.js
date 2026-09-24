@@ -2021,6 +2021,12 @@ async function dispatchClick(event) {
   if (action === "download-job-request-document") await downloadJobRequestDocument(id);
   if (action === "download-sample-lab-report") await downloadSampleLabReport(id);
   if (action === "convert-job-request") openJobTemplateSelectDialog(id);
+  if (action === "edit-job-request") openJobRequestEditDialog(id);
+  if (action === "job-request-needs-info") await markJobRequestNeedsInfo(id);
+  if (action === "job-request-ready") await setJobRequestStatus(id, "Submitted");
+  if (action === "job-request-decline") await closeJobRequest(id, "Declined");
+  if (action === "job-request-cancel") await closeJobRequest(id, "Cancelled");
+  if (action === "job-request-reopen") await setJobRequestStatus(id, "Submitted");
   if (action === "select-job-template") await convertJobRequest(actionButton.dataset.requestId, actionButton.dataset.templateId);
   if (action === "advance-dispatch-job") await advanceDispatchJob(id);
   if (action === "open-dispatch-assign-employee") openDispatchAssignEmployeeDialog(actionButton.dataset.jobId);
@@ -8626,8 +8632,8 @@ function renderPendingJobRequestCard(request) {
       <strong>${escapeHtml(request.description || request.serviceCategory || "Untitled request")}</strong>
       <span>${escapeHtml(request.serviceCategory || "")} · ${escapeHtml(request.requestedTimeText || "No preferred time set")}</span>
       <div class="dispatch-card-time">
-        <span>${escapeHtml(request.status)}</span>
-        ${canConvert ? `<button class="mini-button" type="button" data-action="convert-job-request" data-id="${escapeAttribute(request.id)}">Create job</button>` : ""}
+        <span>${escapeHtml(request.status)}${request.status === "Needs information" && request.statusNote ? ` · missing ${escapeHtml(request.statusNote)}` : ""}</span>
+        <span class="inline-actions">${renderJobRequestActions(request, findDispatchJob(request.convertedJobId), canConvert, { compact: true })}</span>
       </div>
     </article>
   `;
@@ -11151,6 +11157,7 @@ function renderJobRequestCard(request) {
           <div class="request-statuses">
             <span class="risk-badge ${getPriorityTone(request.priority)}">${escapeHtml(request.priority)}</span>
             ${renderDispatchStatusBadge(request.status)}
+            ${request.status === "Needs information" && request.statusNote ? `<span class="request-status-note" title="${escapeAttribute(`Asked by ${request.statusChangedBy || "office"}${request.statusChangedAt ? ` on ${formatDateTime(request.statusChangedAt)}` : ""}`)}">Missing: ${escapeHtml(request.statusNote)}</span>` : ""}
           </div>
         </div>
         <dl class="request-facts">
@@ -11175,13 +11182,7 @@ function renderJobRequestCard(request) {
         <div><span>BioRemedy PO</span><strong>${escapeHtml(request.bioremedyPoNumber || "Not assigned")}</strong></div>
         ${documents.length ? `<div class="request-document-list"><span>Request documents</span>${documents.map(renderJobRequestDocument).join("")}</div>` : ""}
         <div class="request-actions">
-          ${
-            convertedJob
-              ? `<button class="secondary-button" type="button" data-action="view-dispatch-job" data-id="${convertedJob.id}">Open job</button>`
-              : canConvert
-                ? `<button class="primary-button" type="button" data-action="convert-job-request" data-id="${request.id}">Create job</button>`
-                : ""
-          }
+          ${renderJobRequestActions(request, convertedJob, canConvert)}
         </div>
       </aside>
     </article>
@@ -18339,14 +18340,17 @@ async function saveJobRequest(form) {
   const quoteFiles = [...form.elements.quoteFiles.files];
   const now = new Date();
   const requestedValue = data.get("requestedServiceAt").toString();
+  const existingId = (data.get("id") || "").toString();
+  const existing = existingId ? getJobRequests().find((item) => item.id === existingId) : null;
   const request = {
-    id: makeId("req"),
-    requestNumber: `REQ-${now.getFullYear()}-${localIsoDate(now).replaceAll("-", "").slice(4)}-${String(getJobRequests().length + 1).padStart(2, "0")}`,
+    ...(existing || {}),
+    id: existing?.id || makeId("req"),
+    requestNumber: existing?.requestNumber || `REQ-${now.getFullYear()}-${localIsoDate(now).replaceAll("-", "").slice(4)}-${String(getJobRequests().length + 1).padStart(2, "0")}`,
     projectId: data.get("projectId").toString(),
-    receivedAt: now.toISOString(),
+    receivedAt: existing?.receivedAt || now.toISOString(),
     requestedServiceAt: requestedValue ? new Date(requestedValue).toISOString() : "",
     requestedTimeText: (data.get("priority") || "").toString() === "Emergency" ? "ASAP" : requestedValue ? formatDateTime(requestedValue) : "Date not confirmed",
-    status: "Submitted",
+    status: existing ? existing.status : "Submitted",
     priority: (data.get("priority") || "").toString(),
     serviceCategory: (data.get("serviceCategory") || "").toString(),
     accountId: account.id,
@@ -18368,9 +18372,16 @@ async function saveJobRequest(form) {
     description: data.get("description").toString().trim(),
     customerPacketStatus: (data.get("customerPacketStatus") || "").toString(),
     quoteStatus: (data.get("quoteStatus") || "").toString(),
-    convertedJobId: "",
-    receivedBy: state.currentUser?.name || "Local user",
+    convertedJobId: existing?.convertedJobId || "",
+    receivedBy: existing?.receivedBy || state.currentUser?.name || "Local user",
   };
+  // The return loop (B11): once the missing pieces are filled in, the request goes back to the queue.
+  if (existing?.status === "Needs information" && jobRequestIsComplete(request)) {
+    request.status = "Submitted";
+    request.statusNote = "";
+    request.statusChangedAt = now.toISOString();
+    request.statusChangedBy = currentActorName();
+  }
 
   try {
     await saveBackendRecord("jobRequests", request);
@@ -18381,11 +18392,13 @@ async function saveJobRequest(form) {
     const uploadResults = await Promise.allSettled(uploads);
     await refreshBackendState();
     closeDialogs();
-    state.view = "dispatch-intake";
+    if (!existing) state.view = "dispatch-intake";
     render();
     const failedUploads = uploadResults.filter((result) => result.status === "rejected");
     if (failedUploads.length) {
       showToast(`Job request saved. ${failedUploads.length} document${failedUploads.length === 1 ? "" : "s"} could not be uploaded.`);
+    } else if (existing) {
+      showToast(request.status !== existing.status ? `${request.requestNumber} updated and back in the working queue.` : `${request.requestNumber} updated.`);
     } else {
       showToast(uploads.length ? `Job request sent with ${uploads.length} document${uploads.length === 1 ? "" : "s"}.` : "Job request sent to dispatch.");
     }
@@ -27251,6 +27264,7 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
   const dialog = document.querySelector("#jobRequestDialog");
   const form = dialog.querySelector("form");
   form.reset();
+  setJobRequestDialogMode(dialog, null);
   populateAccountSelect(dialog, "Select a customer account");
   populateEmployeeSelect(dialog, "requestedEmployeeId", "No requested lead");
   form.elements.requestedServiceAt.value = toLocalDateTimeInput(new Date());
@@ -27336,6 +27350,135 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
     form.elements.accountId.value = accountId;
   }
   dialog.showModal();
+}
+
+function setJobRequestDialogMode(dialog, request) {
+  const form = dialog.querySelector("form");
+  form.elements.id.value = request?.id || "";
+  const eyebrow = dialog.querySelector("[data-job-request-eyebrow]");
+  const title = dialog.querySelector("[data-job-request-title]");
+  const submit = dialog.querySelector("[data-job-request-submit]");
+  if (eyebrow) eyebrow.textContent = request ? `${request.requestNumber || "Job request"} · ${request.status || ""}` : "Sales to Dispatch";
+  if (title) title.textContent = request ? "Edit job request" : "New job request";
+  if (submit) submit.textContent = request ? "Save changes" : "Send to dispatch";
+}
+
+// 2026-09-24 (owner: a "Needs information" request sat in Intake with no way to act on it — B11).
+// Every open request can now be edited in place; the same dialog, prefilled.
+function openJobRequestEditDialog(requestId) {
+  const request = getJobRequests().find((item) => item.id === requestId);
+  if (!request) return;
+  if (request.convertedJobId || request.status === "Converted") {
+    showToast("This request already became a job; edit the job instead.");
+    return;
+  }
+  const dialog = document.querySelector("#jobRequestDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  populateAccountSelect(dialog, "Select a customer account");
+  populateEmployeeSelect(dialog, "requestedEmployeeId", "No requested lead");
+  dialog.querySelector(".prior-packet-note").hidden = true;
+  dialog.querySelector(".prior-quote-note").hidden = true;
+  setJobRequestDialogMode(dialog, request);
+  form.elements.projectId.value = request.projectId || "";
+  form.elements.accountId.value = request.accountId || "";
+  form.elements.serviceCategory.value = request.serviceCategory || "Scheduled";
+  form.elements.priority.value = request.priority || "Normal";
+  form.elements.requestedServiceAt.value = request.requestedServiceAt ? toLocalDateTimeInput(request.requestedServiceAt) : "";
+  form.elements.bioremedyPoNumber.value = request.bioremedyPoNumber || "";
+  form.elements.customerPoNumber.value = request.customerPoNumber || "";
+  form.elements.calledInByName.value = request.calledInByName || "";
+  form.elements.generatorResponsibleParty.value = request.generatorResponsibleParty || "";
+  form.elements.onsiteContactName.value = request.onsiteContactName || "";
+  form.elements.onsiteContactPhone.value = request.onsiteContactPhone || "";
+  form.elements.addressText.value = request.addressText || "";
+  form.elements.estimatedDurationHours.value = request.estimatedDurationMinutes ? String(Number(request.estimatedDurationMinutes) / 60) : "4";
+  const requestedEmployee = findEmployee(request.requestedEmployeeId) || getEmployees().find((employee) => employee.displayName === request.requestedAssignee);
+  form.elements.requestedEmployeeId.value = requestedEmployee?.id || "";
+  form.elements.equipmentNotes.value = request.equipmentNotes || "";
+  form.elements.laborNotes.value = request.laborNotes || "";
+  form.elements.vendorNotes.value = request.vendorNotes || "";
+  form.elements.pricingNotes.value = request.pricingNotes || "";
+  form.elements.description.value = request.description || "";
+  form.elements.customerPacketStatus.value = request.customerPacketStatus || "Missing";
+  form.elements.quoteStatus.value = request.quoteStatus || "Missing";
+  dialog.showModal();
+}
+
+function jobRequestIsComplete(request) {
+  return Boolean(request.requestedServiceAt && request.onsiteContactName && request.addressText);
+}
+
+async function setJobRequestStatus(requestId, status, note = "") {
+  const request = getJobRequests().find((item) => item.id === requestId);
+  if (!request) return;
+  if (request.convertedJobId || request.status === "Converted") {
+    showToast("This request already became a job; work the job instead.");
+    return;
+  }
+  const updated = {
+    ...request,
+    status,
+    statusNote: status === "Needs information" ? note : "",
+    statusChangedAt: new Date().toISOString(),
+    statusChangedBy: currentActorName(),
+  };
+  try {
+    await saveBackendRecord("jobRequests", updated);
+    render();
+    showToast(
+      status === "Submitted"
+        ? `${request.requestNumber} is back in the working queue.`
+        : status === "Needs information"
+          ? `${request.requestNumber} marked as needing information.`
+          : `${request.requestNumber} ${status.toLowerCase()}.`,
+    );
+  } catch (error) {
+    showToast(error.message || "Could not update the request.");
+  }
+}
+
+async function markJobRequestNeedsInfo(requestId) {
+  const request = getJobRequests().find((item) => item.id === requestId);
+  if (!request) return;
+  const missing = [
+    !request.requestedServiceAt ? "service date" : "",
+    !request.onsiteContactName ? "onsite contact" : "",
+    !request.addressText ? "address" : "",
+  ].filter(Boolean);
+  const note = window.prompt("What is missing before dispatch can create the job?", request.statusNote || missing.join(", "));
+  if (note === null) return;
+  await setJobRequestStatus(requestId, "Needs information", note.trim());
+}
+
+async function closeJobRequest(requestId, status) {
+  const request = getJobRequests().find((item) => item.id === requestId);
+  if (!request) return;
+  const verb = status === "Declined" ? "Decline" : "Mark as cancelled by the customer";
+  if (!window.confirm(`${verb}: ${request.requestNumber} for ${request.customerName || "this customer"}? It leaves the working queue but stays under "Show converted/closed", and can be reopened.`)) return;
+  await setJobRequestStatus(requestId, status);
+}
+
+// The buttons on an intake card: create the job when it can be created, otherwise the ways to get
+// it there (edit, mark ready), out of the queue (decline, cancelled), or gone (delete, admin).
+function renderJobRequestActions(request, convertedJob, canConvert, { compact = false } = {}) {
+  const id = escapeAttribute(request.id);
+  if (convertedJob) return `<button class="${compact ? "mini-button" : "secondary-button"}" type="button" data-action="view-dispatch-job" data-id="${escapeAttribute(convertedJob.id)}">Open job</button>`;
+  if (request.status === "Converted") return "";
+  const closed = ["Declined", "Cancelled"].includes(request.status);
+  const needsInfo = request.status === "Needs information";
+  const button = (action, label, klass = "mini-button", extra = "") => `<button class="${klass}" type="button" data-action="${action}" data-id="${id}" ${extra}>${label}</button>`;
+  return [
+    canConvert ? button("convert-job-request", "Create job", compact ? "mini-button" : "primary-button") : "",
+    closed ? button("job-request-reopen", "Reopen", compact ? "mini-button" : "secondary-button") : button("edit-job-request", "Edit", compact ? "mini-button" : "secondary-button"),
+    !closed && needsInfo ? button("job-request-ready", "Mark ready") : "",
+    !closed && !needsInfo ? button("job-request-needs-info", "Needs info") : "",
+    !closed && !compact ? button("job-request-decline", "Decline") : "",
+    !closed && !compact ? button("job-request-cancel", "Cancelled") : "",
+    !compact && userHasRole("Admin") ? `<button class="mini-button" type="button" data-action="delete-record" data-collection="jobRequests" data-id="${id}">Delete</button>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
 }
 
 function openDispatchScheduleDialog(jobId = "") {
@@ -27531,6 +27674,7 @@ const deletableRecordLabels = {
   projects: { noun: "project", name: (record) => record.name, after: () => ({ view: "ops-projects", selectedProjectId: "" }) },
   facilities: { noun: "facility", name: (record) => record.name, after: (record) => (record.accountId ? { view: "account-detail", selectedAccountId: record.accountId, selectedFacilityId: "" } : { view: "accounts" }) },
   dispatchJobs: { noun: "dispatch job", name: (record) => `${record.jobNumber} ${record.jobName || ""}`.trim(), after: () => ({ view: "dispatch-jobs", selectedDispatchJobId: "" }) },
+  jobRequests: { noun: "job request", name: (record) => `${record.requestNumber || ""} ${record.customerName || ""}`.trim(), after: () => ({}) },
   documents: { noun: "document", name: (record) => record.fileName, after: () => ({}) },
   documentRequirements: { noun: "paperwork requirement", name: (record) => findDocumentType(record.documentTypeId)?.name || "requirement", after: () => ({}) },
 };

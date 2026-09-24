@@ -4280,7 +4280,28 @@ textarea {
 }
 
 .request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   padding-top: 8px;
+}
+
+/* 2026-09-24: a "Needs information" request says what is missing (B11). */
+.request-status-note {
+  display: inline-block;
+  max-width: 260px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #fff4e5;
+  color: #9a5b00;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.project-dispatch-card .inline-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .dispatch-board-grid {

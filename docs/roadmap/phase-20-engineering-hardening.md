@@ -260,6 +260,7 @@ Nothing in Part B is a bug in the "it crashes" sense. They are places where the 
 
 - **Live data:** 1 of 33 job requests is in "Needs information" with nothing recording who was asked, what is missing, or when.
 - **Suggested fix:** the status change asks for the missing items and an owner (defaults to the request's `receivedBy`), writes a task for them, and the intake feed shows the request with the ask. Small.
+- **Closed 2026-09-24** (owner: "Killeen City Print Shop has a dead dispatch listed in intake" — that one request, with no button on its card). Every open request card now has Edit (the same dialog, prefilled, saving in place), Needs info (asks what is missing and shows it on the card with who asked and when), Mark ready, Decline, Cancelled, and Delete (admin, soft); a closed request shows Reopen. Editing a "Needs information" request so that it has a service date, onsite contact and address puts it back in the queue by itself. No task is written for the owner of the ask — the card is the ask. The project page's pending-request card gets the compact set (Create job / Edit / Needs info / Mark ready).
 
 ### B12. Contacts: account role vs. job title
 

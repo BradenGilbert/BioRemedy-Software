@@ -953,7 +953,7 @@ Generated from `server.mjs`'s `collectionAccess` map (108 collections including 
 | `jobMileageEntries` | job_mileage_entries (023) |  |
 | `messages` | **new** messages (029+) | thread_key, sender_role, read_at |
 | `inventoryAlerts` | **new** inventory_alerts (029+) |  |
-| `jobRequests` | job_requests (022) |  |
+| `jobRequests` | job_requests (022) | Adds `statusNote`, `statusChangedAt`, `statusChangedBy` (2026-09-24: what a "Needs information" request is waiting on, and who asked) |
 | `jobRequestDocuments` | **fold into** documents | Legacy store; files re-hashed on import |
 | `dispatchJobs` | work_orders (007) | Dispatch jobs are work orders in SQL (glossary) |
 | `jobAssignments` | job_assignments (022) |  |
