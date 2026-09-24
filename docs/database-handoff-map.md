@@ -913,20 +913,155 @@ there.
   load, so the derivation happens transparently for existing rows. No
   `activities` (`014_activities.sql`) column for this yet.
 
+## Cutover inventory — every collection's destination (2026-09-24, sprint Wave 8)
+
+Generated from `server.mjs`'s `collectionAccess` map (108 collections including `qboSettings`/`qboExports`) and checked against it by the script that wrote this section: every collection has a row. **71 land in tables that already exist in `crm-schema/`**, **32 need new migrations (`029+`)**, **4 fold into `documents`**, **1 does not migrate**. The procedure is `docs/roadmap/cutover-runbook.md`.
+
+| Collection | Destination | Notes |
+|---|---|---|
+| `accounts` | accounts (001) |  |
+| `contacts` | contacts (002) |  |
+| `facilities` | facilities (003) | Customer sites (glossary), not GPS points |
+| `projects` | projects (006) | Adds projectStage, closeReport JSONB, closedAt |
+| `tasks` | tasks (008) |  |
+| `activities` | activities (014) + activity_parties (015) | contactIds[] becomes party rows; tags column |
+| `projectAssignments` | **new** project_assignments (029+) | Project assignment roles (Phase 12 §3) |
+| `projectAlerts` | issues (009) | Field alerts are issues |
+| `materialUsage` | job_material_usage (023) | Office-side rows carry project_id, no work order |
+| `equipmentLogs` | job_equipment_usage (023) | Same |
+| `scheduledWork` | **fold into** schedule_events | Legacy; 3 rows |
+| `spatialData` | project_spatial_files (016) |  |
+| `scheduleEvents` | **new** schedule_events + schedule_event_participants (029+) | Site walks: kind, opportunity, facility, participants |
+| `locations` | **new** gps_points (029+) | GPS points with retention; job_locations (022) is a different thing (a job's addresses) |
+| `inventoryItems` | **new** inventory_items (029+) | Priority 1 gap |
+| `purchaseOrders` | **new** purchase_orders (029+) |  |
+| `inventoryMovements` | **new** inventory_movements (029+) | Append-only ledger |
+| `equipmentAssets` | equipment (011) | Adds ownership, productId, PM fields |
+| `equipmentMaintenanceRecords` | **new** equipment_maintenance_records (029+) |  |
+| `equipmentRestockItems` | **new** equipment_restock_items (029+) |  |
+| `employees` | employees (018) | systemUserId, crewId/teamId home groups |
+| `certificationTypes` | certification_types (018) |  |
+| `employeeCertifications` | employee_certifications (018) | assignmentStatus + training dates columns |
+| `workforceTeams` | **new** workforce_teams (029+) | teams (015) is Dataverse owner teams — keep separate |
+| `workforceTeamMemberships` | team_memberships (019) | crewId or teamId, role, primary |
+| `crewProfiles` | crews (010) | requiredCertTypeIds → crew_required_certifications join |
+| `availabilityBlocks` | availability_blocks (019) |  |
+| `standbyAssignments` | on_call_rotation_members (019) |  |
+| `standbyRotationSettings` | on_call_rotations (019) | Single settings row |
+| `frontlineDevices` | frontline_devices (024) |  |
+| `timeEntries` | job_time_entries (023) |  |
+| `jobMileageEntries` | job_mileage_entries (023) |  |
+| `messages` | **new** messages (029+) | thread_key, sender_role, read_at |
+| `inventoryAlerts` | **new** inventory_alerts (029+) |  |
+| `jobRequests` | job_requests (022) |  |
+| `jobRequestDocuments` | **fold into** documents | Legacy store; files re-hashed on import |
+| `dispatchJobs` | work_orders (007) | Dispatch jobs are work orders in SQL (glossary) |
+| `jobAssignments` | job_assignments (022) |  |
+| `jobScheduleSegments` | job_schedule_segments (022) |  |
+| `jobResources` | job_resource_allocations (022) | vendorAccountId → subcontractor_assignments per the 027 note |
+| `jobConflicts` | job_schedule_conflicts (022) |  |
+| `jobSteps` | job_step_instances (023) | adHoc flag column |
+| `jobActions` | job_action_instances (023) | config JSONB |
+| `jobFormSubmissions` | form_submissions + form_submission_values (023) | payload JSONB explodes into values where typed |
+| `jobTypeTemplates` | job_types + job_type_versions + job_step_definitions + job_action_definitions (021) |  |
+| `jobStatusEvents` | dispatch_events (022) |  |
+| `jobTaskAttachments` | **fold into** documents (+ job_signatures 023 for signatures) | Legacy store |
+| `jobExpenses` | job_receipts (023) | Receipt file → documents |
+| `weatherSnapshots` | **new** weather_snapshots (029+) | Frozen rows (Q41) |
+| `permits` | **new** permits (029+) |  |
+| `wasteRecords` | job_waste_containers + job_waste_shipments (023) |  |
+| `notifications` | **new** notifications (029+) |  |
+| `laborAssignments` | **not migrating** | Retired, 0 rows |
+| `sampleLabReports` | **fold into** documents | Legacy store, 0 rows |
+| `sampleResults` | **new** sample_results (029+) | Priority 2 lab normalization |
+| `sampleRecords` | project_samples + sampling_sessions (016) | samplingSessionId → session row |
+| `invoices` | invoices (015) | Adds tax, terms, itemized lines → invoice_lines |
+| `businessUnits` | business_units (015) |  |
+| `systemUsers` | system_users (015) | Adds role, username, employee_id, client_account_id, is_disabled, entra_object_id |
+| `teams` | teams (015) | Dataverse owner teams |
+| `transactionCurrencies` | transaction_currencies (015) |  |
+| `unitGroups` | unit_groups (015) |  |
+| `unitsOfMeasure` | units_of_measure (015) |  |
+| `priceLevels` | price_levels (015) | Rate tiers |
+| `products` | products (015) | Rate card |
+| `pricingSettings` | **new** pricing_settings (029+) | Single row: cost-plus %, fuel surcharge, minimums |
+| `productPriceLevels` | product_price_levels (015) |  |
+| `opportunities` | opportunities (013) | Stage-gate fields; accountPaperworkStatus derived from requirements |
+| `opportunityAssignments` | **new** opportunity_assignments (029+) | Team, vendors, purpose |
+| `leads` | leads (015) |  |
+| `opportunityContacts` | opportunity_contacts (015) |  |
+| `opportunityLocations` | **new** opportunity_facilities (029+) |  |
+| `opportunityProducts` | opportunity_products (015) |  |
+| `quotes` | quotes (015) |  |
+| `quoteLines` | quote_lines (015) |  |
+| `estimates` | **new** estimates (029+) | Internal working draft, distinct from quotes (Phase 08) |
+| `estimateLines` | **new** estimate_lines (029+) |  |
+| `salesOrders` | sales_orders (015) |  |
+| `salesOrderLines` | sales_order_lines (015) |  |
+| `invoiceLines` | invoice_lines (015) |  |
+| `competitors` | competitors (015) |  |
+| `opportunityCompetitors` | opportunity_competitors (015) |  |
+| `annotations` | annotations (015) |  |
+| `connectionRoles` | connection_roles (015) |  |
+| `connections` | connections (015) |  |
+| `activityParties` | activity_parties (015) |  |
+| `accountTypes` | account_types (026) |  |
+| `industries` | industries (026) |  |
+| `accountIndustries` | account_industries (026) |  |
+| `addresses` | addresses (026) |  |
+| `facilityContacts` | **new** facility_contacts (029+) | Noted since Phase 02 |
+| `salesTasks` | sales_tasks (028) |  |
+| `accountRelationshipExtensions` | **new** account_relationship_extensions (029+) | Pause + pauseHistory → account_pause_history child |
+| `accountComments` | **new** account_comments (029+) | Or annotations with object type account — decide at migration |
+| `facilityComments` | **new** facility_comments (029+) | Same |
+| `accountDivisions` | **new** account_divisions (029+) |  |
+| `contactEmploymentHistory` | **new** contact_employment_history (029+) |  |
+| `subcontractorTypes` | subcontractor_types (027) |  |
+| `vendorProfiles` | vendor_profiles (027) |  |
+| `serviceAgreements` | service_agreements (027) |  |
+| `subcontractorAssignments` | subcontractor_assignments (027) |  |
+| `accountApprovedSubcontractors` | **new** account_approved_subcontractors (029+) | Layer 2 approvals + evidence_document_id |
+| `qboSettings` | **new** accounting_connections (029+) | Single row today |
+| `qboExports` | **new** accounting_export_batches (029+) | Stores the QBO payload |
+| `gpsConsents` | **new** gps_consents (029+) | Append-only |
+| `documents` | files (012) **rewritten** as documents | Polymorphic entity link, sha-256, versions, visibility |
+| `documentTypes` | **new** document_types (029+) |  |
+| `documentRequirements` | **new** document_requirements (029+) |  |
+
+**Outside `backend.json`:**
+
+| Collection | Destination | Notes |
+|---|---|---|
+| `auth.json › credentials` | **new** user_credentials (029+) | scrypt salt + hash |
+| `auth.json › sessions` | **new** user_sessions (029+) | Not migrated at cutover — everyone signs in again |
+| `auth.json › dispatchLinks` | **new** dispatch_sign_on_links (029+) |  |
+| `auth.json › breakGlass` | server secret | Not a table |
+| `audit.log` | **new** audit_log (029+) | Imported verbatim |
+| `data/uploads/` | object storage / volume | documents.storage_name is the key |
+| `IndexedDB syncQueue, settings` | **not migrating** | Device-local |
+
+Columns every table gains (Phase 20 / 12a / 13): `version integer`, `updated_at`, `deleted_at`, `deleted_by`, `deleted_via`; and the `WHERE version = $n` rule on every UPDATE.
+
 ## What Still Needs Tables or a Stronger Model
 
 ### Priority 0 - Required Before Production
 
 1. **Production identity and authorization:** role definitions, user-role
    assignments, permissions, role-permission mappings, service/API clients,
-   and revocation. `system_users` exists, but the current role header is only a
-   prototype.
+   and revocation. **Prototype 2026-09-23 (Phase 12a):** sessions, credentials,
+   the role on `systemUsers`, revocation and break-glass are real; the SQL
+   tables (`user_credentials`, `user_sessions`, `dispatch_sign_on_links`) are
+   in the cutover inventory. Entra (12b) is the remaining half.
 2. **Audit and integration control:** immutable audit log, integration outbox,
    webhook deliveries, import/export jobs, failed-job handling, and
-   system-wide idempotency records.
+   system-wide idempotency records. **Prototype 2026-09-23 (Phase 12a):** the
+   append-only `audit.log` names the real session on every write. Outbox,
+   webhooks and idempotency records are still open.
 3. **Production document storage:** file versions, hashes, retention,
-   visibility/access rules, and generic entity-to-file links. The existing
-   `files` table and local upload folder are not sufficient for production.
+   visibility/access rules, and generic entity-to-file links. **Prototype
+   2026-09-24 (Phase 13):** all of it exists in `documents` on local disk;
+   `012_files.sql` gets rewritten to that shape at migration and the files
+   move to object storage or a mounted volume.
 4. **Managed migration baseline:** a real PostgreSQL database, migration
    history, seed/reference data, backups, restore testing, and conversion of
    migrations `013` through `025` into the selected application framework.

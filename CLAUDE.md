@@ -81,7 +81,8 @@ These have already caused planning errors. Confirm before acting:
 
 ## Reference docs
 
-- `docs/database-handoff-map.md` — full inventory of SQL tables, prototype collections, and what still needs tables
+- `docs/database-handoff-map.md` — full inventory of SQL tables, prototype collections, the **cutover inventory** (every collection → its table), and what still needs tables
+- `docs/roadmap/cutover-runbook.md` — the Phase 14 + Entra cutover procedure: rehearsal, big-bang day, the tested path back to JSON
 - `docs/erp-operational-architecture.md` — workforce, dispatch, execution, Front Line contracts
 - `docs/dataverse-relationship-architecture.md` — Dynamics/Dataverse alignment rules
 - `docs/crm-foundation.md` — original product direction and open business questions

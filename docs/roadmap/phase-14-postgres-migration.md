@@ -113,6 +113,15 @@ Only after parity is proven. Keep it readable in parallel until then.
 
 ---
 
+## Pre-cutover readiness (2026-09-24, sprint Wave 8)
+
+Done before this phase starts, so it can start cleanly:
+
+- **Every collection has a destination:** the cutover inventory in `docs/database-handoff-map.md` maps all 108 collections (and `auth.json`/`audit.log`/`uploads/`) to an existing table, a new `029+` migration, a fold into `documents`, or an explicit "not migrating".
+- **The procedure is written:** `docs/roadmap/cutover-runbook.md` — prerequisites, the migration script's contract, the rehearsal (twice, timed), the big-bang day, Entra at cutover, and the tested path back to JSON.
+- **The JSON side is verifiable:** `node scripts/smoke.mjs` is green on `main`; `scripts/clean-orphans.mjs` reports zero orphans; scheduled backups exist (point `CRM_BACKUP_DIR` at OneDrive before the rehearsal).
+- **Concurrency is already real:** per-record `version` with 409 on a stale save (Phase 20 item 1), so criterion 6 below is a carry-over, not a new behaviour.
+
 ## Corrections found during implementation
 
 *(Record here anything that turned out to be different from the plan.)*

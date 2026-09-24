@@ -10,9 +10,9 @@ Shipped work is deliberately not repeated here; `README.md` has the "already shi
 
 | | Count |
 |---|---|
-| Phases shipped | 10 (00, 01, 02, 08, 09, 10, 15, 16, 17, 18) — though 08 and 10 both gained a second round on 2026-09-22 (08's rate-card rework still outstanding), and 18's item 4 waits for Phase 12 |
-| Phases substantially done, with named leftovers | 5 (03, 04, 05, 06, 07) |
-| Phases not started | 4 (12, 13, 14, 19). Phase 11 shipped 2026-09-23 (Wave 5); Phase 20 (engineering hardening) shipped 2026-09-23 (Wave 5c) |
+| Phases shipped | 16 (00, 01, 02, 04, 05, 08, 09, 10, 11, 12a, 13, 15, 16, 17, 18, 20) — the 2026-09-23/24 sprint (Waves 0–8) closed 04, 11, 12a, 13, 18 item 4 and 20, and every second-round item in 08, 09, 10 |
+| Phases substantially done, with named leftovers | 3 (03, 06, 07) |
+| Phases not started | 12b (Entra — waits for the bioremedy.com app registration), 14 (Postgres — after the pilot; inventory and runbook ready), 19 (email/Teams — needs Entra) |
 | Open items with a checkbox against them | ~80 |
 | Blocked on an owner decision, not on engineering | 14 |
 
@@ -20,9 +20,13 @@ Three things dominate what is left, and they are worth naming because they are n
 
 1. **Handover.** Sales scopes work that operations never sees; the office collects paperwork that dispatch re-asks for. Phases 15 and 13 are both fixes for information not travelling.
 2. **Volume.** Card-per-record screens, unfiltered metrics and 5–7 day windows were built for demo data. Phase 17 is the correction.
-3. **Truth about money.** The rate card does not model how BioRemedy actually prices work (four tiers, minimums, surcharges, cost-plus). Until Phase 08's second round lands, quotes, invoices and cost reports are all approximations.
+3. **Truth about money.** ~~The rate card does not model how BioRemedy actually prices work.~~ **Resolved 2026-09-23 (Wave 1 rate card, Wave 5b itemized invoice).** What remains on money is Part B of Phase 20 (quoted-vs-actual, NTE enforcement, quote lifecycle, unbillable project-less jobs) — a triage session, not a phase.
 
 ---
+
+## Sprint result — 2026-09-23/24 (Waves 0–8)
+
+Everything on the JSON backend that could be finished before the switch to Postgres + Entra is finished: the rate card and itemized invoice (08/09), field-ops depth (11), the owner's 22-item bug list and Front Line clean-up, engineering hardening (20, live), identity without Entra (12a, live — sign in with the break-glass password in `data/break-glass-password.txt`, then set your own), documents and the Client Portal (13, live), and the cutover inventory + runbook (Wave 8). **Open for the owner:** `CRM_BACKUP_DIR` (a OneDrive folder), the July demo draft jobs (B9), Part B triage, the Entra app registration.
 
 ## Decisions — 44 of 52 answered 2026-09-22
 

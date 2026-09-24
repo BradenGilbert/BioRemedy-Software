@@ -43,11 +43,13 @@ This means `laravel-ready/` is **deprecated**. It converted only the first 12 of
 | Layer | State |
 |---|---|
 | Browser IndexedDB | As of 2026-09-16: **every core CRM collection has moved to the shared backend** (Phase 01, now complete) — accounts, contacts, projects (formerly `jobs`), tasks, activities, project assignments, project alerts, material usage, equipment logs, scheduled work, spatial data. Only `syncQueue` and `settings` remain per-browser, correctly (device-scoped by definition). |
-| Node JSON backend | 103 collections (recounted from source 2026-09-23 after Wave 5, not running arithmetic — see `docs/database-handoff-map.md`), shared across users — opportunities, facilities, dispatch jobs, work plans, employees, inventory, quotes, invoices, plus everything Phase 01 moved in from IndexedDB. Phase 02 (2026-09-16) renamed `locations`→`facilities` and `mapLocations`→`locations` to match the glossary, and added `facilityContacts`. Phase 03 (2026-09-16) added `facilityComments`. Phase 04 (2026-09-17) added `accountApprovedSubcontractors`. |
+| Node JSON backend | 108 collections (recounted from `server.mjs` 2026-09-24 after Wave 7 — see the cutover inventory in `docs/database-handoff-map.md`), shared across users — opportunities, facilities, dispatch jobs, work plans, employees, inventory, quotes, invoices, plus everything Phase 01 moved in from IndexedDB. Phase 02 (2026-09-16) renamed `locations`→`facilities` and `mapLocations`→`locations` to match the glossary, and added `facilityContacts`. Phase 03 (2026-09-16) added `facilityComments`. Phase 04 (2026-09-17) added `accountApprovedSubcontractors`. |
 | PostgreSQL schema | 28 migration files, 141 tables, 27 views — **designed, never deployed** |
 | `laravel-ready/` | First 12 tables only. Deprecated as of 2026-09-15. |
 | Version control | Git + GitHub since Phase 00 (2026-09-15); this row said "None" until 2026-09-23. |
-| Authentication | None. A role *picker* plus an `X-CRM-Role` request header that the client sets itself. |
+| Authentication | **Real since 2026-09-23 (Phase 12a):** server sessions in an HttpOnly cookie, local sign-in with admin-set passwords, the role taken from the session on every API call, audit log, revocation, break-glass. Entra sign-in (12b) waits for the bioremedy.com app registration. |
+| Documents | **Real since 2026-09-24 (Phase 13):** generic store with versions and de-duplication, paperwork requirements with office review gating Negotiation, Client Portal scoped server-side. |
+| Pre-cutover | Cutover inventory (every collection → table) and `cutover-runbook.md` written 2026-09-24 (Wave 8). |
 
 ### The core problem this roadmap opens by fixing
 
