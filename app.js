@@ -20049,6 +20049,13 @@ function closeoutOwed(job) {
   return ["field_complete", "office_review"].includes(job.status);
 }
 
+// The post-job review is answered once the work is finished (Field complete or later), never while
+// the crew is still on site or before the job has run. Owner bug report 2026-09-23: it was showing on
+// every job, including drafts.
+function postJobReviewAvailable(job) {
+  return ["field_complete", "office_review", "closed"].includes(job.status);
+}
+
 function dispatchCloseoutGaps(job) {
   const gaps = [];
   const project = job.projectId ? findProject(job.projectId) : null;
@@ -20098,6 +20105,9 @@ function renderNarrativeDayForm(job, date, index, { open = true } = {}) {
 function renderPostJobReviewForm(job) {
   const review = job.postJobReview || {};
   const missing = closeoutOwed(job) && !postJobReviewComplete(job);
+  if (!postJobReviewAvailable(job)) {
+    return `<div class="empty-state">Appears once the job is marked Field complete.</div>`;
+  }
   return `
     <form class="closeout-review-form" data-form="dispatch-post-job-review">
       <input type="hidden" name="jobId" value="${escapeAttribute(job.id)}" />
@@ -20176,10 +20186,9 @@ function renderFrontlineCloseout(job) {
   if (!days.length) days.push(todayIso());
   return `
     <h3>Close-out</h3>
-    <p class="help-text">Write each day's narrative before you leave site. Answer the post-job review when the job is done.</p>
+    <p class="help-text">Write each day's narrative before you leave site.${postJobReviewAvailable(job) ? " Answer the post-job review now that the work is done." : " The post-job review appears once the job is Field complete."}</p>
     ${days.map((date, index) => renderNarrativeDayForm(job, date, index, { open: index === days.length - 1 })).join("")}
-    <h4>Post-job review</h4>
-    ${renderPostJobReviewForm(job)}
+    ${postJobReviewAvailable(job) ? `<h4>Post-job review</h4>${renderPostJobReviewForm(job)}` : ""}
   `;
 }
 
@@ -20270,6 +20279,10 @@ async function saveDispatchPostJobReview(form) {
   const data = new FormData(form);
   const job = findDispatchJob(data.get("jobId").toString());
   if (!job) return;
+  if (!postJobReviewAvailable(job)) {
+    showToast("The post-job review is answered once the job is Field complete.");
+    return;
+  }
   const review = { notes: data.get("notes").toString().trim(), answeredBy: currentActorName(), answeredAt: new Date().toISOString() };
   POST_JOB_REVIEW_QUESTIONS.forEach(({ key }) => {
     review[key] = (data.get(key) || "").toString();
