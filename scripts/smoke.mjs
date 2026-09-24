@@ -2,11 +2,11 @@
 //
 //   node scripts/smoke.mjs                 full run: server checks + browser sweep
 //   node scripts/smoke.mjs --no-browser    server checks only (seconds)
-//   CRM_SMOKE_EXPECT_AUTH=1 node scripts/smoke.mjs   after Phase 12: a forged role header must be refused
 //
-// It starts its own scratch server on a copy of data/backend.json (never the live file), then:
+// It starts its own scratch server on a copy of data/backend.json (never the live file), with its own
+// break-glass password, then:
 //   1. static-file allowlist -- the Phase 20 item 0 paths must 404, the app shell must 200
-//   2. forged X-CRM-Role -- honoured today (expected), refused once Phase 12 ships (flip with the env var)
+//   2. identity (Phase 12a) -- no session is 401 whatever X-CRM-Role says; a break-glass session works
 //   3. referential integrity -- scripts/clean-orphans.mjs must report zero orphans
 //   4. the browser sweep (scripts/smoke-browser.py, Playwright): every view, every detail tab for the
 //      first record of each kind, every dialog opener, every edit dialog re-saved unchanged; fails on
@@ -16,6 +16,7 @@
 // One script, no framework: Phase 00's deferral of CI, linting and unit tests stands.
 
 import { spawn, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { mkdtempSync, copyFileSync, mkdirSync, rmSync, existsSync, cpSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -25,7 +26,7 @@ const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const noBrowser = args.includes("--no-browser");
 const port = Number(process.env.CRM_SMOKE_PORT || 4199);
-const expectAuth = process.env.CRM_SMOKE_EXPECT_AUTH === "1";
+const smokePassword = randomBytes(12).toString("base64url");
 const python = process.env.CRM_PYTHON || "C:\\Users\\Braden\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe";
 const base = `http://localhost:${port}`;
 const failures = [];
@@ -43,7 +44,7 @@ mkdirSync(join(scratch, "uploads"), { recursive: true });
 if (existsSync(join(projectRoot, "data", "uploads"))) cpSync(join(projectRoot, "data", "uploads"), join(scratch, "uploads"), { recursive: true });
 const server = spawn(process.execPath, ["server.mjs"], {
   cwd: projectRoot,
-  env: { ...process.env, PORT: String(port), CRM_DATA_DIR: scratch, CRM_BACKUP_INTERVAL_MINUTES: "0" },
+  env: { ...process.env, PORT: String(port), CRM_DATA_DIR: scratch, CRM_BACKUP_INTERVAL_MINUTES: "0", CRM_BREAK_GLASS_PASSWORD: smokePassword },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let serverLog = "";
@@ -80,12 +81,21 @@ try {
     check(response.status === 200, `${path} -> ${response.status} (want 200)`);
   }
 
-  // ---- 2. forged role header ------------------------------------------------------------------
-  console.log(`\nForged X-CRM-Role (expecting it to be ${expectAuth ? "refused" : "honoured -- Phase 12 not shipped"})`);
+  // ---- 2. identity: no session is refused, a forged header changes nothing --------------------
+  console.log("\nIdentity");
   const forged = await fetch(`${base}/api/backend/employees`, { headers: { "X-CRM-Role": "Admin" } });
-  check(expectAuth ? forged.status === 401 || forged.status === 403 : forged.status === 200, `GET /api/backend/employees with X-CRM-Role: Admin and no session -> ${forged.status}`);
-  const noRole = await fetch(`${base}/api/backend/employees`);
-  check(noRole.status === 403 || noRole.status === 401, `GET /api/backend/employees with no role at all -> ${noRole.status} (want refused)`);
+  check(forged.status === 401, `GET /api/backend/employees with X-CRM-Role: Admin and no session -> ${forged.status} (want 401)`);
+  const noSession = await fetch(`${base}/api/backend`);
+  check(noSession.status === 401, `GET /api/backend with no session -> ${noSession.status} (want 401)`);
+  const badBreakGlass = await fetch(`${base}/api/auth/break-glass`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: "wrong" }) });
+  check(badBreakGlass.status === 401, `break-glass with the wrong password -> ${badBreakGlass.status} (want 401)`);
+  const login = await fetch(`${base}/api/auth/break-glass`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: smokePassword }) });
+  const cookie = (login.headers.get("set-cookie") || "").split(";")[0];
+  check(login.status === 200 && cookie.startsWith("crm_session="), `break-glass sign-in -> ${login.status}, session cookie ${cookie ? "set" : "missing"}`);
+  const withSession = await fetch(`${base}/api/backend/employees`, { headers: { Cookie: cookie } });
+  check(withSession.status === 200, `GET /api/backend/employees with the session -> ${withSession.status} (want 200)`);
+  const attachmentAnon = await fetch(`${base}/api/job-task-attachments/anything/view`);
+  check(attachmentAnon.status === 401, `attachment view with no session -> ${attachmentAnon.status} (want 401)`);
 
   // ---- 3. referential integrity ---------------------------------------------------------------
   console.log("\nReferential integrity");
@@ -100,7 +110,7 @@ try {
     if (!existsSync(python)) {
       check(false, `Python with Playwright not found at ${python} (set CRM_PYTHON)`);
     } else {
-      const sweep = spawnSync(python, ["scripts/smoke-browser.py", base], { cwd: projectRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+      const sweep = spawnSync(python, ["scripts/smoke-browser.py", base], { cwd: projectRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, env: { ...process.env, CRM_SMOKE_PASSWORD: smokePassword } });
       const lines = (sweep.stdout || "").trim().split("\n");
       const summaryLine = lines.find((line) => line.startsWith("SUMMARY ")) || "";
       let summary = {};

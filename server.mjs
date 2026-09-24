@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
-import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
+import { readFile, mkdir, writeFile, rename, appendFile } from "node:fs/promises";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -117,6 +118,8 @@ const collectionAccess = {
   jobMileageEntries: "operations",
   messages: "dispatch",
   inventoryAlerts: "dispatch",
+  // Phase 18 item 4 (2026-09-23): append-only GPS consent records; written only by /api/auth/consent.
+  gpsConsents: "dispatch",
   jobRequests: "dispatch",
   jobRequestDocuments: "dispatch",
   dispatchJobs: "dispatch",
@@ -671,6 +674,7 @@ const defaultBackend = {
   // on-hand. Not surfaced anywhere fancy yet -- this is the record an ops manager review would query;
   // building a full alerts inbox UI was out of scope for this pass.
   inventoryAlerts: [],
+  gpsConsents: [],
   jobRequests: [
     {
       id: "req-georgetown-072426",
@@ -2366,8 +2370,10 @@ function canAccess(role, domain) {
   return roleAccess[domain]?.includes(role) || role === "Admin";
 }
 
+// Phase 12a (2026-09-23): the role comes from the session the cookie resolves to. The old
+// X-CRM-Role header is ignored entirely.
 function getRole(request) {
-  return request.headers["x-crm-role"]?.toString() || "Local";
+  return request.session?.role || "Anonymous";
 }
 
 function requestError(message, status = 400) {
@@ -2436,6 +2442,18 @@ async function loadBackend() {
     ...asset,
     assignedProjectId: asset.assignedProjectId || assignedJobId || "",
   }));
+  // Phase 12a (2026-09-23): system users carry a global security role and a sign-in name. Seed users
+  // had only a title; the owner's admin record exists so break-glass is needed once, to set its password.
+  data.systemUsers = (data.systemUsers || []).map((user) => ({
+    ...user,
+    role: KNOWN_ROLES.includes(user.role) ? user.role : KNOWN_ROLES.includes(user.title) ? user.title : user.role || "",
+    username: user.username || (user.internalEmailAddress || "").split("@")[0] || "",
+    employeeId: user.employeeId || "",
+    isDisabled: Boolean(user.isDisabled),
+  }));
+  if (!data.systemUsers.some((user) => user.id === "user-braden")) {
+    data.systemUsers.push({ id: "user-braden", businessUnitId: "bu-bioremedy", fullName: "Braden Gilbert", username: "bgilbert", internalEmailAddress: "bgilbert@bioremedy.com", title: "Owner", role: "Admin", employeeId: "", isDisabled: false, createdAt: new Date().toISOString() });
+  }
   if (seedDemoData && (await seedDemoCollections(data))) await saveBackend(data);
   return data;
 }
@@ -2461,9 +2479,13 @@ async function saveBackend(data) {
   await mkdir(dataDir, { recursive: true });
   const tempFile = `${dataFile}.tmp`;
   await writeFile(tempFile, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  await renameWithRetry(tempFile, dataFile);
+}
+
+async function renameWithRetry(from, to) {
   for (let attempt = 0; ; attempt += 1) {
     try {
-      await rename(tempFile, dataFile);
+      await rename(from, to);
       return;
     } catch (error) {
       if (attempt >= 5 || !["EPERM", "EBUSY", "EACCES"].includes(error.code)) throw error;
@@ -2554,6 +2576,7 @@ function filterBackendForRole(data, role) {
     spatialData: canAccess(role, "operations") ? data.spatialData : [],
     scheduleEvents: canAccess(role, "operations") ? data.scheduleEvents : [],
     locations: canAccess(role, "operations") ? data.locations : [],
+    gpsConsents: canAccess(role, "dispatch") || canAccess(role, "workforce") ? data.gpsConsents || [] : [],
     inventoryItems: canAccess(role, "inventory") || canAccess(role, "dispatch") ? data.inventoryItems : [],
     purchaseOrders: canAccess(role, "inventory") ? data.purchaseOrders : [],
     inventoryMovements: canAccess(role, "inventory") ? data.inventoryMovements : [],
@@ -2771,6 +2794,8 @@ function normalizeRecord(collection, payload, data) {
       // Phase 10, Part 2: Front Line Location tile writes a "here now" ping attributable to the
       // field worker even when it isn't tied to a project (admin time, travel between jobs).
       reportedByEmployeeId: payload.reportedByEmployeeId || "",
+      // Phase 18 item 4: a ping from a personal phone names the consent that authorised it.
+      consentId: payload.consentId || "",
     };
   }
 
@@ -2985,6 +3010,7 @@ async function handleReceivePurchaseOrder(request, response, orderId) {
     note: order.vendor ? `Received from ${order.vendor}` : "",
   });
   await saveBackend(data);
+  await audit(request, { action: "receive", collection: "purchaseOrders", recordId: order.id, summary: `${receivedQuantity} ${inventoryItem.unit || ""} ${inventoryItem.materialType}`.trim() });
 
   return json(response, 200, { order, inventoryItem });
 }
@@ -3045,7 +3071,7 @@ async function handleJobRequestDocumentUpload(request, response, requestId) {
     mimeType,
     sizeBytes: body.length,
     uploadedAt: new Date().toISOString(),
-    uploadedBy: request.headers["x-crm-user"]?.toString() || role,
+    uploadedBy: attribution(request),
   };
   document.storageName = `${document.id}${extension}`;
 
@@ -3061,6 +3087,7 @@ async function handleJobRequestDocumentUpload(request, response, requestId) {
   touchRecord(jobRequest);
 
   await saveBackend(data);
+  await audit(request, { action: "upload", collection: "jobRequestDocuments", recordId: document.id, summary: document.fileName, parent: requestId });
   return json(response, 201, document);
 }
 
@@ -3119,7 +3146,7 @@ async function handleSampleLabReportUpload(request, response, sampleId) {
     mimeType,
     sizeBytes: body.length,
     uploadedAt: new Date().toISOString(),
-    uploadedBy: request.headers["x-crm-user"]?.toString() || role,
+    uploadedBy: attribution(request),
   };
   report.storageName = `${report.id}${extension}`;
 
@@ -3205,7 +3232,7 @@ async function handleJobExpenseReceiptUpload(request, response, expenseId) {
     sizeBytes: body.length,
     caption: decodeHeaderText(request.headers["x-caption"]?.toString()),
     uploadedAt: new Date().toISOString(),
-    uploadedBy: request.headers["x-crm-user"]?.toString() || role,
+    uploadedBy: attribution(request),
   };
   attachment.storageName = `${attachment.id}${extension}`;
 
@@ -3254,7 +3281,7 @@ async function handleJobTaskAttachmentUpload(request, response, actionId) {
     sizeBytes: body.length,
     caption: decodeHeaderText(request.headers["x-caption"]?.toString()),
     uploadedAt: new Date().toISOString(),
-    uploadedBy: request.headers["x-crm-user"]?.toString() || role,
+    uploadedBy: attribution(request),
   };
   attachment.storageName = `${attachment.id}${extension}`;
 
@@ -3272,6 +3299,8 @@ async function handleJobTaskAttachmentUpload(request, response, actionId) {
 // header-based role shim.
 async function handleJobTaskAttachmentView(request, response, attachmentId) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  // Phase 12a: an <img src> cannot carry a header, but it carries the session cookie.
+  if (!request.session) return json(response, 401, { error: "Sign in required.", unauthenticated: true });
 
   const data = await loadBackend();
   const attachment = data.jobTaskAttachments.find((item) => item.id === attachmentId);
@@ -3353,7 +3382,7 @@ async function handleJobTaskConsume(request, response, actionId) {
   }
 
   const consumedAt = new Date().toISOString();
-  const consumedBy = request.headers["x-crm-user"]?.toString() || role;
+  const consumedBy = attribution(request);
   // A job action's jobId points at dispatchJobs, which carries the engagement/project it belongs to
   // -- resolved once here so every movement row from this consume gets both references.
   const dispatchJob = data.dispatchJobs.find((job) => job.id === action.jobId);
@@ -3428,6 +3457,7 @@ async function handleJobTaskConsume(request, response, actionId) {
   });
 
   await saveBackend(data);
+  await audit(request, { action: "consume", collection: "jobResources", recordId: actionId, summary: `${created.length + createdWriteIns.length} material line(s)`, alertsRaised: alerts.length });
   return json(response, 201, { resources: [...created, ...createdWriteIns], alertsRaised: alerts.length });
 }
 
@@ -3518,6 +3548,536 @@ function buildQboInvoicePayload(invoice, data) {
   return { payload, validationIssues: issues };
 }
 
+// ---- Phase 12a (2026-09-23): sessions, local sign-in, break-glass, audit, sign-on links ----
+//
+// Identity lives in <data>/auth.json (gitignored: password hashes, sessions, sign-on links, the
+// break-glass account) and the audit trail in <data>/audit.log (append-only NDJSON). Neither is part
+// of backend.json, so secrets never enter git or a business-data snapshot. Every /api/* request
+// except /api/auth/* and the OwnTracks device endpoint needs a session cookie; the role on the
+// session -- never a request header -- decides what the request may do. Providers are pluggable:
+// `local` (password) and `breakGlass` ship now; `entra` (Phase 12b) validates a token and calls the
+// same createSession().
+const SESSION_COOKIE = "crm_session";
+const SESSION_HOURS = 12;
+const SESSION_TOUCH_MINUTES = 5;
+const LOGIN_MAX_FAILURES = 8;
+const LOGIN_LOCK_MINUTES = 15;
+const MIN_PASSWORD_LENGTH = 10;
+const KNOWN_ROLES = ["Admin", "Office Manager", "Sales Manager", "Account Manager", "Operations Manager", "Scheduler", "Field Lead", "Inventory Manager", "Finance Manager", "Client Portal"];
+// Phase 18 item 4, Q36: the consent text is generic to start but versioned -- the version in force
+// when someone agreed is what makes the record meaningful. Bump the version when the text changes.
+const CONSENT_TERMS = {
+  version: "2026-09-23.1",
+  title: "Location sharing on a personal phone",
+  text: [
+    "You are signing in to BioRemedy Front Line on a phone that is not company-issued, for one dispatch job.",
+    "While this sign-on is active, Front Line may record your phone's GPS position when you tap a location action (check-in, sample point, field ping). It does not track you in the background.",
+    "Each position is stored with this job, the time, this device, and this agreement, and is kept for 90 days unless a project record requires it longer.",
+    "This sign-on expires when the job window closes. You can decline now, and you can stop at any time by signing out.",
+  ].join("\n\n"),
+};
+
+const authFile = path.join(dataDir, "auth.json");
+const auditFile = path.join(dataDir, "audit.log");
+const breakGlassPasswordFile = path.join(dataDir, "break-glass-password.txt");
+const defaultAuth = { credentials: [], sessions: [], dispatchLinks: [], breakGlass: null };
+let authCache = null;
+
+async function loadAuth() {
+  if (authCache) return authCache;
+  if (!existsSync(authFile)) {
+    authCache = structuredClone(defaultAuth);
+    return authCache;
+  }
+  authCache = { ...structuredClone(defaultAuth), ...JSON.parse(await readFile(authFile, "utf8")) };
+  return authCache;
+}
+
+async function saveAuth(auth) {
+  authCache = auth;
+  await mkdir(dataDir, { recursive: true });
+  const tempFile = `${authFile}.tmp`;
+  await writeFile(tempFile, `${JSON.stringify(auth, null, 2)}\n`, "utf8");
+  await renameWithRetry(tempFile, authFile);
+}
+
+function hashToken(token) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function newToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+function hashPassword(password, salt = randomBytes(16).toString("hex")) {
+  return { salt, hash: scryptSync(password, salt, 64).toString("hex") };
+}
+
+function verifyPassword(password, record) {
+  if (!record?.salt || !record?.hash || typeof password !== "string") return false;
+  const candidate = scryptSync(password, record.salt, 64);
+  const stored = Buffer.from(record.hash, "hex");
+  return candidate.length === stored.length && timingSafeEqual(candidate, stored);
+}
+
+function parseCookies(request) {
+  const header = (request.headers.cookie || "").toString();
+  return Object.fromEntries(
+    header
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const index = part.indexOf("=");
+        return index < 0 ? [part, ""] : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
+      }),
+  );
+}
+
+function requestIsHttps(request) {
+  return (request.headers["x-forwarded-proto"] || "").toString().includes("https");
+}
+
+function sessionCookie(token, request, maxAgeSeconds) {
+  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.max(60, Math.round(maxAgeSeconds))}${requestIsHttps(request) ? "; Secure" : ""}`;
+}
+
+function clearedSessionCookie() {
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+function requestIp(request) {
+  return (request.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() || request.socket?.remoteAddress || "";
+}
+
+function requestOrigin(request) {
+  const host = (request.headers["x-forwarded-host"] || request.headers.host || `localhost:${basePort}`).toString();
+  return `${requestIsHttps(request) ? "https" : "http"}://${host}`;
+}
+
+function sessionExpired(session, now = Date.now()) {
+  return new Date(session.expiresAt).getTime() <= now;
+}
+
+async function resolveSession(request) {
+  const token = parseCookies(request)[SESSION_COOKIE];
+  if (!token) return null;
+  const auth = await loadAuth();
+  const tokenHash = hashToken(token);
+  const session = auth.sessions.find((item) => item.tokenHash === tokenHash);
+  if (!session || session.revokedAt || sessionExpired(session)) return null;
+  // Sliding expiry for people; a sign-on link keeps the job window it was issued for.
+  const now = Date.now();
+  if (session.kind !== "dispatch-link" && now - new Date(session.lastSeenAt || 0).getTime() > SESSION_TOUCH_MINUTES * 60000) {
+    session.lastSeenAt = new Date(now).toISOString();
+    session.expiresAt = new Date(now + SESSION_HOURS * 3600000).toISOString();
+    await saveAuth(auth);
+  }
+  return session;
+}
+
+function publicSession(session) {
+  return {
+    id: session.id,
+    kind: session.kind,
+    systemUserId: session.systemUserId || "",
+    employeeId: session.employeeId || "",
+    name: session.name,
+    email: session.email || "",
+    role: session.role,
+    createdAt: session.createdAt,
+    expiresAt: session.expiresAt,
+    dispatchJobId: session.dispatchJobId || "",
+    consentId: session.consentId || "",
+    consentRequired: session.kind === "dispatch-link" && !session.consentId,
+    termsVersion: CONSENT_TERMS.version,
+  };
+}
+
+function pruneSessions(auth) {
+  const cutoff = Date.now() - 30 * 86400000;
+  auth.sessions = auth.sessions.filter((session) => new Date(session.expiresAt).getTime() > cutoff);
+}
+
+async function createSession(auth, request, { kind, systemUserId = "", employeeId = "", name, email = "", role, dispatchJobId = "", expiresAt = "" }) {
+  const token = newToken();
+  const now = new Date();
+  const session = {
+    id: makeId("session"),
+    tokenHash: hashToken(token),
+    kind,
+    systemUserId,
+    employeeId,
+    name,
+    email,
+    role,
+    dispatchJobId,
+    consentId: "",
+    createdAt: now.toISOString(),
+    lastSeenAt: now.toISOString(),
+    expiresAt: expiresAt || new Date(now.getTime() + SESSION_HOURS * 3600000).toISOString(),
+    revokedAt: "",
+    revokedBy: "",
+    ip: requestIp(request),
+    userAgent: (request.headers["user-agent"] || "").toString().slice(0, 200),
+  };
+  auth.sessions.push(session);
+  pruneSessions(auth);
+  await saveAuth(auth);
+  return { session, token };
+}
+
+async function revokeSessions(auth, predicate, revokedBy) {
+  let count = 0;
+  const now = new Date().toISOString();
+  for (const session of auth.sessions) {
+    if (!session.revokedAt && !sessionExpired(session) && predicate(session)) {
+      session.revokedAt = now;
+      session.revokedBy = revokedBy;
+      count += 1;
+    }
+  }
+  if (count) await saveAuth(auth);
+  return count;
+}
+
+// The audit trail: one JSON line per event, appended, never rewritten. The actor is the session,
+// which the client cannot forge; `performedAs` is the attribution the client sent (a field lead
+// name from the Front Line simulator), kept separately.
+async function audit(request, entry) {
+  const session = request.session;
+  const line = {
+    at: new Date().toISOString(),
+    actor: session ? { sessionId: session.id, userId: session.systemUserId || "", name: session.name, role: session.role, kind: session.kind } : { name: "anonymous", role: "Anonymous", kind: "none" },
+    ip: requestIp(request),
+    ...entry,
+  };
+  const performedAs = request.headers["x-crm-user"]?.toString();
+  if (performedAs && performedAs !== line.actor.name) line.performedAs = performedAs;
+  await appendFile(auditFile, `${JSON.stringify(line)}\n`, "utf8");
+}
+
+async function readAudit(limit = 100) {
+  if (!existsSync(auditFile)) return [];
+  const raw = await readFile(auditFile, "utf8");
+  return raw
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .slice(-limit)
+    .reverse()
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return { raw: line };
+      }
+    });
+}
+
+function changedKeys(before, after) {
+  const ignore = new Set(["version", "updatedAt"]);
+  return [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((key) => !ignore.has(key) && JSON.stringify(before[key]) !== JSON.stringify(after[key]));
+}
+
+function recordSummary(record) {
+  return String(record.name || record.jobNumber || record.fullName || record.displayName || record.subject || record.title || record.requestNumber || record.invoiceNumber || record.label || "").slice(0, 120);
+}
+
+// The attribution the client sent, falling back to the session. Used for the uploadedBy /
+// consumedBy / receivedBy fields the way they were before; the audit line carries the real actor.
+function attribution(request) {
+  return request.headers["x-crm-user"]?.toString() || request.session?.name || getRole(request);
+}
+
+// The break-glass account: a local emergency admin that works when nothing else does. Its password
+// is generated on first start and written to <data>/break-glass-password.txt (move it somewhere
+// safe), or set from CRM_BREAK_GLASS_PASSWORD. Every use is a high-visibility audit event.
+async function ensureBreakGlass() {
+  const auth = await loadAuth();
+  const fromEnv = process.env.CRM_BREAK_GLASS_PASSWORD || "";
+  if (fromEnv) {
+    auth.breakGlass = { ...hashPassword(fromEnv), createdAt: auth.breakGlass?.createdAt || new Date().toISOString(), source: "env" };
+    await saveAuth(auth);
+    return;
+  }
+  if (auth.breakGlass?.hash) return;
+  const password = randomBytes(15).toString("base64url");
+  auth.breakGlass = { ...hashPassword(password), createdAt: new Date().toISOString(), source: "generated" };
+  await saveAuth(auth);
+  await writeFile(
+    breakGlassPasswordFile,
+    `Break-glass (emergency admin) password, created ${auth.breakGlass.createdAt}.\nUse it on the sign-in screen under "Emergency access". Move this file somewhere safe and delete it from here.\n\n${password}\n`,
+    "utf8",
+  );
+  console.log(`Break-glass account created; its password is in ${breakGlassPasswordFile} -- move it somewhere safe.`);
+}
+
+const loginFailures = new Map();
+function loginKey(request, username) {
+  return `${requestIp(request)}|${String(username || "").toLowerCase()}`;
+}
+function loginLocked(key) {
+  const entry = loginFailures.get(key);
+  return Boolean(entry && entry.count >= LOGIN_MAX_FAILURES && entry.until > Date.now());
+}
+function noteLoginFailure(key) {
+  const entry = loginFailures.get(key) || { count: 0, until: 0 };
+  entry.count += 1;
+  entry.until = Date.now() + LOGIN_LOCK_MINUTES * 60000;
+  loginFailures.set(key, entry);
+}
+
+function findSystemUser(data, identifier) {
+  const needle = String(identifier || "").trim().toLowerCase();
+  if (!needle) return null;
+  return (data.systemUsers || []).find(
+    (user) => !user.deletedAt && ((user.username || "").toLowerCase() === needle || (user.internalEmailAddress || "").toLowerCase() === needle),
+  );
+}
+
+function roleForUser(user) {
+  if (KNOWN_ROLES.includes(user.role)) return user.role;
+  if (KNOWN_ROLES.includes(user.title)) return user.title;
+  return "";
+}
+
+async function respondWithSession(request, response, auth, session, token) {
+  response.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Set-Cookie": sessionCookie(token, request, (new Date(session.expiresAt).getTime() - Date.now()) / 1000),
+  });
+  response.end(JSON.stringify(publicSession(session)));
+}
+
+async function handleAuth(request, response, pathname) {
+  const session = request.session;
+  const method = request.method;
+
+  if (pathname === "/api/auth/me" && method === "GET") {
+    if (!session) return json(response, 401, { error: "Sign in required.", unauthenticated: true });
+    return json(response, 200, publicSession(session));
+  }
+
+  if (pathname === "/api/auth/terms" && method === "GET") {
+    return json(response, 200, CONSENT_TERMS);
+  }
+
+  if (pathname === "/api/auth/login" && method === "POST") {
+    const body = await readJsonBody(request);
+    const username = String(body.username || "").trim();
+    const key = loginKey(request, username);
+    if (loginLocked(key)) return json(response, 429, { error: `Too many failed sign-ins. Try again in ${LOGIN_LOCK_MINUTES} minutes.` });
+    const data = await loadBackend();
+    const user = findSystemUser(data, username);
+    const auth = await loadAuth();
+    const credential = user ? auth.credentials.find((item) => item.systemUserId === user.id) : null;
+    const role = user ? roleForUser(user) : "";
+    if (!user || user.isDisabled || !credential || !verifyPassword(body.password, credential) || !role) {
+      noteLoginFailure(key);
+      await audit(request, { action: "login-failed", severity: "medium", summary: username, reason: !user ? "unknown user" : user.isDisabled ? "disabled" : !credential ? "no password set" : !role ? "no role" : "bad password" });
+      return json(response, 401, { error: !user || !credential || user.isDisabled ? "That sign-in is not available. Check the username, or ask an administrator." : !role ? "This user has no role assigned yet. Ask an administrator." : "Wrong password." });
+    }
+    loginFailures.delete(key);
+    const { session: created, token } = await createSession(auth, request, {
+      kind: "user",
+      systemUserId: user.id,
+      employeeId: user.employeeId || "",
+      name: user.fullName,
+      email: user.internalEmailAddress || "",
+      role,
+    });
+    request.session = created;
+    await audit(request, { action: "login", provider: "local", summary: user.fullName });
+    return respondWithSession(request, response, auth, created, token);
+  }
+
+  if (pathname === "/api/auth/break-glass" && method === "POST") {
+    const body = await readJsonBody(request);
+    const key = loginKey(request, "break-glass");
+    if (loginLocked(key)) return json(response, 429, { error: `Too many failed attempts. Try again in ${LOGIN_LOCK_MINUTES} minutes.` });
+    const auth = await loadAuth();
+    if (!verifyPassword(body.password, auth.breakGlass)) {
+      noteLoginFailure(key);
+      await audit(request, { action: "break-glass-failed", severity: "high" });
+      return json(response, 401, { error: "Wrong emergency password." });
+    }
+    loginFailures.delete(key);
+    const { session: created, token } = await createSession(auth, request, { kind: "breakglass", name: "Break-glass admin", role: "Admin" });
+    request.session = created;
+    await audit(request, { action: "break-glass", severity: "high", summary: "Emergency admin access used" });
+    return respondWithSession(request, response, auth, created, token);
+  }
+
+  if (pathname === "/api/auth/logout" && method === "POST") {
+    if (session) {
+      const auth = await loadAuth();
+      await revokeSessions(auth, (item) => item.id === session.id, session.name);
+      await audit(request, { action: "logout" });
+    }
+    response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Set-Cookie": clearedSessionCookie() });
+    response.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (!session) return json(response, 401, { error: "Sign in required.", unauthenticated: true });
+  const isAdmin = session.role === "Admin";
+
+  if (pathname === "/api/auth/password" && method === "POST") {
+    const body = await readJsonBody(request);
+    const targetUserId = String(body.userId || session.systemUserId || "");
+    if (!targetUserId) return json(response, 400, { error: "No user to set a password for." });
+    if (targetUserId !== session.systemUserId && !isAdmin) return json(response, 403, { error: "Only an administrator can set someone else's password." });
+    const password = String(body.password || "");
+    if (password.length < MIN_PASSWORD_LENGTH) return json(response, 400, { error: `Use at least ${MIN_PASSWORD_LENGTH} characters.` });
+    const data = await loadBackend();
+    const user = (data.systemUsers || []).find((item) => item.id === targetUserId && !item.deletedAt);
+    if (!user) return json(response, 404, { error: "User not found." });
+    const auth = await loadAuth();
+    const existing = auth.credentials.find((item) => item.systemUserId === user.id);
+    const record = { id: existing?.id || makeId("credential"), systemUserId: user.id, algorithm: "scrypt", ...hashPassword(password), updatedAt: new Date().toISOString(), updatedBy: session.name };
+    if (existing) Object.assign(existing, record);
+    else auth.credentials.push(record);
+    // A new password ends every other session that user has.
+    await revokeSessions(auth, (item) => item.systemUserId === user.id && item.id !== session.id, session.name);
+    await audit(request, { action: "password-set", collection: "systemUsers", recordId: user.id, summary: user.fullName, self: user.id === session.systemUserId });
+    return json(response, 200, { ok: true, userId: user.id });
+  }
+
+  if (pathname === "/api/auth/users" && method === "GET") {
+    if (!isAdmin) return json(response, 403, { error: "Admin role required." });
+    const auth = await loadAuth();
+    const status = {};
+    for (const credential of auth.credentials) status[credential.systemUserId] = { hasPassword: true, passwordSetAt: credential.updatedAt };
+    for (const item of auth.sessions) {
+      if (!item.systemUserId) continue;
+      const entry = (status[item.systemUserId] ||= { hasPassword: false });
+      if (!entry.lastSignInAt || entry.lastSignInAt < item.createdAt) entry.lastSignInAt = item.createdAt;
+    }
+    return json(response, 200, { status, roles: KNOWN_ROLES });
+  }
+
+  if (pathname === "/api/auth/sessions" && method === "GET") {
+    if (!isAdmin) return json(response, 403, { error: "Admin role required." });
+    const auth = await loadAuth();
+    const active = auth.sessions.filter((item) => !item.revokedAt && !sessionExpired(item)).map((item) => ({ ...publicSession(item), lastSeenAt: item.lastSeenAt, ip: item.ip, userAgent: item.userAgent, current: item.id === session.id }));
+    return json(response, 200, active);
+  }
+
+  const revokeMatch = pathname.match(/^\/api\/auth\/sessions\/([^/]+)\/revoke$/);
+  if (revokeMatch && method === "POST") {
+    if (!isAdmin) return json(response, 403, { error: "Admin role required." });
+    const auth = await loadAuth();
+    const count = await revokeSessions(auth, (item) => item.id === revokeMatch[1], session.name);
+    await audit(request, { action: "session-revoked", recordId: revokeMatch[1], count });
+    return json(response, 200, { revoked: count });
+  }
+
+  if (pathname === "/api/auth/audit" && method === "GET") {
+    if (!isAdmin) return json(response, 403, { error: "Admin role required." });
+    const requestUrl = new URL(request.url ?? "/", "http://localhost");
+    const limit = Math.min(500, Math.max(1, Number(requestUrl.searchParams.get("limit") || 100)));
+    return json(response, 200, await readAudit(limit));
+  }
+
+  // ---- Phase 18 item 4: per-dispatch sign-on links + consent ----
+  if (pathname === "/api/auth/dispatch-links" && method === "POST") {
+    if (!canAccess(session.role, "dispatch")) return json(response, 403, { error: "Dispatch role required." });
+    const body = await readJsonBody(request);
+    const data = await loadBackend();
+    const employee = (data.employees || []).find((item) => item.id === body.employeeId && !item.deletedAt);
+    const job = (data.dispatchJobs || []).find((item) => item.id === body.dispatchJobId && !item.deletedAt);
+    if (!employee || !job) return json(response, 404, { error: "Employee or dispatch job not found." });
+    const windowEnd = new Date(job.scheduledEnd || job.scheduledStart || Date.now()).getTime();
+    const expiresAt = new Date(Math.max(windowEnd, Date.now()) + 24 * 3600000).toISOString();
+    const auth = await loadAuth();
+    const token = newToken();
+    const link = { id: makeId("signon"), tokenHash: hashToken(token), employeeId: employee.id, dispatchJobId: job.id, createdBy: session.name, createdAt: new Date().toISOString(), expiresAt, usedAt: "", sessionId: "" };
+    auth.dispatchLinks.push(link);
+    await saveAuth(auth);
+    await audit(request, { action: "sign-on-link-created", collection: "dispatchJobs", recordId: job.id, summary: `${employee.displayName} · ${job.jobNumber}`, linkId: link.id, expiresAt });
+    return json(response, 201, { id: link.id, url: `${requestOrigin(request)}/go/${token}`, expiresAt, employeeId: employee.id, dispatchJobId: job.id });
+  }
+
+  if (pathname === "/api/auth/dispatch-links" && method === "GET") {
+    if (!canAccess(session.role, "dispatch")) return json(response, 403, { error: "Dispatch role required." });
+    const requestUrl = new URL(request.url ?? "/", "http://localhost");
+    const jobId = requestUrl.searchParams.get("jobId") || "";
+    const auth = await loadAuth();
+    const links = auth.dispatchLinks
+      .filter((link) => !jobId || link.dispatchJobId === jobId)
+      .map((link) => ({ id: link.id, employeeId: link.employeeId, dispatchJobId: link.dispatchJobId, createdBy: link.createdBy, createdAt: link.createdAt, expiresAt: link.expiresAt, usedAt: link.usedAt, status: link.usedAt ? "used" : new Date(link.expiresAt).getTime() < Date.now() ? "expired" : "pending" }));
+    return json(response, 200, links);
+  }
+
+  if (pathname === "/api/auth/consent" && method === "POST") {
+    if (session.kind !== "dispatch-link") return json(response, 400, { error: "Consent is recorded for sign-on link sessions only." });
+    const body = await readJsonBody(request);
+    if (body.accepted !== true) return json(response, 400, { error: "Consent must be explicit." });
+    if (session.consentId) return json(response, 200, { consentId: session.consentId, alreadyRecorded: true });
+    const data = await loadBackend();
+    const consent = touchRecord({
+      id: makeId("consent"),
+      employeeId: session.employeeId,
+      dispatchJobId: session.dispatchJobId,
+      sessionId: session.id,
+      termsVersion: CONSENT_TERMS.version,
+      termsTitle: CONSENT_TERMS.title,
+      termsText: CONSENT_TERMS.text,
+      acceptedAt: new Date().toISOString(),
+      ip: requestIp(request),
+      userAgent: (request.headers["user-agent"] || "").toString().slice(0, 200),
+    });
+    if (!Array.isArray(data.gpsConsents)) data.gpsConsents = [];
+    data.gpsConsents.push(consent);
+    await saveBackend(data);
+    const auth = await loadAuth();
+    const stored = auth.sessions.find((item) => item.id === session.id);
+    if (stored) stored.consentId = consent.id;
+    session.consentId = consent.id;
+    await saveAuth(auth);
+    await audit(request, { action: "gps-consent", collection: "gpsConsents", recordId: consent.id, summary: `${CONSENT_TERMS.version} · job ${session.dispatchJobId}` });
+    return json(response, 201, { consentId: consent.id });
+  }
+
+  return json(response, 404, { error: "Auth route not found." });
+}
+
+// GET /go/<token>: a personal phone opens the sign-on link. The link becomes a job-scoped session
+// (kind "dispatch-link", the job's window) and the phone lands on the consent page.
+async function handleSignOnLink(request, response, token) {
+  const auth = await loadAuth();
+  const link = auth.dispatchLinks.find((item) => item.tokenHash === hashToken(token));
+  const html = (status, title, body) => {
+    response.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    response.end(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>body{font-family:system-ui,sans-serif;margin:0;padding:32px 20px;background:#eef7ef;color:#13241b}main{max-width:420px;margin:auto;background:#fff;border:1px solid #d7e4d8;border-radius:16px;padding:24px}h1{font-size:1.2rem}</style></head><body><main><h1>${title}</h1><p>${body}</p></main></body></html>`);
+  };
+  if (!link) return html(404, "Sign-on link not found", "This link is not valid. Ask dispatch to send a new one.");
+  if (link.usedAt) return html(410, "Sign-on link already used", "This link was already opened. Ask dispatch for a new one if you need to sign in again.");
+  if (new Date(link.expiresAt).getTime() < Date.now()) return html(410, "Sign-on link expired", "This link has expired. Ask dispatch for a new one.");
+  const data = await loadBackend();
+  const employee = (data.employees || []).find((item) => item.id === link.employeeId);
+  const job = (data.dispatchJobs || []).find((item) => item.id === link.dispatchJobId);
+  if (!employee || !job) return html(410, "Sign-on link no longer valid", "The job or the person on this link no longer exists.");
+  const { session, token: sessionToken } = await createSession(auth, request, {
+    kind: "dispatch-link",
+    employeeId: employee.id,
+    name: employee.displayName,
+    email: employee.primaryEmail || "",
+    role: "Field Lead",
+    dispatchJobId: job.id,
+    expiresAt: link.expiresAt,
+  });
+  link.usedAt = new Date().toISOString();
+  link.sessionId = session.id;
+  await saveAuth(auth);
+  request.session = session;
+  await audit(request, { action: "sign-on-link-used", collection: "dispatchJobs", recordId: job.id, summary: `${employee.displayName} · ${job.jobNumber}`, linkId: link.id });
+  response.writeHead(302, { Location: "/#view=frontline-consent", "Set-Cookie": sessionCookie(sessionToken, request, (new Date(link.expiresAt).getTime() - Date.now()) / 1000), "Cache-Control": "no-store" });
+  response.end();
+}
+
 async function handleApi(request, response, pathname) {
   const role = getRole(request);
 
@@ -3598,6 +4158,7 @@ async function handleApi(request, response, pathname) {
       createdAt: data.qboSettings.lastExportAt,
     });
     await saveBackend(data);
+    await audit(request, { action: "qbo-export", collection: "invoices", recordId: invoice.id, summary: invoice.invoiceNumber || invoice.id, status });
     return json(response, 200, { invoice, qboSettings: data.qboSettings });
   }
 
@@ -3634,7 +4195,20 @@ async function handleApi(request, response, pathname) {
     if (collection === "inventoryMovements") {
       return json(response, 405, { error: "The stock ledger is written by the server only." });
     }
+    if (collection === "gpsConsents") {
+      return json(response, 405, { error: "Consent records are written only when someone accepts the terms." });
+    }
+    if (collection === "systemUsers" && role !== "Admin") {
+      return json(response, 403, { error: "Only an administrator can change users." });
+    }
     const body = await readJsonBody(request);
+    if (collection === "systemUsers") {
+      if (body.role && !KNOWN_ROLES.includes(body.role)) return json(response, 400, { error: `Unknown role "${body.role}".` });
+      body.username = String(body.username || "").trim().toLowerCase();
+      body.internalEmailAddress = String(body.internalEmailAddress || "").trim().toLowerCase();
+      const clash = (data.systemUsers || []).find((user) => user.id !== body.id && !user.deletedAt && ((body.username && (user.username || "").toLowerCase() === body.username) || (body.internalEmailAddress && (user.internalEmailAddress || "").toLowerCase() === body.internalEmailAddress)));
+      if (clash) return json(response, 409, { error: `${clash.fullName} already uses that username or email.` });
+    }
     const record = normalizeRecord(collection, body, data);
     if (collection === "scheduleEvents") {
       const block = validateScheduleEvent(data, record);
@@ -3676,7 +4250,7 @@ async function handleApi(request, response, pathname) {
           reason: "adjustment",
           refType: "inventoryItem",
           refId: record.id,
-          by: request.headers["x-crm-user"]?.toString() || role,
+          by: attribution(request),
           note: body.adjustmentNote ? String(body.adjustmentNote).trim() : previous ? "" : "Opening balance",
         });
       }
@@ -3685,6 +4259,12 @@ async function handleApi(request, response, pathname) {
     if (index >= 0) data[collection][index] = record;
     else data[collection].push(record);
     await saveBackend(data);
+    if (collection === "systemUsers" && record.isDisabled) {
+      // Disabling a user ends their sessions now, not at their next sign-in.
+      const auth = await loadAuth();
+      await revokeSessions(auth, (session) => session.systemUserId === record.id, request.session?.name || "system");
+    }
+    await audit(request, { action: stored ? "update" : "create", collection, recordId: record.id, summary: recordSummary(record), changed: stored ? changedKeys(stored, record) : undefined });
     return json(response, 200, record);
   }
 
@@ -3698,7 +4278,7 @@ async function handleSoftDelete(request, response, collection, id, restore) {
   if (!canAccess(role, domain)) return json(response, 403, { error: `${domain} role required.` });
   const requestUrl = new URL(request.url ?? "/", "http://localhost");
   const dryRun = !restore && requestUrl.searchParams.get("dryRun") === "1";
-  const actor = request.headers["x-crm-user"]?.toString() || role;
+  const actor = attribution(request);
   const data = await loadBackend();
   const rootKey = `${collection}:${id}`;
   const now = new Date().toISOString();
@@ -3725,6 +4305,7 @@ async function handleSoftDelete(request, response, collection, id, restore) {
       }
     }
     await saveBackend(data);
+    await audit(request, { action: "restore", collection, recordId: id, summary: recordSummary(root), total });
     return json(response, 200, { root: { collection, id }, restored: counts, total });
   }
 
@@ -3743,6 +4324,7 @@ async function handleSoftDelete(request, response, collection, id, restore) {
     }
   }
   await saveBackend(data);
+  await audit(request, { action: "delete", collection, recordId: id, summary: recordSummary(root), cascade: summary.counts, total: summary.total });
   return json(response, 200, { root: { collection, id }, deleted: summary.counts, total: summary.total });
 }
 
@@ -3886,7 +4468,7 @@ async function handleWeatherCapture(request, response) {
     anchorSource: anchor?.anchorSource || "",
     anchorLocationId: anchor?.anchorLocationId || "",
     anchorLabel: anchor?.anchorLabel || "",
-    requestedBy: request.headers["x-crm-user"]?.toString() || role,
+    requestedBy: attribution(request),
     fetchedAt: new Date().toISOString(),
     status: "not_captured",
     error: "",
@@ -3920,12 +4502,28 @@ const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? "/", "http://localhost");
     let pathname = decodeURIComponent(requestUrl.pathname);
 
-    if (pathname === "/api/weather-snapshots/capture") {
-      await handleWeatherCapture(request, response);
+    if (pathname.startsWith("/api/")) {
+      // Phase 12a (2026-09-23): every API request resolves its session first. Auth routes handle
+      // their own requirements; the OwnTracks device endpoint keeps its own (token-less) contract for
+      // now; everything else without a session is 401 -- the role header is never consulted.
+      request.session = await resolveSession(request);
+      if (pathname.startsWith("/api/auth/")) {
+        await serializeApi(() => handleAuth(request, response, pathname));
+        return;
+      }
+      if (pathname !== "/api/owntracks" && !request.session) {
+        json(response, 401, { error: "Sign in required.", unauthenticated: true });
+        return;
+      }
+      if (pathname === "/api/weather-snapshots/capture") {
+        await handleWeatherCapture(request, response);
+        return;
+      }
+      await serializeApi(() => handleApi(request, response, pathname));
       return;
     }
-    if (pathname.startsWith("/api/")) {
-      await serializeApi(() => handleApi(request, response, pathname));
+    if (pathname.startsWith("/go/")) {
+      await serializeApi(() => handleSignOnLink(request, response, pathname.slice(4)));
       return;
     }
 
@@ -3980,6 +4578,7 @@ function listen(port) {
       console.log(`Network access enabled on port ${port}`);
     }
     startBackupSchedule();
+    ensureBreakGlass().catch((error) => console.error(`Break-glass setup failed: ${error.message}`));
   });
 }
 

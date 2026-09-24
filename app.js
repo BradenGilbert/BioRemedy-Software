@@ -444,6 +444,7 @@ const viewWorkspace = {
   "frontline-location": "frontline",
   "frontline-invoices": "frontline",
   "frontline-settings": "frontline",
+  "frontline-consent": "frontline",
 };
 
 const accountCoreFieldSections = [
@@ -1034,6 +1035,15 @@ function getEquipmentCategoryConfig(category) {
 
 const state = {
   view: "home",
+  session: null,
+  authRequired: false,
+  loginError: "",
+  loginEmergencyOpen: false,
+  authAdmin: null,
+  dispatchLinks: null,
+  freshDispatchLink: null,
+  consentTerms: null,
+  consentTermsLoading: false,
   accountSearch: "",
   accountIndustryFilter: "",
   accountTableView: "sales",
@@ -1364,7 +1374,7 @@ async function refreshState({ backend = true } = {}) {
     ...defaultPlatformSettings,
     ...(await getSetting("platformSettings", defaultPlatformSettings)),
   };
-  state.currentUser = await getSetting("currentUser", demoUser);
+  state.currentUser = state.session ? sessionToUser(state.session) : { ...anonymousUser };
   state.authError = await getSetting("authError", "");
   state.frontlineNotificationPrefs = await getSetting("frontlineNotificationPrefs", defaultFrontlineNotificationPrefs);
   applyPlatformSettings();
@@ -1451,18 +1461,21 @@ function applyPlatformSettings() {
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", resolvedTheme === "dark" ? "#111713" : "#f7f4ec");
 }
 
+// Phase 12a (2026-09-23): the session cookie is the identity; no role header is sent. A 401 that
+// says the session is gone drops the app back to the sign-in screen.
 async function apiRequest(pathname, options = {}) {
   const headers = {
     "Content-Type": "application/json",
-    "X-CRM-Role": state.currentUser?.role || "Local",
     ...(options.headers || {}),
   };
   const response = await fetch(pathname, {
     ...options,
     headers,
+    credentials: "same-origin",
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401 && payload.unauthenticated && !pathname.startsWith("/api/auth/")) requireSignIn();
     const error = new Error(payload.error || "Backend request failed.");
     error.status = response.status;
     error.payload = payload;
@@ -1528,6 +1541,7 @@ async function handleSaveConflict(error) {
 async function init() {
   await ensureSeedData();
   await handleAuthRedirect();
+  await loadSession();
   await refreshState();
   applyRouteFromHash();
   bindEvents();
@@ -2123,9 +2137,14 @@ async function dispatchClick(event) {
   if (action === "open-approved-subcontractor") openApprovedSubcontractorDialog(actionButton.dataset.accountId, id);
   if (action === "remove-approved-subcontractor") await removeApprovedSubcontractor(id);
   if (action === "sync-now") await simulateSync();
-  if (action === "use-demo-user") await useDemoUser();
-  if (action === "set-demo-role") await setDemoRole(actionButton.dataset.profile);
   if (action === "sign-out") await signOut();
+  if (action === "open-system-user") openSystemUserDialog(id);
+  if (action === "toggle-system-user") await toggleSystemUser(id);
+  if (action === "open-set-password") openSetPasswordDialog(id);
+  if (action === "revoke-session") await revokeSession(id);
+  if (action === "create-dispatch-link") await createDispatchLink(actionButton.dataset.jobId, actionButton.dataset.employeeId);
+  if (action === "copy-text") await copyTextToClipboard(actionButton.dataset.text || "");
+  if (action === "accept-consent") await acceptConsent();
   if (action === "start-microsoft-signin") await startMicrosoftSignIn();
   if (action === "frontline-login") await frontlineLogin();
   if (action === "frontline-go-home") {
@@ -2324,6 +2343,10 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "frontline-adhoc-activity") await frontlineSubmitAdHocActivity(form);
   if (form.dataset.form === "frontline-form-submission") await frontlineSubmitStandaloneForm(form);
   if (form.dataset.form === "frontline-message") await frontlineSendMessage(form);
+  if (form.dataset.form === "login") await signIn(form);
+  if (form.dataset.form === "break-glass") await breakGlassSignIn(form);
+  if (form.dataset.form === "system-user") await saveSystemUser(form);
+  if (form.dataset.form === "set-password") await saveSetPassword(form);
   if (form.dataset.form === "dispatch-message") await dispatchSendMessage(form);
   if (form.dataset.form === "frontline-location-ping") await frontlineRecordLocationPing(form);
   if (form.dataset.form === "frontline-clock-in") await frontlineClockIn(form);
@@ -2711,8 +2734,22 @@ function clearDropState() {
 }
 
 function render() {
+  if (state.authRequired) {
+    renderLoginScreen();
+    return;
+  }
+  appShell.classList.remove("auth-mode");
+  // A sign-on link session must answer the consent page before anything else.
+  if (state.session?.consentRequired) state.view = "frontline-consent";
+  // A session tied to a field employee (a real field lead, or a sign-on link) is that employee
+  // on Front Line; the simulator's picker is for office roles trying the field app.
+  if (state.view.startsWith("frontline-") && !state.frontlineSession && state.session?.employeeId) {
+    state.frontlineSession = { employeeId: state.session.employeeId, loginAt: state.session.createdAt };
+    if (state.view === "frontline-login") state.view = state.session.dispatchJobId ? "frontline-job-detail" : "frontline-home";
+    if (state.session.dispatchJobId && !state.frontlineSelectedJobId) state.frontlineSelectedJobId = state.session.dispatchJobId;
+  }
   ensureAllowedView();
-  if (state.view.startsWith("frontline-") && state.view !== "frontline-login" && !state.frontlineSession) {
+  if (state.view.startsWith("frontline-") && !["frontline-login", "frontline-consent"].includes(state.view) && !state.frontlineSession) {
     state.view = "frontline-login";
   }
   if (state.view !== "ops-map") cleanupOperationsMap();
@@ -2799,6 +2836,7 @@ function render() {
   if (state.view === "frontline-location") renderFrontlineLocation();
   if (state.view === "frontline-invoices") renderFrontlineInvoices();
   if (state.view === "frontline-settings") renderFrontlineSettings();
+  if (state.view === "frontline-consent") renderFrontlineConsent();
   syncRouteToHistory();
   updateBackButtonState();
 }
@@ -12287,6 +12325,8 @@ function renderDispatchJobAssignmentTab(job) {
         </div>
       </article>
 
+      ${renderSignOnLinksPanel(job)}
+
       <article class="panel">
         <div class="panel-header">
           <div><h3>Equipment</h3><span>${equipmentResources.length} assigned</span></div>
@@ -14418,6 +14458,7 @@ function renderTimelineItem(activity, contextKey) {
 }
 
 function renderSync() {
+  ensureIdentityAdminData();
   const canSignIn = Boolean(state.identityConfig.tenantId && state.identityConfig.clientId);
   const redirectUri = getRedirectUri();
 
@@ -14479,6 +14520,9 @@ function renderSync() {
           </div>
         </article>
       </section>
+      ${renderUsersAndAccessPanel()}
+      ${renderSessionsPanel()}
+      ${renderAuditPanel()}
       ${renderRecentlyDeletedPanel()}
     </section>
   `;
@@ -16331,6 +16375,10 @@ async function frontlineRecordLocationPing(form) {
             status: "Field ping",
             reportedByEmployeeId: employee?.id || "",
             lastPingAt: new Date().toISOString(),
+            // Phase 18 item 4: a ping from a personal phone names its consent and ages out.
+            ...(state.session?.kind === "dispatch-link" && state.session.consentId
+              ? { consentId: state.session.consentId, isTemporary: true, retainUntil: addDays(90), retentionReason: "Personal-device location consent" }
+              : {}),
           },
           { refresh: false },
         );
@@ -16419,6 +16467,7 @@ async function frontlineLogin() {
   state.view = "frontline-home";
   render();
 }
+// (Phase 12a: a session already tied to an employee skips this picker -- see render().)
 
 function frontlineExit() {
   state.frontlineSession = null;
@@ -17133,41 +17182,6 @@ async function frontlineAdvanceStepIfComplete(stepId, completedActionIds = []) {
   if (firstAction) {
     await saveBackendRecord("jobActions", { ...firstAction, status: "Available" }, { refresh: false });
   }
-}
-
-function renderCurrentUser() {
-  const user = state.currentUser || demoUser;
-  const initials = (user.name || user.email || "CRM")
-    .split(/[ .@]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-
-  return `
-    <section class="identity-panel">
-      <h3>Current user</h3>
-      <div class="user-chip">
-        <span class="avatar">${escapeHtml(initials || "U")}</span>
-        <div>
-          <strong>${escapeHtml(user.name || "Unknown user")}</strong>
-          <div class="row-meta">
-            <span>${escapeHtml(user.email || "No email claim stored")}</span>
-            <span class="source-badge">${escapeHtml(user.source || "Local")}</span>
-          </div>
-        </div>
-      </div>
-      <div class="inline-actions">
-        <button class="secondary-button" type="button" data-action="use-demo-user">Use demo user</button>
-        <button class="mini-button" type="button" data-action="set-demo-role" data-profile="sales">Sales role</button>
-        <button class="mini-button" type="button" data-action="set-demo-role" data-profile="operations">Operations role</button>
-        <button class="mini-button" type="button" data-action="set-demo-role" data-profile="inventory">Inventory role</button>
-        <button class="mini-button" type="button" data-action="set-demo-role" data-profile="finance">Finance role</button>
-        <button class="mini-button" type="button" data-action="set-demo-role" data-profile="client">Client login</button>
-        <button class="danger-button" type="button" data-action="sign-out">Clear user</button>
-      </div>
-    </section>
-  `;
 }
 
 function renderQueueItem(item) {
@@ -18319,7 +18333,6 @@ async function downloadJobRequestDocument(documentId) {
   try {
     const response = await fetch(`/api/job-request-documents/${encodeURIComponent(documentId)}/download`, {
       headers: {
-        "X-CRM-Role": state.currentUser?.role || "Local",
       },
     });
     if (!response.ok) {
@@ -18350,7 +18363,6 @@ async function downloadSampleLabReport(reportId) {
   try {
     const response = await fetch(`/api/sample-lab-reports/${encodeURIComponent(reportId)}/download`, {
       headers: {
-        "X-CRM-Role": state.currentUser?.role || "Local",
       },
     });
     if (!response.ok) {
@@ -22167,38 +22179,6 @@ async function simulateSync() {
   showToast(queue.length ? "Queued edits marked synced for the prototype." : "Nothing is waiting to sync.");
 }
 
-async function useDemoUser() {
-  await putSetting("currentUser", demoUser);
-  await refreshState();
-  render();
-  showToast("Demo user restored.");
-}
-
-async function setDemoRole(profile) {
-  const user = demoUsers[profile];
-  if (!user) return;
-  await putSetting("currentUser", {
-    ...user,
-    signedInAt: new Date().toISOString(),
-  });
-  await refreshState();
-  render();
-  showToast(`${user.role} role loaded.`);
-}
-
-async function signOut() {
-  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-  await putSetting("currentUser", {
-    name: "Offline user",
-    email: "",
-    role: "Local",
-    source: "Offline profile",
-    signedInAt: new Date().toISOString(),
-  });
-  await refreshState();
-  render();
-  showToast("Local user profile cleared.");
-}
 
 function openSettingsDialog() {
   if (!settingsDialog) return;
@@ -27585,6 +27565,540 @@ function renderRecentlyDeletedPanel() {
       </div>
     </article>
   `;
+}
+
+// ---- Phase 12a (2026-09-23): session, sign-in, users & access, sessions, audit, sign-on links ----
+//
+// The server session (an HttpOnly cookie) is the only identity. state.session mirrors what
+// GET /api/auth/me returned; state.currentUser is derived from it for the role gates and the
+// attribution fields the app already used. A 401 from any API call drops back to the sign-in screen.
+const anonymousUser = { name: "Not signed in", email: "", role: "Anonymous", source: "No session", signedInAt: "" };
+const SYSTEM_USER_ROLES = ["Admin", "Office Manager", "Sales Manager", "Account Manager", "Operations Manager", "Scheduler", "Field Lead", "Inventory Manager", "Finance Manager", "Client Portal"];
+
+function sessionToUser(session) {
+  return {
+    name: session.name,
+    email: session.email || "",
+    role: session.role,
+    source: session.kind === "breakglass" ? "Emergency access" : session.kind === "dispatch-link" ? "Sign-on link" : "Signed in",
+    signedInAt: session.createdAt,
+    employeeId: session.employeeId || "",
+    kind: session.kind,
+    sessionId: session.id,
+  };
+}
+
+async function loadSession() {
+  try {
+    const session = await apiRequest("/api/auth/me");
+    state.session = session;
+    state.currentUser = sessionToUser(session);
+    state.authRequired = false;
+  } catch {
+    state.session = null;
+    state.currentUser = { ...anonymousUser };
+    state.authRequired = true;
+  }
+}
+
+function requireSignIn() {
+  if (state.authRequired) return;
+  state.authRequired = true;
+  state.session = null;
+  state.currentUser = { ...anonymousUser };
+  state.frontlineSession = null;
+  render();
+}
+
+function renderLoginScreen() {
+  appShell.classList.add("auth-mode");
+  appShell.classList.remove("home-mode", "frontline-mode");
+  roleSummary.textContent = "Signed out";
+  app.innerHTML = `
+    <section class="login-screen">
+      <div class="login-card">
+        <img class="login-logo" src="./public/brand/bioremedy-logo-primary.png" alt="BioRemedy" />
+        <div>
+          <p class="eyebrow">BioRemedy Operations Platform</p>
+          <h2>Sign in</h2>
+          <p class="help-text">Use the username or email on your BioRemedy user record.</p>
+        </div>
+        <form class="login-form" data-form="login">
+          <label>Username or email
+            <input name="username" autocomplete="username" value="${escapeAttribute(state.loginUsername || "")}" required autofocus />
+          </label>
+          <label>Password
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          ${state.loginError ? `<p class="login-error" role="alert">${escapeHtml(state.loginError)}</p>` : ""}
+          <button class="primary-button" type="submit">Sign in</button>
+        </form>
+        <details class="login-emergency" ${state.loginEmergencyOpen ? "open" : ""}>
+          <summary>Emergency access</summary>
+          <p class="help-text">For an administrator when normal sign-in is unavailable. Every use is written to the audit log.</p>
+          <form class="login-form" data-form="break-glass">
+            <label>Emergency password
+              <input name="password" type="password" autocomplete="off" required />
+            </label>
+            <button class="secondary-button" type="submit">Use emergency access</button>
+          </form>
+        </details>
+        <p class="help-text login-foot">Microsoft sign-in for bioremedy.com accounts arrives with Phase 12b.</p>
+      </div>
+    </section>
+  `;
+}
+
+async function afterSignIn(session) {
+  state.loginError = "";
+  state.loginEmergencyOpen = false;
+  state.session = session;
+  state.currentUser = sessionToUser(session);
+  state.authRequired = false;
+  state.authAdmin = null;
+  appShell.classList.remove("auth-mode");
+  await refreshState();
+  if (!applyRouteFromHash()) state.view = "home";
+  render();
+  showToast(`Signed in as ${session.name}.`);
+}
+
+async function signIn(form) {
+  const data = new FormData(form);
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) submitButton.disabled = true;
+  // Kept so a wrong password re-renders the form with the name still filled in.
+  state.loginUsername = (data.get("username") || "").toString().trim();
+  try {
+    const session = await apiRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username: (data.get("username") || "").toString().trim(), password: (data.get("password") || "").toString() }),
+    });
+    await afterSignIn(session);
+  } catch (error) {
+    state.loginError = error.message || "Sign-in failed.";
+    state.loginEmergencyOpen = false;
+    render();
+  }
+}
+
+async function breakGlassSignIn(form) {
+  const data = new FormData(form);
+  try {
+    const session = await apiRequest("/api/auth/break-glass", { method: "POST", body: JSON.stringify({ password: (data.get("password") || "").toString() }) });
+    await afterSignIn(session);
+  } catch (error) {
+    state.loginError = error.message || "Emergency access failed.";
+    state.loginEmergencyOpen = true;
+    render();
+  }
+}
+
+async function signOut() {
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+  try {
+    await apiRequest("/api/auth/logout", { method: "POST", body: "{}" });
+  } catch {
+    // The cookie is cleared by the server on success; a failed call still ends the local session.
+  }
+  state.session = null;
+  state.currentUser = { ...anonymousUser };
+  state.frontlineSession = null;
+  state.authAdmin = null;
+  state.authRequired = true;
+  state.view = "home";
+  history.replaceState(null, "", location.pathname);
+  render();
+}
+
+// ---- Identity & Sync: the session, and the admin panels ----
+function renderCurrentUser() {
+  const user = state.currentUser || anonymousUser;
+  const initials = getInitials(user.name, "U");
+  return `
+    <section class="identity-panel">
+      <h3>Signed in</h3>
+      <div class="user-chip">
+        <span class="avatar">${escapeHtml(initials || "U")}</span>
+        <div>
+          <strong>${escapeHtml(user.name || "Unknown user")}</strong>
+          <div class="row-meta">
+            <span>${escapeHtml(user.email || "No email on the user record")}</span>
+            <span class="source-badge">${escapeHtml(user.role || "No role")}</span>
+            <span class="source-badge">${escapeHtml(user.source || "Session")}</span>
+          </div>
+          <span class="help-text">Session started ${formatDateTime(user.signedInAt)}${state.session?.expiresAt ? ` · expires ${formatDateTime(state.session.expiresAt)}` : ""}</span>
+        </div>
+      </div>
+      <div class="inline-actions">
+        ${state.session?.systemUserId ? `<button class="secondary-button" type="button" data-action="open-set-password" data-id="${escapeAttribute(state.session.systemUserId)}">Change my password</button>` : ""}
+        <button class="danger-button" type="button" data-action="sign-out">Sign out</button>
+      </div>
+    </section>
+  `;
+}
+
+async function loadIdentityAdminData() {
+  if (state.currentUser?.role !== "Admin") return;
+  try {
+    const [users, sessions, audit] = await Promise.all([apiRequest("/api/auth/users"), apiRequest("/api/auth/sessions"), apiRequest("/api/auth/audit?limit=100")]);
+    state.authAdmin = { usersStatus: users.status || {}, roles: users.roles || SYSTEM_USER_ROLES, sessions, audit, loadedAt: Date.now() };
+  } catch (error) {
+    state.authAdmin = { usersStatus: {}, roles: SYSTEM_USER_ROLES, sessions: [], audit: [], error: error.message };
+  }
+}
+
+function ensureIdentityAdminData() {
+  if (state.currentUser?.role !== "Admin") return;
+  if (state.authAdmin?.loadedAt || state.authAdmin?.loading) return;
+  state.authAdmin = { loading: true, usersStatus: {}, roles: SYSTEM_USER_ROLES, sessions: [], audit: [] };
+  loadIdentityAdminData().then(() => {
+    if (state.view === "sync") render();
+  });
+}
+
+function getSystemUsers() {
+  return liveRows(state.backend.systemUsers).slice().sort((a, b) => String(a.fullName).localeCompare(String(b.fullName)));
+}
+
+function renderSystemUserRow(user) {
+  const status = state.authAdmin?.usersStatus?.[user.id] || {};
+  const employee = user.employeeId ? findEmployee(user.employeeId) : null;
+  const facts = [user.username ? `@${user.username}` : "", user.internalEmailAddress || "", user.role || "no role", employee ? `field: ${employee.displayName}` : ""].filter(Boolean);
+  return `
+    <div class="detail-card ${user.isDisabled ? "muted-card" : ""}">
+      <div class="row-meta">
+        <strong>${escapeHtml(user.fullName)}${user.isDisabled ? " · Disabled" : ""}${!user.role ? renderAlertDot("No role: cannot sign in") : !status.hasPassword ? renderAlertDot("No password set yet") : ""}</strong>
+        <span>${escapeHtml(facts.join(" · "))}</span>
+      </div>
+      <span class="help-text">${status.hasPassword ? `Password set ${formatDateTime(status.passwordSetAt)}` : "No password yet"}${status.lastSignInAt ? ` · last sign-in ${formatDateTime(status.lastSignInAt)}` : ""}</span>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="open-system-user" data-id="${escapeAttribute(user.id)}">Edit</button>
+        <button class="mini-button" type="button" data-action="open-set-password" data-id="${escapeAttribute(user.id)}">Set password</button>
+        <button class="mini-button" type="button" data-action="toggle-system-user" data-id="${escapeAttribute(user.id)}">${user.isDisabled ? "Enable" : "Disable"}</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderUsersAndAccessPanel() {
+  if (state.currentUser?.role !== "Admin") return "";
+  const users = getSystemUsers();
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <div><h3>Users &amp; access</h3><span>Who can sign in, and as what. An administrator sets each person's first password here.</span></div>
+        <button class="mini-button" type="button" data-action="open-system-user">Add user</button>
+      </div>
+      <div class="panel-body record-list">
+        ${users.map(renderSystemUserRow).join("") || `<div class="empty-state compact">No users yet.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderSessionsPanel() {
+  if (state.currentUser?.role !== "Admin") return "";
+  const sessions = state.authAdmin?.sessions || [];
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Active sessions</h3><span>Revoking one signs that device out on its next request.</span></div></div>
+      <div class="panel-body record-list">
+        ${
+          sessions
+            .map(
+              (session) => `
+                <div class="detail-card">
+                  <div class="row-meta"><strong>${escapeHtml(session.name)}${session.current ? " (this session)" : ""}</strong><span>${escapeHtml(session.role)} · ${escapeHtml(session.kind === "breakglass" ? "emergency access" : session.kind === "dispatch-link" ? "sign-on link" : "sign-in")} · since ${formatDateTime(session.createdAt)} · last seen ${formatDateTime(session.lastSeenAt)}${session.ip ? ` · ${escapeHtml(session.ip)}` : ""}</span></div>
+                  ${session.current ? "" : `<div class="inline-actions"><button class="mini-button" type="button" data-action="revoke-session" data-id="${escapeAttribute(session.id)}">Revoke</button></div>`}
+                </div>
+              `,
+            )
+            .join("") || `<div class="empty-state compact">${state.authAdmin?.loading ? "Loading…" : "No active sessions."}</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function describeAuditEntry(entry) {
+  const what = [entry.action, entry.collection ? `${entry.collection}${entry.recordId ? `/${entry.recordId}` : ""}` : ""].filter(Boolean).join(" · ");
+  const detail = [entry.summary, Array.isArray(entry.changed) && entry.changed.length ? `changed ${entry.changed.slice(0, 6).join(", ")}${entry.changed.length > 6 ? "…" : ""}` : "", entry.reason ? `(${entry.reason})` : ""].filter(Boolean).join(" — ");
+  return { what, detail };
+}
+
+function renderAuditPanel() {
+  if (state.currentUser?.role !== "Admin") return "";
+  const entries = state.authAdmin?.audit || [];
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Audit log</h3><span>Append-only. Who changed what, when, from where — newest first, last 100.</span></div></div>
+      <div class="panel-body record-list audit-list">
+        ${
+          entries
+            .map((entry) => {
+              const { what, detail } = describeAuditEntry(entry);
+              const high = entry.severity === "high";
+              return `
+                <div class="detail-card audit-entry ${high ? "panel-needs-attention" : ""}">
+                  <div class="row-meta"><strong>${escapeHtml(what)}</strong><span>${formatDateTime(entry.at)}</span></div>
+                  <span>${escapeHtml(entry.actor?.name || "?")}${entry.actor?.role ? ` (${escapeHtml(entry.actor.role)})` : ""}${entry.performedAs ? ` as ${escapeHtml(entry.performedAs)}` : ""}${entry.ip ? ` · ${escapeHtml(entry.ip)}` : ""}${detail ? ` · ${escapeHtml(detail)}` : ""}</span>
+                </div>
+              `;
+            })
+            .join("") || `<div class="empty-state compact">${state.authAdmin?.loading ? "Loading…" : "Nothing recorded yet."}</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function openSystemUserDialog(userId = "") {
+  const dialog = document.querySelector("#systemUserDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  const user = userId ? getSystemUsers().find((item) => item.id === userId) : null;
+  fillSelect(form.elements.role, state.authAdmin?.roles || SYSTEM_USER_ROLES, user?.role || "", "Choose a role…");
+  fillSelect(
+    form.elements.employeeId,
+    getEmployees().map((employee) => [employee.id, `${employee.displayName}${employee.jobTitle ? ` - ${employee.jobTitle}` : ""}`]),
+    user?.employeeId || "",
+    "Not linked to a field employee",
+  );
+  form.elements.id.value = user?.id || "";
+  form.elements.fullName.value = user?.fullName || "";
+  form.elements.username.value = user?.username || "";
+  form.elements.internalEmailAddress.value = user?.internalEmailAddress || "";
+  form.elements.isDisabled.checked = Boolean(user?.isDisabled);
+  dialog.querySelector("[data-system-user-title]").textContent = user ? `Edit ${user.fullName}` : "Add user";
+  dialog.showModal();
+}
+
+async function saveSystemUser(form) {
+  const data = new FormData(form);
+  const existingId = (data.get("id") || "").toString();
+  const existing = existingId ? getSystemUsers().find((item) => item.id === existingId) : null;
+  const user = {
+    ...(existing || { businessUnitId: "bu-bioremedy", createdAt: new Date().toISOString() }),
+    id: existingId || makeId("user"),
+    fullName: (data.get("fullName") || "").toString().trim(),
+    username: (data.get("username") || "").toString().trim().toLowerCase(),
+    internalEmailAddress: (data.get("internalEmailAddress") || "").toString().trim().toLowerCase(),
+    role: (data.get("role") || "").toString(),
+    employeeId: (data.get("employeeId") || "").toString(),
+    isDisabled: form.elements.isDisabled.checked,
+  };
+  if (!user.fullName || (!user.username && !user.internalEmailAddress)) {
+    showToast("A user needs a name and a username or email.");
+    return;
+  }
+  try {
+    await saveBackendRecord("systemUsers", user);
+    closeDialogs();
+    state.authAdmin = null;
+    render();
+    showToast(existing ? "User updated." : `User added. Set ${user.fullName}'s password next.`);
+  } catch (error) {
+    showToast(error.message || "Could not save that user.");
+  }
+}
+
+async function toggleSystemUser(userId) {
+  const user = getSystemUsers().find((item) => item.id === userId);
+  if (!user) return;
+  if (user.id === state.session?.systemUserId && !user.isDisabled) {
+    showToast("You cannot disable your own account.");
+    return;
+  }
+  try {
+    await saveBackendRecord("systemUsers", { ...user, isDisabled: !user.isDisabled });
+    state.authAdmin = null;
+    render();
+    showToast(user.isDisabled ? `${user.fullName} can sign in again.` : `${user.fullName} is disabled; their sessions are ended.`);
+  } catch (error) {
+    showToast(error.message || "Could not update that user.");
+  }
+}
+
+function openSetPasswordDialog(userId) {
+  const dialog = document.querySelector("#passwordDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  const user = getSystemUsers().find((item) => item.id === userId);
+  form.elements.userId.value = userId;
+  dialog.querySelector("[data-password-title]").textContent = userId === state.session?.systemUserId ? "Change my password" : `Set password for ${user?.fullName || "user"}`;
+  dialog.showModal();
+}
+
+async function saveSetPassword(form) {
+  const data = new FormData(form);
+  const password = (data.get("password") || "").toString();
+  if (password !== (data.get("confirm") || "").toString()) {
+    showToast("The two passwords don't match.");
+    return;
+  }
+  try {
+    await apiRequest("/api/auth/password", { method: "POST", body: JSON.stringify({ userId: (data.get("userId") || "").toString(), password }) });
+    closeDialogs();
+    state.authAdmin = null;
+    render();
+    showToast("Password set.");
+  } catch (error) {
+    showToast(error.message || "Could not set that password.");
+  }
+}
+
+async function revokeSession(sessionId) {
+  try {
+    await apiRequest(`/api/auth/sessions/${encodeURIComponent(sessionId)}/revoke`, { method: "POST", body: "{}" });
+    state.authAdmin = null;
+    render();
+    showToast("Session revoked.");
+  } catch (error) {
+    showToast(error.message || "Could not revoke that session.");
+  }
+}
+
+// ---- Phase 18 item 4: per-dispatch sign-on links and GPS consent ----
+function dispatchLinksForJob(jobId) {
+  return state.dispatchLinks?.[jobId] || null;
+}
+
+function ensureDispatchLinks(jobId) {
+  if (!state.dispatchLinks) state.dispatchLinks = {};
+  if (state.dispatchLinks[jobId]) return;
+  state.dispatchLinks[jobId] = [];
+  apiRequest(`/api/auth/dispatch-links?jobId=${encodeURIComponent(jobId)}`)
+    .then((links) => {
+      state.dispatchLinks[jobId] = links;
+      if (state.view === "dispatch-job-detail" && state.selectedDispatchJobId === jobId) render();
+    })
+    .catch(() => {});
+}
+
+function consentsForJob(jobId) {
+  return (state.backend.gpsConsents || []).filter((consent) => consent.dispatchJobId === jobId).sort((a, b) => String(b.acceptedAt).localeCompare(String(a.acceptedAt)));
+}
+
+function renderSignOnLinksPanel(job) {
+  const assignments = dispatchAssignmentsForJob(job.id);
+  ensureDispatchLinks(job.id);
+  const links = dispatchLinksForJob(job.id) || [];
+  const consents = consentsForJob(job.id);
+  const fresh = state.freshDispatchLink?.jobId === job.id ? state.freshDispatchLink : null;
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <div><h3>Personal-phone sign-on</h3><span>A scoped link signs one worker into Front Line for this job only, on their own phone, after they accept the location terms (v${escapeHtml(state.session?.termsVersion || "")}). The link expires 24 hours after the job window.</span></div>
+      </div>
+      <div class="panel-body record-list">
+        ${
+          assignments
+            .map((assignment) => {
+              const person = findEmployee(assignment.employeeId);
+              const mine = links.filter((link) => link.employeeId === assignment.employeeId);
+              const consent = consents.find((item) => item.employeeId === assignment.employeeId);
+              const latest = mine[0];
+              return `
+                <div class="detail-card">
+                  <div class="row-meta">
+                    <strong>${escapeHtml(person?.displayName || "Worker")}</strong>
+                    <span>${consent ? `Consented ${formatDateTime(consent.acceptedAt)} (terms ${escapeHtml(consent.termsVersion)})` : latest ? `Link ${escapeHtml(latest.status)} · sent ${formatDateTime(latest.createdAt)}` : "No link sent"}</span>
+                  </div>
+                  <div class="inline-actions">
+                    <button class="mini-button" type="button" data-action="create-dispatch-link" data-job-id="${escapeAttribute(job.id)}" data-employee-id="${escapeAttribute(assignment.employeeId)}">${latest ? "Send a new link" : "Create sign-on link"}</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("") || `<div class="empty-state compact">Assign workers first; each one can then get a sign-on link.</div>`
+        }
+        ${
+          fresh
+            ? `<div class="detail-card signon-link-card">
+                <div class="row-meta"><strong>Link for ${escapeHtml(findEmployee(fresh.employeeId)?.displayName || "worker")}</strong><span>expires ${formatDateTime(fresh.expiresAt)} · shown once, copy it now</span></div>
+                <code class="signon-link-url">${escapeHtml(fresh.url)}</code>
+                <div class="inline-actions"><button class="mini-button" type="button" data-action="copy-text" data-text="${escapeAttribute(fresh.url)}">Copy link</button></div>
+                <p class="help-text">Send it by text message for now; Phase 19 adds sending from here.</p>
+              </div>`
+            : ""
+        }
+      </div>
+    </article>
+  `;
+}
+
+async function createDispatchLink(jobId, employeeId) {
+  try {
+    const link = await apiRequest("/api/auth/dispatch-links", { method: "POST", body: JSON.stringify({ dispatchJobId: jobId, employeeId }) });
+    state.freshDispatchLink = { jobId, employeeId, url: link.url, expiresAt: link.expiresAt };
+    if (state.dispatchLinks) delete state.dispatchLinks[jobId];
+    render();
+    showToast("Sign-on link created. Copy it before leaving this page.");
+  } catch (error) {
+    showToast(error.message || "Could not create a sign-on link.");
+  }
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Copied.");
+  } catch {
+    window.prompt("Copy this link:", text);
+  }
+}
+
+// The phone lands here from /go/<token>: the versioned terms, and an explicit yes or no.
+function renderFrontlineConsent() {
+  const session = state.session;
+  const job = session?.dispatchJobId ? findDispatchJob(session.dispatchJobId) : null;
+  if (!state.consentTerms && !state.consentTermsLoading) {
+    state.consentTermsLoading = true;
+    apiRequest("/api/auth/terms")
+      .then((terms) => {
+        state.consentTerms = terms;
+        state.consentTermsLoading = false;
+        if (state.view === "frontline-consent") render();
+      })
+      .catch(() => {
+        state.consentTermsLoading = false;
+      });
+  }
+  const terms = state.consentTerms;
+  app.innerHTML = `
+    <div class="frontline-shell">
+      <div class="frontline-device">
+        ${renderFrontlineHeader()}
+        <div class="frontline-body">
+          <div>
+            <p class="eyebrow">Before you start</p>
+            <h2>${escapeHtml(terms?.title || "Location sharing on a personal phone")}</h2>
+            <p class="help-text">${escapeHtml(session?.name || "")}${job ? ` · ${escapeHtml(job.jobNumber)} ${escapeHtml(job.jobName || "")}` : ""}</p>
+          </div>
+          <div class="consent-terms">${terms ? escapeHtml(terms.text) : "Loading the terms…"}</div>
+          <p class="help-text">Terms version ${escapeHtml(terms?.version || session?.termsVersion || "")}. Your agreement is recorded with the time, this device and this job, and cannot be edited later.</p>
+          <button class="primary-button" type="button" data-action="accept-consent" ${terms ? "" : "disabled"}>I agree — start the job</button>
+          <button class="frontline-exit-bar" type="button" data-action="sign-out">I do not agree — sign out</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function acceptConsent() {
+  try {
+    await apiRequest("/api/auth/consent", { method: "POST", body: JSON.stringify({ accepted: true }) });
+    await loadSession();
+    await refreshBackendState();
+    state.frontlineSession = { employeeId: state.session.employeeId, loginAt: new Date().toISOString() };
+    state.frontlineSelectedJobId = state.session.dispatchJobId;
+    state.view = "frontline-job-detail";
+    render();
+    showToast("Thanks — you're signed in for this job.");
+  } catch (error) {
+    showToast(error.message || "Could not record your agreement.");
+  }
 }
 
 function closeDialogs() {

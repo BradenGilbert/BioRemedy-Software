@@ -1,6 +1,6 @@
 # Phase 18 — Workforce Scheduling & Device Management
 
-**Status:** Shipped 2026-09-23 — items 1–3 (nav reorder, upcoming time off + standby/on-call, full device lifecycle) live and verified via Playwright. Item 4 (per-dispatch sign-on links) deliberately not started, per the locked Q38 sequencing decision (waits for Phase 12).
+**Status:** Shipped 2026-09-23 — items 1–3 (nav reorder, upcoming time off + standby/on-call, full device lifecycle) live and verified via Playwright. **Item 4 (per-dispatch sign-on links + GPS consent) shipped later the same day on Phase 12a's sessions** (sprint Wave 6).
 **Depends on:** Phase 12 for the consent/sign-on link half (it issues credentials to a phone — that is authentication, and it should not be invented twice)
 **Estimated sessions:** 2
 **Source:** `docs/roadmap/notes-2026-09-22.md` items 39–41, verified against code 2026-09-22
@@ -72,7 +72,7 @@ The owner's own note ends with *"There might be a better way to track this but n
 - [x] Standby/on-call is a real, assignable thing (`standbyAssignments`, a new collection, not an availability block), with a "who's on call right now" read (`currentStandbyEmployee()`) ready for **Phase 16** to call — not yet wired into the emergency intake dialog, since that phase shipped first; see its own corrections
 - [x] Devices can be added, opened, edited, suspended and retired, with IMEI/hardware/OS/onboarding recorded — verified live via Playwright (added a device, opened its detail page, suspended it, confirmed the block notice)
 - [x] A suspended device cannot be used for Front Line sign-in — verified live: suspended Logan's registered device, attempted Front Line sign-in as Logan, got "This employee's registered device is suspended or retired" and stayed on the login screen
-- [ ] A per-dispatch sign-on link can be sent to a personal phone, and every GPS consent is recorded immutably with terms, device and timestamp — **not started**, waits for Phase 12 per the locked Q38 decision (issuing credentials before real auth exists would mean a second login system Phase 12 then has to replace)
+- [x] A per-dispatch sign-on link can be sent to a personal phone, and every GPS consent is recorded immutably with terms, device and timestamp *(2026-09-23: "Personal-phone sign-on" panel on the dispatch job's Plan & resources tab creates a one-use link per assigned worker (`/go/<token>`, valid until 24 h after the job window); opening it starts a job-scoped session and lands on the consent page; accepting writes an append-only `gpsConsents` row with the terms version and text, session, device and IP, and only then opens the job; the generic API refuses to write or delete consents; a reused link is 410. Location pings from that session carry `consentId`, `isTemporary` and a 90-day `retainUntil`.)*
 
 ---
 
@@ -86,6 +86,8 @@ The owner's own note ends with *"There might be a better way to track this but n
 ---
 
 ## Corrections found during implementation
+
+- **Item 4 (2026-09-23):** built on Phase 12a's sessions exactly as Q38 required — the link *is* a credential and it creates the same kind of session everything else uses (`kind: "dispatch-link"`), so revocation, audit and expiry come for free. Sending the link is still manual (copy it, text it); Phase 19 adds sending. The terms are the generic v`2026-09-23.1` text in `server.mjs` (`CONSENT_TERMS`) — bump the version when the wording changes, and get the legal read Q36 asked for before real employees consent.
 
 - **2026-09-23 (owner's decision): scheduling is by availability and credentials; crews are quick-picks.** A person keeps `employees.crewId`/`teamId` as their home crew and team and can belong to more through `workforceTeamMemberships` (now with `crewId` as well as `teamId`; the collection was seeded and never read). Crew and team cards have "Add member" with a role, extra memberships can be removed, `crewMemberIds()`/`teamMemberIds()` union both sources, and the schedule dialog's crew pick and the dispatch assign dialog's "add a whole crew" use them.
 

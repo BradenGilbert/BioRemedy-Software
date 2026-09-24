@@ -30,9 +30,9 @@ If Node isn't on `PATH`, `README.md` has the bundled-runtime fallback path.
 
 | File | What |
 |---|---|
-| `app.js` | ~30,800 lines, ~1,270 functions, one ES module. The entire front end. |
-| `index.html` | ~5,800 lines. App shell + 96 `<dialog>` forms. |
-| `styles.css` | ~6,950 lines. |
+| `app.js` | ~31,300 lines, ~1,300 functions, one ES module. The entire front end. |
+| `index.html` | ~5,900 lines. App shell + 98 `<dialog>` forms. |
+| `styles.css` | ~7,100 lines. |
 | `server.mjs` | Node server. `/api/backend/{collection}` routes over `data/backend.json`; API requests run one at a time and writes are atomic. Every record carries a server-owned `version` (stale save → 409); `DELETE .../{id}` soft-deletes with a cascade table; static files are an allowlist; scheduled backups; demo seed only under `CRM_SEED_DEMO=1` (Phase 20, 2026-09-23). |
 | `scripts/` | `smoke.mjs` (run before every commit), `backup-data.mjs`/`backup-lib.mjs`, `clean-orphans.mjs`, `reset-demo-data.mjs`, `import-rate-sheet.mjs`. |
 | `data/demo-seed.json` | The demo data set the server seeds into empty collections under `CRM_SEED_DEMO=1`. |
@@ -64,6 +64,8 @@ These have already caused planning errors. Confirm before acting:
 **Verify before you trust a plan.** Plan documents here have been wrong at implementation time before — `projectStage` was assumed to be read by the stage ladder (it never was), and `crewMemberships` was assumed to be a live join table (it was frozen at 4 seed rows). Trace the actual code. When the plan turns out to be wrong, **fix the plan document**, in the `## Corrections found during implementation` section — don't leave the correction in chat.
 
 **Click-test UI work.** Playwright and Chromium **are** available in this environment despite not being on `PATH` (Python: `C:\Users\Braden\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe`, Node: `...\dependencies\node\bin\node.exe`). Don't reason about whether the UI works — drive it. Test against a **scratch copy**, not the live data: run a second server with `PORT` and `CRM_DATA_DIR` pointing at a copied `backend.json` (command in `README.md`), with `CRM_BACKUP_INTERVAL_MINUTES=0`. The owner uses the live server while sessions run.
+
+**Signing in (since Phase 12a, 2026-09-23).** Every API call needs the session cookie; there is no role picker and the `X-CRM-Role` header is ignored. On a fresh data folder the server writes the break-glass password to `<data>/break-glass-password.txt` (or takes `CRM_BREAK_GLASS_PASSWORD`); sign in with it under "Emergency access", then create users and set passwords in Identity & Sync › Users & access. Scratch servers for tests: set `CRM_BREAK_GLASS_PASSWORD` and have the test POST `/api/auth/break-glass` first (the smoke suite does this itself). Identity data lives in `<data>/auth.json` and the audit trail in `<data>/audit.log`, both gitignored.
 
 **Run `node scripts/smoke.mjs` before every commit.** It starts its own scratch server on a copy of the data and checks the static-file allowlist, the role header, referential integrity, then sweeps every view, tab and dialog in a browser and fails on any console error or `NaN`/`undefined` in rendered text. `--no-browser` for the server checks only. Phase 20 added it (2026-09-23); keep it green.
 

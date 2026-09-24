@@ -5828,6 +5828,78 @@
       </form>
     </dialog>
 
+    <dialog id="systemUserDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="system-user">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Users &amp; access</p>
+            <h2 data-system-user-title>Add user</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          Full name
+          <input name="fullName" maxlength="120" required />
+        </label>
+        <div class="form-grid">
+          <label>
+            Username
+            <input name="username" maxlength="60" autocomplete="off" placeholder="e.g. jsmith" />
+          </label>
+          <label>
+            Email
+            <input name="internalEmailAddress" type="email" maxlength="120" autocomplete="off" placeholder="name@bioremedy.com" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Role
+            <select name="role" required></select>
+          </label>
+          <label>
+            Field employee
+            <select name="employeeId"></select>
+          </label>
+        </div>
+        <label class="check-row">
+          <input type="checkbox" name="isDisabled" />
+          <span>Disabled — cannot sign in; any open sessions end now</span>
+        </label>
+        <p class="help-text">The role decides which workspaces and API routes the person can use. Linking a field employee makes Front Line open as that person.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save user</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="passwordDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="set-password">
+        <input name="userId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Users &amp; access</p>
+            <h2 data-password-title>Set password</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <label>
+          New password
+          <input name="password" type="password" minlength="10" maxlength="200" autocomplete="new-password" required />
+        </label>
+        <label>
+          Confirm
+          <input name="confirm" type="password" minlength="10" maxlength="200" autocomplete="new-password" required />
+        </label>
+        <p class="help-text">At least 10 characters. Setting a password ends the person's other sessions.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save password</button>
+        </menu>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./public/vendor/leaflet/leaflet.js"></script>
     <script type="importmap">

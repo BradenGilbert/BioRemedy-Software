@@ -15,7 +15,21 @@ import { fileURLToPath } from "node:url";
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const urlFlag = process.argv.indexOf("--url");
 const baseUrl = (urlFlag >= 0 && process.argv[urlFlag + 1]) || process.env.CRM_URL || "http://localhost:4173";
+const passwordFlag = process.argv.indexOf("--password");
+const password = (passwordFlag >= 0 && process.argv[passwordFlag + 1]) || process.env.CRM_PASSWORD || "";
 const seed = JSON.parse(readFileSync(join(projectRoot, "data", "demo-seed.json"), "utf8"));
+
+// Phase 12a: the API needs a session. Sign in with the break-glass password (--password or CRM_PASSWORD).
+if (!password) {
+  console.error("Pass --password <break-glass password> or set CRM_PASSWORD (see data/break-glass-password.txt).");
+  process.exit(1);
+}
+const loginResponse = await fetch(`${baseUrl}/api/auth/break-glass`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+if (!loginResponse.ok) {
+  console.error(`✗ sign-in failed: ${loginResponse.status}`);
+  process.exit(1);
+}
+const cookie = (loginResponse.headers.get("set-cookie") || "").split(";")[0];
 
 let written = 0;
 for (const [collection, records] of Object.entries(seed)) {
@@ -24,7 +38,7 @@ for (const [collection, records] of Object.entries(seed)) {
     const { version, ...payload } = record;
     const response = await fetch(`${baseUrl}/api/backend/${collection}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-CRM-Role": "Admin", "X-CRM-User": "reset-demo-data" },
+      headers: { "Content-Type": "application/json", "X-CRM-User": "reset-demo-data", Cookie: cookie },
       body: JSON.stringify(payload),
     });
     if (!response.ok) {

@@ -1,6 +1,6 @@
 # Phase 12 — Identity, Authorization & Audit
 
-**Status:** Not started. **Split 2026-09-23 into 12a and 12b** (see below); 12a is sprint Wave 6.
+**Status:** **12a shipped 2026-09-23 (sprint Wave 6)** — server sessions, local sign-in, API enforcement from the session, audit log, revocation, break-glass, the attachment route closed, and Phase 18 item 4 on top of it. **12b (Entra provider) not started** — waits for the app registration in the bioremedy.com tenant.
 **Depends on:** Phase 01 (shared data must exist before it can be protected)
 **Estimated sessions:** 3–4
 **Gate:** This phase plus Phase 13 is the boundary before real customer data enters the system.
@@ -94,13 +94,13 @@ None of these exist in `crm-schema/` yet — this is net-new schema design, and 
 
 ## Verification / done criteria
 
-- [ ] Signing in requires real Entra credentials
-- [ ] **Forging the `X-CRM-Role` header to `Admin` changes nothing** — test this explicitly with a hand-crafted request
-- [ ] A Sales role cannot read dispatch collections via the API directly, not just via hidden nav
-- [ ] Editing a record writes an audit entry naming the real user
-- [ ] Reassigning a project assignment from one employee to another moves task routing and visibility
-- [ ] Requesting an attachment URL while signed out is refused
-- [ ] Revoking a user's access takes effect on their next request
+- [ ] Signing in requires real Entra credentials *(12b. Since 12a, signing in requires a session: a local username + password set by an administrator, or the break-glass account. The role picker is gone.)*
+- [x] **Forging the `X-CRM-Role` header to `Admin` changes nothing** — test this explicitly with a hand-crafted request *(2026-09-23: 401 with the header and no session; the header is never read. `scripts/smoke.mjs` checks it on every run.)*
+- [x] A Sales role cannot read dispatch collections via the API directly, not just via hidden nav *(verified with a Scheduler session: `/api/backend/invoices` → 403, `/api/backend/systemUsers` write → 403; the role table is unchanged, only its input is now the session)*
+- [x] Editing a record writes an audit entry naming the real user *(`data/audit.log`: actor name, role, session kind, IP, collection, record, the changed fields)*
+- [ ] Reassigning a project assignment from one employee to another moves task routing and visibility *(not part of 12a; `projectAssignments` still has no UI that writes it — see Phase 15)*
+- [x] Requesting an attachment URL while signed out is refused *(401; the `<img>` carries the session cookie when signed in)*
+- [x] Revoking a user's access takes effect on their next request *(revoke from Identity & Sync › Active sessions, or disable the user: the next API call is 401 and the app returns to the sign-in screen)*
 
 ---
 
@@ -125,6 +125,10 @@ Phase 20's review recommended, and the owner accepted, splitting this phase so t
 
 ## Corrections found during implementation
 
+- **12a, 2026-09-23 — what shipped and where it lives.** Identity is in `<data>/auth.json` (credentials as scrypt hashes with per-user salts, sessions as SHA-256 token hashes, sign-on links, the break-glass hash) and the audit trail in `<data>/audit.log` (append-only NDJSON) — both gitignored, neither inside `backend.json`, so secrets never enter git or a data snapshot. The session is an HttpOnly, SameSite=Lax cookie (`crm_session`, 12 h sliding, `Secure` when the tunnel says https); `getRole()` reads the session and nothing else. Routes: `/api/auth/login|logout|me|break-glass|password|users|sessions|sessions/{id}/revoke|audit|terms|dispatch-links|consent`. `systemUsers` gained `role` (from the title where it matched), `username`, `employeeId`, `isDisabled`; writes to it are Admin-only and disabling revokes the user's sessions at once. The owner's record (`bgilbert`, Admin) is seeded without a password: the first sign-in is break-glass, then Users & access sets it.
+- **Break-glass (Q43):** created on first start; the password is written to `<data>/break-glass-password.txt` (or taken from `CRM_BREAK_GLASS_PASSWORD`), every use is a `severity: high` audit line, and the Sessions panel shows it as "emergency access". Wrong attempts are rate-limited (8 per 15 minutes per IP).
+- **Provider seam for 12b:** `handleAuth` dispatches by route; `createSession()` is the one place a session is born. 12b adds `POST /api/auth/login` with `provider: "entra"` carrying the id token, validates it against the tenant's keys (issuer, audience, expiry, nonce), maps `oid`/`preferred_username` to a `systemUsers` row (or the `roles` claim to a role), and calls the same `createSession()`. The local password path then becomes break-glass-only.
+- **Not closed by 12a:** `/api/owntracks` (phone location pings) keeps its token-less contract because OwnTracks cannot send a cookie — it needs a per-device token, which belongs with the Front Line production API. A sign-on-link session carries the Field Lead role for the whole dispatch domain rather than only its one job; per-job package scoping is the Front Line production API's job (Phase 10 item 1). The smoke sweep and the scripts (`clean-orphans --apply`, `reset-demo-data`) sign in with the break-glass password (`--password` / `CRM_PASSWORD`).
 - **2026-09-23 — inherited from Phase 11 (sprint Wave 5):** in-app `notifications` now exist, addressed to roles (`audienceRoles`), with `readBy` tracked by user name and `recipientUserId` left empty. When real identities land, address notifications to users and replace `readBy` names with user ids. Phase 11's "approvals" half (approval requests with ordered steps and escalation) was moved here, because an approval step needs a named approver.
 
 *(Record here anything that turned out to be different from the plan.)*

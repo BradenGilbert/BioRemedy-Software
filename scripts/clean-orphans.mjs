@@ -141,7 +141,18 @@ if (!apply) {
 }
 
 // ---- Apply through the API --------------------------------------------------------------------
-const headers = { "Content-Type": "application/json", "X-CRM-Role": "Admin", "X-CRM-User": "clean-orphans" };
+// Phase 12a: the API needs a session. Sign in with the break-glass password (--password or CRM_PASSWORD).
+const password = option("--password", process.env.CRM_PASSWORD || "");
+if (!password) {
+  console.error("--apply needs the break-glass password: pass --password <pw> or set CRM_PASSWORD (see data/break-glass-password.txt).");
+  process.exit(1);
+}
+const loginResponse = await fetch(`${baseUrl}/api/auth/break-glass`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
+if (!loginResponse.ok) {
+  console.error(`✗ sign-in failed: ${loginResponse.status}`);
+  process.exit(1);
+}
+const headers = { "Content-Type": "application/json", "X-CRM-User": "clean-orphans", Cookie: (loginResponse.headers.get("set-cookie") || "").split(";")[0] };
 async function call(method, path, body) {
   const response = await fetch(`${baseUrl}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   const payload = await response.json().catch(() => ({}));

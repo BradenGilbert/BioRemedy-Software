@@ -16,7 +16,8 @@ from playwright.sync_api import sync_playwright
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:4199").rstrip("/") + "/"
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 BAD_TEXT = re.compile(r"\bNaN\b|\bundefined\b|\[object Object\]|(?<![\w/.-])null(?![\w/.-])")
-SKIP_ACTIONS = {"sign-out", "frontline-exit", "frontline-login", "delete-record", "restore-record", "sync-now", "start-microsoft-signin", "set-demo-role", "retire-frontline-device", "suspend-frontline-device"}
+SKIP_ACTIONS = {"sign-out", "frontline-exit", "frontline-login", "delete-record", "restore-record", "sync-now", "start-microsoft-signin", "retire-frontline-device", "suspend-frontline-device", "revoke-session", "toggle-system-user", "accept-consent", "create-dispatch-link"}
+SMOKE_PASSWORD = os.environ.get("CRM_SMOKE_PASSWORD", "")
 
 with open(os.path.join(ROOT, "app.js"), encoding="utf8") as handle:
     source = handle.read()
@@ -51,6 +52,12 @@ with sync_playwright() as p:
     page.on("console", lambda m: summary["consoleErrors"].append(f"[{where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text else None)
     page.on("pageerror", lambda e: summary["consoleErrors"].append(f"[{where['at']}] pageerror: {str(e)[:160]}"))
     page.on("dialog", lambda d: d.accept())
+    # Phase 12a: sign in with the scratch server's break-glass account before the first page load, so
+    # the cookie is already in the context and no request ever 401s.
+    login = page.context.request.post(BASE + "api/auth/break-glass", data={"password": SMOKE_PASSWORD})
+    if login.status != 200:
+        print(f"  break-glass sign-in failed: {login.status}")
+        summary["consoleErrors"].append(f"[login] break-glass sign-in failed with {login.status}")
     page.goto(BASE)
     page.wait_for_timeout(1500)
 

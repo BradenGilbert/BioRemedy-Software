@@ -181,8 +181,8 @@ All of Part A is in: the static-file allowlist (live), per-record `version` with
 
 **Part B — flow findings, unsorted (B1–B12), parked in the same doc for a later triage session:** Won/Lost dual truth + no lost reason (B1); Won owes no project and close never writes back (B2); 22 of 50 dispatch jobs have no project so can't be billed (B3); quotes have no Sent/Accepted/Expired state (B4); no quoted-vs-actual, NTE never enforced (B5); no stale-deal signal, stage age resets on any edit (B6); no planned-visit schedule for Multi-Stage (B7); project status/stage/activePhase triple (B8); 19 July draft jobs inflate Blocked counts (B9); derive account lifecycle for Q54 (B10); "Needs information" has no return loop (B11); verify the account-role/job-title split actually shipped (B12).
 
-### Phase 12 — Identity, Authorization & Audit · *not started, 7 criteria*
-Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enforcement, audit entries naming real users, revocation taking effect. **Nothing above ships safely to real customer data without this.**
+### Phase 12 — Identity, Authorization & Audit · *12a shipped 2026-09-23; 12b (Entra) not started*
+Server sessions (cookie), local sign-in with passwords set by an admin, the role taken from the session on every API call (the `X-CRM-Role` header is dead), an append-only audit log naming the real user and the changed fields, revocation and disabling on the next request, break-glass emergency admin, the attachment route closed. Left: the Entra provider (needs the app registration in the bioremedy.com tenant), a per-device token for the OwnTracks endpoint, per-job scoping of sign-on-link sessions.
 
 ### Phase 13 — Documents · *not started, 9 criteria + the new workflow*
 - Generic attachment store (every Files tab is a stub today)
@@ -205,8 +205,8 @@ Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enfo
 
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
-**Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, Phase 09's Lone Star invoice also shipped (Wave 5b). **Phase 20 shipped 2026-09-23 (item 0 on its own commit, then Wave 5c).** **Then Wave 6:** the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
-**Before real users:** Phase 12a, then Phase 13 (Phase 20 done).
+**Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, Phase 09's Lone Star invoice also shipped (Wave 5b). **Phase 20 shipped 2026-09-23 (item 0 on its own commit, then Wave 5c). Wave 6 shipped 2026-09-23: Phase 12a (sessions, local sign-in, API enforcement, audit, revocation, break-glass) and Phase 18 item 4 (sign-on links + GPS consent).** Wave 6 was: the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
+**Before real users:** Phase 13 (12a and 20 done); Phase 12b (Entra) when the bioremedy.com app registration exists.
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 
 Phase 10's remaining two small items are independent — a good candidate to clear in a single session when a bigger phase is blocked on a decision.

@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+__pycache__/
 
 # Logs — the server and cloudflared write these into the project root
 *.log
@@ -20,6 +21,13 @@ data/backups/
 
 # Transient atomic-write file (saveBackend writes here, then renames over backend.json)
 data/backend.json.tmp
+
+# Identity (Phase 12a): password hashes, sessions, sign-on links, the break-glass account,
+# the generated break-glass password, and the append-only audit trail. Never in git.
+data/auth.json
+data/auth.json.tmp
+data/break-glass-password.txt
+data/audit.log
 
 # Environment and secrets
 .env*

@@ -818,8 +818,10 @@ h3 {
 
 .segment-tabs {
   display: flex;
+  /* Owner 2026-09-23: ten account tabs ran to ~1560px, so on a 1366/1536 laptop the last two
+     scrolled off-screen with nothing to show they existed. Wrap onto a second row instead. */
+  flex-wrap: wrap;
   gap: 8px;
-  overflow-x: auto;
   padding-bottom: 2px;
 }
 
@@ -1298,14 +1300,13 @@ h3 {
 }
 
 .race-stage-list,
+/* One column per stage, whatever the count: the opportunity ladder has six stages and the project
+   ladder five, and a fixed repeat(5) wrapped the opportunity's "Won" onto its own row at every width. */
 .stage-ladder {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 6px;
-}
-
-.stage-ladder {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 /* Phase 06 item 28 — these read as a progress ladder (like the bar above them), not a row of
@@ -2284,6 +2285,22 @@ button.source-badge:active {
   grid-template-columns: 0.95fr 1.15fr 0.9fr;
 }
 
+/* Three ~320px columns at 1366–1536px wide (a 232px sidebar plus padding) squeezed labels and
+   broke emails mid-word. Two columns until there's room for three. */
+@media (max-width: 1500px) {
+  .crm-focus-grid,
+  .crm-profile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .crm-focus-grid,
+  .crm-profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .crm-focus-card {
   display: grid;
   gap: 12px;
@@ -2341,8 +2358,18 @@ button.source-badge:active {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  /* Let the stats/owner block drop under the identity block on narrow windows instead of
+     squeezing the action buttons into two-line labels. */
+  flex-wrap: wrap;
   gap: 18px;
   padding: 18px 18px 14px;
+}
+
+.account-hero-backrow .primary-button,
+.account-hero-backrow .secondary-button,
+.account-hero-backrow .danger-button,
+.account-hero-backrow .text-button {
+  white-space: nowrap;
 }
 
 .account-detail-tabs-row {
@@ -2367,6 +2394,7 @@ button.source-badge:active {
 .account-hero-backrow {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -3098,7 +3126,7 @@ body[data-theme="dark"] .map-popup span {
 
 .detail-list div {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr);
+  grid-template-columns: minmax(96px, 132px) minmax(0, 1fr);
   gap: 12px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 10px;
@@ -3115,6 +3143,7 @@ body[data-theme="dark"] .map-popup span {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
 }
 
 .detail-list dd {
@@ -6968,4 +6997,104 @@ body[data-theme="dark"] .chat-bubble.mine .chat-sender {
 
 body[data-theme="dark"] .frontline-thread-avatar.office {
   color: #0d1f14;
+}
+
+/* Phase 12a (2026-09-23): sign-in screen, consent page, users & access, audit. */
+
+.app-shell.auth-mode {
+  grid-template-columns: 1fr;
+}
+
+.app-shell.auth-mode .sidebar,
+.app-shell.auth-mode .quick-actions,
+.app-shell.auth-mode .notification-bell,
+.app-shell.auth-mode .settings-button,
+.app-shell.auth-mode .nav-back-button {
+  display: none;
+}
+
+.login-screen {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 160px);
+  padding: 24px 0;
+}
+
+.login-card {
+  display: grid;
+  gap: 16px;
+  width: min(440px, 100%);
+  padding: 30px 28px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 24px 48px rgba(18, 45, 28, 0.12);
+}
+
+.login-card h2 {
+  margin: 4px 0 6px;
+}
+
+.login-logo {
+  width: auto;
+  height: 34px;
+}
+
+.login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.login-error {
+  margin: 0;
+  color: var(--red);
+  font-weight: 700;
+}
+
+.login-emergency summary {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-emergency[open] summary {
+  margin-bottom: 8px;
+}
+
+.login-foot {
+  text-align: center;
+}
+
+.consent-terms {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-alt);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.signon-link-url {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-alt);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.audit-list .audit-entry span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.muted-card {
+  opacity: 0.7;
+}
+
+.identity-panel .user-chip .help-text {
+  display: block;
+  margin-top: 4px;
 }
