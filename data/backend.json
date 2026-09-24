@@ -1376,6 +1376,126 @@
       "poFormat": "PO#BS&P- ###",
       "poRequired": true,
       "primaryContactId": "cont-muebbo8d-csahrs"
+    },
+    {
+      "id": "acct-msdkyyks-70p4on",
+      "name": "ZZZ Company",
+      "accountName": "ZZZ Company",
+      "accountType": "Customer",
+      "owner": "Unassigned",
+      "contact": "",
+      "email": "",
+      "phone": "",
+      "city": "",
+      "concern": "",
+      "createdBy": "clean-orphans",
+      "createdOn": "2026-09-24T04:19:16.785Z",
+      "lastContact": "2026-09-24",
+      "nextAction": "Review this recovered account",
+      "notes": "Recreated 2026-09-24 by scripts/clean-orphans.mjs: 6 records referenced this account id but the account was gone.",
+      "createdAt": "2026-09-24T04:19:16.845Z",
+      "updatedAt": "2026-09-24T04:19:16.845Z",
+      "version": 1
+    },
+    {
+      "id": "acct-msw4rigr-0l2awj",
+      "name": "AAAAAAA company",
+      "accountName": "AAAAAAA company",
+      "accountType": "Customer",
+      "owner": "Unassigned",
+      "contact": "",
+      "email": "",
+      "phone": "",
+      "city": "",
+      "concern": "",
+      "createdBy": "clean-orphans",
+      "createdOn": "2026-09-24T04:19:16.866Z",
+      "lastContact": "2026-09-24",
+      "nextAction": "Review this recovered account",
+      "notes": "Recreated 2026-09-24 by scripts/clean-orphans.mjs: 16 records referenced this account id but the account was gone.",
+      "createdAt": "2026-09-24T04:19:16.877Z",
+      "updatedAt": "2026-09-24T04:19:16.877Z",
+      "version": 1
+    },
+    {
+      "id": "acct-mu31h8xu-paprt0",
+      "name": "Recovered account for zeke site dumb",
+      "accountName": "Recovered account for zeke site dumb",
+      "accountType": "Customer",
+      "owner": "Unassigned",
+      "contact": "",
+      "email": "",
+      "phone": "",
+      "city": "",
+      "concern": "",
+      "createdBy": "clean-orphans",
+      "createdOn": "2026-09-24T04:19:16.894Z",
+      "lastContact": "2026-09-24",
+      "nextAction": "Review this recovered account",
+      "notes": "Recreated 2026-09-24 by scripts/clean-orphans.mjs: 10 records referenced this account id but the account was gone.",
+      "createdAt": "2026-09-24T04:19:16.908Z",
+      "updatedAt": "2026-09-24T04:19:16.908Z",
+      "version": 1
+    },
+    {
+      "id": "acct-mu2uhdrx-3afcvq",
+      "name": "Recovered account for hell site name",
+      "accountName": "Recovered account for hell site name",
+      "accountType": "Customer",
+      "owner": "Unassigned",
+      "contact": "",
+      "email": "",
+      "phone": "",
+      "city": "",
+      "concern": "",
+      "createdBy": "clean-orphans",
+      "createdOn": "2026-09-24T04:19:16.924Z",
+      "lastContact": "2026-09-24",
+      "nextAction": "Review this recovered account",
+      "notes": "Recreated 2026-09-24 by scripts/clean-orphans.mjs: 2 records referenced this account id but the account was gone.",
+      "createdAt": "2026-09-24T04:19:16.937Z",
+      "updatedAt": "2026-09-24T04:19:16.937Z",
+      "version": 1
+    },
+    {
+      "id": "acct-mu34m8uh-5o0wzw",
+      "name": "Recovered account for Test yard",
+      "accountName": "Recovered account for Test yard",
+      "accountType": "Customer",
+      "owner": "Unassigned",
+      "contact": "",
+      "email": "",
+      "phone": "",
+      "city": "",
+      "concern": "",
+      "createdBy": "clean-orphans",
+      "createdOn": "2026-09-24T04:19:16.952Z",
+      "lastContact": "2026-09-24",
+      "nextAction": "Review this recovered account",
+      "notes": "Recreated 2026-09-24 by scripts/clean-orphans.mjs: 1 record referenced this account id but the account was gone.",
+      "createdAt": "2026-09-24T04:19:16.966Z",
+      "updatedAt": "2026-09-24T04:19:16.966Z",
+      "version": 1
+    },
+    {
+      "id": "acct-msdlah86-bnthwq",
+      "name": "Recovered account acct-msdlah86-bnthwq",
+      "accountName": "Recovered account acct-msdlah86-bnthwq",
+      "accountType": "Customer",
+      "owner": "Unassigned",
+      "contact": "",
+      "email": "",
+      "phone": "",
+      "city": "",
+      "concern": "",
+      "createdBy": "clean-orphans",
+      "createdOn": "2026-09-24T04:19:16.981Z",
+      "lastContact": "2026-09-24",
+      "nextAction": "Review this recovered account",
+      "notes": "Recreated 2026-09-24 by scripts/clean-orphans.mjs: 1 record referenced this account id but the account was gone.",
+      "createdAt": "2026-09-24T04:19:16.993Z",
+      "updatedAt": "2026-09-24T04:19:16.993Z",
+      "version": 1
     }
   ],
   "contacts": [
@@ -6339,7 +6459,11 @@
       "notes": "Georgetown emergency response.",
       "source": "frontline-timesheet",
       "createdAt": "2026-07-24T16:05:00-05:00",
-      "updatedAt": "2026-07-24T16:05:00-05:00"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "time-entry-mu63xd18-n23udn",
@@ -6393,7 +6517,11 @@
       "capturedAt": "2026-07-24T13:05:00-05:00",
       "notes": "Shop to Georgetown site.",
       "createdAt": "2026-07-24T13:05:00-05:00",
-      "updatedAt": "2026-07-24T13:05:00-05:00"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "mileage-mu642pu7-1tbmpa",
@@ -6486,7 +6614,13 @@
       "recipientName": "Logan",
       "body": "Customer confirmed site access for 1pm -- gate code is unchanged.",
       "sentAt": "2026-07-24T12:40:00-05:00",
-      "readAt": null
+      "readAt": null,
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "message-mu63wjrl-jvi143",
@@ -6501,7 +6635,11 @@
       "sentAt": "2026-09-17T22:33:54.705Z",
       "readAt": null,
       "createdAt": "2026-09-17T22:33:54.725Z",
-      "updatedAt": "2026-09-17T22:33:54.725Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "message-mu63wpxo-gc8329",
@@ -6562,6 +6700,21 @@
       "readAt": null,
       "createdAt": "2026-09-23T18:51:32.677Z",
       "updatedAt": "2026-09-23T18:51:32.677Z"
+    },
+    {
+      "id": "message-muezmbqi-ge2dr7",
+      "threadKey": "general",
+      "dispatchJobId": "",
+      "senderId": "emp-logan",
+      "senderName": "Logan Gallman",
+      "senderRole": "field",
+      "recipientId": "office",
+      "recipientName": "Dispatch",
+      "body": "test",
+      "sentAt": "2026-09-24T03:43:54.858Z",
+      "readAt": null,
+      "createdAt": "2026-09-24T03:43:54.575Z",
+      "updatedAt": "2026-09-24T03:43:54.575Z"
     }
   ],
   "inventoryAlerts": [
@@ -7135,7 +7288,11 @@
       "convertedJobId": "dispatch-job-ms5gtzs3-7m93oz",
       "receivedBy": "Olivia Grant",
       "createdAt": "2026-07-29T02:28:30.380Z",
-      "updatedAt": "2026-07-29T02:28:39.684Z"
+      "updatedAt": "2026-09-24T04:19:17.021Z",
+      "deletedAt": "2026-09-24T04:19:17.021Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "jobRequests:req-ms5gtsme-7d7ib8",
+      "version": 1
     },
     {
       "id": "req-ms69p6xd-l64zuk",
@@ -7169,7 +7326,11 @@
       "convertedJobId": "dispatch-job-ms69zmqj-fvpcwe",
       "receivedBy": "Admin User",
       "createdAt": "2026-07-29T15:56:45.406Z",
-      "updatedAt": "2026-07-29T16:04:52.348Z"
+      "updatedAt": "2026-09-24T04:19:17.049Z",
+      "deletedAt": "2026-09-24T04:19:17.049Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "jobRequests:req-ms69p6xd-l64zuk",
+      "version": 1
     },
     {
       "id": "req-msdoyhlp-gciu4v",
@@ -7203,7 +7364,11 @@
       "convertedJobId": "dispatch-job-msdp2tzs-uwf34o",
       "receivedBy": "Admin User",
       "createdAt": "2026-08-03T20:38:15.718Z",
-      "updatedAt": "2026-08-03T20:41:38.430Z"
+      "updatedAt": "2026-09-24T04:19:17.079Z",
+      "deletedAt": "2026-09-24T04:19:17.079Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "jobRequests:req-msdoyhlp-gciu4v",
+      "version": 1
     },
     {
       "id": "req-msdqfv7b-g2iaw5",
@@ -7237,7 +7402,11 @@
       "convertedJobId": "dispatch-job-msdqg513-zofs5j",
       "receivedBy": "Admin User",
       "createdAt": "2026-08-03T21:19:46.111Z",
-      "updatedAt": "2026-08-03T21:19:58.871Z"
+      "updatedAt": "2026-09-24T04:19:17.108Z",
+      "deletedAt": "2026-09-24T04:19:17.108Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "jobRequests:req-msdqfv7b-g2iaw5",
+      "version": 1
     },
     {
       "id": "req-msw7tv5e-akpida",
@@ -7271,7 +7440,11 @@
       "convertedJobId": "dispatch-job-msw82clh-jflvmm",
       "receivedBy": "Olivia Grant",
       "createdAt": "2026-08-16T19:46:24.187Z",
-      "updatedAt": "2026-08-16T19:53:00.054Z"
+      "updatedAt": "2026-09-24T04:19:17.137Z",
+      "deletedAt": "2026-09-24T04:19:17.136Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "jobRequests:req-msw7tv5e-akpida",
+      "version": 1
     },
     {
       "id": "req-msw7wr07-7qpjuo",
@@ -7305,7 +7478,11 @@
       "convertedJobId": "dispatch-job-mswlno3z-rbqwss",
       "receivedBy": "Olivia Grant",
       "createdAt": "2026-08-16T19:48:38.769Z",
-      "updatedAt": "2026-08-17T02:13:29.462Z"
+      "updatedAt": "2026-09-24T04:19:17.167Z",
+      "deletedAt": "2026-09-24T04:19:17.166Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "jobRequests:req-msw7wr07-7qpjuo",
+      "version": 1
     },
     {
       "id": "req-msw94q8i-xbkdb1",
@@ -7339,7 +7516,11 @@
       "convertedJobId": "dispatch-job-msw957j0-t9sh8e",
       "receivedBy": "Admin User",
       "createdAt": "2026-08-16T20:22:50.640Z",
-      "updatedAt": "2026-08-16T20:23:12.768Z"
+      "updatedAt": "2026-09-24T04:19:17.198Z",
+      "deletedAt": "2026-09-24T04:19:17.198Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "jobRequests:req-msw94q8i-xbkdb1",
+      "version": 1
     },
     {
       "id": "req-mswfkorm-tmme3n",
@@ -7373,7 +7554,11 @@
       "convertedJobId": "dispatch-job-mswfkuvy-iofwhy",
       "receivedBy": "Admin User",
       "createdAt": "2026-08-16T23:23:12.627Z",
-      "updatedAt": "2026-08-16T23:23:20.882Z"
+      "updatedAt": "2026-09-24T04:19:17.227Z",
+      "deletedAt": "2026-09-24T04:19:17.227Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "jobRequests:req-mswfkorm-tmme3n",
+      "version": 1
     },
     {
       "id": "req-mu4hzxqd-81kefq",
@@ -7754,7 +7939,7 @@
       "description": "Oil spill on pavement after a vehicle crash. Protect drains and soil, recover free product, apply bacteria where appropriate, and document time and truck usage.",
       "readinessStatus": "Ready",
       "completionPercent": 100,
-      "updatedAt": "2026-09-23T20:57:46.510Z",
+      "updatedAt": "2026-09-24T04:19:17.256Z",
       "accountId": "acct-city-georgetown",
       "createdAt": "2026-08-16T23:03:28.119Z",
       "postJobReview": {
@@ -7765,7 +7950,11 @@
         "nearMisses": "No",
         "injuries": "No"
       },
-      "operationalDate": ""
+      "operationalDate": "",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "dispatch-job-riverbend",
@@ -8673,8 +8862,12 @@
       "description": "Ops Reconnect Test Deal — Investigation and planning",
       "readinessStatus": "Blocked",
       "completionPercent": 0,
-      "updatedAt": "2026-07-29T02:28:39.655Z",
-      "createdAt": "2026-07-29T02:28:39.655Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "createdAt": "2026-07-29T02:28:39.655Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "dispatch-job-ms69zkws-6xjpaq",
@@ -8709,9 +8902,13 @@
       "description": "Asbestos abatement for boiler upgrade — Investigation and planning",
       "readinessStatus": "Blocked",
       "completionPercent": 0,
-      "updatedAt": "2026-09-23T20:58:22.103Z",
+      "updatedAt": "2026-09-24T04:19:17.317Z",
       "createdAt": "2026-07-29T16:04:50.191Z",
-      "operationalDate": ""
+      "operationalDate": "",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "dispatch-job-ms69zmqj-fvpcwe",
@@ -8746,8 +8943,12 @@
       "description": "Asbestos abatement for boiler upgrade — Investigation and planning",
       "readinessStatus": "Blocked",
       "completionPercent": 100,
-      "updatedAt": "2026-07-29T16:11:27.128Z",
-      "createdAt": "2026-07-29T16:04:52.159Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "createdAt": "2026-07-29T16:04:52.159Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "dispatch-job-msdp2tzs-uwf34o",
@@ -8782,8 +8983,12 @@
       "description": "zzzzz project — zzzz phase",
       "readinessStatus": "Blocked",
       "completionPercent": 100,
-      "updatedAt": "2026-08-03T21:17:35.146Z",
-      "createdAt": "2026-08-03T20:41:38.401Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "createdAt": "2026-08-03T20:41:38.401Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "dispatch-job-msdqg513-zofs5j",
@@ -8818,8 +9023,12 @@
       "description": "xxxx zzzzz project — zzzz phase - descriptiopn",
       "readinessStatus": "Blocked",
       "completionPercent": 100,
-      "updatedAt": "2026-08-03T21:20:18.861Z",
-      "createdAt": "2026-08-03T21:19:58.843Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "createdAt": "2026-08-03T21:19:58.843Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "dispatch-job-msw82clh-jflvmm",
@@ -8854,8 +9063,12 @@
       "description": "truck roll over east of san antonio — Investigation and plann654",
       "readinessStatus": "Blocked",
       "completionPercent": 20,
-      "updatedAt": "2026-08-16T23:19:22.721Z",
-      "createdAt": "2026-08-16T19:53:00.024Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "createdAt": "2026-08-16T19:53:00.024Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "dispatch-job-msw957j0-t9sh8e",
@@ -8890,8 +9103,12 @@
       "description": "truck roll over east of san antonio — Investigation and plann654 go sample the site prior to remediation",
       "readinessStatus": "Blocked",
       "completionPercent": 100,
-      "updatedAt": "2026-08-16T22:24:01.712Z",
-      "createdAt": "2026-08-16T20:23:12.736Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "createdAt": "2026-08-16T20:23:12.736Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "dispatch-job-mswfkuvy-iofwhy",
@@ -8926,8 +9143,12 @@
       "description": "truck roll over east of san antonio — Investigation and plann654",
       "readinessStatus": "Blocked",
       "completionPercent": 0,
-      "updatedAt": "2026-08-18T21:22:32.091Z",
-      "createdAt": "2026-08-16T23:23:20.849Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "createdAt": "2026-08-16T23:23:20.849Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "dispatch-job-mswlno3z-rbqwss",
@@ -9544,7 +9765,11 @@
       "plannedEnd": "2026-07-27T01:30:00.000Z",
       "eligibilityNote": "",
       "createdAt": "2026-08-17T17:02:37.829Z",
-      "updatedAt": "2026-08-17T17:02:37.829Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "ja-geo-trey",
@@ -9559,7 +9784,11 @@
       "plannedStart": "2026-07-26T21:30:00.000Z",
       "plannedEnd": "2026-07-27T01:30:00.000Z",
       "createdAt": "2026-08-17T17:02:37.865Z",
-      "updatedAt": "2026-08-17T17:02:37.865Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "ja-geo-tristan",
@@ -9574,7 +9803,11 @@
       "plannedEnd": "2026-07-27T01:30:00.000Z",
       "eligibilityNote": "",
       "createdAt": "2026-08-17T17:02:37.914Z",
-      "updatedAt": "2026-08-17T17:02:37.914Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "ja-riverbend-noah",
@@ -9806,7 +10039,11 @@
       "plannedStart": "2026-07-30T15:55:00.000Z",
       "plannedEnd": "2026-07-30T19:55:00.000Z",
       "createdAt": "2026-07-29T16:07:12.420Z",
-      "updatedAt": "2026-07-29T16:08:05.307Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "assignment-ms6a2n3d-xk4kei",
@@ -9821,7 +10058,11 @@
       "plannedStart": "2026-07-30T15:55:00.000Z",
       "plannedEnd": "2026-07-30T19:55:00.000Z",
       "createdAt": "2026-07-29T16:07:12.594Z",
-      "updatedAt": "2026-07-29T16:07:12.594Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "assignment-ms6a2n81-03zdju",
@@ -9836,7 +10077,11 @@
       "plannedStart": "2026-07-30T15:55:00.000Z",
       "plannedEnd": "2026-07-30T19:55:00.000Z",
       "createdAt": "2026-07-29T16:07:12.776Z",
-      "updatedAt": "2026-07-29T16:07:12.776Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "assignment-msdp6hq9-xivujo",
@@ -9851,7 +10096,11 @@
       "plannedStart": "2026-08-03T20:36:00.000Z",
       "plannedEnd": "2026-08-04T00:36:00.000Z",
       "createdAt": "2026-08-03T20:44:29.124Z",
-      "updatedAt": "2026-08-03T20:44:29.124Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "assignment-msdp6hqz-zmw3vh",
@@ -9866,7 +10115,11 @@
       "plannedStart": "2026-08-03T20:36:00.000Z",
       "plannedEnd": "2026-08-04T00:36:00.000Z",
       "createdAt": "2026-08-03T20:44:29.151Z",
-      "updatedAt": "2026-08-03T20:44:29.151Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "assignment-msdp6hrq-506scq",
@@ -9881,7 +10134,11 @@
       "plannedStart": "2026-08-03T20:36:00.000Z",
       "plannedEnd": "2026-08-04T00:36:00.000Z",
       "createdAt": "2026-08-03T20:44:29.177Z",
-      "updatedAt": "2026-08-03T20:44:29.177Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "assignment-msdqgg34-ciqets",
@@ -9896,7 +10153,11 @@
       "plannedStart": "2026-08-03T21:19:00.000Z",
       "plannedEnd": "2026-08-04T01:19:00.000Z",
       "createdAt": "2026-08-03T21:20:13.171Z",
-      "updatedAt": "2026-08-03T21:20:13.171Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "assignment-msdqgg43-2qk8ag",
@@ -9911,7 +10172,11 @@
       "plannedStart": "2026-08-03T21:19:00.000Z",
       "plannedEnd": "2026-08-04T01:19:00.000Z",
       "createdAt": "2026-08-03T21:20:13.207Z",
-      "updatedAt": "2026-08-03T21:20:13.207Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "assignment-msw84fyh-l7yi8l",
@@ -9926,7 +10191,11 @@
       "plannedStart": "2026-08-19T19:42:00.000Z",
       "plannedEnd": "2026-08-19T23:42:00.000Z",
       "createdAt": "2026-08-16T19:54:37.389Z",
-      "updatedAt": "2026-08-16T20:14:43.463Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "assignment-msw8ualh-f3qinr",
@@ -9941,7 +10210,11 @@
       "plannedStart": "2026-08-19T19:42:00.000Z",
       "plannedEnd": "2026-08-19T23:42:00.000Z",
       "createdAt": "2026-08-16T20:14:43.499Z",
-      "updatedAt": "2026-08-16T20:14:43.499Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "assignment-msw8uame-2hw76p",
@@ -9956,7 +10229,11 @@
       "plannedStart": "2026-08-19T19:42:00.000Z",
       "plannedEnd": "2026-08-19T23:42:00.000Z",
       "createdAt": "2026-08-16T20:14:43.529Z",
-      "updatedAt": "2026-08-16T20:14:43.529Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "assignment-msw8uan6-y6s0uz",
@@ -9971,7 +10248,11 @@
       "plannedStart": "2026-08-19T19:42:00.000Z",
       "plannedEnd": "2026-08-19T23:42:00.000Z",
       "createdAt": "2026-08-16T20:14:43.557Z",
-      "updatedAt": "2026-08-16T20:14:43.557Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "assignment-msw8vmfr-txb2oa",
@@ -9986,7 +10267,11 @@
       "plannedStart": "2026-08-19T19:42:00.000Z",
       "plannedEnd": "2026-08-19T23:42:00.000Z",
       "createdAt": "2026-08-16T20:15:45.499Z",
-      "updatedAt": "2026-08-16T20:15:45.499Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "assignment-msw995nv-8s68k7",
@@ -10001,7 +10286,11 @@
       "plannedStart": "2026-08-19T20:22:00.000Z",
       "plannedEnd": "2026-08-20T00:22:00.000Z",
       "createdAt": "2026-08-16T20:26:16.942Z",
-      "updatedAt": "2026-08-16T20:36:45.527Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "assignment-msz63osx-wd1gy3",
@@ -10016,7 +10305,11 @@
       "plannedStart": "2026-08-18T21:21:21.489Z",
       "plannedEnd": "",
       "createdAt": "2026-08-18T21:21:18.435Z",
-      "updatedAt": "2026-08-18T21:21:18.435Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "assignment-mu4i10sh-p5rn2m",
@@ -10349,7 +10642,11 @@
       "lockedForDispatch": false,
       "notes": "",
       "createdAt": "2026-07-29T16:07:12.234Z",
-      "updatedAt": "2026-07-29T16:08:05.129Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "segment-msdp6hpj-ndtdo4",
@@ -10363,7 +10660,11 @@
       "lockedForDispatch": false,
       "notes": "zzzdispatch notes",
       "createdAt": "2026-08-03T20:44:29.098Z",
-      "updatedAt": "2026-08-03T20:44:29.098Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "segment-msdqgg2e-ewfyuf",
@@ -10377,7 +10678,11 @@
       "lockedForDispatch": false,
       "notes": "",
       "createdAt": "2026-08-03T21:20:13.144Z",
-      "updatedAt": "2026-08-03T21:20:13.144Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "segment-msw84fxr-hj6l5t",
@@ -10391,7 +10696,11 @@
       "lockedForDispatch": false,
       "notes": "",
       "createdAt": "2026-08-16T19:54:37.362Z",
-      "updatedAt": "2026-08-16T20:15:45.470Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "segment-msw995n0-0uosvw",
@@ -10405,7 +10714,11 @@
       "lockedForDispatch": false,
       "notes": "",
       "createdAt": "2026-08-16T20:26:16.911Z",
-      "updatedAt": "2026-08-16T20:36:45.496Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "segment-mu4ikcq6-4l7nhq",
@@ -10446,7 +10759,11 @@
       "quantity": 1,
       "status": "Reserved",
       "createdAt": "2026-09-23T23:50:26.884Z",
-      "updatedAt": "2026-09-23T23:50:26.884Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "jr-geo-hand-unit",
@@ -10455,7 +10772,13 @@
       "name": "Hand recovery unit",
       "assetTag": "HAND-03",
       "quantity": 1,
-      "status": "Reserved"
+      "status": "Reserved",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "jr-geo-m1000",
@@ -10465,7 +10788,13 @@
       "assetTag": "",
       "quantity": 2,
       "unit": "pails",
-      "status": "Issued"
+      "status": "Issued",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "jr-geo-vendor",
@@ -10474,7 +10803,13 @@
       "name": "MBI",
       "assetTag": "",
       "quantity": 1,
-      "status": "Requested"
+      "status": "Requested",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "jr-riverbend-pid",
@@ -10581,7 +10916,11 @@
       "quantity": 1,
       "status": "Reserved",
       "createdAt": "2026-07-29T16:07:12.944Z",
-      "updatedAt": "2026-07-29T16:07:12.944Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "resource-ms6a3gz4-5749id",
@@ -10592,7 +10931,11 @@
       "quantity": 1,
       "status": "Reserved",
       "createdAt": "2026-07-29T16:07:51.322Z",
-      "updatedAt": "2026-07-29T16:07:51.322Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "resource-ms6a3rwa-h8ueg0",
@@ -10603,7 +10946,11 @@
       "quantity": 1,
       "status": "Reserved",
       "createdAt": "2026-07-29T16:08:05.471Z",
-      "updatedAt": "2026-07-29T16:08:05.471Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "resource-msdp6hsf-6pnfti",
@@ -10614,7 +10961,11 @@
       "quantity": 1,
       "status": "Reserved",
       "createdAt": "2026-08-03T20:44:29.203Z",
-      "updatedAt": "2026-08-03T20:44:29.203Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "resource-msw995oo-l0dt45",
@@ -10625,7 +10976,11 @@
       "quantity": 1,
       "status": "Reserved",
       "createdAt": "2026-08-16T20:26:16.972Z",
-      "updatedAt": "2026-08-16T20:26:16.972Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "resource-msw9mmpl-c0qb5n",
@@ -10636,7 +10991,11 @@
       "quantity": 1,
       "status": "Reserved",
       "createdAt": "2026-08-16T20:36:45.568Z",
-      "updatedAt": "2026-08-16T20:36:45.568Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "job-resource-mswlpdnc-watsf2",
@@ -10664,7 +11023,13 @@
       "unit": "kits",
       "status": "Consumed",
       "consumedAt": "2026-08-17T02:31:01.690Z",
-      "consumedBy": "John Jacob"
+      "consumedBy": "John Jacob",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "createdAt": "2026-09-24T04:19:17.427Z"
     },
     {
       "id": "job-resource-mswma81m-cghp2r",
@@ -10678,7 +11043,13 @@
       "unit": "drums",
       "status": "Consumed",
       "consumedAt": "2026-08-17T02:31:01.690Z",
-      "consumedBy": "John Jacob"
+      "consumedBy": "John Jacob",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "createdAt": "2026-09-24T04:19:17.427Z"
     },
     {
       "id": "job-resource-mswma81m-4b9hrl",
@@ -10692,7 +11063,13 @@
       "unit": "unit",
       "status": "Consumed",
       "consumedAt": "2026-08-17T02:31:01.690Z",
-      "consumedBy": "John Jacob"
+      "consumedBy": "John Jacob",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "createdAt": "2026-09-24T04:19:17.427Z"
     },
     {
       "id": "job-resource-msz5zi0j-xnxgpf",
@@ -10706,7 +11083,13 @@
       "unit": "bags",
       "status": "Consumed",
       "consumedAt": "2026-08-18T21:18:06.067Z",
-      "consumedBy": "Logan Gallman"
+      "consumedBy": "Logan Gallman",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "job-resource-msz5zi0j-lfmivf",
@@ -10720,7 +11103,13 @@
       "unit": "kits",
       "status": "Consumed",
       "consumedAt": "2026-08-18T21:18:06.067Z",
-      "consumedBy": "Logan Gallman"
+      "consumedBy": "Logan Gallman",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "resource-msz62wfk-nhxhg6",
@@ -10733,7 +11122,11 @@
       "unit": "",
       "status": "Reserved",
       "createdAt": "2026-08-18T21:20:41.693Z",
-      "updatedAt": "2026-08-18T21:20:41.693Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "resource-msz6319e-7ufj4e",
@@ -10746,7 +11139,11 @@
       "unit": "",
       "status": "Reserved",
       "createdAt": "2026-08-18T21:20:47.923Z",
-      "updatedAt": "2026-08-18T21:20:47.923Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "resource-msz63b0q-h63evz",
@@ -10759,7 +11156,11 @@
       "unit": "",
       "status": "Reserved",
       "createdAt": "2026-08-18T21:21:00.780Z",
-      "updatedAt": "2026-08-18T21:21:00.780Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "resource-msz64xkx-feb62l",
@@ -10772,7 +11173,11 @@
       "unit": "bags",
       "status": "Reserved",
       "createdAt": "2026-08-18T21:22:16.723Z",
-      "updatedAt": "2026-08-18T21:22:16.723Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "resource-msz655qt-e90rx6",
@@ -10785,7 +11190,11 @@
       "unit": "drums",
       "status": "Reserved",
       "createdAt": "2026-08-18T21:22:27.037Z",
-      "updatedAt": "2026-08-18T21:22:27.037Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "resource-mu4i1ydx-m2ymyt",
@@ -11436,7 +11845,11 @@
       "unit": "",
       "status": "Removed",
       "createdAt": "2026-09-23T19:51:24.812Z",
-      "updatedAt": "2026-09-23T19:55:03.941Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "resource-mueix2cu-3ncz78",
@@ -11451,7 +11864,11 @@
       "unit": "",
       "status": "Reserved",
       "createdAt": "2026-09-23T19:56:22.525Z",
-      "updatedAt": "2026-09-23T19:56:22.525Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "resource-muem4aih-u39m61",
@@ -11526,7 +11943,11 @@
       "status": "Complete",
       "required": true,
       "createdAt": "2026-08-16T23:03:33.717Z",
-      "updatedAt": "2026-08-16T23:03:33.717Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "step-geo-stabilize",
@@ -11537,7 +11958,11 @@
       "status": "Complete",
       "required": true,
       "createdAt": "2026-08-16T23:03:33.747Z",
-      "updatedAt": "2026-08-18T21:18:06.362Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "step-geo-document",
@@ -11548,7 +11973,11 @@
       "status": "Complete",
       "required": true,
       "createdAt": "2026-08-18T21:18:06.462Z",
-      "updatedAt": "2026-09-18T19:02:50.878Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "step-geo-closeout",
@@ -11559,7 +11988,11 @@
       "status": "Complete",
       "required": true,
       "createdAt": "2026-09-18T19:02:50.939Z",
-      "updatedAt": "2026-09-18T19:03:02.595Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "step-i130-response",
@@ -12426,7 +12859,11 @@
       "status": "Available",
       "required": true,
       "createdAt": "2026-07-29T02:28:39.710Z",
-      "updatedAt": "2026-07-29T02:28:39.710Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "step-ms5gtzwp-bkmjxv",
@@ -12437,7 +12874,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-07-29T02:28:39.819Z",
-      "updatedAt": "2026-07-29T02:28:39.819Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "step-ms5gtzz6-zm89ia",
@@ -12448,7 +12889,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-07-29T02:28:39.915Z",
-      "updatedAt": "2026-07-29T02:28:39.915Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "step-ms5gu02b-hx5vxk",
@@ -12459,7 +12904,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-07-29T02:28:40.023Z",
-      "updatedAt": "2026-07-29T02:28:40.023Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "step-ms5gu04s-485v5c",
@@ -12470,7 +12919,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-07-29T02:28:40.112Z",
-      "updatedAt": "2026-07-29T02:28:40.112Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "step-ms69zlkc-n8pnur",
@@ -12481,7 +12934,11 @@
       "status": "Available",
       "required": true,
       "createdAt": "2026-07-29T16:04:50.643Z",
-      "updatedAt": "2026-07-29T16:04:50.643Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "step-ms69zly7-o1w2ou",
@@ -12492,7 +12949,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-07-29T16:04:51.152Z",
-      "updatedAt": "2026-07-29T16:04:51.152Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "step-ms69zmcs-be2cey",
@@ -12503,7 +12964,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-07-29T16:04:51.663Z",
-      "updatedAt": "2026-07-29T16:04:51.663Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "step-ms69zn0o-hm9fzt",
@@ -12514,7 +12979,11 @@
       "status": "Available",
       "required": true,
       "createdAt": "2026-07-29T16:04:52.531Z",
-      "updatedAt": "2026-07-29T16:04:52.531Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "step-ms69zng6-4vfmkx",
@@ -12525,7 +12994,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-07-29T16:04:53.094Z",
-      "updatedAt": "2026-07-29T16:04:53.094Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "step-ms69znu5-u36r02",
@@ -12536,7 +13009,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-07-29T16:04:53.591Z",
-      "updatedAt": "2026-07-29T16:04:53.591Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "step-msdp2u1k-0uwxil",
@@ -12547,7 +13024,11 @@
       "status": "Available",
       "required": true,
       "createdAt": "2026-08-03T20:41:38.460Z",
-      "updatedAt": "2026-08-03T20:41:38.460Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "step-msdp2u4h-7si87v",
@@ -12558,7 +13039,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-03T20:41:38.564Z",
-      "updatedAt": "2026-08-03T20:41:38.564Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "step-msdp2u7d-5f1rmr",
@@ -12569,7 +13054,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-03T20:41:38.668Z",
-      "updatedAt": "2026-08-03T20:41:38.668Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "step-msdp2u9x-gpr4y8",
@@ -12580,7 +13069,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-03T20:41:38.760Z",
-      "updatedAt": "2026-08-03T20:41:38.760Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "step-msdqg52m-1ktjr8",
@@ -12591,7 +13084,11 @@
       "status": "Available",
       "required": true,
       "createdAt": "2026-08-03T21:19:58.898Z",
-      "updatedAt": "2026-08-03T21:19:58.898Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "step-msdqg55g-0oj76i",
@@ -12602,7 +13099,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-03T21:19:58.999Z",
-      "updatedAt": "2026-08-03T21:19:58.999Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "step-msdqg58a-jfp1eg",
@@ -12613,7 +13114,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-03T21:19:59.103Z",
-      "updatedAt": "2026-08-03T21:19:59.103Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "step-msdqg5al-q25nmi",
@@ -12624,7 +13129,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-03T21:19:59.184Z",
-      "updatedAt": "2026-08-03T21:19:59.184Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "step-msw82cvo-213frn",
@@ -12635,7 +13144,11 @@
       "status": "Complete",
       "required": true,
       "createdAt": "2026-08-16T19:53:00.088Z",
-      "updatedAt": "2026-08-17T02:31:01.757Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "step-msw82czp-x2lp60",
@@ -12646,7 +13159,11 @@
       "status": "Available",
       "required": true,
       "createdAt": "2026-08-16T19:53:00.234Z",
-      "updatedAt": "2026-08-17T02:31:01.777Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "step-msw82d20-70g274",
@@ -12657,7 +13174,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-16T19:53:00.320Z",
-      "updatedAt": "2026-08-16T19:53:00.320Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "step-msw82d59-7d1bi0",
@@ -12668,7 +13189,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-16T19:53:00.433Z",
-      "updatedAt": "2026-08-16T19:53:00.433Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "step-msw82d6v-ff9r1o",
@@ -12679,7 +13204,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-16T19:53:00.492Z",
-      "updatedAt": "2026-08-16T19:53:00.492Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "step-msw957kr-jtnyae",
@@ -12690,7 +13219,11 @@
       "status": "Complete",
       "required": true,
       "createdAt": "2026-08-16T20:23:12.799Z",
-      "updatedAt": "2026-08-16T22:24:58.191Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "step-msw957nu-mj0o2l",
@@ -12701,7 +13234,11 @@
       "status": "Available",
       "required": true,
       "createdAt": "2026-08-16T20:23:12.910Z",
-      "updatedAt": "2026-08-16T22:24:58.221Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "step-msw957q8-x3432u",
@@ -12712,7 +13249,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-16T20:23:12.998Z",
-      "updatedAt": "2026-08-16T20:23:12.998Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "step-mswfkv65-qina3d",
@@ -12723,7 +13264,11 @@
       "status": "Complete",
       "required": true,
       "createdAt": "2026-08-16T23:23:20.912Z",
-      "updatedAt": "2026-08-16T23:24:25.032Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "step-mswfkvde-zj8vp1",
@@ -12734,7 +13279,11 @@
       "status": "Available",
       "required": true,
       "createdAt": "2026-08-16T23:23:21.175Z",
-      "updatedAt": "2026-08-16T23:24:25.064Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "step-mswfkvg4-0uil7o",
@@ -12745,7 +13294,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-16T23:23:21.271Z",
-      "updatedAt": "2026-08-16T23:23:21.271Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "step-mswfkvjw-7yz55r",
@@ -12756,7 +13309,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-16T23:23:21.409Z",
-      "updatedAt": "2026-08-16T23:23:21.409Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "step-mswfkvm0-00shpm",
@@ -12767,7 +13324,11 @@
       "status": "Not started",
       "required": true,
       "createdAt": "2026-08-16T23:23:21.483Z",
-      "updatedAt": "2026-08-16T23:23:21.483Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "step-mswlno5v-c2ymd6",
@@ -13150,7 +13711,11 @@
       "status": "Complete",
       "adHoc": true,
       "createdAt": "2026-09-18T19:02:43.597Z",
-      "updatedAt": "2026-09-18T19:02:43.597Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "step-mu7d701a-hi7vik",
@@ -13374,7 +13939,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-08-16T23:03:29.051Z",
-      "updatedAt": "2026-08-16T23:03:29.051Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-travel",
@@ -13389,7 +13958,11 @@
       "assigneeScope": "Each worker",
       "formName": "Travel and Mileage",
       "createdAt": "2026-08-16T23:03:29.084Z",
-      "updatedAt": "2026-08-16T23:03:32.413Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-arrival",
@@ -13404,7 +13977,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Site Arrival",
       "createdAt": "2026-08-16T23:03:32.445Z",
-      "updatedAt": "2026-08-16T23:03:33.684Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-safety",
@@ -13419,7 +13996,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Job Safety Analysis",
       "createdAt": "2026-08-16T23:03:33.778Z",
-      "updatedAt": "2026-08-18T21:17:34.583Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-contain",
@@ -13434,7 +14015,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Containment Checklist",
       "createdAt": "2026-08-18T21:17:34.715Z",
-      "updatedAt": "2026-08-18T21:17:44.714Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-material",
@@ -13449,7 +14034,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Material Usage",
       "createdAt": "2026-08-18T21:17:44.813Z",
-      "updatedAt": "2026-08-18T21:18:06.265Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-photos",
@@ -13464,7 +14053,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Field Photo Log",
       "createdAt": "2026-08-18T21:18:06.607Z",
-      "updatedAt": "2026-09-18T19:02:22.409Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-drain",
@@ -13479,7 +14072,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Impact Assessment",
       "createdAt": "2026-09-18T19:02:22.477Z",
-      "updatedAt": "2026-09-18T19:02:50.803Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-recap",
@@ -13494,7 +14091,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Emergency Response Recap",
       "createdAt": "2026-09-18T19:02:51.005Z",
-      "updatedAt": "2026-09-18T19:02:55.383Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-geo-signature",
@@ -13509,7 +14110,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Customer Completion",
       "createdAt": "2026-09-18T19:02:55.466Z",
-      "updatedAt": "2026-09-18T19:03:02.528Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-i130-samples",
@@ -15680,7 +16285,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-07-29T02:28:39.737Z",
-      "updatedAt": "2026-07-29T02:28:39.737Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gtzv7-monvwj",
@@ -15695,7 +16304,11 @@
       "assigneeScope": "Each worker",
       "formName": "Capture travel and truck time",
       "createdAt": "2026-07-29T02:28:39.766Z",
-      "updatedAt": "2026-07-29T02:28:39.766Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gtzvw-3gux3m",
@@ -15710,7 +16323,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Arrive and verify site contact",
       "createdAt": "2026-07-29T02:28:39.791Z",
-      "updatedAt": "2026-07-29T02:28:39.791Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gtzxh-zanx48",
@@ -15725,7 +16342,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete site safety assessment",
       "createdAt": "2026-07-29T02:28:39.848Z",
-      "updatedAt": "2026-07-29T02:28:39.848Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gtzyf-5iq6s9",
@@ -15740,7 +16361,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Deploy containment and exclusion zones",
       "createdAt": "2026-07-29T02:28:39.882Z",
-      "updatedAt": "2026-07-29T02:28:39.882Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gu003-7zaw30",
@@ -15755,7 +16380,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Log material and equipment use",
       "createdAt": "2026-07-29T02:28:39.941Z",
-      "updatedAt": "2026-07-29T02:28:39.941Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gu00s-v81apw",
@@ -15770,7 +16399,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Capture before, progress, and after photos",
       "createdAt": "2026-07-29T02:28:39.967Z",
-      "updatedAt": "2026-07-29T02:28:39.967Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gu01m-yml5lx",
@@ -15785,7 +16418,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Track recovered material and waste generated",
       "createdAt": "2026-07-29T02:28:39.997Z",
-      "updatedAt": "2026-07-29T02:28:39.997Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gu035-r1kxgt",
@@ -15800,7 +16437,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Document soil or groundwater impact findings",
       "createdAt": "2026-07-29T02:28:40.078Z",
-      "updatedAt": "2026-07-29T02:28:40.078Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gu05j-za98n2",
@@ -15815,7 +16456,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete job recap",
       "createdAt": "2026-07-29T02:28:40.137Z",
-      "updatedAt": "2026-07-29T02:28:40.137Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms5gu068-zmub6v",
@@ -15830,7 +16475,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Capture customer completion signature",
       "createdAt": "2026-07-29T02:28:40.163Z",
-      "updatedAt": "2026-07-29T02:28:40.163Z"
+      "updatedAt": "2026-09-24T04:19:17.284Z",
+      "deletedAt": "2026-09-24T04:19:17.283Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms5gtzs3-7m93oz",
+      "version": 1
     },
     {
       "id": "action-ms69zloy-k1v9s1",
@@ -15845,7 +16494,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-07-29T16:04:50.804Z",
-      "updatedAt": "2026-07-29T16:04:50.804Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "action-ms69zlt7-qtp07z",
@@ -15860,7 +16513,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Arrive and verify site contact",
       "createdAt": "2026-07-29T16:04:50.970Z",
-      "updatedAt": "2026-07-29T16:04:50.970Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "action-ms69zm37-mm5naj",
@@ -15875,7 +16532,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Complete scheduled service checklist",
       "createdAt": "2026-07-29T16:04:51.320Z",
-      "updatedAt": "2026-07-29T16:04:51.320Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "action-ms69zm7y-zk0e9e",
@@ -15890,7 +16551,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Log material and consumable use",
       "createdAt": "2026-07-29T16:04:51.496Z",
-      "updatedAt": "2026-07-29T16:04:51.496Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "action-ms69zmhg-o9n9kn",
@@ -15905,7 +16570,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete job recap",
       "createdAt": "2026-07-29T16:04:51.828Z",
-      "updatedAt": "2026-07-29T16:04:51.828Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "action-ms69zmm1-f1i3mx",
@@ -15920,7 +16589,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Capture customer completion signature",
       "createdAt": "2026-07-29T16:04:51.997Z",
-      "updatedAt": "2026-07-29T16:04:51.997Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "action-ms69zn5u-wzzc3q",
@@ -15935,7 +16608,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-07-29T16:04:52.714Z",
-      "updatedAt": "2026-07-29T16:04:52.714Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "action-ms69znas-1zokuj",
@@ -15950,7 +16627,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Arrive and verify site contact",
       "createdAt": "2026-07-29T16:04:52.889Z",
-      "updatedAt": "2026-07-29T16:04:52.889Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "action-ms69znl3-zm401n",
@@ -15965,7 +16646,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Complete scheduled service checklist",
       "createdAt": "2026-07-29T16:04:53.259Z",
-      "updatedAt": "2026-07-29T16:04:53.259Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "action-ms69znpm-k65ohf",
@@ -15980,7 +16665,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Log material and consumable use",
       "createdAt": "2026-07-29T16:04:53.420Z",
-      "updatedAt": "2026-07-29T16:04:53.420Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "action-ms69znyz-3kgm0a",
@@ -15995,7 +16684,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete job recap",
       "createdAt": "2026-07-29T16:04:53.763Z",
-      "updatedAt": "2026-07-29T16:04:53.763Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "action-ms69zo4a-mhsd6u",
@@ -16010,7 +16703,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Capture customer completion signature",
       "createdAt": "2026-07-29T16:04:53.962Z",
-      "updatedAt": "2026-07-29T16:04:53.962Z"
+      "updatedAt": "2026-09-24T04:19:17.344Z",
+      "deletedAt": "2026-09-24T04:19:17.344Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zmqj-fvpcwe",
+      "version": 1
     },
     {
       "id": "action-msdp2u2b-orti3h",
@@ -16025,7 +16722,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-08-03T20:41:38.486Z",
-      "updatedAt": "2026-08-03T20:41:38.486Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2u32-i0qjfo",
@@ -16040,7 +16741,11 @@
       "assigneeScope": "Each worker",
       "formName": "Capture travel and truck time",
       "createdAt": "2026-08-03T20:41:38.513Z",
-      "updatedAt": "2026-08-03T20:41:38.513Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2u3r-tac2ya",
@@ -16055,7 +16760,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Arrive and verify site contact",
       "createdAt": "2026-08-03T20:41:38.539Z",
-      "updatedAt": "2026-08-03T20:41:38.539Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2u57-vjmbvz",
@@ -16070,7 +16779,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete site safety assessment",
       "createdAt": "2026-08-03T20:41:38.590Z",
-      "updatedAt": "2026-08-03T20:41:38.590Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2u5z-74g97e",
@@ -16085,7 +16798,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Deploy containment and protect drains",
       "createdAt": "2026-08-03T20:41:38.618Z",
-      "updatedAt": "2026-08-03T20:41:38.618Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2u6n-y6u8bu",
@@ -16100,7 +16817,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Log bacteria and absorbent use",
       "createdAt": "2026-08-03T20:41:38.642Z",
-      "updatedAt": "2026-08-03T20:41:38.642Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2u84-kh4b54",
@@ -16115,7 +16836,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Capture before, progress, and after photos",
       "createdAt": "2026-08-03T20:41:38.695Z",
-      "updatedAt": "2026-08-03T20:41:38.695Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2u8t-9g3nji",
@@ -16130,7 +16855,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Document drain or soil impact",
       "createdAt": "2026-08-03T20:41:38.720Z",
-      "updatedAt": "2026-08-03T20:41:38.720Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2uam-s8by4c",
@@ -16145,7 +16874,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete job recap",
       "createdAt": "2026-08-03T20:41:38.785Z",
-      "updatedAt": "2026-08-03T20:41:38.785Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdp2ubb-r0jahs",
@@ -16160,7 +16893,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Capture customer completion signature",
       "createdAt": "2026-08-03T20:41:38.810Z",
-      "updatedAt": "2026-08-03T20:41:38.810Z"
+      "updatedAt": "2026-09-24T04:19:17.371Z",
+      "deletedAt": "2026-09-24T04:19:17.371Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdp2tzs-uwf34o",
+      "version": 1
     },
     {
       "id": "action-msdqg53c-exw8xg",
@@ -16175,7 +16912,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-08-03T21:19:58.923Z",
-      "updatedAt": "2026-08-03T21:19:58.923Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg540-v9kcrs",
@@ -16190,7 +16931,11 @@
       "assigneeScope": "Each worker",
       "formName": "Capture travel and truck time",
       "createdAt": "2026-08-03T21:19:58.948Z",
-      "updatedAt": "2026-08-03T21:19:58.948Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg54p-hh9p2c",
@@ -16205,7 +16950,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Arrive and verify site contact",
       "createdAt": "2026-08-03T21:19:58.972Z",
-      "updatedAt": "2026-08-03T21:19:58.972Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg564-oko4oi",
@@ -16220,7 +16969,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete site safety assessment",
       "createdAt": "2026-08-03T21:19:59.023Z",
-      "updatedAt": "2026-08-03T21:19:59.023Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg56u-sme3iz",
@@ -16235,7 +16988,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Deploy containment and protect drains",
       "createdAt": "2026-08-03T21:19:59.050Z",
-      "updatedAt": "2026-08-03T21:19:59.050Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg57k-ilmix0",
@@ -16250,7 +17007,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Log bacteria and absorbent use",
       "createdAt": "2026-08-03T21:19:59.075Z",
-      "updatedAt": "2026-08-03T21:19:59.075Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg593-9ax2su",
@@ -16265,7 +17026,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Capture before, progress, and after photos",
       "createdAt": "2026-08-03T21:19:59.130Z",
-      "updatedAt": "2026-08-03T21:19:59.130Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg59u-hi7eja",
@@ -16280,7 +17045,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Document drain or soil impact",
       "createdAt": "2026-08-03T21:19:59.158Z",
-      "updatedAt": "2026-08-03T21:19:59.158Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg5bc-0ecpfb",
@@ -16295,7 +17064,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete job recap",
       "createdAt": "2026-08-03T21:19:59.211Z",
-      "updatedAt": "2026-08-03T21:19:59.211Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msdqg5c3-zohdto",
@@ -16310,7 +17083,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Capture customer completion signature",
       "createdAt": "2026-08-03T21:19:59.238Z",
-      "updatedAt": "2026-08-03T21:19:59.238Z"
+      "updatedAt": "2026-09-24T04:19:17.400Z",
+      "deletedAt": "2026-09-24T04:19:17.399Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msdqg513-zofs5j",
+      "version": 1
     },
     {
       "id": "action-msw82cwg-q5k1qg",
@@ -16325,7 +17102,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-08-16T19:53:00.118Z",
-      "updatedAt": "2026-08-16T23:19:11.699Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82cxb-9ffzzx",
@@ -16340,7 +17121,11 @@
       "assigneeScope": "Each worker",
       "formName": "Capture travel and truck time",
       "createdAt": "2026-08-16T19:53:00.147Z",
-      "updatedAt": "2026-08-17T02:30:21.459Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82cy2-vbkc73",
@@ -16355,7 +17140,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Arrive and verify site contact",
       "createdAt": "2026-08-16T19:53:00.174Z",
-      "updatedAt": "2026-08-17T02:30:27.949Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82cyv-sfot6z",
@@ -16370,7 +17159,11 @@
       "assigneeScope": "Field Lead",
       "formName": "test martials edit",
       "createdAt": "2026-08-16T19:53:00.204Z",
-      "updatedAt": "2026-08-17T02:31:01.731Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82d0h-y0hv05",
@@ -16385,7 +17178,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete site safety assessment",
       "createdAt": "2026-08-16T19:53:00.262Z",
-      "updatedAt": "2026-08-17T02:31:01.797Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82d19-rra8th",
@@ -16400,7 +17197,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Deploy containment and exclusion zones",
       "createdAt": "2026-08-16T19:53:00.289Z",
-      "updatedAt": "2026-08-16T19:53:00.289Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82d2w-vslox4",
@@ -16415,7 +17216,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Log material and equipment use",
       "createdAt": "2026-08-16T19:53:00.348Z",
-      "updatedAt": "2026-08-16T19:53:00.348Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82d3p-qg8xq1",
@@ -16430,7 +17235,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Capture before, progress, and after photos",
       "createdAt": "2026-08-16T19:53:00.377Z",
-      "updatedAt": "2026-08-16T19:53:00.377Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82d4h-yobpia",
@@ -16445,7 +17254,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Track recovered material and waste generated",
       "createdAt": "2026-08-16T19:53:00.405Z",
-      "updatedAt": "2026-08-16T19:53:00.405Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82d63-76z2ms",
@@ -16460,7 +17273,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Document soil or groundwater impact findings",
       "createdAt": "2026-08-16T19:53:00.464Z",
-      "updatedAt": "2026-08-16T19:53:00.464Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82d7n-pezfnv",
@@ -16475,7 +17292,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete job recap",
       "createdAt": "2026-08-16T19:53:00.519Z",
-      "updatedAt": "2026-08-16T19:53:00.519Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw82d8e-alp22b",
@@ -16490,7 +17311,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Capture customer completion signature",
       "createdAt": "2026-08-16T19:53:00.546Z",
-      "updatedAt": "2026-08-16T19:53:00.546Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "action-msw957lt-d8kir8",
@@ -16505,7 +17330,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-08-16T20:23:12.838Z",
-      "updatedAt": "2026-08-16T22:24:43.762Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "action-msw957mp-ah24gc",
@@ -16520,7 +17349,11 @@
       "assigneeScope": "Each worker",
       "formName": "Capture travel and truck time",
       "createdAt": "2026-08-16T20:23:12.870Z",
-      "updatedAt": "2026-08-16T22:24:58.162Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "action-msw957om-3ni81k",
@@ -16535,7 +17368,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Collect samples at planned locations",
       "createdAt": "2026-08-16T20:23:12.939Z",
-      "updatedAt": "2026-08-16T20:23:12.939Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "action-msw957ph-tp6wue",
@@ -16550,7 +17387,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete chain of custody",
       "createdAt": "2026-08-16T20:23:12.968Z",
-      "updatedAt": "2026-08-16T20:23:12.968Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "action-msw957rf-yl26um",
@@ -16565,7 +17406,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete shift recap",
       "createdAt": "2026-08-16T20:23:13.039Z",
-      "updatedAt": "2026-08-16T20:23:13.039Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "action-msw957s7-0lwnt8",
@@ -16580,7 +17425,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Log lab courier or delivery",
       "createdAt": "2026-08-16T20:23:13.066Z",
-      "updatedAt": "2026-08-16T20:23:13.066Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "action-mswfkv6z-uvglj7",
@@ -16595,7 +17444,11 @@
       "assigneeScope": "All assigned workers",
       "formName": "",
       "createdAt": "2026-08-16T23:23:20.943Z",
-      "updatedAt": "2026-08-16T23:23:56.966Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkv7s-3s9jan",
@@ -16610,7 +17463,11 @@
       "assigneeScope": "Each worker",
       "formName": "Capture travel and truck time",
       "createdAt": "2026-08-16T23:23:20.972Z",
-      "updatedAt": "2026-08-16T23:24:03.653Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkv8o-n0zsni",
@@ -16625,7 +17482,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Arrive and verify site contact",
       "createdAt": "2026-08-16T23:23:21.005Z",
-      "updatedAt": "2026-08-16T23:24:08.075Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkv9t-ooiqv2",
@@ -16640,7 +17501,11 @@
       "assigneeScope": "Field Lead",
       "formName": "test martials edit",
       "createdAt": "2026-08-16T23:23:21.046Z",
-      "updatedAt": "2026-08-16T23:24:12.683Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvap-lt48wr",
@@ -16655,7 +17520,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "test sig",
       "createdAt": "2026-08-16T23:23:21.078Z",
-      "updatedAt": "2026-08-16T23:24:17.226Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvbl-cvbubn",
@@ -16670,7 +17539,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "test photo",
       "createdAt": "2026-08-16T23:23:21.111Z",
-      "updatedAt": "2026-08-16T23:24:20.913Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvci-5n6q48",
@@ -16685,7 +17558,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "test sample",
       "createdAt": "2026-08-16T23:23:21.143Z",
-      "updatedAt": "2026-08-16T23:24:25.000Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkveb-9uv33m",
@@ -16700,7 +17577,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete site safety assessment",
       "createdAt": "2026-08-16T23:23:21.208Z",
-      "updatedAt": "2026-08-16T23:24:25.095Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvf8-8kshe5",
@@ -16715,7 +17596,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Deploy containment and exclusion zones",
       "createdAt": "2026-08-16T23:23:21.240Z",
-      "updatedAt": "2026-08-16T23:23:21.240Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvgz-nxzjzg",
@@ -16730,7 +17615,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Log material and equipment use",
       "createdAt": "2026-08-16T23:23:21.303Z",
-      "updatedAt": "2026-08-16T23:23:21.303Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvhx-b2m7fw",
@@ -16745,7 +17634,11 @@
       "assigneeScope": "Any assigned worker",
       "formName": "Capture before, progress, and after photos",
       "createdAt": "2026-08-16T23:23:21.336Z",
-      "updatedAt": "2026-08-16T23:23:21.336Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkviv-o4xpdx",
@@ -16760,7 +17653,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Track recovered material and waste generated",
       "createdAt": "2026-08-16T23:23:21.372Z",
-      "updatedAt": "2026-08-16T23:23:21.372Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvl3-v6kmw2",
@@ -16775,7 +17672,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Document soil or groundwater impact findings",
       "createdAt": "2026-08-16T23:23:21.450Z",
-      "updatedAt": "2026-08-16T23:23:21.450Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvmw-5x77gg",
@@ -16790,7 +17691,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Complete job recap",
       "createdAt": "2026-08-16T23:23:21.517Z",
-      "updatedAt": "2026-08-16T23:23:21.517Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswfkvny-y6c0h0",
@@ -16805,7 +17710,11 @@
       "assigneeScope": "Field Lead",
       "formName": "Capture customer completion signature",
       "createdAt": "2026-08-16T23:23:21.556Z",
-      "updatedAt": "2026-08-16T23:23:21.556Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "action-mswlno6t-lbo9nw",
@@ -18157,7 +19066,11 @@
       "adHoc": true,
       "config": {},
       "createdAt": "2026-09-18T19:02:43.673Z",
-      "updatedAt": "2026-09-18T19:02:43.673Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "action-mu7d7084-aercky",
@@ -18967,7 +19880,11 @@
       "submittedAt": "2026-08-16T22:24:43.415Z",
       "summary": "yep",
       "createdAt": "2026-08-16T22:24:43.733Z",
-      "updatedAt": "2026-08-16T22:24:43.733Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "form-sub-mswdhsek-fza7uk",
@@ -18979,7 +19896,11 @@
       "submittedAt": "2026-08-16T22:24:58.124Z",
       "summary": "210, miles",
       "createdAt": "2026-08-16T22:24:58.130Z",
-      "updatedAt": "2026-08-16T22:24:58.130Z"
+      "updatedAt": "2026-09-24T04:19:17.456Z",
+      "deletedAt": "2026-09-24T04:19:17.456Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw957j0-t9sh8e",
+      "version": 1
     },
     {
       "id": "form-sub-msweve3e-lk71zf",
@@ -18991,7 +19912,11 @@
       "submittedAt": "2026-08-16T23:03:32.378Z",
       "summary": "Mobilize action 2 done via test.",
       "createdAt": "2026-08-16T23:03:32.382Z",
-      "updatedAt": "2026-08-16T23:03:32.382Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-mswevf2o-qkg6jz",
@@ -19003,7 +19928,11 @@
       "submittedAt": "2026-08-16T23:03:33.648Z",
       "summary": "Mobilize action 3 done via test.",
       "createdAt": "2026-08-16T23:03:33.653Z",
-      "updatedAt": "2026-08-16T23:03:33.653Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-mswf4ydo-2qflc9",
@@ -19027,7 +19956,11 @@
       "submittedAt": "2026-08-16T23:24:03.315Z",
       "summary": "trertretr",
       "createdAt": "2026-08-16T23:24:03.622Z",
-      "updatedAt": "2026-08-16T23:24:03.622Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "form-sub-mswflvj4-xnrv6q",
@@ -19039,7 +19972,11 @@
       "submittedAt": "2026-08-16T23:24:08.032Z",
       "summary": "tretrtre",
       "createdAt": "2026-08-16T23:24:08.038Z",
-      "updatedAt": "2026-08-16T23:24:08.038Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "form-sub-mswflz39-fpot23",
@@ -19051,7 +19988,11 @@
       "submittedAt": "2026-08-16T23:24:12.645Z",
       "summary": "ttretretre",
       "createdAt": "2026-08-16T23:24:12.649Z",
-      "updatedAt": "2026-08-16T23:24:12.649Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "form-sub-mswfm2le-zbl7bj",
@@ -19063,7 +20004,11 @@
       "submittedAt": "2026-08-16T23:24:17.186Z",
       "summary": "543254354",
       "createdAt": "2026-08-16T23:24:17.191Z",
-      "updatedAt": "2026-08-16T23:24:17.191Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "form-sub-mswfm5ft-nztcsy",
@@ -19075,7 +20020,11 @@
       "submittedAt": "2026-08-16T23:24:20.873Z",
       "summary": "54354",
       "createdAt": "2026-08-16T23:24:20.879Z",
-      "updatedAt": "2026-08-16T23:24:20.879Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "form-sub-mswfm8lf-9dysaq",
@@ -19087,7 +20036,11 @@
       "submittedAt": "2026-08-16T23:24:24.963Z",
       "summary": "543543",
       "createdAt": "2026-08-16T23:24:24.968Z",
-      "updatedAt": "2026-08-16T23:24:24.968Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "form-sub-mswlp4df-y3ppv4",
@@ -19278,7 +20231,11 @@
         "anchor": "en_route"
       },
       "createdAt": "2026-08-17T02:30:21.435Z",
-      "updatedAt": "2026-08-17T02:30:21.435Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "form-sub-mswm9hzn-bchmju",
@@ -19291,7 +20248,11 @@
       "summary": "25",
       "payload": {},
       "createdAt": "2026-08-17T02:30:27.927Z",
-      "updatedAt": "2026-08-17T02:30:27.927Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "form-sub-mswma81s-2m6bgd",
@@ -19339,7 +20300,11 @@
         ]
       },
       "createdAt": "2026-08-17T02:31:01.712Z",
-      "updatedAt": "2026-08-17T02:31:01.712Z"
+      "updatedAt": "2026-09-24T04:19:17.427Z",
+      "deletedAt": "2026-09-24T04:19:17.427Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-msw82clh-jflvmm",
+      "version": 1
     },
     {
       "id": "form-sub-msz5yvsa-zgel8y",
@@ -19352,7 +20317,11 @@
       "summary": "penis",
       "payload": {},
       "createdAt": "2026-08-18T21:17:34.475Z",
-      "updatedAt": "2026-08-18T21:17:34.475Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-msz5z3tk-rhe8sr",
@@ -19369,7 +20338,11 @@
         "unchecked": []
       },
       "createdAt": "2026-08-18T21:17:44.617Z",
-      "updatedAt": "2026-08-18T21:17:44.617Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-msz5zkgo-cl2kna",
@@ -19407,7 +20380,11 @@
         ]
       },
       "createdAt": "2026-08-18T21:18:06.167Z",
-      "updatedAt": "2026-08-18T21:18:06.167Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-mu4i8s2i-oc4e0d",
@@ -20068,7 +21045,11 @@
         "minPhotos": 1
       },
       "createdAt": "2026-09-18T19:02:22.342Z",
-      "updatedAt": "2026-09-18T19:02:22.342Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-mu7bsre5-sihp7p",
@@ -20085,7 +21066,11 @@
       },
       "adHoc": true,
       "createdAt": "2026-09-18T19:02:43.839Z",
-      "updatedAt": "2026-09-18T19:02:43.839Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-mu7bswnz-nd6iax",
@@ -20098,7 +21083,11 @@
       "summary": "pkp",
       "payload": {},
       "createdAt": "2026-09-18T19:02:50.729Z",
-      "updatedAt": "2026-09-18T19:02:50.729Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-mu7bt07v-ny70x8",
@@ -20111,7 +21100,11 @@
       "summary": "pipi",
       "payload": {},
       "createdAt": "2026-09-18T19:02:55.296Z",
-      "updatedAt": "2026-09-18T19:02:55.296Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-mu7bt5p2-npz46p",
@@ -20127,7 +21120,11 @@
         "signedBy": "lk"
       },
       "createdAt": "2026-09-18T19:03:02.410Z",
-      "updatedAt": "2026-09-18T19:03:02.410Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "form-sub-mu7ddfqt-t3rwih",
@@ -21487,7 +22484,11 @@
       "occurredAt": "2026-08-18T21:22:35.153Z",
       "by": "Olivia Grant",
       "createdAt": "2026-08-18T21:22:32.193Z",
-      "updatedAt": "2026-08-18T21:22:32.193Z"
+      "updatedAt": "2026-09-24T04:19:17.484Z",
+      "deletedAt": "2026-09-24T04:19:17.484Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-mswfkuvy-iofwhy",
+      "version": 1
     },
     {
       "id": "job-status-event-mu4i2g15-cv4w45",
@@ -22317,7 +23318,11 @@
       "occurredAt": "2026-09-23T15:38:05.125Z",
       "by": "Logan Gallman",
       "createdAt": "2026-09-23T15:38:04.995Z",
-      "updatedAt": "2026-09-23T15:38:04.995Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "job-status-event-mue9oyir-62ifxg",
@@ -22327,7 +23332,11 @@
       "occurredAt": "2026-09-23T15:38:07.609Z",
       "by": "Logan Gallman",
       "createdAt": "2026-09-23T15:38:07.455Z",
-      "updatedAt": "2026-09-23T15:38:07.455Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "job-status-event-muedmsd4-twj1ur",
@@ -22517,7 +23526,11 @@
       "occurredAt": "2026-09-23T20:57:46.600Z",
       "by": "Logan Gallman",
       "createdAt": "2026-09-23T20:57:46.619Z",
-      "updatedAt": "2026-09-23T20:57:46.619Z"
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1
     },
     {
       "id": "job-status-event-muel4pas-5dl5jq",
@@ -22527,7 +23540,11 @@
       "occurredAt": "2026-09-23T20:58:17.895Z",
       "by": "Logan Gallman",
       "createdAt": "2026-09-23T20:58:17.920Z",
-      "updatedAt": "2026-09-23T20:58:17.920Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "job-status-event-muel4sll-igadpc",
@@ -22537,7 +23554,11 @@
       "occurredAt": "2026-09-23T20:58:22.179Z",
       "by": "Logan Gallman",
       "createdAt": "2026-09-23T20:58:22.203Z",
-      "updatedAt": "2026-09-23T20:58:22.203Z"
+      "updatedAt": "2026-09-24T04:19:17.317Z",
+      "deletedAt": "2026-09-24T04:19:17.317Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-ms69zkws-6xjpaq",
+      "version": 1
     },
     {
       "id": "job-status-event-muel6m48-tka9tw",
@@ -22777,7 +23798,13 @@
       "sizeBytes": 48027,
       "caption": "poioo",
       "uploadedAt": "2026-09-18T19:02:22.248Z",
-      "uploadedBy": "Admin User"
+      "uploadedBy": "Admin User",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "job-task-attachment-mu7bsth6-cm2myi",
@@ -22790,7 +23817,13 @@
       "sizeBytes": 7199,
       "caption": "kjnk",
       "uploadedAt": "2026-09-18T19:02:43.770Z",
-      "uploadedBy": "Admin User"
+      "uploadedBy": "Admin User",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "job-task-attachment-mu7bt7rr-mcpj5b",
@@ -22803,7 +23836,13 @@
       "sizeBytes": 3712,
       "caption": "lk",
       "uploadedAt": "2026-09-18T19:03:02.295Z",
-      "uploadedBy": "Admin User"
+      "uploadedBy": "Admin User",
+      "deletedAt": "2026-09-24T04:19:17.256Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "dispatchJobs:dispatch-job-georgetown",
+      "version": 1,
+      "updatedAt": "2026-09-24T04:19:17.256Z",
+      "createdAt": "2026-09-24T04:19:17.256Z"
     },
     {
       "id": "job-task-attachment-mu7dgmcv-p2pxnt",
@@ -39548,7 +40587,7 @@
       "weightedAmount": 12750,
       "forecastAmount": 12750,
       "rating": "Close Sep 15, 2026",
-      "updatedAt": "2026-08-16T19:28:26.482Z",
+      "updatedAt": "2026-09-24T04:19:17.538Z",
       "opportunityId": "opp-msw66ith-3c7npi",
       "opportunityUniqueIdentifier": "opp-msw66ith-3c7npi",
       "accountName": "AAAAAAA company",
@@ -39593,7 +40632,7 @@
       "recordSource": "Local CRM",
       "description": "get an understanding of scope and progress to date",
       "createdAt": "2026-08-16T19:00:15.488Z",
-      "facilityId": "loc-msw5r935-b2tbvs",
+      "facilityId": "",
       "contaminationNotes": "diesel",
       "decisionMakerFound": "Complete",
       "captureSummary": "need to understand",
@@ -39623,7 +40662,8 @@
       "quoteSignedStatus": "Signed",
       "workAuthorizationStatus": "Signed",
       "closeBand": "0-30",
-      "closeBandSetAt": "2026-09-23T00:00:00.000Z"
+      "closeBandSetAt": "2026-09-23T00:00:00.000Z",
+      "version": 1
     },
     {
       "id": "opp-mu33t6d1-iel4ko",
@@ -40669,7 +41709,11 @@
       "influenceLevel": "Decision maker",
       "isPrimary": false,
       "createdAt": "2026-08-16T19:17:39.442Z",
-      "updatedAt": "2026-08-16T19:17:39.442Z"
+      "updatedAt": "2026-09-24T04:19:17.510Z",
+      "deletedAt": "2026-09-24T04:19:17.510Z",
+      "deletedBy": "clean-orphans",
+      "deletedVia": "opportunityContacts:opp-contact-msw6swkt-idzeov",
+      "version": 1
     },
     {
       "id": "opp-contact-mu4do1xa-gakvnz",

@@ -3,6 +3,7 @@ import { readFile, mkdir, writeFile, rename } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { runBackupCycle } from "./scripts/backup-lib.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const basePort = Number(process.env.PORT || 4173);
@@ -12,6 +13,17 @@ const dataDir = process.env.CRM_DATA_DIR ? path.resolve(process.env.CRM_DATA_DIR
 const dataFile = path.join(dataDir, "backend.json");
 const uploadsDir = path.join(dataDir, "uploads");
 const maxJobRequestDocumentBytes = 25 * 1024 * 1024;
+// Phase 20 item 3 (2026-09-23): the server takes its own verified snapshots -- on startup and every
+// CRM_BACKUP_INTERVAL_MINUTES (default 4 hours) -- into <data>/backups (rolling 10), and mirrors the
+// newest one plus uploads/ to CRM_BACKUP_DIR when set (rolling 30; a OneDrive-synced folder is the
+// intended off-machine copy). CRM_BACKUP_INTERVAL_MINUTES=0 turns the schedule off (scratch servers).
+const backupDir = path.join(dataDir, "backups");
+const offMachineBackupDir = process.env.CRM_BACKUP_DIR ? path.resolve(process.env.CRM_BACKUP_DIR) : "";
+const backupIntervalMinutes = process.env.CRM_BACKUP_INTERVAL_MINUTES === undefined ? 240 : Number(process.env.CRM_BACKUP_INTERVAL_MINUTES);
+// Phase 20 item 4 (2026-09-23): demo data is seeded only when asked for. With the flag off an empty
+// collection stays empty; scripts/reset-demo-data.mjs puts the demo set back on purpose.
+const seedDemoData = process.env.CRM_SEED_DEMO === "1";
+const demoSeedFile = path.join(root, "data", "demo-seed.json");
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -2245,6 +2257,111 @@ const defaultBackend = {
   qboExports: [],
 };
 
+// Phase 20 item 5 (2026-09-23): what a soft delete takes with it. Data, in one place, so Phase 14 can
+// turn it into foreign-key rules. Contacts are never cascaded from an account (they are people, not
+// account children); activities and tasks stay as history and resolve the deleted id on the timeline.
+const cascadeRules = {
+  accounts: [
+    ["facilities", "accountId"],
+    ["addresses", "accountId"],
+    ["accountIndustries", "accountId"],
+    ["accountRelationshipExtensions", "accountId"],
+    ["accountComments", "accountId"],
+    ["accountDivisions", "accountId"],
+    ["accountApprovedSubcontractors", "accountId"],
+    ["vendorProfiles", "accountId"],
+    ["serviceAgreements", "accountId"],
+    ["salesTasks", "accountId"],
+    ["opportunities", "accountId"],
+    ["projects", "accountId"],
+    ["jobRequests", "accountId"],
+    ["dispatchJobs", "accountId"],
+  ],
+  facilities: [
+    ["facilityContacts", "facilityId"],
+    ["facilityComments", "facilityId"],
+    ["opportunityLocations", "facilityId"],
+  ],
+  contacts: [
+    ["facilityContacts", "contactId"],
+    ["opportunityContacts", "contactId"],
+    ["contactEmploymentHistory", "contactId"],
+  ],
+  opportunities: [
+    ["opportunityAssignments", "opportunityId"],
+    ["opportunityContacts", "opportunityId"],
+    ["opportunityLocations", "opportunityId"],
+    ["opportunityProducts", "opportunityId"],
+    ["opportunityCompetitors", "opportunityId"],
+    ["quotes", "opportunityId"],
+    ["estimates", "opportunityId"],
+    ["scheduledWork", "opportunityId"],
+    ["scheduleEvents", "opportunityId"],
+  ],
+  quotes: [["quoteLines", "quoteId"]],
+  estimates: [["estimateLines", "estimateId"]],
+  projects: [
+    ["jobRequests", "projectId"],
+    ["dispatchJobs", "projectId"],
+    ["projectAssignments", "projectId"],
+    ["projectAlerts", "projectId"],
+    ["scheduleEvents", "projectId"],
+    ["materialUsage", "projectId"],
+    ["equipmentLogs", "projectId"],
+    ["spatialData", "projectId"],
+    ["invoices", "projectId"],
+  ],
+  invoices: [["invoiceLines", "invoiceId"]],
+  jobRequests: [["jobRequestDocuments", "jobRequestId"]],
+  dispatchJobs: [
+    ["jobAssignments", "jobId"],
+    ["jobScheduleSegments", "jobId"],
+    ["jobResources", "jobId"],
+    ["jobConflicts", "jobId"],
+    ["jobSteps", "jobId"],
+    ["jobActions", "jobId"],
+    ["jobFormSubmissions", "jobId"],
+    ["jobStatusEvents", "jobId"],
+    ["jobTaskAttachments", "jobId"],
+    ["inventoryAlerts", "jobId"],
+    ["sampleRecords", "dispatchJobId"],
+    ["weatherSnapshots", "dispatchJobId"],
+    ["messages", "dispatchJobId"],
+    ["timeEntries", "dispatchJobId"],
+    ["jobMileageEntries", "dispatchJobId"],
+  ],
+};
+
+// Every live record the delete would touch, root included, keyed by collection. Recursive through
+// cascadeRules; a record reached twice is counted once.
+function collectCascade(data, collection, id) {
+  const affected = new Map();
+  const visit = (targetCollection, record) => {
+    if (!affected.has(targetCollection)) affected.set(targetCollection, new Map());
+    const bucket = affected.get(targetCollection);
+    if (bucket.has(record.id)) return;
+    bucket.set(record.id, record);
+    for (const [childCollection, key] of cascadeRules[targetCollection] || []) {
+      for (const child of data[childCollection] || []) {
+        if (!child.deletedAt && child[key] === record.id) visit(childCollection, child);
+      }
+    }
+  };
+  const root = (data[collection] || []).find((record) => record.id === id);
+  if (root) visit(collection, root);
+  return { root, affected };
+}
+
+function cascadeSummary(affected) {
+  const counts = {};
+  let total = 0;
+  for (const [targetCollection, bucket] of affected) {
+    counts[targetCollection] = bucket.size;
+    total += bucket.size;
+  }
+  return { counts, total };
+}
+
 function canAccess(role, domain) {
   return roleAccess[domain]?.includes(role) || role === "Admin";
 }
@@ -2284,8 +2401,10 @@ async function readJsonBody(request) {
 async function loadBackend() {
   await mkdir(dataDir, { recursive: true });
   if (!existsSync(dataFile)) {
-    await saveBackend(defaultBackend);
-    return structuredClone(defaultBackend);
+    const fresh = structuredClone(defaultBackend);
+    if (seedDemoData) await seedDemoCollections(fresh);
+    await saveBackend(fresh);
+    return fresh;
   }
   const raw = await readFile(dataFile, "utf8");
   const parsed = JSON.parse(raw);
@@ -2317,7 +2436,23 @@ async function loadBackend() {
     ...asset,
     assignedProjectId: asset.assignedProjectId || assignedJobId || "",
   }));
+  if (seedDemoData && (await seedDemoCollections(data))) await saveBackend(data);
   return data;
+}
+
+// Fills only the collections that are completely empty, from data/demo-seed.json, and only under
+// CRM_SEED_DEMO=1. Returns true when anything was added. A collection with even one real row is
+// never touched, so the demo set appears exactly once and cannot come back after being cleared.
+async function seedDemoCollections(data) {
+  if (!existsSync(demoSeedFile)) return false;
+  const seed = JSON.parse(await readFile(demoSeedFile, "utf8"));
+  let added = false;
+  for (const [collection, rows] of Object.entries(seed)) {
+    if (!Array.isArray(rows) || !Array.isArray(data[collection]) || data[collection].length) continue;
+    data[collection] = rows.map((row) => touchRecord(structuredClone(row)));
+    added = true;
+  }
+  return added;
 }
 
 // Atomic write: a reader sees the old file or the new one, never a half-written one. Windows can
@@ -3466,6 +3601,14 @@ async function handleApi(request, response, pathname) {
     return json(response, 200, { invoice, qboSettings: data.qboSettings });
   }
 
+  // Phase 20 item 5 (2026-09-23): DELETE /api/backend/{collection}/{id} soft-deletes the record and
+  // its cascade (never removes a row); ?dryRun=1 only reports what would go. POST .../restore undoes
+  // one delete, root and cascade together.
+  const recordMatch = pathname.match(/^\/api\/backend\/([a-zA-Z]+)\/([^/]+?)(\/restore)?$/);
+  if (recordMatch && (request.method === "DELETE" || (request.method === "POST" && recordMatch[3]))) {
+    return handleSoftDelete(request, response, recordMatch[1], recordMatch[2], Boolean(recordMatch[3]));
+  }
+
   const collectionMatch = pathname.match(/^\/api\/backend\/([a-zA-Z]+)$/);
   if (!collectionMatch) return json(response, 404, { error: "API route not found." });
 
@@ -3546,6 +3689,61 @@ async function handleApi(request, response, pathname) {
   }
 
   return json(response, 405, { error: "Method not allowed." });
+}
+
+async function handleSoftDelete(request, response, collection, id, restore) {
+  const role = getRole(request);
+  const domain = collectionAccess[collection];
+  if (!domain || !Array.isArray(defaultBackend[collection])) return json(response, 404, { error: "Unknown collection." });
+  if (!canAccess(role, domain)) return json(response, 403, { error: `${domain} role required.` });
+  const requestUrl = new URL(request.url ?? "/", "http://localhost");
+  const dryRun = !restore && requestUrl.searchParams.get("dryRun") === "1";
+  const actor = request.headers["x-crm-user"]?.toString() || role;
+  const data = await loadBackend();
+  const rootKey = `${collection}:${id}`;
+  const now = new Date().toISOString();
+
+  if (restore) {
+    const root = (data[collection] || []).find((record) => record.id === id);
+    if (!root) return json(response, 404, { error: "Record not found." });
+    if (!root.deletedAt) return json(response, 409, { error: "That record is not deleted." });
+    const counts = {};
+    let total = 0;
+    for (const [targetCollection, rows] of Object.entries(data)) {
+      if (!Array.isArray(rows)) continue;
+      for (const record of rows) {
+        if (!record.deletedAt) continue;
+        if (!(record === root || record.deletedVia === rootKey)) continue;
+        record.deletedAt = "";
+        record.deletedBy = "";
+        record.deletedVia = "";
+        record.restoredAt = now;
+        record.restoredBy = actor;
+        touchRecord(record);
+        counts[targetCollection] = (counts[targetCollection] || 0) + 1;
+        total += 1;
+      }
+    }
+    await saveBackend(data);
+    return json(response, 200, { root: { collection, id }, restored: counts, total });
+  }
+
+  const { root, affected } = collectCascade(data, collection, id);
+  if (!root) return json(response, 404, { error: "Record not found." });
+  if (root.deletedAt) return json(response, 409, { error: "That record is already deleted." });
+  const summary = cascadeSummary(affected);
+  if (dryRun) return json(response, 200, { root: { collection, id }, dryRun: true, wouldDelete: summary.counts, total: summary.total });
+
+  for (const [, bucket] of affected) {
+    for (const record of bucket.values()) {
+      record.deletedAt = now;
+      record.deletedBy = actor;
+      record.deletedVia = rootKey;
+      touchRecord(record);
+    }
+  }
+  await saveBackend(data);
+  return json(response, 200, { root: { collection, id }, deleted: summary.counts, total: summary.total });
 }
 
 // ---- Phase 11 (2026-09-23): weather snapshots -----------------------------------------------
@@ -3781,7 +3979,31 @@ function listen(port) {
     if (host === "0.0.0.0") {
       console.log(`Network access enabled on port ${port}`);
     }
+    startBackupSchedule();
   });
+}
+
+function runScheduledBackup(reason) {
+  if (!existsSync(dataFile)) return;
+  try {
+    const { snapshot, offMachine } = runBackupCycle({ source: dataFile, backupDir, uploadsDir, offMachineDir: offMachineBackupDir });
+    const offNote = offMachine ? `; off-machine copy in ${offMachineBackupDir} (uploads: ${offMachine.uploads.copied} copied)` : "";
+    console.log(`Backup (${reason}): ${snapshot.fileName}, ${snapshot.kept} kept locally${offNote}`);
+  } catch (error) {
+    // A failed backup must be loud but must never take the server down with it.
+    console.error(`Backup (${reason}) failed: ${error.message}`);
+  }
+}
+
+function startBackupSchedule() {
+  if (!Number.isFinite(backupIntervalMinutes) || backupIntervalMinutes <= 0) {
+    console.log("Scheduled backups are off (CRM_BACKUP_INTERVAL_MINUTES=0).");
+    return;
+  }
+  if (!offMachineBackupDir) console.log("Off-machine backups are off: set CRM_BACKUP_DIR to a OneDrive-synced folder to turn them on.");
+  runScheduledBackup("startup");
+  const timer = setInterval(() => runScheduledBackup("scheduled"), backupIntervalMinutes * 60 * 1000);
+  timer.unref();
 }
 
 listen(basePort);

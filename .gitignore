@@ -41,6 +41,6 @@ Thumbs.db
 desktop.ini
 
 # NOTE: data/backend.json IS tracked deliberately.
-# It is currently the only copy of all 72 shared collections, so version
-# history is worth more than a clean diff. Revisit at roadmap Phase 08,
-# when the data moves into PostgreSQL.
+# It is currently the only copy of all ~104 shared collections, so version
+# history is worth more than a clean diff. Revisit at roadmap Phase 14,
+# when the data moves into PostgreSQL. data/demo-seed.json is tracked too.

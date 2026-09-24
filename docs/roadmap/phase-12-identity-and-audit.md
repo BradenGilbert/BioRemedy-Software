@@ -1,6 +1,6 @@
 # Phase 12 — Identity, Authorization & Audit
 
-**Status:** Not started
+**Status:** Not started. **Split 2026-09-23 into 12a and 12b** (see below); 12a is sprint Wave 6.
 **Depends on:** Phase 01 (shared data must exist before it can be protected)
 **Estimated sessions:** 3–4
 **Gate:** This phase plus Phase 13 is the boundary before real customer data enters the system.
@@ -111,6 +111,17 @@ None of these exist in `crm-schema/` yet — this is net-new schema design, and 
 - **Audit storage** — same JSON backend for now, or straight to a real database? Leaning toward an append-only file until Phase 14.
 
 ---
+
+## Split (2026-09-23): 12a local sessions, 12b Entra
+
+Phase 20's review recommended, and the owner accepted, splitting this phase so the pilot is not blocked on the Entra app registration:
+
+- **12a — the identity seam, no Entra dependency (sprint Wave 6).** Server-side sessions with a local sign-in (`system_users` with password hashes, or a one-time link), an HttpOnly session cookie, role derived from the session on every `/api/*` request — the `X-CRM-Role` header is ignored — audit log naming the real user, revocation on the next request, the break-glass admin (Q43), the attachment route gated by the cookie, and a pluggable identity provider so 12b drops in without touching the routes. Unblocks Phase 13 and the pilot.
+- **12b — the Entra provider.** The existing browser PKCE flow plus server-side token validation against the tenant's keys, roles from the token's `roles` claim (app roles assigned in Entra), token refresh, and the local sign-in demoted to break-glass only. Needs the app registration.
+
+**Tenant (owner, 2026-09-23): the Entra tenant is `bioremedy.com`** — not micro-bac.com. The app registration, the app roles and the HTTPS redirect URI all live there.
+
+**Done criteria inherited from Phase 20 (2026-09-23):** `scripts/smoke.mjs` with `CRM_SMOKE_EXPECT_AUTH=1` must pass once 12a ships — the forged-role check flips from "honoured" to "refused", and the static-file 404s stay.
 
 ## Corrections found during implementation
 

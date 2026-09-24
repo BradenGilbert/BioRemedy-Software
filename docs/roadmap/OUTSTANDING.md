@@ -12,7 +12,7 @@ Shipped work is deliberately not repeated here; `README.md` has the "already shi
 |---|---|
 | Phases shipped | 10 (00, 01, 02, 08, 09, 10, 15, 16, 17, 18) — though 08 and 10 both gained a second round on 2026-09-22 (08's rate-card rework still outstanding), and 18's item 4 waits for Phase 12 |
 | Phases substantially done, with named leftovers | 5 (03, 04, 05, 06, 07) |
-| Phases not started | 5 (12, 13, 14, 19, and 20 — engineering hardening, added 2026-09-23). Phase 11 shipped 2026-09-23 (Wave 5) |
+| Phases not started | 4 (12, 13, 14, 19). Phase 11 shipped 2026-09-23 (Wave 5); Phase 20 (engineering hardening) shipped 2026-09-23 (Wave 5c) |
 | Open items with a checkbox against them | ~80 |
 | Blocked on an owner decision, not on engineering | 14 |
 
@@ -168,8 +168,8 @@ The owner sent 22 findings from using the app. Three needed decisions; all were 
 
 ## Stage C — Pilot gate
 
-### Phase 20 — Engineering Hardening · *new 2026-09-23, not started, 8 items — item 0 is urgent*
-Found by a code review after Wave 5b, none of it in any other phase doc:
+### Phase 20 — Engineering Hardening · *shipped 2026-09-23 (Wave 5c)*
+All of Part A is in: the static-file allowlist (live), per-record `version` with 409 on a stale save, merge-on-save, scheduled + off-machine backups (mechanism; `CRM_BACKUP_DIR` still to be pointed at a OneDrive folder), demo seed behind `CRM_SEED_DEMO`, soft delete with a cascade table + Restore, `scripts/smoke.mjs`, and the doc hygiene. The orphan clean-up ran on live data (0 orphans now). Still open: B9's 18 July demo draft jobs (owner's call) and the Part B triage. Original list, for the record:
 - **0. Static-file allowlist.** `GET /data/backend.json`, `/server.mjs`, `/.git/config` and the uploaded rate sheet all return 200 with no role header today (confirmed on a scratch server). **Ship before the next tunnel session.**
 - 1. Optimistic concurrency: `version` per record, 409 on a stale save, no silent overwrite
 - 2. Saves merge the returned record instead of re-downloading the 1.2 MB backend every time
@@ -205,8 +205,8 @@ Real sign-in, a forged `X-CRM-Role` header changing nothing, API-level role enfo
 
 **2026-09-23 shipped in full or in substantial part:** Phase 15, Phase 16, Phase 17, Phase 18 (items 1–3), Phase 07 (all four remaining items), Phase 06 (substantially complete — see its own status), Phase 08 (2 of 6 new items).
 
-**Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, Phase 09's Lone Star invoice also shipped (Wave 5b). **Immediately:** Phase 20 item 0 (static-file allowlist), its own commit. **Wave 5c:** Phase 20 items 1–6. **Then Wave 6:** the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
-**Before real users:** Phase 20, Phase 12, then Phase 13.
+**Now (2026-09-23 sprint):** Waves 1–5 shipped. Phase 11 is done, and Stage B's correctness work is complete apart from items blocked on Phase 13, the owner-deferred template rebuild, Phase 09's Lone Star invoice also shipped (Wave 5b). **Phase 20 shipped 2026-09-23 (item 0 on its own commit, then Wave 5c).** **Then Wave 6:** the non-Entra half of Phase 12 (server sessions, API role enforcement, audit, revocation, break-glass account, pluggable provider), then Phase 18 item 4.
+**Before real users:** Phase 12a, then Phase 13 (Phase 20 done).
 **After:** Phase 11's reporting depth, Phase 14, Phase 19.
 
 Phase 10's remaining two small items are independent — a good candidate to clear in a single session when a bigger phase is blocked on a decision.

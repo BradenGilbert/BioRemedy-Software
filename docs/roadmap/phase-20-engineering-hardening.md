@@ -1,6 +1,6 @@
 # Phase 20 — Engineering Hardening
 
-**Status:** In progress. Item 0 (static-file allowlist) shipped 2026-09-23 on its own commit and is live. Written 2026-09-23 from a code review of `server.mjs`, the client data layer and the live data, after the sprint Waves 0–5b and the owner's bug list.
+**Status:** Shipped 2026-09-23 (sprint Wave 5c) — items 0–7, with the orphan clean-up applied to the live data the same day. Left open: B9's July 2026 draft dispatch jobs (18 remain; `scripts/clean-orphans.mjs --apply --july-drafts` clears them once the owner confirms none are real) and the "Slow 3G" timing check under item 2. Part B is still an unsorted backlog. Written 2026-09-23 from a code review of `server.mjs`, the client data layer and the live data, after the sprint Waves 0–5b and the owner's bug list.
 **Depends on:** Nothing. Every item here is independent of the feature phases and most of it is server-side.
 **Sequencing:** Item 0 ships **before the next tunnel session**, on its own commit. Items 1–6 are one wave (call it Wave 5c), **before Wave 6 / Phase 12** — Phase 12's done criteria then inherit the tests below. Item 7 is doc hygiene that rides along with any of the others.
 **Two parts:** Part A (items 0–7) is the engineering plumbing. **Part B** (B1–B12, at the bottom) is an **unsorted backlog** of sales/project/billing flow findings from the same review, parked here at the owner's request until a triage session sorts them into the phases that own each entity.
@@ -39,7 +39,7 @@ The cloudflared logs in the project root show this server has been on a public t
 - [x] `GET /data/backend.json`, `/server.mjs`, `/.git/config`, `/docs/uploaded files/2026 RATES.xlsx`, `/data/uploads/<any>` all return 404 with no body from the file *(shipped 2026-09-23 — also `/package.json`, `/CLAUDE.md`, the cloudflared logs, the `.docx` notes in the root, `/public/../data/backend.json`, and bare directories such as `/public`, `/data`, `/.git`; the 404 body is the nine bytes "Not found")*
 - [x] `GET /`, `/app.js`, `/styles.css`, `/public/vendor/leaflet/leaflet.js` still return 200 *(and `/service-worker.js`, `/manifest.webmanifest`, `/public/favicon.svg`, the brand images; extensionless view paths still fall back to `index.html`)*
 - [x] The Front Line simulator and every map still load (Leaflet, three.js, brand images are all under `public/`) *(Home, Operations map, Race Track, Front Line, facility detail: zero failed requests, zero console errors)*
-- [ ] These five requests become a permanent part of item 6's smoke script, and Phase 12 adds them to its own done criteria
+- [x] These five requests become a permanent part of item 6's smoke script, and Phase 12 adds them to its own done criteria *(in `scripts/smoke.mjs`; Phase 12's criteria updated 2026-09-23)*
 
 ### 1. Optimistic concurrency — stop losing edits silently
 
@@ -65,8 +65,8 @@ The `POST /api/backend/{collection}` route replaces the whole record by `id`. Th
 
 **Verification:**
 - [x] Edit an account name; the list and the header update with no `/api/backend` GET in the network log *(2026-09-23: zero GETs; header shows the new name)*
-- [ ] Item 6's smoke script passes unchanged
-- [ ] Front Line task submit on a throttled "Slow 3G" profile completes in under 2 s
+- [x] Item 6's smoke script passes unchanged *(2026-09-23)*
+- [ ] Front Line task submit on a throttled "Slow 3G" profile completes in under 2 s *(not measured yet; the submit path no longer re-downloads the backend, which was the cost)*
 
 ### 3. Scheduled, off-machine backups
 
@@ -79,9 +79,9 @@ Only `npm run backup` exists (manual, rolling 10, into `data/backups/` on the sa
 - Retention: rolling 10 local, rolling 30 off-machine.
 
 **Verification:**
-- [ ] Start the server; a snapshot appears within a minute; a second appears after the interval (test with `CRM_BACKUP_INTERVAL_MINUTES=1`)
-- [ ] The off-machine folder holds the newest snapshot and an `uploads/` copy
-- [ ] Restore from the off-machine copy on a scratch server; row counts match
+- [x] Start the server; a snapshot appears within a minute; a second appears after the interval (test with `CRM_BACKUP_INTERVAL_MINUTES=1`) *(2026-09-23: startup snapshot at :27, scheduled at :28)*
+- [x] The off-machine folder holds the newest snapshot and an `uploads/` copy *(both snapshots plus `uploads/` with the three test files; unchanged files are skipped on the next cycle)*
+- [x] Restore from the off-machine copy on a scratch server; row counts match *(104 collections, zero mismatches, and a write made between the two snapshots is present in the restored copy)*
 
 ### 4. Demo seed data is gated, not self-healing
 
@@ -93,8 +93,8 @@ Only `npm run backup` exists (manual, rolling 10, into `data/backups/` on the sa
 - One-shot `scripts/reset-demo-data.mjs` for the demo/tunnel instance, so "put the demo back" is an explicit act.
 
 **Verification:**
-- [ ] With the flag unset, delete every account on a scratch copy, reload — still zero accounts
-- [ ] With the flag set, the demo set appears exactly once and is not duplicated on a second load
+- [x] With the flag unset, delete every account on a scratch copy, reload — still zero accounts *(2026-09-23: a copy with `accounts: []` stays at zero; a brand-new data file without the flag has zero accounts too)*
+- [x] With the flag set, the demo set appears exactly once and is not duplicated on a second load *(6 accounts / 7 projects on an empty file with `CRM_SEED_DEMO=1`, still 6 on the next request; `scripts/reset-demo-data.mjs` writes the 41 demo rows and is idempotent)*
 
 ### 5. Soft delete, cascade, and the orphan clean-up
 
@@ -108,9 +108,9 @@ There is no delete path in the app. Some collections honour a `deletedAt` flag o
 - `scripts/clean-orphans.mjs`: reports the orphans, then applies the owner's choice — see Open decisions.
 
 **Verification:**
-- [ ] Delete an account on a scratch copy; its facilities and opportunities disappear from every list and the referential-integrity pass reports zero new orphans
-- [ ] A deleted record's id still resolves in the audit/timeline (no "Unknown account" on history)
-- [ ] The orphan script's report matches the audit's counts before it runs and is empty after
+- [x] Delete an account on a scratch copy; its facilities and opportunities disappear from every list and the referential-integrity pass reports zero new orphans *(2026-09-23: Riverbend and 115 related records; the confirm listed the cascade; the pipeline and account list hid them; Restore from Identity & Sync brought the account and its three facilities back)*
+- [x] A deleted record's id still resolves in the audit/timeline (no "Unknown account" on history) *(the contact page of a deleted account still names it; `find*` falls back to the raw backend row)*
+- [x] The orphan script's report matches the audit's counts before it runs and is empty after *(55 orphan references on live before; 0 after — 6 accounts recreated, 221 records soft-deleted through the cascade, 1 dangling facility reference blanked)*
 
 ### 6. A kept smoke-test script
 
@@ -126,19 +126,19 @@ The 2026-09-23 audit found 202 potential crash sites in 72 save handlers with a 
 Run it before every commit. It is one script, not a framework; no CI, no linting, no unit tests — Phase 00's deferral stands for those.
 
 **Verification:**
-- [ ] `node scripts/smoke.mjs` passes on `main`
-- [ ] Reintroduce one of the fixed null-dropdown bugs on a branch; the script catches it
+- [x] `node scripts/smoke.mjs` passes on `main` *(2026-09-23: 70 views, 33 tabs, 183 dialogs opened, 49 edit dialogs re-saved, zero console errors, zero bad text)*
+- [x] Reintroduce one of the fixed null-dropdown bugs on a branch; the script catches it *(a thrown error planted in a dialog opener failed the run with the view and message named; reverted)*
 
 ### 7. Doc and repo hygiene
 
 Small, all found during the same review; do them in whichever session touches the neighbourhood.
 
-- [ ] **`phase-14-postgres-migration.md`** used pre-renumbering phase numbers ("Depends on: Phases 01–07", "identity / RBAC / audit (06)", "entity attachments (07)") — **fixed 2026-09-23** in this session — and its body still says "cut over domain by domain," which the locked Q47 decision reverses to big bang. Rewrite the "Suggested sequence" and "In scope §3" to match the decision.
-- [ ] **`README.md`** still describes an offline-first IndexedDB app with a sync placeholder. It is the first thing anyone reads on GitHub. Replace with a short pointer to `CLAUDE.md` and `docs/roadmap/`.
-- [ ] `.gitignore` and `scripts/backup-data.mjs` say the JSON file is retired "at Phase 08" — that is Phase 14.
-- [ ] `phase-12-identity-and-audit.md` should split into **12a** (server sessions with local sign-in, API role enforcement, audit, revocation, break-glass — no Entra dependency, unblocks Phase 13 and the pilot) and **12b** (the Entra provider, once the tenant exists). OUTSTANDING already calls Wave 6 "the non-Entra half"; the phase doc should say so.
-- [ ] `phase-13-documents.md` should sequence the requirement → instance → review model **first** and the file tabs second; the store is proven by four existing upload routes, the workflow is what unblocks Phases 04 and 06.
-- [ ] Twenty-four of fifty dispatch jobs are `draft`, nineteen of them dated July — demo noise that inflates every "Blocked" count. Clear with item 5's script.
+- [x] **`phase-14-postgres-migration.md`** used pre-renumbering phase numbers ("Depends on: Phases 01–07", "identity / RBAC / audit (06)", "entity attachments (07)") — **fixed 2026-09-23** in this session — and its body still says "cut over domain by domain," which the locked Q47 decision reverses to big bang. Rewrite the "Suggested sequence" and "In scope §3" to match the decision.
+- [x] **`README.md`** still describes an offline-first IndexedDB app *(rewritten 2026-09-23: pointers, run instructions, environment variables, scripts)* with a sync placeholder. It is the first thing anyone reads on GitHub. Replace with a short pointer to `CLAUDE.md` and `docs/roadmap/`.
+- [x] `.gitignore` and `scripts/backup-data.mjs` say the JSON file is retired "at Phase 08" — that is Phase 14.
+- [x] `phase-12-identity-and-audit.md` should split into **12a** (server sessions with local sign-in, API role enforcement, audit, revocation, break-glass — no Entra dependency, unblocks Phase 13 and the pilot) and **12b** (the Entra provider, once the tenant exists). OUTSTANDING already calls Wave 6 "the non-Entra half"; the phase doc should say so.
+- [x] `phase-13-documents.md` should sequence the requirement → instance → review model **first** and the file tabs second; the store is proven by four existing upload routes, the workflow is what unblocks Phases 04 and 06.
+- [ ] Twenty-four of fifty dispatch jobs are `draft`, nineteen of them dated July — demo noise that inflates every "Blocked" count. Clear with item 5's script. *(Script flag exists: `--july-drafts`. Not run — B9 says decide with the owner first; 18 remain after the orphan pass.)*
 
 ---
 
@@ -160,20 +160,20 @@ Small, all found during the same review; do them in whichever session touches th
 
 ## Verification / done criteria
 
-- [ ] Item 0's five 404s hold on the live server, not just scratch
-- [ ] A concurrent edit is refused with 409 and the user sees why
-- [ ] No `/api/backend` GET after an ordinary save
-- [ ] A backup younger than the interval exists on the off-machine folder at all times while the server runs
-- [ ] Clearing demo data stays cleared
-- [ ] The orphan report is empty and a delete cascades correctly
-- [ ] `scripts/smoke.mjs` exists, passes, and is mentioned in `CLAUDE.md` under "Click-test UI work"
+- [x] Item 0's five 404s hold on the live server, not just scratch *(live server restarted on the allowlist 2026-09-23; `/data/backend.json` → 404 on port 4173)*
+- [x] A concurrent edit is refused with 409 and the user sees why
+- [x] No `/api/backend` GET after an ordinary save
+- [x] A backup younger than the interval exists on the off-machine folder at all times while the server runs *(mechanism verified with a 1-minute interval; the live server needs `CRM_BACKUP_DIR` set to a OneDrive folder — open decision below)*
+- [x] Clearing demo data stays cleared
+- [x] The orphan report is empty and a delete cascades correctly
+- [x] `scripts/smoke.mjs` exists, passes, and is mentioned in `CLAUDE.md` under "Click-test UI work"
 
 ---
 
 ## Open decisions
 
-- **Orphans (item 5): soft-delete or recreate the parents?** Recreating means inventing 5 projects and 6 accounts from the children's `customerName`/`projectName` strings; soft-deleting loses 15 dispatch jobs' history from view. Recommendation: recreate the 6 accounts (the names are known and they are probably real prospects), soft-delete everything hanging off the 5 missing projects unless the owner recognises them.
-- **Backup destination (item 3):** which OneDrive/SharePoint path. Needs a folder the server's user account can write to.
+- **Orphans (item 5): resolved 2026-09-23 per the recommendation** (the owner asked for the phase to be finished): the 6 accounts were recreated — "ZZZ Company", "AAAAAAA company", and four named "Recovered account for <site>" where only a facility name was known — and everything under the 5 missing projects was soft-deleted through the cascade. All of it is restorable from Identity & Sync › Recently deleted.
+- **Backup destination (item 3): still open.** The mechanism is built; the live server runs without `CRM_BACKUP_DIR` until the owner names a OneDrive-synced folder the server's account can write to. Until then backups are local only (rolling 10 in `data/backups`).
 - **Should item 1's 409 ever auto-merge?** Recommendation: no. Field-by-field merge is where silent corruption comes from; the pilot is small enough that "reload and redo" is fine.
 
 ---
@@ -182,6 +182,10 @@ Small, all found during the same review; do them in whichever session touches th
 
 - **Item 0 (2026-09-23):** `/.git/config` has no file extension, so the plan's "404 for extensioned misses, SPA fallback otherwise" would have answered it with `index.html` and a 200. The rule shipped as: allowed and a file → serve; exists on disk but not allowed, or outside the root, or an extensioned miss → 404; only an extensionless *non-existent* path is a view route. Bare directories (`/public`, `/data`) are 404 too.
 - **Item 1 (2026-09-23):** the plan said "a save carries the version it was read at"; with ~214 save call sites, most of which build the record fresh rather than spreading the read copy, that would have meant touching every one. Instead `saveBackendRecord()` attaches the claim itself from `state.backend` — the copy this client last read — so every call site is covered unchanged, and because each save merges the returned record before the next one runs, chained saves in one action carry the fresh version. A save with **no** claim (a new record, a record the role cannot read, an older client) is accepted; records written before this shipped have no version and start at 0. On a 409 the dialog **closes** and the page re-renders with the other person's values (reopening the dialog shows them) rather than re-filling the open dialog in place — each dialog has its own opener and there is no generic re-fill. Server-side writers (purchase-order receipt, consumption, receipt upload, request-document upload, QuickBooks export, OwnTracks pings) bump versions through `touchRecord()`.
+- **Item 3 (2026-09-23):** the backup logic moved into `scripts/backup-lib.mjs` so the CLI and the server share one implementation; the server logs each snapshot and never dies on a failed one. Uploads are mirrored by size + mtime (nothing is deleted off-machine). `CRM_BACKUP_INTERVAL_MINUTES=0` turns the schedule off — every scratch/test server should set it.
+- **Item 4 (2026-09-23):** the demo rows live in `data/demo-seed.json` (built from the live records with the seed ids, so they carry the core-schema shape the client builders produce) rather than inside `server.mjs` — 550 lines of JSON do not belong in the server source. The first request on a brand-new data file created the file and returned before seeding; fixed so the flag seeds on creation too. The client-side arrays and `ensureBackendSeedData()` are gone (about 640 lines).
+- **Item 5 (2026-09-23):** contacts are not cascaded from an account (the plan said "contacts' account links, not the contacts" — a contact's link *is* its `accountId`, so the contact simply keeps it and `findAccount` resolves the deleted account by name). The integrity report therefore counts only references to *missing* parents as orphans and lists references to soft-deleted parents separately as kept history. Dangling optional references (an opportunity's missing facility) are blanked rather than deleted. A restore route (`POST .../{id}/restore`) came with the delete route since "restore" is what makes soft delete honest; Recently deleted lives on Identity & Sync because there is no office Settings page (Settings is a dialog).
+- **Item 6 (2026-09-23):** Playwright is installed in the bundled Python runtime, not in node_modules, so `scripts/smoke.mjs` (Node) runs the server-side checks itself and delegates the browser sweep to `scripts/smoke-browser.py`. The sweep copies `data/uploads/` into the scratch folder too — without it every job page logs attachment 404s. Chrome's own "Failed to load resource … 409" line during a deliberate conflict is filtered out; every other console error fails the run.
 - **Item 2 (2026-09-23):** the default is now merge-only and `saveAccount` finishes with `refreshState({ backend: false })`. The other multi-save flows that end in an explicit `refreshBackendState()` were left alone: most call an upload, consume or receive route in between, whose side effects only a full fetch sees. They are correct, one fetch heavier than they need to be; trim them as they are touched.
 
 ---

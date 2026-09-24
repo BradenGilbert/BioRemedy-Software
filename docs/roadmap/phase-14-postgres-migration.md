@@ -51,7 +51,7 @@
 
 ### 3. Build the real API
 
-Collection routes become genuine endpoints with validation, transactions, and authorization. Domain by domain, in the order `docs/database-handoff-map.md` recommends: CRM core → projects → workforce → templates → dispatch → execution → reporting.
+Collection routes become genuine endpoints with validation, transactions, and authorization. Build them in the order `docs/database-handoff-map.md` recommends (CRM core → projects → workforce → templates → dispatch → execution → reporting), but **switch the application over all at once** at the alpha — the locked Q47 decision below, which reverses the earlier domain-by-domain plan. The JSON backend stays authoritative until that day.
 
 ### 4. Migrate the data
 
@@ -81,12 +81,12 @@ Only after parity is proven. Keep it readable in parallel until then.
 1. Stand up Postgres, migration tooling, backups
 2. Apply `001`–`028` plus the new `029+`
 3. Reconcile names per the glossary
-4. CRM core API (accounts, contacts, opportunities, projects) and cut the app over
-5. Workforce, templates, dispatch, execution
-6. Reporting and billing
-7. Retire JSON
+4. Every API route against Postgres, domain by domain, behind a switch — the app keeps running on JSON
+5. Rehearse the full migration on a copy with real volumes; reconcile row counts and relationships; repeat shortly before the real run
+6. **Big-bang cut-over at the alpha** (Q47): migrate, flip the switch, verify — with the tested path back to the JSON file ready
+7. Retire JSON once parity is proven
 
-Cut over **domain by domain**, not all at once. The app should run against a mixed backend during transition — which is exactly why Phase 01's clean server boundary matters.
+*(Rewritten 2026-09-23 to match the locked Q47 decision; this section previously said "cut over domain by domain".)*
 
 ---
 
@@ -97,7 +97,7 @@ Cut over **domain by domain**, not all at once. The app should run against a mix
 - [ ] Every prototype collection has a mapped destination table, documented
 - [ ] Row counts reconcile; relationships spot-checked
 - [ ] Legacy string IDs retained and queryable
-- [ ] Two concurrent users editing the same record behave correctly — the thing a JSON file cannot do
+- [ ] Two concurrent users editing the same record behave correctly *(Phase 20 item 1 already does this on the JSON backend with a per-record `version`; Postgres keeps the same rule as `WHERE version = $n`)*
 - [ ] Referential integrity is enforced by the database, not by hope
 - [ ] `data/backend.json` is no longer read by the running application
 - [ ] `docs/database-handoff-map.md` rewritten to describe reality
@@ -108,7 +108,7 @@ Cut over **domain by domain**, not all at once. The app should run against a mix
 
 - **Hosting** — local, on-prem, Azure (fits the Entra/M365 direction), or another cloud?
 - **Migration tooling** — node-pg-migrate, Knex, Prisma, or raw SQL runner? The 28 files are raw SQL; a thin runner preserves them, an ORM means rewriting them.
-- **Cut-over style** — domain-by-domain (recommended) or big bang?
+- **Cut-over style** — settled: big bang at the alpha (Q47, below).
 - **Is Dataverse still a target?** The schema is deliberately Dataverse-compatible. If real Dynamics sync is ever intended, `docs/dataverse-relationship-architecture.md` says to query real Dataverse metadata *before* this migration, not after.
 
 ---

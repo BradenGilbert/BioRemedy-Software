@@ -23,6 +23,8 @@ Phases 04 and 02 both defer file work here: vendor compliance certificates, cust
 
 ## In scope
 
+> **Sequencing (2026-09-23, from Phase 20's review):** build the **document requirement → instance → review → stage gate** model from the 2026-09-22 feedback pass *first*, and the generic store + Files tabs second. The store is proven by four working upload routes; the workflow is what unblocks Phase 04's vendor compliance and Phase 06's Negotiation gate.
+
 ### 1. Generic entity-attachment store
 
 One store that any record can hang a file on, replacing per-feature upload paths.

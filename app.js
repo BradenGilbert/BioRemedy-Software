@@ -854,563 +854,10 @@ const opportunityTableViews = {
 tableViewRegistry.contacts = contactTableViews;
 tableViewRegistry.opportunities = opportunityTableViews;
 
-const seedAccounts = [
-  {
-    id: "acct-riverbend",
-    name: "Riverbend Manufacturing",
-    contact: "Alicia Moreno",
-    email: "amoreno@riverbend.example",
-    phone: "(314) 555-0182",
-    city: "St. Louis, MO",
-    siteName: "South yard tank farm",
-    concern: "Petroleum impacted soil near former UST basin",
-    risk: "High",
-    phase: "Sampling",
-    owner: "Maya Chen",
-    lastContact: "2026-07-01",
-    nextAction: "Send revised scope after lab report",
-  },
-  {
-    id: "acct-north-river",
-    name: "North River Logistics",
-    contact: "Jordan Lee",
-    email: "jlee@northriver.example",
-    phone: "(816) 555-0147",
-    city: "Kansas City, MO",
-    siteName: "Fleet maintenance depot",
-    concern: "Diesel staining and stormwater compliance review",
-    risk: "Medium",
-    phase: "Assessment",
-    owner: "Priya Patel",
-    lastContact: "2026-06-28",
-    nextAction: "Book site walk with operations director",
-  },
-  {
-    id: "acct-clearwater",
-    name: "Clearwater Schools",
-    contact: "Sam Ortega",
-    email: "sortega@clearwaterschools.example",
-    phone: "(217) 555-0199",
-    city: "Springfield, IL",
-    siteName: "Boiler room modernization",
-    concern: "Asbestos abatement before mechanical upgrade",
-    risk: "Medium",
-    phase: "Proposal",
-    owner: "Maya Chen",
-    lastContact: "2026-06-30",
-    nextAction: "Confirm summer access windows",
-  },
-  {
-    id: "acct-prairie-foods",
-    name: "Prairie Foods Co-op",
-    contact: "Erin Walsh",
-    email: "ewalsh@prairiefoods.example",
-    phone: "(515) 555-0131",
-    city: "Des Moines, IA",
-    siteName: "Cold storage expansion",
-    concern: "Phase I findings and groundwater monitoring",
-    risk: "Low",
-    phase: "Lead",
-    owner: "Luis Romero",
-    lastContact: "2026-06-25",
-    nextAction: "Share comparable project summary",
-  },
-  {
-    id: "acct-city-georgetown",
-    name: "City of Georgetown",
-    contact: "Chief Something",
-    email: "",
-    phone: "254-495-8028",
-    city: "Georgetown, TX",
-    siteName: "Quail Valley Drive response area",
-    concern: "Municipal emergency response and environmental services",
-    risk: "Medium",
-    phase: "Active customer",
-    owner: "Maya Chen",
-    lastContact: "2026-07-24",
-    nextAction: "Complete oil spill response closeout",
-  },
-  {
-    id: "acct-city-killeen-print",
-    name: "City of Killeen Print Shop",
-    contact: "Facilities Department",
-    email: "",
-    phone: "",
-    city: "Killeen, TX",
-    siteName: "City print shop",
-    concern: "Scheduled environmental services",
-    risk: "Low",
-    phase: "Intake",
-    owner: "Maya Chen",
-    lastContact: "2026-07-26",
-    nextAction: "Confirm site contact and service window",
-  },
-];
-
-const seedTasks = [
-  {
-    id: "task-riverbend-lab",
-    accountId: "acct-riverbend",
-    title: "Review lab report and update disposal assumptions",
-    dueDate: "2026-07-06",
-    owner: "Maya Chen",
-    type: "Proposal",
-    priority: "High",
-    status: "Open",
-  },
-  {
-    id: "task-north-river-walk",
-    accountId: "acct-north-river",
-    title: "Complete site walk notes and photo log",
-    dueDate: "2026-07-08",
-    owner: "Priya Patel",
-    type: "Field visit",
-    priority: "Medium",
-    status: "Open",
-  },
-  {
-    id: "task-clearwater-access",
-    accountId: "acct-clearwater",
-    title: "Confirm school access calendar and containment windows",
-    dueDate: "2026-07-05",
-    owner: "Maya Chen",
-    type: "Account follow-up",
-    priority: "High",
-    status: "Open",
-  },
-  {
-    id: "task-prairie-reference",
-    accountId: "acct-prairie-foods",
-    title: "Send groundwater monitoring reference project",
-    dueDate: "2026-07-10",
-    owner: "Luis Romero",
-    type: "Sales enablement",
-    priority: "Low",
-    status: "Open",
-  },
-];
-
-const seedActivities = [
-  {
-    id: "act-riverbend-brief",
-    accountId: "acct-riverbend",
-    kind: "Call note",
-    body: "Buyer wants the proposal to separate excavation, transport, and disposal so finance can approve alternates.",
-    author: "Maya Chen",
-    createdAt: "2026-07-01T15:20:00.000Z",
-  },
-  {
-    id: "act-clearwater-window",
-    accountId: "acct-clearwater",
-    kind: "Site note",
-    body: "Facilities team prefers a night shift plan to keep summer school access open.",
-    author: "Maya Chen",
-    createdAt: "2026-06-30T21:05:00.000Z",
-  },
-  {
-    id: "act-north-river-risk",
-    accountId: "acct-north-river",
-    kind: "Field note",
-    body: "Initial concern is runoff near the wash bay. Need operations map and outfall locations.",
-    author: "Priya Patel",
-    createdAt: "2026-06-28T18:40:00.000Z",
-  },
-];
-
-const seedContacts = [
-  {
-    id: "cont-alicia-moreno",
-    accountId: "acct-riverbend",
-    name: "Alicia Moreno",
-    title: "Director of Facilities",
-    email: "amoreno@riverbend.example",
-    phone: "(314) 555-0182",
-    influence: "Decision maker",
-    preferredContact: "Email",
-    opportunityIds: ["opp-riverbend-ust"],
-    notes: "Owns budget approval and wants disposal costs separated from excavation.",
-  },
-  {
-    id: "cont-marcus-hill",
-    accountId: "acct-riverbend",
-    name: "Marcus Hill",
-    title: "Plant Engineer",
-    email: "mhill@riverbend.example",
-    phone: "(314) 555-0174",
-    influence: "Technical evaluator",
-    preferredContact: "Phone",
-    opportunityIds: ["opp-riverbend-ust"],
-    notes: "Primary source for tank farm drawings and access constraints.",
-  },
-  {
-    id: "cont-jordan-lee",
-    accountId: "acct-north-river",
-    name: "Jordan Lee",
-    title: "Operations Director",
-    email: "jlee@northriver.example",
-    phone: "(816) 555-0147",
-    influence: "Champion",
-    preferredContact: "Teams",
-    opportunityIds: ["opp-north-river-stormwater"],
-    notes: "Wants practical recommendations that will not slow fleet dispatch.",
-  },
-  {
-    id: "cont-sam-ortega",
-    accountId: "acct-clearwater",
-    name: "Sam Ortega",
-    title: "Facilities Manager",
-    email: "sortega@clearwaterschools.example",
-    phone: "(217) 555-0199",
-    influence: "Decision maker",
-    preferredContact: "Email",
-    opportunityIds: ["opp-clearwater-abatement"],
-    notes: "Needs work scheduled around summer programs and board reporting.",
-  },
-  {
-    id: "cont-erin-walsh",
-    accountId: "acct-prairie-foods",
-    name: "Erin Walsh",
-    title: "Expansion Project Lead",
-    email: "ewalsh@prairiefoods.example",
-    phone: "(515) 555-0131",
-    influence: "Evaluator",
-    preferredContact: "Email",
-    opportunityIds: ["opp-prairie-phase2"],
-    notes: "Comparing consultants before committing to Phase II scope.",
-  },
-];
-
-const seedScheduledWork = [
-  {
-    id: "work-riverbend-borings",
-    accountId: "acct-riverbend",
-    opportunityId: "opp-riverbend-ust",
-    title: "Confirm boring plan with lab turnaround",
-    date: "2026-07-09",
-    crew: "Field team A",
-    status: "Scheduled",
-  },
-  {
-    id: "work-north-river-walk",
-    accountId: "acct-north-river",
-    opportunityId: "opp-north-river-stormwater",
-    title: "Site walk and outfall photo log",
-    date: "2026-07-08",
-    crew: "Priya Patel",
-    status: "Scheduled",
-  },
-  {
-    id: "work-clearwater-containment",
-    accountId: "acct-clearwater",
-    opportunityId: "opp-clearwater-abatement",
-    title: "Containment plan review",
-    date: "2026-07-11",
-    crew: "Abatement estimator",
-    status: "Tentative",
-  },
-];
-
-const seedProjects = [
-  {
-    id: "job-riverbend-ust",
-    accountId: "acct-riverbend",
-    facilityId: "loc-riverbend-yard",
-    opportunityId: "opp-riverbend-ust",
-    contactIds: ["cont-alicia-moreno", "cont-marcus-hill"],
-    name: "UST removal and soil remediation",
-    jobClass: "Multi-Stage Remediation",
-    status: "Pre-mobilization",
-    activePhase: "Investigation and disposal planning",
-    projectManager: "Priya Patel",
-    salesLead: "Maya Chen",
-    startDate: "2026-07-09",
-    targetDate: "2026-08-28",
-    budget: 185000,
-    notToExceed: "",
-    marginWatch: "Estimate pending disposal alternate",
-    generatorName: "Riverbend Manufacturing",
-    generatorSiteName: "South yard tank farm",
-    epaId: "MOD984713290",
-    tceqId: "Not applicable - Missouri site",
-    insuranceContact: "Dana Wilkes, Risk Manager, (314) 555-0128",
-    insuranceCarrier: "Midwest Industrial Mutual",
-    claimNumber: "MIM-26-0712-RB",
-    serviceProfile: "UST closure, contaminated soil excavation, disposal profiling, confirmation sampling, and closeout report.",
-  },
-  {
-    id: "job-north-river-stormwater",
-    accountId: "acct-north-river",
-    facilityId: "loc-north-river-depot",
-    opportunityId: "opp-north-river-stormwater",
-    contactIds: ["cont-jordan-lee"],
-    name: "Stormwater and diesel cleanup program",
-    jobClass: "Scheduled Work",
-    status: "Scheduled",
-    activePhase: "Site walk",
-    projectManager: "Priya Patel",
-    salesLead: "Luis Romero",
-    startDate: "2026-07-08",
-    targetDate: "2026-08-07",
-    budget: 96000,
-    notToExceed: "",
-    marginWatch: "Routine field cost tracking",
-    generatorName: "North River Logistics",
-    generatorSiteName: "Fleet maintenance depot",
-    epaId: "MOR000552904",
-    tceqId: "Not applicable - Missouri site",
-    insuranceContact: "Kelly Braun, Claims Coordinator, (816) 555-0165",
-    insuranceCarrier: "Transport Risk Underwriters",
-    claimNumber: "TRU-STW-44019",
-    serviceProfile: "Stormwater compliance, diesel cleanup, outfall photo log, and maintenance yard housekeeping plan.",
-  },
-  {
-    id: "job-clearwater-abatement",
-    accountId: "acct-clearwater",
-    facilityId: "loc-clearwater-boiler",
-    opportunityId: "opp-clearwater-abatement",
-    contactIds: ["cont-sam-ortega"],
-    name: "Boiler room asbestos abatement",
-    jobClass: "Scheduled Work",
-    status: "Awarded",
-    activePhase: "Containment plan review",
-    projectManager: "Maya Chen",
-    salesLead: "Maya Chen",
-    startDate: "2026-07-15",
-    targetDate: "2026-07-31",
-    budget: 132000,
-    notToExceed: "",
-    marginWatch: "Night shift premium under review",
-    generatorName: "Clearwater Schools",
-    generatorSiteName: "Boiler room modernization",
-    epaId: "ILD982734112",
-    tceqId: "Not applicable - Illinois site",
-    insuranceContact: "Marisol Dunn, District Insurance Liaison, (217) 555-0157",
-    insuranceCarrier: "Public Entity Risk Pool",
-    claimNumber: "PERP-CLR-2026-18",
-    serviceProfile: "Asbestos containment, negative air setup, abatement sequencing, and clearance documentation.",
-  },
-  {
-    id: "job-north-river-i130",
-    accountId: "acct-north-river",
-    facilityId: "loc-north-river-depot",
-    opportunityId: "",
-    contactIds: ["cont-jordan-lee"],
-    name: "I-130 incident response",
-    jobClass: "Emergency Response",
-    status: "Active dispatch",
-    activePhase: "Field intake and stabilization",
-    projectManager: "Maya Chen",
-    salesLead: "Luis Romero",
-    startDate: "2026-07-03",
-    targetDate: "2026-07-05",
-    budget: 0,
-    notToExceed: 50000,
-    marginWatch: "Time & Materials with NTE alert at $50,000",
-    generatorName: "North River Logistics",
-    generatorSiteName: "I-130 response area",
-    epaId: "MOR000552904",
-    tceqId: "Not applicable - Missouri emergency response",
-    insuranceContact: "Kelly Braun, Claims Coordinator, (816) 555-0165",
-    insuranceCarrier: "Transport Risk Underwriters",
-    claimNumber: "TRU-ER-130-2026",
-    serviceProfile: "Emergency stabilization, absorbent deployment, recovered material tracking, and T&M cost control.",
-  },
-  {
-    id: "proj-riverbend-phase1",
-    accountId: "acct-riverbend",
-    name: "Phase I environmental site assessment",
-    jobClass: "Scheduled Work",
-    status: "Complete",
-    serviceType: "Due diligence",
-    completedDate: "2025-11-14",
-    value: 18000,
-    budget: 18000,
-    outcome: "Identified historical UST area and recommended soil borings.",
-  },
-  {
-    id: "proj-north-river-spill",
-    accountId: "acct-north-river",
-    name: "Emergency hydraulic fluid response",
-    jobClass: "Emergency Response",
-    status: "Complete",
-    serviceType: "Emergency response",
-    completedDate: "2026-02-22",
-    value: 28000,
-    budget: 28000,
-    outcome: "Contained release and closed incident report within 10 days.",
-  },
-  {
-    id: "proj-clearwater-survey",
-    accountId: "acct-clearwater",
-    name: "Hazardous materials survey",
-    jobClass: "Scheduled Work",
-    status: "Complete",
-    serviceType: "Asbestos abatement",
-    completedDate: "2026-04-18",
-    value: 36000,
-    budget: 36000,
-    outcome: "Mapped abatement quantities for boiler upgrade planning.",
-  },
-];
-
-const seedProjectAssignments = [
-  {
-    id: "assign-riverbend-sales",
-    projectId: "job-riverbend-ust",
-    userName: "Maya Chen",
-    userEmail: "maya.chen@example.com",
-    globalRole: "Sales Manager",
-    assignedRole: "Sales Lead",
-    status: "Active",
-  },
-  {
-    id: "assign-riverbend-pm",
-    projectId: "job-riverbend-ust",
-    userName: "Priya Patel",
-    userEmail: "priya.patel@example.com",
-    globalRole: "Field Lead",
-    assignedRole: "Project Manager",
-    status: "Active",
-  },
-  {
-    id: "assign-riverbend-sampler",
-    projectId: "job-riverbend-ust",
-    userName: "Noah Brooks",
-    userEmail: "noah.brooks@example.com",
-    globalRole: "Staff/Employee",
-    assignedRole: "Sampler",
-    status: "Active",
-  },
-  {
-    id: "assign-i130-dispatch",
-    projectId: "job-north-river-i130",
-    userName: "Renee Carter",
-    userEmail: "renee.carter@example.com",
-    globalRole: "Staff/Employee",
-    assignedRole: "Dispatcher",
-    status: "Active",
-  },
-  {
-    id: "assign-i130-field",
-    projectId: "job-north-river-i130",
-    userName: "Priya Patel",
-    userEmail: "priya.patel@example.com",
-    globalRole: "Field Lead",
-    assignedRole: "Field Lead",
-    status: "Active",
-  },
-];
-
-const seedMaterialUsage = [
-  {
-    id: "mat-i130-absorbents",
-    projectId: "job-north-river-i130",
-    accountId: "acct-north-river",
-    materialType: "Absorbents",
-    quantity: 18,
-    unit: "bags",
-    loggedBy: "Priya Patel",
-    timestamp: "2026-07-03T16:15:00.000Z",
-  },
-  {
-    id: "mat-riverbend-sample-jars",
-    projectId: "job-riverbend-ust",
-    accountId: "acct-riverbend",
-    materialType: "Sampling containers",
-    quantity: 24,
-    unit: "jars",
-    loggedBy: "Noah Brooks",
-    timestamp: "2026-07-02T18:20:00.000Z",
-  },
-];
-
-const seedEquipmentLogs = [
-  {
-    id: "equip-i130-vac",
-    projectId: "job-north-river-i130",
-    accountId: "acct-north-river",
-    assetTag: "VAC-204",
-    equipment: "Vacuum trailer",
-    truckId: "TRK-18",
-    checkedOut: "2026-07-03T15:40:00.000Z",
-    returned: "",
-    condition: "In service",
-    user: "Priya Patel",
-  },
-  {
-    id: "equip-riverbend-pump",
-    projectId: "job-riverbend-ust",
-    accountId: "acct-riverbend",
-    assetTag: "PMP-077",
-    equipment: "Transfer pump",
-    truckId: "TRK-07",
-    checkedOut: "2026-07-02T13:00:00.000Z",
-    returned: "2026-07-02T19:15:00.000Z",
-    condition: "Returned clean",
-    user: "Noah Brooks",
-  },
-];
-
-const seedProjectAlerts = [
-  {
-    id: "alert-riverbend-scope",
-    projectId: "job-riverbend-ust",
-    accountId: "acct-riverbend",
-    facilityId: "loc-riverbend-yard",
-    alertType: "Scope Exception",
-    severity: "High",
-    description: "Possible unlisted contaminant noted near the former tank basin. Work paused pending review.",
-    reportedBy: "Noah Brooks",
-    reportedAt: "2026-07-02T20:05:00.000Z",
-    status: "Open",
-    notified: ["Project Manager", "Sales Lead"],
-  },
-  {
-    id: "alert-i130-nte",
-    projectId: "job-north-river-i130",
-    accountId: "acct-north-river",
-    facilityId: "loc-north-river-depot",
-    alertType: "Customer Approval Needed",
-    severity: "Medium",
-    description: "Emergency response labor and absorbents are approaching the not-to-exceed threshold.",
-    reportedBy: "Renee Carter",
-    reportedAt: "2026-07-03T17:05:00.000Z",
-    status: "Open",
-    notified: ["Project Manager", "Sales Lead", "Dispatch"],
-  },
-];
-
-const seedSpatialData = [
-  {
-    id: "spatial-riverbend-yard",
-    accountId: "acct-riverbend",
-    facilityId: "loc-riverbend-yard",
-    projectId: "job-riverbend-ust",
-    fileType: "Point cloud placeholder",
-    storagePath: "object-storage://sites/riverbend/south-yard/pre-scan.laz",
-    scanDate: "2026-07-02",
-    uploadedBy: "Priya Patel",
-    annotations: "Use for future excavation boundary and staging route review.",
-    scanQuality: "Control pending",
-    pointCount: "12.4M points",
-    coverage: "South yard tank farm",
-  },
-  {
-    id: "spatial-i130-response",
-    accountId: "acct-north-river",
-    facilityId: "loc-north-river-depot",
-    projectId: "job-north-river-i130",
-    fileType: "7/3/2025 3D site render",
-    storagePath: "./public/models/7_3_2025.glb",
-    modelPath: "./public/models/7_3_2025.glb",
-    scanDate: "2025-07-03",
-    uploadedBy: "Renee Carter",
-    annotations: "GLB render linked as the sample project viewer file, with sample points plotted on the project site map.",
-    scanQuality: "Sample render",
-    pointCount: "GLB mesh",
-    coverage: "7/3/2025 project area",
-  },
-];
+// The demo data set (accounts, contacts, projects, tasks, activities, assignments, alerts, material
+// usage, equipment logs, scheduled work, spatial data) lives in data/demo-seed.json since Phase 20
+// item 4 (2026-09-23). The server seeds it only when started with CRM_SEED_DEMO=1, and
+// scripts/reset-demo-data.mjs puts it back on demand. Nothing on the client seeds business data.
 
 const consumableInventory = [
   { materialType: "Absorbents", unit: "bags", onHand: 34, reorderAt: 30, targetStock: 80, buyer: "Operations buyer" },
@@ -1853,7 +1300,7 @@ async function ensureSeedData() {
   const seeded = await getSetting("seeded", false);
   const seedSchemaVersion = await getSetting("seedSchemaVersion", 0);
   if (!seeded) {
-    // Accounts, tasks, and activities are seeded into the shared backend instead — see ensureBackendSeedData().
+    // Accounts, tasks, and activities are seeded into the shared backend instead — see the server's demo seed (Phase 20 item 4).
     await putSetting("identityConfig", defaultIdentityConfig);
     await putSetting("platformSettings", defaultPlatformSettings);
     await putSetting("currentUser", demoUser);
@@ -1894,94 +1341,14 @@ async function ensureSeedData() {
   // merge pass. Same retirement as above, 2026-09-16.
 
   // seedSchemaVersion < 13 previously ran migrateJobRequestAccountFoundation(), which back-filled
-  // missing seed accounts into the local store. ensureBackendSeedData() covers this server-side now.
+  // missing seed accounts into the local store. the server's demo seed (Phase 20 item 4) covers this server-side now.
   // Retired in roadmap Phase 01.
 
   // accounts, contacts, projects, tasks, activities, projectAssignments, projectAlerts, materialUsage,
   // equipmentLogs, scheduledWork, and spatialData are all seeded into the shared backend — see
-  // ensureBackendSeedData(). Nothing left to seed locally.
+  // the server's demo seed (Phase 20 item 4). Nothing left to seed locally.
 
   await putSetting("seedSchemaVersion", 14);
-}
-
-// Seeds demo accounts into the shared backend the first time it comes up empty. Kept on the client
-// so `seedAccounts` and `buildCoreAccountRecord` stay the single definition of the demo data and its
-// shape, rather than being duplicated into server.mjs where the two copies would drift.
-// Idempotent: the POST route upserts by id, so two clients racing write identical records.
-async function ensureBackendSeedData() {
-  try {
-    const [accounts, contacts, projects, tasks, activities, projectAssignments, projectAlerts, materialUsage, equipmentLogs, scheduledWork, spatialData] = await Promise.all([
-      apiRequest("/api/backend/accounts"),
-      apiRequest("/api/backend/contacts"),
-      apiRequest("/api/backend/projects"),
-      apiRequest("/api/backend/tasks"),
-      apiRequest("/api/backend/activities"),
-      apiRequest("/api/backend/projectAssignments"),
-      apiRequest("/api/backend/projectAlerts"),
-      apiRequest("/api/backend/materialUsage"),
-      apiRequest("/api/backend/equipmentLogs"),
-      apiRequest("/api/backend/scheduledWork"),
-      apiRequest("/api/backend/spatialData"),
-    ]);
-    if (!accounts.length) {
-      for (const account of seedAccounts) {
-        await saveBackendRecord("accounts", buildCoreAccountRecord(account), { refresh: false });
-      }
-    }
-    if (!contacts.length) {
-      for (const contact of seedContacts) {
-        await saveBackendRecord("contacts", buildCoreContactRecord(contact), { refresh: false });
-      }
-    }
-    if (!projects.length) {
-      for (const project of seedProjects) {
-        await saveBackendRecord("projects", buildCoreProjectRecord(project), { refresh: false });
-      }
-    }
-    if (!tasks.length) {
-      for (const task of seedTasks) {
-        await saveBackendRecord("tasks", buildCoreTaskRecord(task), { refresh: false });
-      }
-    }
-    if (!activities.length) {
-      for (const activity of seedActivities) {
-        await saveBackendRecord("activities", buildCoreActivityRecord(activity), { refresh: false });
-      }
-    }
-    if (!projectAssignments.length) {
-      for (const assignment of seedProjectAssignments) {
-        await saveBackendRecord("projectAssignments", assignment, { refresh: false });
-      }
-    }
-    if (!projectAlerts.length) {
-      for (const alert of seedProjectAlerts) {
-        await saveBackendRecord("projectAlerts", alert, { refresh: false });
-      }
-    }
-    if (!materialUsage.length) {
-      for (const material of seedMaterialUsage) {
-        await saveBackendRecord("materialUsage", material, { refresh: false });
-      }
-    }
-    if (!equipmentLogs.length) {
-      for (const equipment of seedEquipmentLogs) {
-        await saveBackendRecord("equipmentLogs", equipment, { refresh: false });
-      }
-    }
-    if (!scheduledWork.length) {
-      for (const work of seedScheduledWork) {
-        await saveBackendRecord("scheduledWork", work, { refresh: false });
-      }
-    }
-    if (!spatialData.length) {
-      for (const item of seedSpatialData) {
-        await saveBackendRecord("spatialData", item, { refresh: false });
-      }
-    }
-  } catch (error) {
-    // Backend unreachable (offline, or the role can't read the customer directory). refreshBackendState()
-    // already surfaces that to the user; seeding simply waits for the next load.
-  }
 }
 
 async function refreshState({ backend = true } = {}) {
@@ -2160,7 +1527,6 @@ async function handleSaveConflict(error) {
 
 async function init() {
   await ensureSeedData();
-  await ensureBackendSeedData();
   await handleAuthRedirect();
   await refreshState();
   applyRouteFromHash();
@@ -2615,6 +1981,8 @@ async function dispatchClick(event) {
   if (action === "view-client-spill") viewClientSpill(id);
   if (action === "view-employee") viewEmployee(id);
   if (action === "view-dispatch-job") viewDispatchJob(id);
+  if (action === "delete-record") await confirmAndDeleteRecord(actionButton.dataset.collection, id);
+  if (action === "restore-record") await restoreRecord(actionButton.dataset.collection, id);
   if (action === "view-dispatch-job-messages") {
     viewDispatchJob(id);
     if (state.view === "dispatch-job-detail" && state.selectedDispatchJobId === id) {
@@ -4303,6 +3671,7 @@ function renderOpportunityDetailHeader(opportunity) {
       <div class="toolbar">
         ${account ? `<button class="secondary-button" type="button" data-action="view-account" data-id="${account.id}">Open account</button>` : ""}
         <button class="secondary-button" type="button" data-action="open-opportunity" data-id="${opportunity.id}" data-account-id="${opportunity.accountId}">Edit opportunity</button>
+        <button class="danger-button" type="button" data-action="delete-record" data-collection="opportunities" data-id="${opportunity.id}">Delete</button>
         ${resultingProject ? `<button class="secondary-button" type="button" data-action="view-project" data-id="${escapeAttribute(resultingProject.id)}">Open project</button>` : ""}
         ${
           nextStage
@@ -5980,6 +5349,7 @@ function renderAccountDetailHeader(account) {
           <div class="account-hero-backrow">
             <button class="text-button" type="button" data-action="back-to-accounts">Back to accounts</button>
             <button class="secondary-button" type="button" data-action="open-account" data-id="${account.id}">Edit account</button>
+            <button class="danger-button" type="button" data-action="delete-record" data-collection="accounts" data-id="${account.id}">Delete</button>
             <button class="primary-button" type="button" data-action="open-opportunity" data-account-id="${account.id}">New opportunity</button>
           </div>
           <h2>${escapeHtml(account.name)}</h2>
@@ -7157,6 +6527,7 @@ function renderFacilityDetailHeader(facility, account) {
           <div class="account-hero-backrow">
             <button class="text-button" type="button" data-action="view-account" data-id="${escapeAttribute(facility.accountId)}">Back to ${escapeHtml(account?.name || "account")}</button>
             <button class="secondary-button" type="button" data-action="open-facility" data-account-id="${escapeAttribute(facility.accountId)}" data-id="${escapeAttribute(facility.id)}">Edit facility</button>
+            <button class="danger-button" type="button" data-action="delete-record" data-collection="facilities" data-id="${escapeAttribute(facility.id)}">Delete</button>
           </div>
           <h2>${escapeHtml(facility.name)}</h2>
           <p class="eyebrow">Facility${account ? ` · ${escapeHtml(account.name)}` : ""}</p>
@@ -7911,6 +7282,7 @@ function renderContactDetailHeader(contact) {
             <button class="text-button" type="button" data-action="back-to-contacts">Back to contacts</button>
             ${account ? `<button class="secondary-button" type="button" data-action="view-account" data-id="${escapeAttribute(account.id)}">Open account</button>` : ""}
             <button class="secondary-button" type="button" data-action="open-contact" data-account-id="${escapeAttribute(contact.accountId)}" data-id="${escapeAttribute(contact.id)}">Edit contact</button>
+            <button class="danger-button" type="button" data-action="delete-record" data-collection="contacts" data-id="${escapeAttribute(contact.id)}">Delete</button>
           </div>
           <h2>${escapeHtml(contact.name)}</h2>
           <p class="eyebrow">${escapeHtml(contact.title || "Contact")}${account ? ` at ${escapeHtml(account.name)}` : ""}</p>
@@ -8703,6 +8075,7 @@ function renderProjectDetail() {
         </div>
         <div class="toolbar">
           <button class="danger-button" type="button" data-action="open-alert" data-job-id="${escapeAttribute(job.id)}">Field alert</button>
+          <button class="danger-button" type="button" data-action="delete-record" data-collection="projects" data-id="${escapeAttribute(job.id)}">Delete project</button>
           <button class="secondary-button" type="button" data-action="open-material" data-job-id="${escapeAttribute(job.id)}">Log material</button>
           <button class="secondary-button" type="button" data-action="open-equipment" data-job-id="${escapeAttribute(job.id)}">Log equipment</button>
           <button class="secondary-button" type="button" data-action="open-schedule" data-job-id="${escapeAttribute(job.id)}">Schedule</button>
@@ -12544,6 +11917,7 @@ function renderDispatchJobDetail() {
         <div class="inline-actions">
           ${job.projectId ? `<button class="secondary-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.projectId)}">Back to project</button>` : ""}
           <button class="secondary-button" type="button" data-action="open-dispatch-job-edit" data-id="${job.id}">Edit details</button>
+          <button class="danger-button" type="button" data-action="delete-record" data-collection="dispatchJobs" data-id="${job.id}">Delete</button>
           ${job.status === "closed" ? "" : `<button class="secondary-button" type="button" data-action="open-job-schedule" data-job-id="${job.id}">Schedule</button>`}
           ${nextTransition ? `<button class="primary-button" type="button" data-action="advance-dispatch-job" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>` : ""}
         </div>
@@ -15105,6 +14479,7 @@ function renderSync() {
           </div>
         </article>
       </section>
+      ${renderRecentlyDeletedPanel()}
     </section>
   `;
 }
@@ -15699,7 +15074,7 @@ function renderFrontlineJobDetail() {
 // into the Phase 09 cost report today -- see the phase doc's "Corrections found during
 // implementation" for why they were kept separate rather than merged.
 function getTimeEntries() {
-  return state.backend.timeEntries || [];
+  return liveRows(state.backend.timeEntries);
 }
 
 function timeEntriesForEmployee(employeeId) {
@@ -15867,7 +15242,7 @@ async function frontlineClockOut(form) {
 // General-purpose trip logging -- the sampling-specific "odometer per site relocation" gap stays
 // a Job Book task-type concern for a future pass, not this tile.
 function getJobMileageEntries() {
-  return state.backend.jobMileageEntries || [];
+  return liveRows(state.backend.jobMileageEntries);
 }
 
 function mileageEntriesForEmployee(employeeId) {
@@ -28051,6 +27426,167 @@ function openActivityTaskDialog(accountId = "", contactId = "", opportunityId = 
   dialog.showModal();
 }
 
+// ---- Phase 20 item 5 (2026-09-23): soft delete with a cascade preview, and restore ----
+//
+// Nothing is ever erased. DELETE /api/backend/{collection}/{id} stamps deletedAt on the record and
+// on everything the server's cascade table says belongs to it; ?dryRun=1 only reports what would go,
+// which is what the confirm shows. Lists hide deleted rows; find* still resolves them for history.
+const deletableRecordLabels = {
+  accounts: { noun: "account", name: (record) => record.name, after: () => ({ view: "accounts", selectedAccountId: "" }) },
+  contacts: { noun: "contact", name: (record) => record.name, after: () => ({ view: "contacts", selectedContactId: "" }) },
+  opportunities: { noun: "opportunity", name: (record) => record.name, after: () => ({ view: "pipeline", selectedOpportunityId: "" }) },
+  projects: { noun: "project", name: (record) => record.name, after: () => ({ view: "ops-projects", selectedProjectId: "" }) },
+  facilities: { noun: "facility", name: (record) => record.name, after: (record) => (record.accountId ? { view: "account-detail", selectedAccountId: record.accountId, selectedFacilityId: "" } : { view: "accounts" }) },
+  dispatchJobs: { noun: "dispatch job", name: (record) => `${record.jobNumber} ${record.jobName || ""}`.trim(), after: () => ({ view: "dispatch-jobs", selectedDispatchJobId: "" }) },
+};
+
+const cascadeCollectionLabels = {
+  facilities: "facilities",
+  addresses: "addresses",
+  accountIndustries: "industry links",
+  accountRelationshipExtensions: "relationship details",
+  accountComments: "comments",
+  accountDivisions: "divisions",
+  accountApprovedSubcontractors: "approved-subcontractor links",
+  vendorProfiles: "vendor profiles",
+  serviceAgreements: "service agreements",
+  salesTasks: "sales tasks",
+  opportunities: "opportunities",
+  projects: "projects",
+  jobRequests: "job requests",
+  dispatchJobs: "dispatch jobs",
+  facilityContacts: "facility contacts",
+  facilityComments: "facility comments",
+  opportunityLocations: "opportunity sites",
+  opportunityContacts: "stakeholders",
+  contactEmploymentHistory: "employment history rows",
+  opportunityAssignments: "team assignments",
+  opportunityProducts: "opportunity products",
+  opportunityCompetitors: "competitor links",
+  quotes: "quotes",
+  quoteLines: "quote lines",
+  estimates: "estimates",
+  estimateLines: "estimate lines",
+  scheduledWork: "scheduled work items",
+  scheduleEvents: "schedule events",
+  projectAssignments: "project assignments",
+  projectAlerts: "field alerts",
+  materialUsage: "material usage rows",
+  equipmentLogs: "equipment logs",
+  spatialData: "spatial files",
+  invoices: "invoices",
+  invoiceLines: "invoice lines",
+  jobRequestDocuments: "request documents",
+  jobAssignments: "crew assignments",
+  jobScheduleSegments: "schedule segments",
+  jobResources: "job resources",
+  jobConflicts: "conflicts",
+  jobSteps: "work-plan steps",
+  jobActions: "work-plan tasks",
+  jobFormSubmissions: "form submissions",
+  jobStatusEvents: "status events",
+  jobTaskAttachments: "attachments",
+  inventoryAlerts: "inventory alerts",
+  sampleRecords: "samples",
+  weatherSnapshots: "weather snapshots",
+  messages: "messages",
+  timeEntries: "time entries",
+  jobMileageEntries: "trips",
+};
+
+async function deleteBackendRecord(collection, id, { dryRun = false } = {}) {
+  return apiRequest(`/api/backend/${collection}/${encodeURIComponent(id)}${dryRun ? "?dryRun=1" : ""}`, {
+    method: "DELETE",
+    headers: { "X-CRM-User": currentActorName() },
+  });
+}
+
+function describeCascade(counts, rootCollection) {
+  return Object.entries(counts || {})
+    .filter(([collection, count]) => collection !== rootCollection && count > 0)
+    .map(([collection, count]) => `${count} ${cascadeCollectionLabels[collection] || collection}`);
+}
+
+async function confirmAndDeleteRecord(collection, id) {
+  const meta = deletableRecordLabels[collection];
+  const record = (state.backend[collection] || []).find((item) => item.id === id);
+  if (!meta || !record) return;
+  let preview;
+  try {
+    preview = await deleteBackendRecord(collection, id, { dryRun: true });
+  } catch (error) {
+    showToast(error.message || "Could not check what this delete would remove.");
+    return;
+  }
+  const cascade = describeCascade(preview.wouldDelete, collection);
+  const name = meta.name(record) || meta.noun;
+  const message = [
+    `Delete the ${meta.noun} "${name}"?`,
+    cascade.length ? `This also removes: ${cascade.join(", ")}.` : "Nothing else is attached to it.",
+    "Nothing is erased: an administrator can restore it from Identity & Sync › Recently deleted.",
+  ].join("\n\n");
+  if (!window.confirm(message)) return;
+  try {
+    const result = await deleteBackendRecord(collection, id);
+    await refreshBackendState();
+    closeDialogs();
+    Object.assign(state, meta.after(record));
+    render();
+    showToast(`Deleted ${name}${result.total > 1 ? ` and ${result.total - 1} related record${result.total === 2 ? "" : "s"}` : ""}.`);
+  } catch (error) {
+    showToast(error.message || "Could not delete that record.");
+  }
+}
+
+async function restoreRecord(collection, id) {
+  try {
+    const result = await apiRequest(`/api/backend/${collection}/${encodeURIComponent(id)}/restore`, {
+      method: "POST",
+      body: "{}",
+      headers: { "X-CRM-User": currentActorName() },
+    });
+    await refreshBackendState();
+    render();
+    showToast(`Restored ${result.total} record${result.total === 1 ? "" : "s"}.`);
+  } catch (error) {
+    showToast(error.message || "Could not restore that record.");
+  }
+}
+
+// Root deletions (the record someone pressed Delete on, not its cascade), newest first.
+function recentlyDeletedRecords() {
+  const rows = [];
+  for (const [collection, meta] of Object.entries(deletableRecordLabels)) {
+    for (const record of state.backend[collection] || []) {
+      if (record.deletedAt && record.deletedVia === `${collection}:${record.id}`) rows.push({ collection, record, meta });
+    }
+  }
+  return rows.sort((a, b) => new Date(b.record.deletedAt) - new Date(a.record.deletedAt)).slice(0, 50);
+}
+
+function renderRecentlyDeletedPanel() {
+  const rows = recentlyDeletedRecords();
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Recently deleted</h3><span>Deleted records and everything that went with them. Restore puts the whole set back.</span></div></div>
+      <div class="panel-body record-list">
+        ${
+          rows
+            .map(
+              ({ collection, record, meta }) => `
+                <div class="detail-card">
+                  <div class="row-meta"><strong>${escapeHtml(meta.name(record) || meta.noun)}</strong><span>${escapeHtml(meta.noun)} · deleted ${formatDateTime(record.deletedAt)}${record.deletedBy ? ` by ${escapeHtml(record.deletedBy)}` : ""}</span></div>
+                  <div class="inline-actions"><button class="mini-button" type="button" data-action="restore-record" data-collection="${escapeAttribute(collection)}" data-id="${escapeAttribute(record.id)}">Restore</button></div>
+                </div>
+              `,
+            )
+            .join("") || `<div class="empty-state compact">Nothing deleted recently.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function closeDialogs() {
   document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
 }
@@ -28797,20 +28333,27 @@ function getJobMapMarkerType(job) {
   return "scheduled";
 }
 
+// find* by id also resolves a soft-deleted record (Phase 20 item 5): a timeline entry or a job that
+// belonged to a deleted account still shows its name, never "Unknown account". Lists use the live
+// projections (state.accounts, getEmployees(), ...) and never show deleted rows.
+function liveRows(rows) {
+  return (rows || []).filter((row) => !row.deletedAt);
+}
+
 function findAccount(accountId) {
-  return state.accounts.find((account) => account.id === accountId);
+  return state.accounts.find((account) => account.id === accountId) || (state.backend.accounts || []).find((account) => account.id === accountId);
 }
 
 function findContact(contactId) {
-  return state.contacts.find((contact) => contact.id === contactId);
+  return state.contacts.find((contact) => contact.id === contactId) || (state.backend.contacts || []).find((contact) => contact.id === contactId);
 }
 
 function findOpportunity(opportunityId) {
-  return state.opportunities.find((opportunity) => opportunity.id === opportunityId);
+  return state.opportunities.find((opportunity) => opportunity.id === opportunityId) || (state.backend.opportunities || []).find((opportunity) => opportunity.id === opportunityId);
 }
 
 function findProject(jobId) {
-  return state.projects.find((job) => job.id === jobId);
+  return state.projects.find((job) => job.id === jobId) || (state.backend.projects || []).find((job) => job.id === jobId);
 }
 
 function findSample(sampleId) {
@@ -28818,7 +28361,7 @@ function findSample(sampleId) {
 }
 
 function findFacility(facilityId) {
-  return state.facilities.find((facility) => facility.id === facilityId);
+  return state.facilities.find((facility) => facility.id === facilityId) || (state.backend.facilities || []).find((facility) => facility.id === facilityId);
 }
 
 function contactsForAccount(accountId) {
@@ -30030,7 +29573,7 @@ function getLaborResources() {
 }
 
 function getPurchaseOrders() {
-  return state.backend.purchaseOrders || [];
+  return liveRows(state.backend.purchaseOrders);
 }
 
 // Phase 11 (2026-09-23): read-only stock-movement ledger -- every onHand change on an inventory item
@@ -30141,7 +29684,7 @@ function getScheduleEvents() {
 }
 
 function getAddresses() {
-  return state.backend.addresses || [];
+  return liveRows(state.backend.addresses);
 }
 
 function addressesForAccount(accountId) {
@@ -30151,7 +29694,7 @@ function addressesForAccount(accountId) {
 }
 
 function getAccountTypes() {
-  return state.backend.accountTypes || [];
+  return liveRows(state.backend.accountTypes);
 }
 
 function findAccountType(accountTypeId) {
@@ -30159,7 +29702,7 @@ function findAccountType(accountTypeId) {
 }
 
 function getIndustries() {
-  return state.backend.industries || [];
+  return liveRows(state.backend.industries);
 }
 
 function findIndustry(industryId) {
@@ -30167,7 +29710,7 @@ function findIndustry(industryId) {
 }
 
 function getAccountIndustries() {
-  return state.backend.accountIndustries || [];
+  return liveRows(state.backend.accountIndustries);
 }
 
 function industriesForAccount(accountId) {
@@ -30182,7 +29725,7 @@ function primaryIndustryNameForAccount(accountId) {
 }
 
 function getSubcontractorTypes() {
-  return state.backend.subcontractorTypes || [];
+  return liveRows(state.backend.subcontractorTypes);
 }
 
 function findSubcontractorType(subcontractorTypeId) {
@@ -30190,7 +29733,7 @@ function findSubcontractorType(subcontractorTypeId) {
 }
 
 function getVendorProfiles() {
-  return state.backend.vendorProfiles || [];
+  return liveRows(state.backend.vendorProfiles);
 }
 
 function vendorProfileForAccount(accountId) {
@@ -30198,7 +29741,7 @@ function vendorProfileForAccount(accountId) {
 }
 
 function getSalesTasks() {
-  return state.backend.salesTasks || [];
+  return liveRows(state.backend.salesTasks);
 }
 
 function salesTasksForAccount(accountId) {
@@ -30208,7 +29751,7 @@ function salesTasksForAccount(accountId) {
 }
 
 function getAccountRelationshipExtensions() {
-  return state.backend.accountRelationshipExtensions || [];
+  return liveRows(state.backend.accountRelationshipExtensions);
 }
 
 function relationshipExtensionForAccount(accountId) {
@@ -30216,7 +29759,7 @@ function relationshipExtensionForAccount(accountId) {
 }
 
 function getAccountComments() {
-  return state.backend.accountComments || [];
+  return liveRows(state.backend.accountComments);
 }
 
 function accountCommentsForAccount(accountId) {
@@ -30226,7 +29769,7 @@ function accountCommentsForAccount(accountId) {
 }
 
 function getAccountDivisions() {
-  return state.backend.accountDivisions || [];
+  return liveRows(state.backend.accountDivisions);
 }
 
 function accountDivisionsForAccount(accountId) {
@@ -30240,7 +29783,7 @@ function findAccountDivision(divisionId) {
 }
 
 function getContactEmploymentHistory() {
-  return state.backend.contactEmploymentHistory || [];
+  return liveRows(state.backend.contactEmploymentHistory);
 }
 
 function employmentHistoryForContact(contactId) {
@@ -30250,7 +29793,7 @@ function employmentHistoryForContact(contactId) {
 }
 
 function getServiceAgreements() {
-  return state.backend.serviceAgreements || [];
+  return liveRows(state.backend.serviceAgreements);
 }
 
 function serviceAgreementsForAccount(accountId) {
@@ -30258,7 +29801,7 @@ function serviceAgreementsForAccount(accountId) {
 }
 
 function getApprovedSubcontractors() {
-  return state.backend.accountApprovedSubcontractors || [];
+  return liveRows(state.backend.accountApprovedSubcontractors);
 }
 
 function approvedSubcontractorsForAccount(accountId) {
@@ -30274,7 +29817,7 @@ function vendorAccounts() {
 }
 
 function getSubcontractorAssignments() {
-  return state.backend.subcontractorAssignments || [];
+  return liveRows(state.backend.subcontractorAssignments);
 }
 
 function subcontractorAssignmentsForVendorProfile(vendorProfileId) {
@@ -30282,7 +29825,7 @@ function subcontractorAssignmentsForVendorProfile(vendorProfileId) {
 }
 
 function getEmployees() {
-  return state.backend.employees || [];
+  return liveRows(state.backend.employees);
 }
 
 function findEmployee(employeeId) {
@@ -30290,7 +29833,7 @@ function findEmployee(employeeId) {
 }
 
 function getEmployeeCertifications() {
-  return state.backend.employeeCertifications || [];
+  return liveRows(state.backend.employeeCertifications);
 }
 
 // Red-dot rule for credentials. Checks the live expiry date as well as the stored status: a record
@@ -30315,7 +29858,7 @@ function certificationsForEmployee(employeeId) {
 // `name`/`code` fields on the assignment record are still populated (derived from the type at save
 // time) for back-compat with dispatch eligibility copy and older records that predate the catalog.
 function getCertificationTypes() {
-  return state.backend.certificationTypes || [];
+  return liveRows(state.backend.certificationTypes);
 }
 
 function findCertificationType(certTypeId) {
@@ -30387,7 +29930,7 @@ function computeAssignmentEligibility(employeeId) {
 }
 
 function getWorkforceTeams() {
-  return state.backend.workforceTeams || [];
+  return liveRows(state.backend.workforceTeams);
 }
 
 function findWorkforceTeam(teamId) {
@@ -30395,7 +29938,7 @@ function findWorkforceTeam(teamId) {
 }
 
 function getCrewProfiles() {
-  return state.backend.crewProfiles || [];
+  return liveRows(state.backend.crewProfiles);
 }
 
 function findCrewProfile(crewId) {
@@ -30403,7 +29946,7 @@ function findCrewProfile(crewId) {
 }
 
 function getAvailabilityBlocks() {
-  return state.backend.availabilityBlocks || [];
+  return liveRows(state.backend.availabilityBlocks);
 }
 
 function availabilityForEmployee(employeeId) {
@@ -30437,11 +29980,11 @@ function devicesForEmployee(employeeId) {
 }
 
 function getJobRequests() {
-  return state.backend.jobRequests || [];
+  return liveRows(state.backend.jobRequests);
 }
 
 function getJobRequestDocuments() {
-  return state.backend.jobRequestDocuments || [];
+  return liveRows(state.backend.jobRequestDocuments);
 }
 
 function documentsForJobRequest(jobRequestId) {
@@ -30486,11 +30029,11 @@ function accountForJobRequest(request) {
 }
 
 function getDispatchJobs() {
-  return state.backend.dispatchJobs || [];
+  return liveRows(state.backend.dispatchJobs);
 }
 
 function findDispatchJob(jobId) {
-  return getDispatchJobs().find((job) => job.id === jobId);
+  return getDispatchJobs().find((job) => job.id === jobId) || (state.backend.dispatchJobs || []).find((job) => job.id === jobId);
 }
 
 function dispatchJobsForProject(projectId) {
@@ -30518,7 +30061,7 @@ function jobRequestsForProject(projectId) {
 }
 
 function getJobTypeTemplates() {
-  return state.backend.jobTypeTemplates || [];
+  return liveRows(state.backend.jobTypeTemplates);
 }
 
 function findJobTypeTemplate(templateId) {
@@ -30606,7 +30149,7 @@ function cloneTemplateForEditing(template) {
 }
 
 function getJobAssignments() {
-  return state.backend.jobAssignments || [];
+  return liveRows(state.backend.jobAssignments);
 }
 
 function dispatchAssignmentsForJob(jobId) {
@@ -30622,7 +30165,7 @@ function assignmentsForEmployee(employeeId) {
 }
 
 function getJobScheduleSegments() {
-  return state.backend.jobScheduleSegments || [];
+  return liveRows(state.backend.jobScheduleSegments);
 }
 
 function resourcesForDispatchJob(jobId) {
@@ -30630,7 +30173,7 @@ function resourcesForDispatchJob(jobId) {
 }
 
 function getInventoryItems() {
-  return state.backend.inventoryItems || [];
+  return liveRows(state.backend.inventoryItems);
 }
 
 function findInventoryItem(itemId) {
@@ -30638,7 +30181,7 @@ function findInventoryItem(itemId) {
 }
 
 function getJobConflicts() {
-  return state.backend.jobConflicts || [];
+  return liveRows(state.backend.jobConflicts);
 }
 
 function conflictsForDispatchJob(jobId) {

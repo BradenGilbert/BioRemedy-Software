@@ -1,55 +1,59 @@
-# Environmental Services CRM Foundation
+# BioRemedy Operations Platform
 
-This is a zero-install browser CRM foundation for an environmental cleanup sales team. It is built to help discuss workflows before committing to the production backend, database, and Microsoft 365 tenant setup.
+A browser-based CRM + ERP prototype for an environmental cleanup company: sales pipeline, projects, dispatch, workforce, inventory, finance, and a Front Line field-app simulator. Vanilla JS front end, a small Node server, a JSON backend, no build step.
 
-## What is included
+**Start here:**
 
-- Offline-first browser app with local records stored in IndexedDB.
-- Service worker cache so the app shell loads after the first visit.
-- Environmental services CRM sample data: accounts, contacts, locations, previous projects, scheduled work, active jobs, assignments, alerts, material usage, equipment logs, sample records, spatial metadata, opportunities, field tasks, site notes, and cleanup stages.
-- Sync queue placeholder so offline edits are tracked until the real API exists.
-- Microsoft Entra ID sign-in foundation using browser Authorization Code + PKCE once a tenant ID and client ID are configured.
-- Product notes in `docs/crm-foundation.md`.
-- Dataverse-style relationship architecture in `docs/dataverse-relationship-architecture.md`.
-- Workforce, jobs, dispatch, execution, and Front Line architecture in `docs/erp-operational-architecture.md`.
+- [`CLAUDE.md`](CLAUDE.md) — architecture in 30 seconds, naming hazards, working rules
+- [`docs/roadmap/README.md`](docs/roadmap/README.md) — the master roadmap: what's done, what's next
+- [`docs/roadmap/GLOSSARY.md`](docs/roadmap/GLOSSARY.md) — the naming contract (read before touching any entity)
+- [`docs/roadmap/OUTSTANDING.md`](docs/roadmap/OUTSTANDING.md) — everything still to do
 
-## Run locally
-
-If Node is on your path:
+## Run it
 
 ```powershell
 npm run start
 ```
 
-If Node is not on your path, run the app with the bundled Codex Node executable:
+If Node is not on `PATH`, use the bundled runtime:
 
 ```powershell
 & "C:\Users\Braden\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" .\server.mjs
 ```
 
-Then open the local URL printed by the server.
+Then open the URL the server prints (port 4173 by default).
 
-To test without touching the real data, point a second instance at a copy. `PORT` picks the port, and `CRM_DATA_DIR` is a folder holding a copy of `data/backend.json` (uploads go to its `uploads/` subfolder):
+### Environment
+
+| Variable | Default | What |
+|---|---|---|
+| `PORT` | `4173` | Listening port (falls forward to the next free one). |
+| `CRM_DATA_DIR` | `./data` | Folder holding `backend.json`, `uploads/` and `backups/`. Point a second instance at a copy to test without touching live data. |
+| `CRM_BACKUP_INTERVAL_MINUTES` | `240` | Server-scheduled verified snapshots into `<data>/backups` (rolling 10). `0` turns them off. |
+| `CRM_BACKUP_DIR` | unset | Off-machine copy of the newest snapshot and `uploads/` (rolling 30). Point it at a OneDrive-synced folder. |
+| `CRM_SEED_DEMO` | unset | `1` seeds the demo data set (`data/demo-seed.json`) into empty collections. Off by default: an emptied collection stays empty. |
+| `CRM_WEATHER_PROVIDER` | `open-meteo` | Weather snapshot source; `off` makes every capture fail (for testing). |
+
+### Scratch instance for testing
 
 ```powershell
 $env:PORT = 4180; $env:CRM_DATA_DIR = "C:\path\to\scratch\data"; & "<node.exe>" .\server.mjs
 ```
 
-## Microsoft identity setup
+## Scripts
 
-The app can be wired to Microsoft Entra ID from the Identity & Sync screen. You will need:
+| Command | What |
+|---|---|
+| `node scripts/smoke.mjs` | The kept smoke test: scratch server on a copy of the data, static-file and role-header checks, referential integrity, then a Playwright sweep of every view, tab and dialog. Run before every commit. `--no-browser` for the server checks only. |
+| `npm run backup` | One verified snapshot by hand (the server already takes them on a schedule). |
+| `node scripts/clean-orphans.mjs` | Referential-integrity report; `--apply` fixes it through the running server. |
+| `node scripts/reset-demo-data.mjs` | Puts the demo data set back through the API. |
+| `node scripts/import-rate-sheet.mjs` | Imports the 2026 rate sheet into the product catalog. |
 
-- Directory tenant ID.
-- Application client ID.
-- A SPA redirect URI that exactly matches the app URL shown in the Identity & Sync screen.
+## Data
 
-The current app stores only the signed-in user's profile locally. Access tokens are kept in browser session storage and are not persisted to the offline database.
+Everything lives in `data/backend.json` (~104 collections), served by `server.mjs` through `/api/backend/{collection}`. Every record carries a server-owned `version`; a stale save is refused with 409. Deletes are soft (`deletedAt`) and cascade through the table in `server.mjs`; deleted records can be restored from Identity & Sync › Recently deleted. PostgreSQL is designed in `crm-schema/` and lands in roadmap Phase 14.
 
-## Next decisions
+## Identity
 
-See `docs/crm-foundation.md` for the CRM areas we should decide together: pipeline stages, account/site model, roles, offline sync behavior, Microsoft 365 integration depth, and production hosting.
-
-See `docs/dataverse-relationship-architecture.md` for the Dynamics 365 Sales relationship model and local SQL foundation.
-
-See `docs/erp-operational-architecture.md` for the operational ERP data
-dictionary, state machines, application boundaries, and migration order.
+Sign-in with Microsoft Entra ID (Authorization Code + PKCE) is wired on the Identity & Sync screen and needs an app registration in the bioremedy.com tenant. Server-side sessions and role enforcement are roadmap Phase 12.
