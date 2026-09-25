@@ -1,6 +1,6 @@
 # Phase 21 — Front Line 2: the field app, rebuilt (crew + sales)
 
-**Status:** 🔵 Planned 2026-09-24. Not started.
+**Status:** 🟢 **Built 2026-09-25 in one pass** (owner decision: not the six passes below). Integrated, smoke green, click-tested on the phone surface; pilot feedback pending. See "Build record" at the end.
 **Depends on:** Phases 10, 11, 12, 13, 16, 18 (all shipped). Nothing outstanding.
 **Estimated sessions:** 5 passes (21a–21e below), each its own session or wave.
 **Source:** owner request 2026-09-24 ("rebuild the frontline app to be more in-depth and easier for workers to use … sales also needs a frontline app for the site walks"), plus the same-day additions: site-walk photo collection, LiDAR, video, photo annotation, a limited read/write model for the field instead of domain blocking, breaking the field code out of `app.js`, and the ERG with its distances plus SDS and company safety manuals.
@@ -282,6 +282,27 @@ Each pass ends with `node scripts/smoke.mjs` and a Playwright run on a scratch s
 11. **ERG source files:** save the two PDFs (links above) from a browser into `docs/uploaded files/erg/` — PHMSA's CDN blocks scripted downloads. The `.xlsx` from ERGComments@dot.gov is optional. Which manuals and tutorials go on the shelves first, and which are required for which roles?
 
 ---
+
+## Build record (2026-09-25)
+
+Built as **one pass** on the owner's instruction, not the six passes in the build order above: a serial foundation commit (`field/` module family, phone route, export surface, new collections), then five parallel worktree workstreams (W1 server, W2 outbox + crew job, W3 sales walk + map + layers + share page, W4 media + ERG + library + admin views, W5 report/invoice/templates), then one integration merge. The mapping addendum (`phase-21-site-walk-mapping.md`) and a Phase 22 placeholder (`phase-22-site-workspace.md`, the desktop site workspace) came out of the same day's planning.
+
+**What ships:** `#view=field-home` (My Day), `field-job` (Brief / Safety / Work / Close), `field-walk` (Brief / Walk / Map / Finish), `field-spill-intake`, `field-quick-lead`, `field-forms`, `field-library`, `field-outbox`; the `/walk/<token>` share page; office panels on Develop & Planning, the project plan tab, the facility page, the dispatch job Details/Plan/Close-out tabs; Office → Manuals & Training and Map layers; the post-work report, invoice draft and template editor reading the new records; `/api/field/*` commands with `X-Client-Command-Id` receipts, the field projection model, chunked uploads with Range playback, share links, seeds and `scripts/import-erg.mjs --fixture`.
+
+**Legacy simulator screens retired after the audit** (every panel's data has a home in the new app; old routes redirect via `FRONTLINE_RETIRED_VIEWS` in `app.js`):
+
+| Legacy view | What it showed | Where it lives now |
+|---|---|---|
+| `frontline-home` | 9 tiles, unread + open-job badges, Exit | `field-home`: My Day (today's jobs, walks, standby, clock strip, Emergency), the More row with the same badges, Exit |
+| `frontline-job-detail` | header + next-status button, work plan steps, close-out, "+ Activity", crew, submissions | `field-job`: header + pinned ladder button, Work tab (steps, capture, ad hoc, submissions list), Close tab, Brief → Crew |
+| `frontline-forms` | four hard-coded standalone forms | `field-forms` from `formTemplates` (seeded with the same four plus Vehicle pre-trip and Spill/incident) |
+| `frontline-invoices` | read-only finance rows | dropped from the crew app (owner decision 1); office Finance unchanged |
+
+**Kept for now** (reused by the new screens through the export surface or still linked from More): `frontline-login` (simulator picker), `frontline-jobbook` (All jobs), `frontline-timesheet`, `frontline-trips`, `frontline-receipts`, `frontline-messaging`, `frontline-location`, `frontline-settings`, `frontline-consent`, and the work-plan/capture renderers (`renderFrontlineWorkPlanStep`, `renderFrontlineTaskCapture`, `frontlineCompleteAction`, …) that `field/capture.js` wraps. Rebuilding those five utility screens as `field-*` is a follow-up, not a blocker.
+
+**Integration findings fixed on the way in:** the simulator's office session was refused by the package route (now previews as the picked employee); two closing braces lost at stylesheet merge boundaries silently dropped every rule after them; W1's clock command required a job while My Day clocks in without one; W3's walk-report autosave raced its check-in save (saves are now serialised and merge-retry on a version conflict); the Georgetown seed's placeholder layer ids were replaced with the city's real MapServer ids (manholes 4, pressurized mains 5, gravity mains 6, water mains 750, parcels 755); duplicate export names and a duplicated sales-section hook from parallel work.
+
+**Known gaps carried forward:** Time/Trips/Receipts/Messages/Settings still render through the legacy screens; the advance command's server-side gate is smaller than the client's readiness check; a dual-role session bypasses the device block; the ERG import runs from the fixture until the PHMSA PDFs are saved into `docs/uploaded files/erg/`; photo markup strokes and video posters persist through the extended document-metadata route (W1) but were verified only against a fresh upload; video, scans and the GPS-walked perimeter were built to the contract but not exercised with real large files or real GPS; the walk PDF is the print page (no `site-map` document is filed).
 
 ## Corrections found during implementation
 

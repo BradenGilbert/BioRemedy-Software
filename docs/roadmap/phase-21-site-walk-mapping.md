@@ -1,6 +1,6 @@
 # Phase 21 addendum — Site walk mapping: the salesperson's walk, and an annotated site map
 
-**Status:** 🔵 Investigation + recommendation, 2026-09-25. Nothing built. Feeds pass 21d (sales field mode) of `phase-21-frontline-2.md`.
+**Status:** 🟢 Built 2026-09-25 as part of the one-pass Front Line 2 build (`field/walk.js`, `field/map.js`, `field/map-core.js`, `field/layers.js`, `field/walk-share.html`). Observations are their own collection (`siteWalkObservations`); offline area packs, city GIS layers (live ArcGIS or GeoJSON snapshot) and the four desktop-readiness rules from the 2026-09-25 discussion are in; Phase 22 (`phase-22-site-workspace.md`) holds the desktop editor.
 **Source:** owner request 2026-09-25 — "write out the whole roadmap … how a sales person would use the site-walk app … an annotated site map connected to photos and observations … investigate before implementing."
 **Companion sections in the main plan:** Media capture (photos, annotation, video, LiDAR), Sales field mode, Data model additions.
 

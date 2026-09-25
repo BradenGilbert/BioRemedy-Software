@@ -2187,7 +2187,7 @@ async function dispatchClick(event) {
   if (action === "start-microsoft-signin") await startMicrosoftSignIn();
   if (action === "frontline-login") await frontlineLogin();
   if (action === "frontline-go-home") {
-    state.view = "frontline-home";
+    state.view = "field-home";
     state.frontlineMessagingThreadKey = null;
     render();
   }
@@ -2198,7 +2198,7 @@ async function dispatchClick(event) {
   if (action === "frontline-exit") frontlineExit();
   if (action === "frontline-open-job") {
     state.frontlineSelectedJobId = id;
-    state.view = "frontline-job-detail";
+    state.view = "field-job";
     render();
   }
   if (action === "frontline-jobbook-scope") {
@@ -2380,7 +2380,6 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "settings") await savePlatformSettings(form);
   if (form.dataset.form === "frontline-complete-action") await frontlineCompleteAction(form);
   if (form.dataset.form === "frontline-adhoc-activity") await frontlineSubmitAdHocActivity(form);
-  if (form.dataset.form === "frontline-form-submission") await frontlineSubmitStandaloneForm(form);
   if (form.dataset.form === "frontline-message") await frontlineSendMessage(form);
   if (form.dataset.form === "it-message") await sendItMessage(form);
   if (form.dataset.form === "login") await signIn(form);
@@ -2796,9 +2795,12 @@ function render() {
   // on Front Line; the simulator's picker is for office roles trying the field app.
   if (isFieldView(state.view) && !state.frontlineSession && state.session?.employeeId) {
     state.frontlineSession = { employeeId: state.session.employeeId, loginAt: state.session.createdAt };
-    if (state.view === "frontline-login") state.view = state.session.dispatchJobId ? "frontline-job-detail" : "frontline-home";
+    if (state.view === "frontline-login") state.view = state.session.dispatchJobId ? "field-job" : "field-home";
     if (state.session.dispatchJobId && !state.frontlineSelectedJobId) state.frontlineSelectedJobId = state.session.dispatchJobId;
   }
+  // Phase 21: the legacy simulator screens these views drew were retired once the field app had
+  // their content (audit in phase-21-frontline-2.md); old links and bookmarks land on the new screen.
+  if (FRONTLINE_RETIRED_VIEWS[state.view]) state.view = FRONTLINE_RETIRED_VIEWS[state.view];
   ensureAllowedView();
   if (isFieldView(state.view) && !["frontline-login", "frontline-consent"].includes(state.view) && !state.frontlineSession) {
     state.view = "frontline-login";
@@ -2879,16 +2881,12 @@ function render() {
   if (state.view === "fieldwork") renderFieldwork();
   if (state.view === "sync") renderSync();
   if (state.view === "frontline-login") renderFrontlineLogin();
-  if (state.view === "frontline-home") renderFrontlineHome();
   if (state.view === "frontline-jobbook") renderFrontlineJobBook();
-  if (state.view === "frontline-job-detail") renderFrontlineJobDetail();
   if (state.view === "frontline-timesheet") renderFrontlineTimesheet();
   if (state.view === "frontline-messaging") renderFrontlineMessaging();
-  if (state.view === "frontline-forms") renderFrontlineForms();
   if (state.view === "frontline-trips") renderFrontlineTrips();
   if (state.view === "frontline-receipts") renderFrontlineReceipts();
   if (state.view === "frontline-location") renderFrontlineLocation();
-  if (state.view === "frontline-invoices") renderFrontlineInvoices();
   if (state.view === "frontline-settings") renderFrontlineSettings();
   if (state.view === "frontline-consent") renderFrontlineConsent();
   // Phase 21: every field-* view is rendered by the field app module (field/index.js).
@@ -2902,6 +2900,13 @@ function render() {
 function isFieldView(view) {
   return typeof view === "string" && (view.startsWith("frontline-") || view.startsWith("field-"));
 }
+
+const FRONTLINE_RETIRED_VIEWS = {
+  "frontline-home": "field-home",
+  "frontline-job-detail": "field-job",
+  "frontline-forms": "field-forms",
+  "frontline-invoices": "field-home",
+};
 
 const ROUTE_ID_FIELDS = [
   "selectedAccountId",
@@ -15253,18 +15258,6 @@ function renderSync() {
   `;
 }
 
-const FRONTLINE_TILES = [
-  { key: "timesheet", label: "Time Sheet", view: "frontline-timesheet" },
-  { key: "jobbook", label: "Job Book", view: "frontline-jobbook" },
-  { key: "messaging", label: "Messaging", view: "frontline-messaging" },
-  { key: "forms", label: "Forms", view: "frontline-forms" },
-  { key: "trips", label: "Trips", view: "frontline-trips" },
-  { key: "location", label: "Location", view: "frontline-location" },
-  { key: "invoices", label: "Invoices", view: "frontline-invoices" },
-  { key: "settings", label: "Settings", view: "frontline-settings" },
-  { key: "receipts", label: "Receipts", view: "frontline-receipts" },
-];
-
 function renderFrontlineHeader() {
   return `
     <div class="frontline-header">
@@ -15343,48 +15336,6 @@ const FRONTLINE_TILE_ICON_PATHS = {
 function frontlineTileIcon(key) {
   const paths = FRONTLINE_TILE_ICON_PATHS[key] || "";
   return `<svg aria-hidden="true" viewBox="0 0 24 24" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-}
-
-// A badge is a count worth seeing before opening the tile: unread messages (red, an alert) or the
-// number of open jobs (neutral).
-function renderFrontlineTile(tile, badge = null) {
-  return `
-    <button class="frontline-tile" type="button" data-view="${tile.view}">
-      ${badge?.count ? `<span class="frontline-tile-badge ${badge.alert ? "alert" : ""}">${badge.count}</span>` : ""}
-      <span class="frontline-tile-icon">${frontlineTileIcon(tile.key)}</span>
-      <span>${escapeHtml(tile.label)}</span>
-    </button>
-  `;
-}
-
-function renderFrontlineHome() {
-  const employeeId = state.frontlineSession?.employeeId;
-  const employee = findEmployee(employeeId);
-  const badges = {
-    messaging: { count: frontlineUnreadTotal(employeeId), alert: true },
-    jobbook: { count: frontlineMyDispatchJobs(employeeId).filter((job) => !isTerminalDispatchStatus(job.status)).length, alert: false },
-  };
-  app.innerHTML = `
-    <div class="frontline-shell">
-      <div class="frontline-device">
-        ${renderFrontlineHeader()}
-        <div class="frontline-body">
-          <div>
-            <p class="eyebrow">Welcome</p>
-            <h2>${escapeHtml(employee?.displayName || "Field crew")}</h2>
-          </div>
-          <div class="frontline-grid">
-            ${FRONTLINE_TILES.map((tile) => renderFrontlineTile(tile, badges[tile.key])).join("")}
-          </div>
-          <!-- Owner, 2026-09-22: Exit is a short full-width bar under the grid, so its old cell holds Receipts. -->
-          <button class="frontline-exit-bar" type="button" data-action="frontline-exit">
-            <span class="frontline-tile-icon">${frontlineTileIcon("exit")}</span>
-            <span>Exit</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 function renderFrontlineJobCard(job) {
@@ -15729,108 +15680,6 @@ function renderFrontlineWorkPlanStep(step, allSteps, job) {
       </div>
     </details>
   `;
-}
-
-function renderFrontlineJobDetail() {
-  const job = findDispatchJob(state.frontlineSelectedJobId);
-  if (!job) {
-    app.innerHTML = `
-      <div class="frontline-shell">
-        <div class="frontline-device">
-          ${renderFrontlineHeader()}
-          <div class="frontline-body">
-            <button class="frontline-back-link" type="button" data-view="frontline-jobbook">&lsaquo; Job Book</button>
-            <div class="empty-state">Job not found.</div>
-          </div>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  const nextTransition = getNextDispatchTransition(job.status);
-  const gate = getWorkPlanGate(job);
-  // The ad hoc "+ Activity" step (see ensureFrontlineAdHocStep) is a real jobSteps row so it can
-  // reuse the normal action/submission machinery, but it never gates the template work plan and
-  // isn't rendered as a step to complete in order -- it gets its own section below instead.
-  const steps = stepsForDispatchJob(job.id).filter((step) => !step.adHoc);
-  const submissions = submissionsForDispatchJob(job.id);
-  const adHocSubmissions = submissions.filter((submission) => submission.adHoc);
-  const templateSubmissions = submissions.filter((submission) => !submission.adHoc);
-  const assignments = dispatchAssignmentsForJob(job.id);
-  const unreadFromDispatch = unreadMessageCount(job.id, "office");
-
-  app.innerHTML = `
-    <div class="frontline-shell">
-      <div class="frontline-device">
-        ${renderFrontlineHeader()}
-        <div class="frontline-body">
-          <button class="frontline-back-link" type="button" data-view="frontline-jobbook">&lsaquo; Job Book</button>
-          <div class="inline-actions">
-            <span class="job-number">${escapeHtml(job.jobNumber)}</span>
-            ${renderDispatchStatusBadge(formatDispatchStatus(job.status))}
-            ${renderReadinessBadge(getJobReadiness(job).status)}
-          </div>
-          <h2>${escapeHtml(job.jobName)}</h2>
-          <p>${escapeHtml(job.customerName)}</p>
-          <p class="help-text">${escapeHtml(job.addressText || job.locationName || "No address")}</p>
-          <p class="help-text">${formatDateTime(job.scheduledStart)}${job.scheduledEnd ? ` to ${formatShortTime(job.scheduledEnd)}` : ""}</p>
-          ${
-            nextTransition
-              ? `
-                <button class="primary-button" type="button" data-action="advance-dispatch-job" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>
-                ${gate.blocked ? `<p class="help-text">${escapeHtml(gate.reason)}</p>` : ""}
-              `
-              : ""
-          }
-          ${job.description ? `<p class="help-text">${escapeHtml(job.description)}</p>` : ""}
-          <div class="inline-actions">
-            <button class="mini-button" type="button" data-action="frontline-messaging-open-thread" data-thread="${escapeAttribute(job.id)}">Message dispatch${unreadFromDispatch ? ` (${unreadFromDispatch} new)` : ""}</button>
-          </div>
-
-          <h3>Work plan</h3>
-          <div class="work-plan-list">
-            ${steps.map((step) => renderFrontlineWorkPlanStep(step, steps, job)).join("") || `<div class="empty-state">No execution plan instantiated.</div>`}
-          </div>
-
-          ${renderFrontlineCloseout(job)}
-
-          <h3>Additional activity</h3>
-          <p class="help-text">Not on the template? Add a note, extra sample, signature, photo, or travel leg without waiting on a work-plan step.</p>
-          <div class="inline-actions">
-            ${["Note", "Photo", "Signature", "Sample", "Odometer"]
-              .map(
-                (type) =>
-                  `<button class="mini-button ${state.frontlineAdHocType === type ? "active" : ""}" type="button" data-action="frontline-adhoc-pick-type" data-type="${escapeAttribute(type)}">+ ${escapeHtml(type)}</button>`,
-              )
-              .join("")}
-          </div>
-          ${state.frontlineAdHocType ? renderFrontlineAdHocCaptureForm(state.frontlineAdHocType, job) : ""}
-          <div class="form-submission-list">
-            ${adHocSubmissions.map(renderJobFormSubmission).join("") || `<div class="empty-state compact">No ad hoc activity yet.</div>`}
-          </div>
-
-          <h3>Assigned crew</h3>
-          <div class="record-list">
-            ${
-              assignments
-                .map((assignment) => {
-                  const person = findEmployee(assignment.employeeId);
-                  return `<div class="frontline-action-row"><span>${escapeHtml(person?.displayName || "Unknown")}${assignment.isFieldLead ? " (Field Lead)" : ""}</span></div>`;
-                })
-                .join("") || `<div class="empty-state compact">No workers assigned.</div>`
-            }
-          </div>
-
-          <h3>Forms and submissions</h3>
-          <div class="form-submission-list">
-            ${templateSubmissions.map(renderJobFormSubmission).join("") || `<div class="empty-state">No forms submitted yet.</div>`}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-  requestAnimationFrame(initializeSignaturePad);
 }
 
 // ---- Phase 10, Part 1: Time Sheet tile ----
@@ -16423,136 +16272,6 @@ function frontlineStandaloneSubmissions(employeeId) {
     .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 }
 
-function renderFrontlineForms() {
-  const employeeId = state.frontlineSession?.employeeId;
-  const myJobs = frontlineMyDispatchJobs(employeeId);
-  const openKey = state.frontlineOpenFormKey;
-  const recent = frontlineStandaloneSubmissions(employeeId);
-
-  app.innerHTML = `
-    <div class="frontline-shell">
-      <div class="frontline-device">
-        ${renderFrontlineHeader()}
-        <div class="frontline-body">
-          <h2>Forms</h2>
-          <p class="help-text">Standalone forms not tied to a specific job step — safety checklists, incident reports.</p>
-          <div class="frontline-job-list">
-            ${FRONTLINE_STANDALONE_FORMS.map(
-              (form) => `
-                <button class="frontline-job-card" type="button" data-action="frontline-open-form" data-key="${escapeAttribute(form.key)}">
-                  <strong>${escapeHtml(form.name)}</strong>
-                  <span>${form.type === "Checklist" ? `${form.options.length} checklist items` : "Free-text form"}</span>
-                </button>
-              `,
-            ).join("")}
-          </div>
-
-          ${
-            openKey && findFrontlineStandaloneForm(openKey)
-              ? renderFrontlineStandaloneFormCapture(findFrontlineStandaloneForm(openKey), myJobs)
-              : ""
-          }
-
-          <h3>Recently submitted</h3>
-          <div class="form-submission-list">
-            ${recent.map(renderJobFormSubmission).join("") || `<div class="empty-state compact">No standalone forms submitted yet.</div>`}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderFrontlineStandaloneFormCapture(formDef, myJobs) {
-  return `
-    <h3>${escapeHtml(formDef.name)}</h3>
-    <form class="frontline-action-form" data-form="frontline-form-submission">
-      <input type="hidden" name="formKey" value="${escapeAttribute(formDef.key)}" />
-      <label>Related job (optional)
-        <select name="jobId">
-          <option value="">Not tied to a specific job</option>
-          ${myJobs.map((job) => `<option value="${escapeAttribute(job.id)}">${escapeHtml(frontlineJobOptionLabel(job))}</option>`).join("")}
-        </select>
-      </label>
-      ${
-        formDef.type === "Checklist"
-          ? `
-            <fieldset class="frontline-checklist">
-              ${formDef.options
-                .map(
-                  (option) => `
-                    <label class="check-row">
-                      <input type="checkbox" name="checklistOption" value="${escapeAttribute(option)}" />
-                      <span>${escapeHtml(option)}</span>
-                    </label>
-                  `,
-                )
-                .join("")}
-            </fieldset>
-            <label>Notes<textarea name="summary" placeholder="Anything worth flagging?"></textarea></label>
-          `
-          : `<label>Details<textarea name="summary" rows="4" placeholder="What happened?" required></textarea></label>`
-      }
-      <div class="inline-actions">
-        <button class="mini-button" type="button" data-action="frontline-close-form">Cancel</button>
-        <button class="primary-button" type="submit">Submit</button>
-      </div>
-    </form>
-  `;
-}
-
-async function frontlineSubmitStandaloneForm(form) {
-  const submitButton = form.querySelector('button[type="submit"]');
-  if (submitButton?.disabled) return;
-  if (submitButton) submitButton.disabled = true;
-
-  const data = new FormData(form);
-  const formKey = data.get("formKey").toString();
-  const formDef = findFrontlineStandaloneForm(formKey);
-  if (!formDef) return;
-  const jobId = (data.get("jobId") || "").toString();
-  const summary = (data.get("summary") || "").toString().trim();
-  const fieldLead = findEmployee(state.frontlineSession?.employeeId);
-  const submittedBy = fieldLead?.displayName || "Front Line";
-
-  let payload = {};
-  let description = "Submitted in Front Line.";
-  if (formDef.type === "Checklist") {
-    const checked = data.getAll("checklistOption").map((value) => value.toString());
-    payload = { options: formDef.options, checked, unchecked: formDef.options.filter((option) => !checked.includes(option)) };
-    description = `${checked.length} of ${formDef.options.length} checked.`;
-  } else {
-    payload = { note: summary };
-  }
-
-  try {
-    await saveBackendRecord(
-      "jobFormSubmissions",
-      {
-        id: makeId("form-sub"),
-        jobId,
-        actionId: "",
-        formName: formDef.name,
-        status: "Submitted",
-        submittedBy,
-        submittedByEmployeeId: fieldLead?.id || "",
-        submittedAt: new Date().toISOString(),
-        summary: summary || description,
-        payload,
-        standalone: true,
-      },
-      { refresh: false },
-    );
-    await refreshBackendState();
-    state.frontlineOpenFormKey = "";
-    render();
-    showToast(`${formDef.name} submitted.`);
-  } catch (error) {
-    if (submitButton) submitButton.disabled = false;
-    showToast(error.message || "Could not submit that form.");
-  }
-}
-
 // ---- Phase 10, Part 2: Messaging tile (inbox + thread redesign, 2026-09-23) ----
 //
 // `messages` rows are threaded by dispatch job (`threadKey` = the job id) or the shared "general"
@@ -17131,52 +16850,6 @@ async function frontlineRecordLocationPing(form) {
   );
 }
 
-// ---- Phase 10, Part 2: Invoices tile ----
-//
-// Read-only for the field worker: visibility into billing status for jobs they're assigned to, not a
-// duplicate of the office Finance workspace. Reuses getFinanceRows() (Phase 09) rather than
-// recomputing cost/margin numbers a second way -- getFinanceRows() is keyed by project, so each of
-// the field worker's dispatch jobs is joined to its project's finance row through job.projectId.
-function renderFrontlineInvoices() {
-  const employeeId = state.frontlineSession?.employeeId;
-  const myJobs = frontlineMyDispatchJobs(employeeId);
-  const financeRows = getFinanceRows();
-  const rows = myJobs
-    .filter((job) => job.projectId)
-    .map((job) => ({ job, project: findProject(job.projectId), financeRow: financeRows.find((row) => row.job.id === job.projectId) }))
-    .filter((entry) => entry.financeRow);
-
-  app.innerHTML = `
-    <div class="frontline-shell">
-      <div class="frontline-device">
-        ${renderFrontlineHeader()}
-        <div class="frontline-body">
-          <h2>Invoices</h2>
-          <p class="help-text">Billing status for your assigned jobs — view only. Talk to the office to change an invoice.</p>
-          <div class="record-list">
-            ${
-              rows
-                .map(
-                  (entry) => `
-                    <div class="frontline-record-card">
-                      <div class="inline-actions">
-                        <strong>${escapeHtml(entry.job.jobNumber)}</strong>
-                        <span class="status-pill ${entry.financeRow.statusTone === "high" ? "offline" : ""}">${escapeHtml(entry.financeRow.status)}</span>
-                      </div>
-                      <span>${escapeHtml(entry.project?.name || "")}</span>
-                      <span>${escapeHtml(entry.financeRow.invoiceSignal)}</span>
-                    </div>
-                  `,
-                )
-                .join("") || `<div class="empty-state">No billing activity on your assigned jobs yet.</div>`
-            }
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 async function frontlineLogin() {
   const select = document.getElementById("frontlineFieldLeadSelect");
   const employeeId = select?.value || "";
@@ -17196,7 +16869,7 @@ async function frontlineLogin() {
     return;
   }
   state.frontlineSession = { employeeId, loginAt: new Date().toISOString() };
-  state.view = "frontline-home";
+  state.view = "field-home";
   render();
 }
 // (Phase 12a: a session already tied to an employee skips this picker -- see render().)
@@ -29862,7 +29535,7 @@ async function acceptConsent() {
     await refreshBackendState();
     state.frontlineSession = { employeeId: state.session.employeeId, loginAt: new Date().toISOString() };
     state.frontlineSelectedJobId = state.session.dispatchJobId;
-    state.view = "frontline-job-detail";
+    state.view = "field-job";
     render();
     showToast("Thanks — you're signed in for this job.");
   } catch (error) {
