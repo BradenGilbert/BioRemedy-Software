@@ -12,7 +12,7 @@ Shipped work is deliberately not repeated here; `README.md` has the "already shi
 |---|---|
 | Phases shipped | 17 (00, 01, 02, 04, 05, 08, 09, 10, 11, 12a, 12b, 13, 15, 16, 17, 18, 20) — the 2026-09-23/24 sprint (Waves 0–8) closed 04, 11, 12a, 13, 18 item 4 and 20, and every second-round item in 08, 09, 10; 12b (Entra sign-in) followed on 2026-09-24 once the app registration existed |
 | Phases substantially done, with named leftovers | 3 (03, 06, 07) |
-| Phases not started | 14 (Postgres — after the pilot; inventory and runbook ready), 19 (email/Teams — the Entra registration now exists; needs Graph permissions and a design pass) |
+| Phases not started | 14 (Postgres — after the pilot; inventory and runbook ready), 19 (email/Teams — the Entra registration now exists; needs Graph permissions and a design pass), **21 (Front Line 2 — planned 2026-09-24, five passes; see below)** |
 | Open items with a checkbox against them | ~80 |
 | Blocked on an owner decision, not on engineering | 14 |
 
@@ -26,7 +26,7 @@ Three things dominate what is left, and they are worth naming because they are n
 
 ## Sprint result — 2026-09-23/24 (Waves 0–8)
 
-Everything on the JSON backend that could be finished before the switch to Postgres + Entra is finished: the rate card and itemized invoice (08/09), field-ops depth (11), the owner's 22-item bug list and Front Line clean-up, engineering hardening (20, live), identity without Entra (12a, live — sign in with the break-glass password in `data/break-glass-password.txt`, then set your own), documents and the Client Portal (13, live), and the cutover inventory + runbook (Wave 8). **Open for the owner:** the July demo draft jobs (B9), Part B triage, and the Directory (tenant) ID + Application (client) ID for `.env` so the shipped Entra sign-in (12b, 2026-09-24) can be tried against the real tenant. `CRM_BACKUP_DIR` was set 2026-09-24 (the bioremedy OneDrive folder). **Later on 2026-09-24, from live use:** Microsoft sign-in live on the real tenant; roles combine and Settings › Active role narrows a session; intake requests got a return loop (B11); Scheduled Work projects can be created; the dispatch/operations button tidy-up with "New job request" switched off for testing; spill calls get a work plan and bare jobs can be given one; and **Messages to IT** — a chat beside the notification bell with screenshots you can draw on, one conversation per person, answered by an Admin.
+Everything on the JSON backend that could be finished before the switch to Postgres + Entra is finished: the rate card and itemized invoice (08/09), field-ops depth (11), the owner's 22-item bug list and Front Line clean-up, engineering hardening (20, live), identity without Entra (12a, live — sign in with the break-glass password in `data/break-glass-password.txt`, then set your own), documents and the Client Portal (13, live), and the cutover inventory + runbook (Wave 8). **Open for the owner:** the July demo draft jobs (B9), Part B triage, and (2026-09-25) whether to delete the four "Recovered account …" placeholders the orphan clean-up created on 2026-09-24 — all test data from 2026-09-15 and 2026-08-03, details under Phase 20's open decisions; the delete is soft and restorable. `CRM_BACKUP_DIR` was set 2026-09-24 (the bioremedy OneDrive folder). **Later on 2026-09-24, from live use:** Microsoft sign-in live on the real tenant; roles combine and Settings › Active role narrows a session; intake requests got a return loop (B11); Scheduled Work projects can be created; the dispatch/operations button tidy-up with "New job request" switched off for testing; spill calls get a work plan and bare jobs can be given one; and **Messages to IT** — a chat beside the notification bell with screenshots you can draw on, one conversation per person, answered by an Admin.
 
 ## Decisions — 44 of 52 answered 2026-09-22
 
@@ -193,6 +193,12 @@ Generic document store with hash de-duplication and versions, every Files tab li
 > ### ◆ PILOT MILESTONE
 
 ---
+
+## Stage B addition — Phase 21, planned 2026-09-24
+
+### Phase 21 — Front Line 2 · 🔵 planned 2026-09-24, not started
+
+The field app rebuilt for real phones and for sales: My Day, a four-tab job page with a real safety briefing (JSA, PPE level, roll call), equipment-usage and waste tasks, a crew view, customer signature and a billables preview; cached job packages and an offline outbox; a limited read/write field access model (`fieldProjections` + `/api/field/*` commands) replacing domain blocking; a site-walk page with required-shot photo trays that writes back to the opportunity; photo annotation and site sketches; video with resumable upload; LiDAR scans shared from scanning apps into `spatialData`; the ERG (materials, guides, isolation/protective distances drawn on the map, imported from the two PHMSA PDFs the owner supplied 2026-09-25), SDS and a Manuals & Training library (manuals, safety references, tutorials with required-for-role acknowledgements, helpful resources); the field code split into `field/` modules. Five passes (21a foundation → 21b job depth + safety library → 21c sales mode + photos → 21d media → 21e polish). **Eleven open decisions for the owner** are listed in the phase doc; the two that block work earliest are crew logins (Microsoft accounts vs per-dispatch links) and saving the two ERG PDFs into `docs/uploaded files/erg/` from a browser (PHMSA's CDN blocks scripted downloads).
 
 ## Stage D / E — after the pilot
 
