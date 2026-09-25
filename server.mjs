@@ -2128,107 +2128,137 @@ const defaultBackend = {
     lastExportAt: ""
   },
   qboExports: [],
-  // Phase 21 (Front Line 2, 2026-09-25). formTemplates replaces app.js's hard-coded
-  // FRONTLINE_STANDALONE_FORMS with data the office can edit -- the four originals kept as the same
-  // four forms, plus Vehicle pre-trip inspection and Spill/incident report (fields match the TCEQ
-  // 30-day follow-up chronology, see phase-21-frontline-2.md "What the research says"). libraryItems
-  // seeds one placeholder per shelf; jurisdictions seeds the Georgetown TX pilot row. ergMaterials/
-  // ergGuides/ergDistances stay empty until scripts/import-erg.mjs loads them.
+  // Phase 21 (Front Line 2, 2026-09-25). Seeded through ensureFieldSeeds() (below, called from
+  // loadBackend) rather than these literal arrays: a data folder that already has backend.json --
+  // every pilot folder, and this repo's committed data/backend.json -- keeps whatever the file has
+  // for a key that already exists, even an empty array, so seeding here would silently never apply
+  // to an existing file (only to a brand-new one). ensureFieldSeeds adds each seed row by id, once,
+  // the same pattern ensureDocumentTypes already uses for documentTypeSeed.
   jobSafetyBriefings: [],
   jobEquipmentUsage: [],
-  formTemplates: [
-    {
-      id: "form-daily-safety-checklist", key: "daily-safety-checklist", name: "Daily Safety Checklist", category: "Safety", requiresJob: true, isActive: true,
-      fields: [
-        { key: "ppe", label: "PPE inspected and worn", type: "yesno", required: true },
-        { key: "vehicle", label: "Vehicle pre-trip inspection complete", type: "yesno", required: true },
-        { key: "hazards", label: "Site hazards reviewed with crew", type: "yesno", required: true },
-        { key: "contacts", label: "Emergency contacts confirmed", type: "yesno", required: true },
-      ],
-    },
-    {
-      id: "form-incident-report", key: "incident-report", name: "Incident Report", category: "Safety", requiresJob: true, isActive: true,
-      fields: [{ key: "notes", label: "What happened", type: "text", required: true }],
-    },
-    {
-      id: "form-vehicle-inspection", key: "vehicle-inspection", name: "Vehicle Inspection", category: "Safety", requiresJob: false, isActive: true,
-      fields: [
-        { key: "tires", label: "Tires and brakes checked", type: "yesno", required: true },
-        { key: "fluids", label: "Fluids checked", type: "yesno", required: true },
-        { key: "lights", label: "Lights and signals working", type: "yesno", required: true },
-        { key: "damage", label: "No visible damage", type: "yesno", required: true },
-      ],
-    },
-    {
-      id: "form-near-miss-report", key: "near-miss-report", name: "Near-Miss Report", category: "Safety", requiresJob: true, isActive: true,
-      fields: [{ key: "notes", label: "What almost happened", type: "text", required: true }],
-    },
-    {
-      id: "form-vehicle-pretrip", key: "vehicle-pretrip", name: "Vehicle pre-trip inspection", category: "Safety", requiresJob: false, isActive: true,
-      fields: [
-        { key: "odometer", label: "Odometer reading", type: "number", required: true },
-        { key: "tires", label: "Tires and brakes", type: "checklist", options: ["Tread and pressure OK", "Brakes respond normally"], required: true },
-        { key: "fluids", label: "Fluids", type: "checklist", options: ["Oil level OK", "Coolant level OK", "No visible leaks"], required: true },
-        { key: "lights", label: "Lights and signals", type: "checklist", options: ["Headlights", "Brake lights", "Turn signals", "Hazards"], required: true },
-        { key: "equipment", label: "Safety equipment on board", type: "checklist", options: ["Fire extinguisher", "First aid kit", "Spill kit", "Warning triangles"], required: true },
-        { key: "damage", label: "Body/glass damage noted", type: "text", required: false },
-        { key: "photo", label: "Photo of any damage", type: "photo", required: false },
-        { key: "signature", label: "Driver signature", type: "signature", required: true },
-      ],
-    },
-    {
-      id: "form-spill-incident-report", key: "spill-incident-report", name: "Spill / incident report", category: "Safety", requiresJob: true, isActive: true,
-      fields: [
-        { key: "timeDiscovered", label: "Time discovered", type: "text", required: true },
-        { key: "timeContained", label: "Time contained", type: "text", required: true },
-        { key: "material", label: "Material", type: "text", required: true },
-        { key: "quantityReleased", label: "Quantity released", type: "number", required: false },
-        { key: "quantityRecovered", label: "Quantity recovered", type: "number", required: false },
-        { key: "surface", label: "Surface", type: "text", required: false },
-        { key: "drainsWaterways", label: "Drains or waterways affected", type: "yesno", required: true },
-        { key: "weather", label: "Weather at the time", type: "text", required: false },
-        { key: "injuries", label: "Injuries", type: "yesno", required: true },
-        { key: "agenciesNotified", label: "Agencies notified", type: "text", required: false },
-        { key: "containmentEquipment", label: "Containment equipment used", type: "text", required: false },
-        { key: "photos", label: "Photos", type: "photo", required: false },
-      ],
-    },
-  ],
+  formTemplates: [],
   siteWalkReports: [],
   siteWalkObservations: [],
   siteReferenceLayers: [],
-  jurisdictions: [
-    {
-      id: "jurisdiction-georgetown-tx",
-      name: "Georgetown, TX",
-      kind: "city",
-      portalUrl: "https://opendata-georgetowntx.opendata.arcgis.com/",
-      // Layer ids are documented placeholders (owner, 2026-09-25): scripts/import-erg.mjs's sibling
-      // task -- inspecting https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer?f=json --
-      // fills in the real layer ids for Pressurized Mains / Gravity Mains / Manholes. This build
-      // environment could not reach that host to confirm them; "TBD" marks what W3/W4 must resolve
-      // before the live-layer mode is wired up for this jurisdiction.
-      layers: [
-        { key: "parcels", label: "Parcels", kind: "parcel", serviceUrl: "https://opendata-georgetowntx.opendata.arcgis.com/", layerId: "", mode: "snapshot" },
-        { key: "wastewater-pressurized", label: "Pressurized mains", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
-        { key: "wastewater-gravity", label: "Gravity mains", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
-        { key: "manholes", label: "Manholes", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
-      ],
-      lastImportedAt: "",
-    },
-  ],
-  libraryItems: [
-    { id: "library-manuals-hasp-template", shelf: "manuals", title: "HASP template", category: "Manuals & procedures", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1 },
-    { id: "library-safety-erg", shelf: "safety", title: "Emergency Response Guidebook (ERG 2024)", category: "Safety references", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg", version: 1, sortOrder: 1 },
-    { id: "library-sds-index", shelf: "sds", title: "Safety Data Sheet index", category: "SDS", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
-    { id: "library-tutorials-app-basics", shelf: "tutorials", title: "How to run a job in Front Line", category: "Tutorials & training", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: ["Crew", "Field Lead"], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1 },
-    { id: "library-resources-disposal-hours", shelf: "resources", title: "Disposal facility hours", category: "Helpful resources", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
-  ],
+  jurisdictions: [],
+  libraryItems: [],
   libraryAcknowledgements: [],
   ergMaterials: [],
   ergGuides: [],
   ergDistances: [],
 };
+
+// formTemplates replaces app.js's hard-coded FRONTLINE_STANDALONE_FORMS with data the office can
+// edit -- the four originals kept as the same four forms, plus Vehicle pre-trip inspection and
+// Spill/incident report (fields match the TCEQ 30-day follow-up chronology, see
+// phase-21-frontline-2.md "What the research says").
+const FORM_TEMPLATE_SEED = [
+  {
+    id: "form-daily-safety-checklist", key: "daily-safety-checklist", name: "Daily Safety Checklist", category: "Safety", requiresJob: true, isActive: true,
+    fields: [
+      { key: "ppe", label: "PPE inspected and worn", type: "yesno", required: true },
+      { key: "vehicle", label: "Vehicle pre-trip inspection complete", type: "yesno", required: true },
+      { key: "hazards", label: "Site hazards reviewed with crew", type: "yesno", required: true },
+      { key: "contacts", label: "Emergency contacts confirmed", type: "yesno", required: true },
+    ],
+  },
+  {
+    id: "form-incident-report", key: "incident-report", name: "Incident Report", category: "Safety", requiresJob: true, isActive: true,
+    fields: [{ key: "notes", label: "What happened", type: "text", required: true }],
+  },
+  {
+    id: "form-vehicle-inspection", key: "vehicle-inspection", name: "Vehicle Inspection", category: "Safety", requiresJob: false, isActive: true,
+    fields: [
+      { key: "tires", label: "Tires and brakes checked", type: "yesno", required: true },
+      { key: "fluids", label: "Fluids checked", type: "yesno", required: true },
+      { key: "lights", label: "Lights and signals working", type: "yesno", required: true },
+      { key: "damage", label: "No visible damage", type: "yesno", required: true },
+    ],
+  },
+  {
+    id: "form-near-miss-report", key: "near-miss-report", name: "Near-Miss Report", category: "Safety", requiresJob: true, isActive: true,
+    fields: [{ key: "notes", label: "What almost happened", type: "text", required: true }],
+  },
+  {
+    id: "form-vehicle-pretrip", key: "vehicle-pretrip", name: "Vehicle pre-trip inspection", category: "Safety", requiresJob: false, isActive: true,
+    fields: [
+      { key: "odometer", label: "Odometer reading", type: "number", required: true },
+      { key: "tires", label: "Tires and brakes", type: "checklist", options: ["Tread and pressure OK", "Brakes respond normally"], required: true },
+      { key: "fluids", label: "Fluids", type: "checklist", options: ["Oil level OK", "Coolant level OK", "No visible leaks"], required: true },
+      { key: "lights", label: "Lights and signals", type: "checklist", options: ["Headlights", "Brake lights", "Turn signals", "Hazards"], required: true },
+      { key: "equipment", label: "Safety equipment on board", type: "checklist", options: ["Fire extinguisher", "First aid kit", "Spill kit", "Warning triangles"], required: true },
+      { key: "damage", label: "Body/glass damage noted", type: "text", required: false },
+      { key: "photo", label: "Photo of any damage", type: "photo", required: false },
+      { key: "signature", label: "Driver signature", type: "signature", required: true },
+    ],
+  },
+  {
+    id: "form-spill-incident-report", key: "spill-incident-report", name: "Spill / incident report", category: "Safety", requiresJob: true, isActive: true,
+    fields: [
+      { key: "timeDiscovered", label: "Time discovered", type: "text", required: true },
+      { key: "timeContained", label: "Time contained", type: "text", required: true },
+      { key: "material", label: "Material", type: "text", required: true },
+      { key: "quantityReleased", label: "Quantity released", type: "number", required: false },
+      { key: "quantityRecovered", label: "Quantity recovered", type: "number", required: false },
+      { key: "surface", label: "Surface", type: "text", required: false },
+      { key: "drainsWaterways", label: "Drains or waterways affected", type: "yesno", required: true },
+      { key: "weather", label: "Weather at the time", type: "text", required: false },
+      { key: "injuries", label: "Injuries", type: "yesno", required: true },
+      { key: "agenciesNotified", label: "Agencies notified", type: "text", required: false },
+      { key: "containmentEquipment", label: "Containment equipment used", type: "text", required: false },
+      { key: "photos", label: "Photos", type: "photo", required: false },
+    ],
+  },
+];
+
+// One pilot jurisdiction: Georgetown TX. Layer ids are documented placeholders (owner, 2026-09-25):
+// inspecting https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer?f=json
+// fills in the real layer ids for Pressurized Mains / Gravity Mains / Manholes. This build
+// environment could not reach that host to confirm them; "TBD" marks what W3/W4 must resolve before
+// the live-layer mode is wired up for this jurisdiction.
+const JURISDICTION_SEED = [
+  {
+    id: "jurisdiction-georgetown-tx",
+    name: "Georgetown, TX",
+    kind: "city",
+    portalUrl: "https://opendata-georgetowntx.opendata.arcgis.com/",
+    layers: [
+      { key: "parcels", label: "Parcels", kind: "parcel", serviceUrl: "https://opendata-georgetowntx.opendata.arcgis.com/", layerId: "", mode: "snapshot" },
+      { key: "wastewater-pressurized", label: "Pressurized mains", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
+      { key: "wastewater-gravity", label: "Gravity mains", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
+      { key: "manholes", label: "Manholes", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
+    ],
+    lastImportedAt: "",
+  },
+];
+
+// One placeholder item per Manuals & Training shelf.
+const LIBRARY_ITEM_SEED = [
+  { id: "library-manuals-hasp-template", shelf: "manuals", title: "HASP template", category: "Manuals & procedures", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1 },
+  { id: "library-safety-erg", shelf: "safety", title: "Emergency Response Guidebook (ERG 2024)", category: "Safety references", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg", version: 1, sortOrder: 1 },
+  { id: "library-sds-index", shelf: "sds", title: "Safety Data Sheet index", category: "SDS", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
+  { id: "library-tutorials-app-basics", shelf: "tutorials", title: "How to run a job in Front Line", category: "Tutorials & training", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: ["Crew", "Field Lead"], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1 },
+  { id: "library-resources-disposal-hours", shelf: "resources", title: "Disposal facility hours", category: "Helpful resources", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
+];
+
+// Adds each Phase 21 seed row by id, once -- same pattern as ensureDocumentTypes. Called from
+// loadBackend() so it applies whether backend.json is brand new or (like this repo's committed
+// data/backend.json) already has the key present as an empty array from an earlier commit.
+function ensureFieldSeeds(data) {
+  let added = false;
+  const seedInto = (collection, rows) => {
+    if (!Array.isArray(data[collection])) data[collection] = [];
+    for (const row of rows) {
+      if (data[collection].some((item) => item.id === row.id)) continue;
+      data[collection].push(touchRecord(structuredClone(row)));
+      added = true;
+    }
+  };
+  seedInto("formTemplates", FORM_TEMPLATE_SEED);
+  seedInto("jurisdictions", JURISDICTION_SEED);
+  seedInto("libraryItems", LIBRARY_ITEM_SEED);
+  return added;
+}
 
 // Phase 20 item 5 (2026-09-23): what a soft delete takes with it. Data, in one place, so Phase 14 can
 // turn it into foreign-key rules. Contacts are never cascaded from an account (they are people, not
@@ -2396,6 +2426,8 @@ async function loadBackend() {
   if (!existsSync(dataFile)) {
     const fresh = structuredClone(defaultBackend);
     if (seedDemoData) await seedDemoCollections(fresh);
+    ensureDocumentTypes(fresh);
+    ensureFieldSeeds(fresh);
     await saveBackend(fresh);
     return fresh;
   }
@@ -2451,6 +2483,7 @@ async function loadBackend() {
   }
   let dirty = seedDemoData && (await seedDemoCollections(data));
   if (ensureDocumentTypes(data)) dirty = true;
+  if (ensureFieldSeeds(data)) dirty = true;
   if (dirty) await saveBackend(data);
   return data;
 }
