@@ -38,7 +38,21 @@ a project, not just the office-side `materialUsage`/`equipmentLogs` tables keyed
 `projects.id` -- a project with real field-assigned/consumed resources but no manual office log
 entries was producing an all-zero cost report. `closeReport.costs.materials.items[]` and
 `.equipment.items[]` gained a `source: "office-log"|"field-dispatch"` field to distinguish the two
-origins; no new top-level collection -- updated September 18, 2026)
+origins; no new top-level collection -- updated September 18, 2026; Phase 21 (Front Line 2) office
+integration, W5 -- the post-work report, invoice draft and dispatch job Plan/Close-out tabs now read
+the new field records the foundation commit registered (`jobSafetyBriefings`, `jobEquipmentUsage`,
+`wasteRecords.dispatchJobId`/`.containerPhotoAttachmentId`, `timeEntries.enteredByEmployeeId`,
+`dispatchJobs.customerAcknowledgement`/`.measurements[]`/`.hazards[]`/`.ppeLevel`/`.ergGuideNumber`
+etc., `siteWalkObservations`); no new fields or collections were added by this workstream, only new
+consumers. New shared helper `computeJobBillables(job)` in `app.js` (per-day manpower/equipment/
+material for one dispatch job, sourcing `timeEntries` over Front Line Timer submissions and
+`jobEquipmentUsage` over the older `jobResources`-assignment inference, each with a fallback so
+nothing regresses and nothing double-counts) backs the report's per-day billables, the invoice
+draft's labor/equipment lines, and a new read-only "Billables preview" panel on the dispatch job
+Close-out tab. Three new job-template task types (`"Odometer"`, `"Equipment usage"`,
+`"Waste"`) were added to `TEMPLATE_TASK_TYPES`/`normalizeTaskConfig` -- `"Odometer"`'s config
+support already existed in `normalizeTaskConfig` but had no editor UI or `TEMPLATE_TASK_TYPES`
+entry until now. Updated September 25, 2026.)
 
 ## Executive Summary
 
@@ -975,7 +989,12 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `jobExpenses` | job_receipts (023) | Receipt file → documents |
 | `weatherSnapshots` | **new** weather_snapshots (029+) | Frozen rows (Q41) |
 | `permits` | **new** permits (029+) |  |
-| `wasteRecords` | job_waste_containers + job_waste_shipments (023) |  |
+| `wasteRecords` | job_waste_containers + job_waste_shipments (023) | Phase 21 added `dispatchJobId`, `containerPhotoAttachmentId` for field-written containers |
+| `jobSafetyBriefings` | **new**, no table yet | Phase 21 foundation; one row per job per operational day (PPE level, hazards[], reminders, air readings, roll call) |
+| `jobEquipmentUsage` | **new**, no table yet | Phase 21 foundation; hours/days per asset per operational day, from the field |
+| `formTemplates` | **new**, no table yet | Phase 21 foundation; replaces `FRONTLINE_STANDALONE_FORMS`; 0 rows seeded as of September 25, 2026 |
+| `siteWalkReports` | **new**, no table yet | Phase 21 foundation; 0 rows as of September 25, 2026 |
+| `siteWalkObservations` | **new**, no table yet | Phase 21 foundation; numbered site-map pins; 0 rows as of September 25, 2026 |
 | `notifications` | **new** notifications (029+) |  |
 | `laborAssignments` | **not migrating** | Retired, 0 rows |
 | `sampleLabReports` | **fold into** documents | Legacy store, 0 rows |
