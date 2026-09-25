@@ -520,6 +520,7 @@ dialog.image-markup-dialog.field-markup .image-markup-panel {
 
 body[data-theme="dark"] .markup-canvas-wrap {
   background: #000;
+}
 
 /* =================================================================================================
    W2 job — My Day extras, the job page, safety, capture, forms, and the outbox (Phase 21, 2026-09-25)
@@ -634,6 +635,9 @@ body[data-theme="dark"] .markup-canvas-wrap {
 .field-jsa-row {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
 
 /* =============================================================================================
    W3 walk/map (Phase 21, 2026-09-25): the site walk page, the annotated site map (.sitemap-*,

@@ -27,6 +27,8 @@ function bboxParam(bbox) {
 
 // Query one layer of an ArcGIS REST service for everything inside a lat/lng bounding box.
 export async function fetchArcgisLayer(serviceUrl, layerId, bboxLatLng, { outFields = "*", where = "1=1", signal } = {}) {
+  // A layer id that is not a number (a placeholder like "TBD") cannot be queried; skip it quietly.
+  if (!/^\d+$/.test(String(layerId ?? ""))) return { type: "FeatureCollection", features: [] };
   const base = String(serviceUrl || "").replace(/\/+$/, "");
   const url = `${base}/${encodeURIComponent(String(layerId ?? 0))}/query?where=${encodeURIComponent(where)}&geometry=${encodeURIComponent(bboxParam(bboxLatLng))}&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&outFields=${encodeURIComponent(outFields)}&returnGeometry=true&f=geojson`;
   const cacheKey = url;
