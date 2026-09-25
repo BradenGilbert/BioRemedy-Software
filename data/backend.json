@@ -7107,6 +7107,24 @@
       "itReadAt": "",
       "version": 2,
       "updatedAt": "2026-09-24T22:37:32.866Z"
+    },
+    {
+      "id": "it-message-mugagqpy-mhio3k",
+      "threadKey": "user-braden",
+      "threadName": "Braden Gilbert",
+      "authorUserId": "user-braden",
+      "authorName": "Braden Gilbert",
+      "authorRole": "Admin",
+      "fromIT": false,
+      "body": "this is a test of the screen capture function - braden 9/24/2026",
+      "screenshotDocumentId": "document-mugagrcc-24sqzm",
+      "pageUrl": "/#view=home",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0",
+      "createdAt": "2026-09-25T01:35:16.294Z",
+      "userReadAt": "2026-09-25T01:35:16.294Z",
+      "itReadAt": "",
+      "version": 2,
+      "updatedAt": "2026-09-25T01:35:17.197Z"
     }
   ],
   "documents": [
@@ -7187,6 +7205,32 @@
       "version": 1,
       "updatedAt": "2026-09-24T22:37:32.778Z",
       "createdAt": "2026-09-24T22:37:32.778Z"
+    },
+    {
+      "id": "document-mugagrcc-24sqzm",
+      "entityType": "itMessage",
+      "entityId": "it-message-mugagqpy-mhio3k",
+      "accountId": "",
+      "documentTypeId": "",
+      "requirementId": "",
+      "fileName": "screenshot-1790300118736.png",
+      "mimeType": "image/png",
+      "sizeBytes": 806679,
+      "sha256": "c33bbf56c19f8f1166de29f619f4aaac52dd58e208bc73d5e0ceb7f9587310ab",
+      "storageName": "document-mugagrcc-24sqzm.png",
+      "groupId": "document-mugagrcc-24sqzm",
+      "versionNumber": 1,
+      "visibility": "internal",
+      "caption": "Screenshot sent to IT",
+      "tags": [],
+      "uploadedAt": "2026-09-25T01:35:17.100Z",
+      "uploadedBy": "Braden Gilbert",
+      "uploadedBySessionKind": "entra",
+      "retainUntil": "",
+      "deletedAt": "",
+      "version": 1,
+      "updatedAt": "2026-09-25T01:35:17.100Z",
+      "createdAt": "2026-09-25T01:35:17.100Z"
     }
   ],
   "documentTypes": [
@@ -25610,6 +25654,22 @@
       "createdAt": "2026-09-24T22:37:32.898Z",
       "readBy": [],
       "updatedAt": "2026-09-24T22:37:32.938Z",
+      "version": 1
+    },
+    {
+      "id": "notif-it-message-it-message-mugagqpy-mhio3k",
+      "dedupeKey": "it-message-it-message-mugagqpy-mhio3k",
+      "title": "Message to IT from Braden Gilbert",
+      "body": "this is a test of the screen capture function - braden 9/24/2026",
+      "severity": "info",
+      "audienceRoles": [
+        "Admin"
+      ],
+      "recipientUserId": "",
+      "link": "",
+      "createdAt": "2026-09-25T01:35:19.484Z",
+      "readBy": [],
+      "updatedAt": "2026-09-25T01:35:17.281Z",
       "version": 1
     }
   ],

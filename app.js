@@ -2069,6 +2069,8 @@ async function dispatchClick(event) {
   if (action === "open-waste-record") openWasteRecordDialog(actionButton.dataset.projectId, actionButton.dataset.id || "");
   if (action === "open-notifications") openNotificationsDialog();
   if (action === "open-it-messages") openItMessagesDialog();
+  if (action === "reload-app") location.reload();
+  if (action === "dismiss-update-banner") document.querySelector(".update-banner")?.remove();
   if (action === "it-open-thread") { state.itMessagesThreadKey = actionButton.dataset.key; renderItMessagesDialog(); await markItThreadRead(); }
   if (action === "it-capture-screen") await itCaptureScreen();
   if (action === "it-tool") itSetTool(actionButton.dataset.tool);
@@ -32904,11 +32906,32 @@ function addFileToInput(input, file) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+// 2026-09-24: releases land several times a day. A tab that was open before a release keeps the old
+// code until it reloads, so when the new service worker takes over (skipWaiting + clients.claim) the
+// tab shows a banner with a Reload button, and long-lived tabs check for a new version every 5 minutes.
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./service-worker.js").catch(() => {
-    showToast("Offline shell could not be registered in this browser.");
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hadController || navigator.serviceWorker.controller) showUpdateBanner();
   });
+  navigator.serviceWorker
+    .register("./service-worker.js")
+    .then((registration) => {
+      setInterval(() => registration.update().catch(() => {}), 5 * 60 * 1000);
+    })
+    .catch(() => {
+      showToast("Offline shell could not be registered in this browser.");
+    });
+}
+
+function showUpdateBanner() {
+  if (document.querySelector(".update-banner")) return;
+  const banner = document.createElement("div");
+  banner.className = "update-banner";
+  banner.setAttribute("role", "status");
+  banner.innerHTML = `<span>A newer version of the app is ready.</span><button class="primary-button" type="button" data-action="reload-app">Reload</button><button class="icon-button" type="button" data-action="dismiss-update-banner" aria-label="Not now" title="Not now">x</button>`;
+  document.body.appendChild(banner);
 }
 
 init().catch((error) => {

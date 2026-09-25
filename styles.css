@@ -7477,6 +7477,40 @@ label > .camera-capture-button {
   gap: 8px;
 }
 
+/* An author display rule beats the hidden attribute; keep the drawing tools and the IT-only
+   conversation list out of the way until they have something to show. */
+.it-annotator[hidden],
+.it-thread-list[hidden] {
+  display: none;
+}
+
+/* 2026-09-24: a tab open across a release is told, instead of silently running old code. */
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px 10px 16px;
+  border-radius: 12px;
+  background: #0f1f33;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+.update-banner .icon-button {
+  width: 32px;
+  min-height: 32px;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+
 .it-annotator-canvas {
   display: block;
   max-width: 100%;
