@@ -76,7 +76,7 @@ try {
     const response = await fetch(`${base}${path}`);
     check(response.status === 404, `${path} -> ${response.status} (want 404)`);
   }
-  for (const path of ["/", "/app.js", "/styles.css", "/service-worker.js", "/public/vendor/leaflet/leaflet.js"]) {
+  for (const path of ["/", "/app.js", "/styles.css", "/service-worker.js", "/public/vendor/leaflet/leaflet.js", "/field/index.js", "/field/styles.css"]) {
     const response = await fetch(`${base}${path}`);
     check(response.status === 200, `${path} -> ${response.status} (want 200)`);
   }

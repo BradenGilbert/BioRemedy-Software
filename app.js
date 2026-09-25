@@ -1,3 +1,8 @@
+// Phase 21 (2026-09-25): the field app lives in field/*.js and imports its helpers from this module
+// (see the `export` block at the very end). The import is circular by design; field modules must
+// only touch these bindings inside functions, never at module top level.
+import { mountField } from "./field/index.js";
+
 const DB_NAME = "environmental-crm-foundation";
 const DB_VERSION = 3;
 const AUTH_SESSION_KEY = "enviroCrm.pkce";
@@ -1125,6 +1130,19 @@ const state = {
     weatherSnapshots: [],
     permits: [],
     wasteRecords: [],
+    // Phase 21 (Front Line 2)
+    jobSafetyBriefings: [],
+    jobEquipmentUsage: [],
+    formTemplates: [],
+    siteWalkReports: [],
+    siteWalkObservations: [],
+    siteReferenceLayers: [],
+    jurisdictions: [],
+    libraryItems: [],
+    libraryAcknowledgements: [],
+    ergMaterials: [],
+    ergGuides: [],
+    ergDistances: [],
     notifications: [],
     invoices: [],
     qboSettings: {
@@ -2743,13 +2761,13 @@ function render() {
   if (state.session?.consentRequired) state.view = "frontline-consent";
   // A session tied to a field employee (a real field lead, or a sign-on link) is that employee
   // on Front Line; the simulator's picker is for office roles trying the field app.
-  if (state.view.startsWith("frontline-") && !state.frontlineSession && state.session?.employeeId) {
+  if (isFieldView(state.view) && !state.frontlineSession && state.session?.employeeId) {
     state.frontlineSession = { employeeId: state.session.employeeId, loginAt: state.session.createdAt };
     if (state.view === "frontline-login") state.view = state.session.dispatchJobId ? "frontline-job-detail" : "frontline-home";
     if (state.session.dispatchJobId && !state.frontlineSelectedJobId) state.frontlineSelectedJobId = state.session.dispatchJobId;
   }
   ensureAllowedView();
-  if (state.view.startsWith("frontline-") && !["frontline-login", "frontline-consent"].includes(state.view) && !state.frontlineSession) {
+  if (isFieldView(state.view) && !["frontline-login", "frontline-consent"].includes(state.view) && !state.frontlineSession) {
     state.view = "frontline-login";
   }
   if (state.view !== "ops-map") cleanupOperationsMap();
@@ -2758,7 +2776,7 @@ function render() {
   if (!["project-detail", "sample-detail"].includes(state.view)) cleanupProjectDetailVisuals();
   if (state.view !== "frontline-job-detail") cleanupSignaturePad();
   appShell.classList.toggle("home-mode", state.view === "home");
-  appShell.classList.toggle("frontline-mode", state.view.startsWith("frontline-"));
+  appShell.classList.toggle("frontline-mode", isFieldView(state.view));
   renderConnection();
   renderNav();
   renderQuickActions();
@@ -2838,8 +2856,16 @@ function render() {
   if (state.view === "frontline-invoices") renderFrontlineInvoices();
   if (state.view === "frontline-settings") renderFrontlineSettings();
   if (state.view === "frontline-consent") renderFrontlineConsent();
+  // Phase 21: every field-* view is rendered by the field app module (field/index.js).
+  if (state.view.startsWith("field-")) mountField(state.view);
   syncRouteToHistory();
   updateBackButtonState();
+}
+
+// Front Line views: the legacy simulator screens (frontline-*) and the Phase 21 field app (field-*).
+// Both run inside the frameless "frontline-mode" shell and share the employee session.
+function isFieldView(view) {
+  return typeof view === "string" && (view.startsWith("frontline-") || view.startsWith("field-"));
 }
 
 const ROUTE_ID_FIELDS = [
@@ -3065,6 +3091,8 @@ function canAccessWorkspace(workspaceId) {
 
 function canAccessView(view) {
   if (view === "home") return true;
+  // field-* routes are declared in field/index.js, not in viewWorkspace; they belong to Front Line.
+  if (typeof view === "string" && view.startsWith("field-")) return canAccessWorkspace("frontline");
   const workspaceId = viewWorkspace[view];
   return workspaceId ? canAccessWorkspace(workspaceId) : false;
 }
@@ -32893,3 +32921,115 @@ init().catch((error) => {
     </section>
   `;
 });
+
+// ---------------------------------------------------------------------------------------------
+// Phase 21 (2026-09-25): the shared surface the field app (field/*.js) imports. Everything here
+// already existed; exporting it changes no behaviour. Add to this list rather than duplicating a
+// helper in field/. Bindings are live, so `state` is always the current object.
+// ---------------------------------------------------------------------------------------------
+export {
+  // core
+  state,
+  render,
+  apiRequest,
+  saveBackendRecord,
+  refreshBackendState,
+  projectBackendState,
+  handleSaveConflict,
+  liveRows,
+  makeId,
+  escapeHtml,
+  escapeAttribute,
+  showToast,
+  closeDialogs,
+  currentRoles,
+  userHasRole,
+  currentActorName,
+  findWorkspace,
+  // formatting
+  formatDate,
+  formatDateTime,
+  formatShortTime,
+  formatDuration,
+  formatDispatchStatus,
+  formatFileSize,
+  money,
+  todayIso,
+  localIsoDate,
+  parseDate,
+  // device storage (IndexedDB)
+  openDatabase,
+  transaction,
+  getAll,
+  putRecord,
+  getSetting,
+  putSetting,
+  // uploads, weather, printing
+  uploadRawFile,
+  uploadDocument,
+  attachmentViewUrl,
+  captureWeatherSnapshot,
+  captureWeatherInBackground,
+  renderPrintShell,
+  openPrintWindow,
+  // dispatch job engine
+  advanceDispatchJob,
+  getNextDispatchTransition,
+  getWorkPlanGate,
+  getJobReadiness,
+  postJobReviewAvailable,
+  normalizeTaskConfig,
+  renderSubmissionPayload,
+  renderDispatchStatusBadge,
+  computeTimerHours,
+  frontlineMyDispatchJobs,
+  frontlineCompleteAction,
+  renderFrontlineTaskCapture,
+  initializeSignaturePad,
+  cleanupSignaturePad,
+  signatureToBlob,
+  frontlineCaptureGps,
+  submitEmergencyIntake,
+  // time, trips, receipts, messages (legacy field functions reused by the new screens)
+  frontlineClockIn,
+  frontlineClockOut,
+  frontlineLogTrip,
+  frontlineLogExpense,
+  frontlineSendMessage,
+  frontlineMessagesForThread,
+  frontlineConversations,
+  frontlineUnreadTotal,
+  renderChatThread,
+  renderChatComposer,
+  getJobMileageEntries,
+  getJobExpenses,
+  // maps, 3D
+  gpsPointIcon,
+  initializeProjectModelViewer,
+  loadThreeViewerModules,
+  raiseNotification,
+  // accessors
+  getEmployees,
+  findEmployee,
+  getDispatchJobs,
+  findDispatchJob,
+  dispatchAssignmentsForJob,
+  resourcesForDispatchJob,
+  stepsForDispatchJob,
+  actionsForDispatchStep,
+  submissionsForDispatchJob,
+  findProject,
+  findAccount,
+  findOpportunity,
+  findFacility,
+  getScheduleEvents,
+  siteWalkEvents,
+  opportunityLocationsForOpportunity,
+  getDocuments,
+  documentsForEntity,
+  latestDocumentsForEntity,
+  getInventoryItems,
+  findInventoryItem,
+  getTimeEntries,
+  getMessages,
+};

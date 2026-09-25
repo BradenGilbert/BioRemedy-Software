@@ -17,5 +17,14 @@
       "sizes": "1001x301",
       "type": "image/png"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Front Line",
+      "short_name": "Front Line",
+      "description": "The field app: today's jobs and site walks",
+      "url": "./?surface=phone#view=field-home",
+      "icons": [{ "src": "./public/brand/bioremedy-leaf-icon.png", "sizes": "any", "type": "image/png" }]
+    }
   ]
 }

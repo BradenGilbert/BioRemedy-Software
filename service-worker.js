@@ -1,9 +1,13 @@
-const CACHE_NAME = "environmental-crm-shell-v62";
+const CACHE_NAME = "environmental-crm-shell-v63";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  // Phase 21: every field/*.js module must be listed here or the app will not start offline.
+  "./field/index.js",
+  "./field/package.js",
+  "./field/styles.css",
   "./manifest.webmanifest",
   "./public/favicon.svg",
   "./public/brand/bioremedy-logo-primary.png",

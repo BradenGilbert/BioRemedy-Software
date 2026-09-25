@@ -25,6 +25,17 @@ block = source[source.index("const viewWorkspace = {") : source.index("};", sour
 views = re.findall(r'^\s*"?([a-z0-9-]+)"?:\s*"', block, re.M)
 detail_views = [v for v in views if v.endswith("-detail")]
 list_views = [v for v in views if v not in detail_views and not v.startswith("frontline-")]
+# Phase 21: the field app's routes are declared in field/index.js (FIELD_ROUTES) and in any sibling
+# module that calls registerFieldRoute("field-xxx", ...). Both forms are picked up here.
+field_views = []
+for name in os.listdir(os.path.join(ROOT, "field")):
+    if not name.endswith(".js"):
+        continue
+    with open(os.path.join(ROOT, "field", name), encoding="utf8") as handle:
+        field_source = handle.read()
+    field_views += re.findall(r'^\s*"(field-[a-z0-9-]+)":\s*\{', field_source, re.M)
+    field_views += re.findall(r'registerFieldRoute\(\s*"(field-[a-z0-9-]+)"', field_source)
+field_views = sorted(set(field_views))
 
 summary = {"views": 0, "tabs": 0, "dialogs": 0, "resaved": 0, "consoleErrors": [], "badText": []}
 where = {"at": "start"}
@@ -177,6 +188,44 @@ with sync_playwright() as p:
             summary["views"] += 1
             note_bad_text(page, "frontline-job-detail")
         print(f"  frontline: {len([v for v in views if v.startswith('frontline-')])} screens")
+        # Phase 21 field app, desktop surface (inside the simulator frame)
+        for view in field_views:
+            where["at"] = view
+            page.goto(BASE + f"#view={view}")
+            page.wait_for_timeout(700)
+            summary["views"] += 1
+            note_bad_text(page, view)
+        print(f"  field (desktop): {len(field_views)} screens")
+
+    # Phase 21 field app, phone surface: a second context at a real phone size. The picker login is
+    # repeated because a new context has no in-memory session.
+    phone = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+    phone_page = phone.new_page()
+    phone_page.on("console", lambda m: summary["consoleErrors"].append(f"[phone {where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text else None)
+    phone_page.on("pageerror", lambda e: summary["consoleErrors"].append(f"[phone {where['at']}] pageerror: {str(e)[:160]}"))
+    phone_page.on("dialog", lambda d: d.accept())
+    phone_login = phone.request.post(BASE + "api/auth/break-glass", data={"password": SMOKE_PASSWORD})
+    if phone_login.status != 200:
+        summary["consoleErrors"].append(f"[phone login] break-glass sign-in failed with {phone_login.status}")
+    where["at"] = "frontline-login"
+    phone_page.goto(BASE + "?surface=phone#view=frontline-login")
+    phone_page.wait_for_timeout(900)
+    if phone_page.locator("#frontlineFieldLeadSelect option").count() > 1:
+        phone_page.select_option("#frontlineFieldLeadSelect", index=1)
+        phone_page.click('button[data-action="frontline-login"]')
+        phone_page.wait_for_timeout(600)
+        for view in field_views:
+            where["at"] = view
+            phone_page.goto(BASE + f"?surface=phone#view={view}")
+            phone_page.wait_for_timeout(700)
+            summary["views"] += 1
+            note_bad_text(phone_page, f"phone {view}")
+            # a phone screen must never scroll sideways
+            overflow = phone_page.evaluate("() => document.documentElement.scrollWidth - document.documentElement.clientWidth")
+            if overflow > 2:
+                summary["badText"].append(f"phone {view}: horizontal overflow {overflow}px")
+        print(f"  field (phone): {len(field_views)} screens")
+    phone.close()
     browser.close()
 
 print("SUMMARY " + json.dumps(summary))

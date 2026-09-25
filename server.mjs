@@ -57,6 +57,12 @@ const mimeTypes = new Map([
   [".jpg", "image/jpeg"],
   [".jpeg", "image/jpeg"],
   [".glb", "model/gltf-binary"],
+  [".webp", "image/webp"],
+  [".woff2", "font/woff2"],
+  [".mp4", "video/mp4"],
+  [".webm", "video/webm"],
+  [".pdf", "application/pdf"],
+  [".geojson", "application/geo+json"],
 ]);
 
 // Phase 20 item 0 (2026-09-23): the only files the static branch serves outside public/. Everything
@@ -228,6 +234,20 @@ const collectionAccess = {
   serviceAgreements: "salesDocuments",
   subcontractorAssignments: "salesDocuments",
   accountApprovedSubcontractors: "salesDocuments",
+  // Phase 21 (Front Line 2, 2026-09-25). Field sessions read these through fieldProjections (W1);
+  // the domains below are for office roles.
+  jobSafetyBriefings: "dispatch",
+  jobEquipmentUsage: "dispatch",
+  formTemplates: "dispatch",
+  siteWalkReports: "sales",
+  siteWalkObservations: "sales",
+  siteReferenceLayers: "customerDirectory",
+  jurisdictions: "customerDirectory",
+  libraryItems: "customerDirectory",
+  libraryAcknowledgements: "customerDirectory",
+  ergMaterials: "customerDirectory",
+  ergGuides: "customerDirectory",
+  ergDistances: "customerDirectory",
 };
 
 // What a brand-new data folder starts with (rewritten 2026-09-25 when the sample data was rebuilt):
@@ -2105,7 +2125,20 @@ const defaultBackend = {
     realmId: "",
     lastExportAt: ""
   },
-  qboExports: []
+  qboExports: [],
+  // Phase 21 (Front Line 2)
+  jobSafetyBriefings: [],
+  jobEquipmentUsage: [],
+  formTemplates: [],
+  siteWalkReports: [],
+  siteWalkObservations: [],
+  siteReferenceLayers: [],
+  jurisdictions: [],
+  libraryItems: [],
+  libraryAcknowledgements: [],
+  ergMaterials: [],
+  ergGuides: [],
+  ergDistances: [],
 };
 
 // Phase 20 item 5 (2026-09-23): what a soft delete takes with it. Data, in one place, so Phase 14 can
@@ -2180,6 +2213,8 @@ const cascadeRules = {
     ["messages", "dispatchJobId"],
     ["timeEntries", "dispatchJobId"],
     ["jobMileageEntries", "dispatchJobId"],
+    ["jobSafetyBriefings", "jobId"],
+    ["jobEquipmentUsage", "jobId"],
   ],
 };
 
@@ -2541,6 +2576,19 @@ function filterBackendForRole(data, role, session = null) {
     serviceAgreements: canAccess(role, "salesDocuments") ? data.serviceAgreements : [],
     subcontractorAssignments: canAccess(role, "salesDocuments") ? data.subcontractorAssignments : [],
     accountApprovedSubcontractors: canAccess(role, "salesDocuments") ? data.accountApprovedSubcontractors : [],
+    // Phase 21 (Front Line 2). Field sessions are narrowed by fieldProjections (W1).
+    jobSafetyBriefings: canAccess(role, "dispatch") ? data.jobSafetyBriefings : [],
+    jobEquipmentUsage: canAccess(role, "dispatch") || canAccess(role, "finance") ? data.jobEquipmentUsage : [],
+    formTemplates: canAccess(role, "dispatch") ? data.formTemplates : [],
+    siteWalkReports: canAccess(role, "sales") || canAccess(role, "operations") ? data.siteWalkReports : [],
+    siteWalkObservations: canAccess(role, "sales") || canAccess(role, "operations") ? data.siteWalkObservations : [],
+    siteReferenceLayers: canAccess(role, "customerDirectory") ? data.siteReferenceLayers : [],
+    jurisdictions: canAccess(role, "customerDirectory") ? data.jurisdictions : [],
+    libraryItems: canAccess(role, "customerDirectory") ? data.libraryItems : [],
+    libraryAcknowledgements: canAccess(role, "customerDirectory") ? data.libraryAcknowledgements : [],
+    ergMaterials: canAccess(role, "customerDirectory") ? data.ergMaterials : [],
+    ergGuides: canAccess(role, "customerDirectory") ? data.ergGuides : [],
+    ergDistances: canAccess(role, "customerDirectory") ? data.ergDistances : [],
   };
 }
 
@@ -4249,6 +4297,9 @@ const DOCUMENT_ENTITY_TYPES = new Map([
   ["documentType", "documentTypes"],
   ["sample", "sampleRecords"],
   ["itMessage", "itMessages"],
+  // Phase 21 (Front Line 2)
+  ["libraryItem", "libraryItems"],
+  ["siteWalk", "siteWalkReports"],
 ]);
 const REQUIREMENT_STATUSES = ["Not started", "Sent", "Returned", "In review", "Approved", "Rejected"];
 const REVIEW_ROLES = ["Admin", "Office Manager", "Sales Manager", "Operations Manager"];
@@ -4269,6 +4320,14 @@ const documentTypeSeed = [
   { id: "doctype-account-logo", code: "account-logo", name: "Account logo", kind: "upload", counterparty: "internal", appliesTo: ["account"], stageGate: "", requiresReview: false, expiryDays: null, isImage: true, description: "Shown on the account header." },
   { id: "doctype-lab-report", code: "lab-report", name: "Lab report", kind: "upload", counterparty: "internal", appliesTo: ["project", "sample", "dispatchJob"], stageGate: "", requiresReview: false, expiryDays: null, description: "A laboratory's report." },
   { id: "doctype-other", code: "other", name: "Other document", kind: "upload", counterparty: "internal", appliesTo: ["account", "contact", "opportunity", "project", "facility", "dispatchJob", "jobRequest"], stageGate: "", requiresReview: false, expiryDays: null, description: "Anything else worth keeping with the record." },
+  // Phase 21 (Front Line 2, 2026-09-25): media captured in the field and the reference shelves.
+  { id: "doctype-job-photo", code: "job-photo", name: "Job photo", kind: "upload", counterparty: "internal", appliesTo: ["dispatchJob", "project"], stageGate: "", requiresReview: false, expiryDays: null, isImage: true, description: "A photo taken on a job from the field app (caption, GPS, heading, report toggle)." },
+  { id: "doctype-site-video", code: "site-video", name: "Site video", kind: "upload", counterparty: "internal", appliesTo: ["opportunity", "project", "dispatchJob", "siteWalk"], stageGate: "", requiresReview: false, expiryDays: null, description: "A walk-through or scene video from the field; uploaded in chunks, printed as a poster frame plus link." },
+  { id: "doctype-site-scan", code: "site-scan", name: "3D site scan", kind: "upload", counterparty: "internal", appliesTo: ["opportunity", "project", "dispatchJob", "siteWalk"], stageGate: "", requiresReview: false, expiryDays: null, description: "A LiDAR or photogrammetry scan shared from a scanning app (GLB, USDZ, PLY, OBJ, E57) with its measurements." },
+  { id: "doctype-site-sketch", code: "site-sketch", name: "Site sketch", kind: "upload", counterparty: "internal", appliesTo: ["opportunity", "project", "dispatchJob", "siteWalk"], stageGate: "", requiresReview: false, expiryDays: null, isImage: true, description: "Markup over a satellite snapshot or a blank grid: spill extent, drains, staging, sample points." },
+  { id: "doctype-site-map", code: "site-map", name: "Site map export", kind: "upload", counterparty: "internal", appliesTo: ["opportunity", "project", "dispatchJob", "siteWalk"], stageGate: "", requiresReview: false, expiryDays: null, description: "The annotated site map exported from a walk or job as a PDF." },
+  { id: "doctype-site-plan", code: "site-plan", name: "Site plan / floor plan", kind: "upload", counterparty: "internal", appliesTo: ["facility", "opportunity", "project", "siteWalk"], stageGate: "", requiresReview: false, expiryDays: null, isImage: true, description: "An uploaded floor plan, site drawing or photographed layout used as an indoor map background." },
+  { id: "doctype-sds", code: "sds", name: "Safety data sheet (SDS)", kind: "upload", counterparty: "internal", appliesTo: ["libraryItem", "dispatchJob", "project"], stageGate: "", requiresReview: false, expiryDays: null, description: "A material's SDS, on the Safety shelf or attached to a job." },
 ];
 
 // Adds any seeded type that is missing; never overwrites an existing row (the office may have
@@ -5146,7 +5205,8 @@ const server = createServer(async (request, response) => {
     const filePath = path.resolve(root, `.${pathname}`);
     const relativePath = path.relative(root, filePath).split(path.sep).join("/");
     const insideRoot = relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
-    const allowed = insideRoot && (staticAllowlist.has(relativePath) || relativePath.startsWith("public/"));
+    // Phase 21: field/ holds the field app's ES modules and stylesheet (plain web assets, no data).
+    const allowed = insideRoot && (staticAllowlist.has(relativePath) || relativePath.startsWith("public/") || relativePath.startsWith("field/"));
     const isFile = allowed && existsSync(filePath) && statSync(filePath).isFile();
     let resolvedPath = filePath;
     if (!isFile) {
