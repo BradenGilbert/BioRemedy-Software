@@ -96,6 +96,27 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 | Field outbox | IndexedDB `environmental-crm-field › fieldOutbox` (Phase 21 W2, 2026-09-25) | Device-scoped queue of field-app writes made while offline (or on a network failure), replayed in order once back online. **Not** the legacy `syncQueue` store, and not a JSON backend collection — nothing here is shared between devices. |
 | Field package | IndexedDB `environmental-crm-field › fieldPackages` (Phase 21 W2, 2026-09-25) | The cached snapshot of `GET /api/field/package` (or, until that route exists, a snapshot of `state.backend`) a field device reads from when it opens offline. |
 
+## Front Line 2 terms (Phase 21, planned 2026-09-24 — none of these exist yet)
+
+| Term | JSON backend | Meaning |
+|---|---|---|
+| Field surface | session kind `dispatch-link`, or a field role with `?surface=phone` / the `field-*` views | A session the server treats as a phone: reads go through the field projection, writes go through field commands. **Not** a role; an office user can open the simulator without becoming a field surface. |
+| Field projection | `fieldProjections` (server table) | Per collection: which fields a field surface may read and which rows (mine, my jobs', my walks'). The limited-read model that replaces domain blocking for Field Lead. |
+| Field command | `POST /api/field/*` | A small server route that does one write with the right authority (timer, clock crew, complete site walk, quick lead). The phone never PUTs an `employees` or `opportunities` row. Idempotent by `X-Client-Command-Id`. |
+| Job package | `GET /api/field/package` → IndexedDB `fieldPackages` | Everything one worker's My Day and job/walk pages need, already projected. The offline cache. Device-scoped, so IndexedDB is correct here. |
+| Outbox | IndexedDB `fieldOutbox` | Queued field writes (commands, uploads) with a client command id, replayed in order when online; a rejected one stays visible with its reason. **Not** the old `syncQueue`, which only logs office saves. |
+| Safety briefing | `jobSafetyBriefings` | Per job per operational day: PPE level and rationale, muster point, JSA rows, the five reminders, optional air-monitoring readings, crew roll call with acknowledgements. Read directly by the report's JSA section (replaces the form-name regex). |
+| Equipment usage | `jobEquipmentUsage` | Hours or days on one asset on one job day, logged from the field. **Not** `equipmentLogs` (office-entered) and not `jobResources` (what was assigned). |
+| Site walk report | `siteWalkReports` | The guided capture from one walk (`scheduleEvents` row): sections, measurements, contacts met, summary. Its photos are `documents{type:"site-photo"}` on the opportunity. |
+| Markup | `documents.markup` on a new version in the group | Annotation strokes over a photo or sketch, kept as JSON so they can be re-edited; the original is the previous version. |
+| Site sketch | `documents{type:"site-sketch"}` | Markup over a satellite snapshot or blank grid: spill extent, drains, sample points, staging. The scaled map TCEQ's follow-up asks for. |
+| Scan | `documents{type:"site-scan"}` + `spatialData` row | A LiDAR / photogrammetry file shared from a scanning app (GLB/USDZ/PLY/OBJ/E57) with structured `measurements[]`. The app cannot drive the LiDAR sensor itself. |
+| ERG | `ergMaterials`, `ergGuides`, `ergDistances` | The DOT/PHMSA Emergency Response Guidebook in data form: UN number → guide, guide text, and the Table 1/3 isolation and protective-action distances. What was applied is stamped on the job (`ergGuideNumber` …). |
+| SDS | `documents{type:"sds"}` | A Safety Data Sheet on an inventory item, job, project or account. |
+| Library item | `libraryItems` (+ `documents{entityType:"libraryItem"}` or a link) | One entry on the Manuals & Training shelves (manuals & procedures, safety references, tutorials & training, helpful resources): a versioned document or an external link, with audience, required-for roles and renewal. |
+| Acknowledgement | `libraryAcknowledgements` | Append-only proof an employee read or completed a library item at a given version. Shown beside certifications on Workforce. **Not** `gpsConsents` and not `employeeCertifications`. |
+| Form template | `formTemplates` | A standalone form defined in data (replaces the hard-coded `FRONTLINE_STANDALONE_FORMS`). Submissions stay in `jobFormSubmissions`. |
+
 ---
 
 ## Sales entities

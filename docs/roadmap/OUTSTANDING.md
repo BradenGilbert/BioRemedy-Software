@@ -12,7 +12,7 @@ Shipped work is deliberately not repeated here; `README.md` has the "already shi
 |---|---|
 | Phases shipped | 17 (00, 01, 02, 04, 05, 08, 09, 10, 11, 12a, 12b, 13, 15, 16, 17, 18, 20) — the 2026-09-23/24 sprint (Waves 0–8) closed 04, 11, 12a, 13, 18 item 4 and 20, and every second-round item in 08, 09, 10; 12b (Entra sign-in) followed on 2026-09-24 once the app registration existed |
 | Phases substantially done, with named leftovers | 3 (03, 06, 07) |
-| Phases not started | 14 (Postgres — after the pilot; inventory and runbook ready), 19 (email/Teams — the Entra registration now exists; needs Graph permissions and a design pass), **21 (Front Line 2 — planned 2026-09-24, five passes; see below)** |
+| Phases not started | 14 (Postgres — after the pilot; inventory and runbook ready), 19 (email/Teams — the Entra registration now exists; needs Graph permissions and a design pass), **22 (site workspace — placeholder only)**; 21 (Front Line 2) was built 2026-09-25 and now needs pilot feedback |
 | Open items with a checkbox against them | ~80 |
 | Blocked on an owner decision, not on engineering | 14 |
 
@@ -196,7 +196,11 @@ Generic document store with hash de-duplication and versions, every Files tab li
 
 ## Stage B addition — Phase 21, planned 2026-09-24
 
-### Phase 21 — Front Line 2 · 🔵 planned 2026-09-24, not started
+### Phase 21 — Front Line 2 · 🟢 built 2026-09-25 in one pass; pilot feedback pending
+
+**What is left after the build** (details in the phase doc's build record): the five utility screens (Time, Trips, Receipts, Messages, Settings) still render through the legacy simulator code; the server-side advance gate is smaller than the client's readiness check; a dual-role session bypasses the device block; the ERG runs from the fixture until the PHMSA PDFs are saved into `docs/uploaded files/erg/`; video, scans and the GPS-walked perimeter were not exercised with real files or real GPS; the walk PDF is the print page. Phase 22 (desktop site workspace) is a placeholder only.
+
+*Original plan summary, kept for reference:*
 
 The field app rebuilt for real phones and for sales: My Day, a four-tab job page with a real safety briefing (JSA, PPE level, roll call), equipment-usage and waste tasks, a crew view, customer signature and a billables preview; cached job packages and an offline outbox; a limited read/write field access model (`fieldProjections` + `/api/field/*` commands) replacing domain blocking; a site-walk page with required-shot photo trays that writes back to the opportunity; photo annotation and site sketches; video with resumable upload; LiDAR scans shared from scanning apps into `spatialData`; the ERG (materials, guides, isolation/protective distances drawn on the map, imported from the two PHMSA PDFs the owner supplied 2026-09-25), SDS and a Manuals & Training library (manuals, safety references, tutorials with required-for-role acknowledgements, helpful resources); the field code split into `field/` modules. Five passes (21a foundation → 21b job depth + safety library → 21c sales mode + photos → 21d media → 21e polish). **Eleven open decisions for the owner** are listed in the phase doc; the two that block work earliest are crew logins (Microsoft accounts vs per-dispatch links) and saving the two ERG PDFs into `docs/uploaded files/erg/` from a browser (PHMSA's CDN blocks scripted downloads).
 
