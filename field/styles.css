@@ -2247,3 +2247,11 @@ body[data-theme="dark"] .field-walk-section,
 body[data-theme="dark"] .field-tool {
   background: var(--surface);
 }
+
+/* Legacy utility screens (Job Book, Time, Trips, Receipts, Messages, Location, Settings) drawn
+   inside the field shell: keep the legacy body's grid so their cards space as before. */
+.field-legacy {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}

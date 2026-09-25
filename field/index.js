@@ -285,15 +285,15 @@ function renderMyDay() {
 
     <h2 class="field-section-title">More</h2>
     <div class="field-more-grid">
-      ${renderMoreTile("frontline-messaging", "Messages", unread)}
-      ${renderMoreTile("frontline-timesheet", "Time")}
-      ${renderMoreTile("frontline-trips", "Trips")}
-      ${renderMoreTile("frontline-receipts", "Receipts")}
+      ${renderMoreTile("field-messages", "Messages", unread)}
+      ${renderMoreTile("field-time", "Time")}
+      ${renderMoreTile("field-trips", "Trips")}
+      ${renderMoreTile("field-receipts", "Receipts")}
       ${renderMoreTile("field-forms", "Forms")}
-      ${renderMoreTile("frontline-jobbook", "All jobs")}
+      ${renderMoreTile("field-jobs", "All jobs")}
       ${renderMoreTile("field-library", "Manuals & Training")}
       ${renderMoreTile("field-outbox", "Sync")}
-      ${renderMoreTile("frontline-settings", "Settings")}
+      ${renderMoreTile("field-settings", "Settings")}
     </div>
     <div class="field-exit-row">
       <button class="field-button field-button--ghost" type="button" data-action="frontline-exit">Exit Front Line</button>
@@ -458,14 +458,14 @@ registerFieldAction("field-clock-out", async (button) => {
 function renderMore() {
   const unread = crm.frontlineUnreadTotal(currentFieldEmployee()?.id);
   return `<div class="field-more-grid">
-    ${renderMoreTile("frontline-messaging", "Messages", unread)}
-    ${renderMoreTile("frontline-timesheet", "Time")}
-    ${renderMoreTile("frontline-trips", "Trips")}
-    ${renderMoreTile("frontline-receipts", "Receipts")}
+    ${renderMoreTile("field-messages", "Messages", unread)}
+    ${renderMoreTile("field-time", "Time")}
+    ${renderMoreTile("field-trips", "Trips")}
+    ${renderMoreTile("field-receipts", "Receipts")}
     ${renderMoreTile("field-forms", "Forms")}
     ${renderMoreTile("field-library", "Manuals & Training")}
     ${renderMoreTile("field-outbox", "Sync")}
-    ${renderMoreTile("frontline-settings", "Settings")}
+    ${renderMoreTile("field-settings", "Settings")}
   </div>`;
 }
 
@@ -561,3 +561,31 @@ export function renderSalesHomeSections(employee) {
     })
     .join("");
 }
+
+// ---------------------------------------------------------------------------------------------
+// Utility screens still drawn by the legacy renderers (Job Book, Time, Trips, Receipts, Messages,
+// Location, Settings). Each legacy renderer writes the whole simulator frame into #app; we let it,
+// lift its `.frontline-body` out, and mountField() then redraws #app as the field shell around that
+// body. Delegated data-action / data-form handlers in app.js keep working because the markup is the
+// same; post-render hooks that look elements up by id (the location map) find them in the copy.
+// Rebuilding these as native field-* screens is the follow-up recorded in the phase doc.
+// ---------------------------------------------------------------------------------------------
+
+function legacyScreen(title, renderLegacy) {
+  return {
+    title,
+    render() {
+      renderLegacy();
+      const body = document.querySelector("#app .frontline-body");
+      return body ? `<div class="field-legacy">${body.innerHTML}</div>` : `<section class="field-card field-card--empty"><p>Nothing to show.</p></section>`;
+    },
+  };
+}
+
+registerFieldRoute("field-jobs", legacyScreen("All jobs", () => crm.renderFrontlineJobBook()));
+registerFieldRoute("field-time", legacyScreen("Time", () => crm.renderFrontlineTimesheet()));
+registerFieldRoute("field-trips", legacyScreen("Trips", () => crm.renderFrontlineTrips()));
+registerFieldRoute("field-receipts", legacyScreen("Receipts", () => crm.renderFrontlineReceipts()));
+registerFieldRoute("field-messages", legacyScreen("Messages", () => crm.renderFrontlineMessaging()));
+registerFieldRoute("field-location", legacyScreen("Location", () => crm.renderFrontlineLocation()));
+registerFieldRoute("field-settings", legacyScreen("Settings", () => crm.renderFrontlineSettings()));

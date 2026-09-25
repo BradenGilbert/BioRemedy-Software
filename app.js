@@ -2236,7 +2236,7 @@ async function dispatchClick(event) {
   }
   if (action === "frontline-messaging-open-thread") {
     state.frontlineMessagingThreadKey = actionButton.dataset.thread || "general";
-    state.view = "frontline-messaging";
+    state.view = "field-messages";
     render();
   }
   if (action === "frontline-messaging-inbox") {
@@ -2576,7 +2576,7 @@ function handleInputInner(event) {
   }
   if (event.target.id === "frontlineRegionSelect") {
     state.frontlineJobFilter.region = event.target.value;
-    renderFrontlineJobBook();
+    render();
   }
 
   if (event.target.id === "accountTimelineSearch") {
@@ -2894,13 +2894,6 @@ function render() {
   if (state.view === "fieldwork") renderFieldwork();
   if (state.view === "sync") renderSync();
   if (state.view === "frontline-login") renderFrontlineLogin();
-  if (state.view === "frontline-jobbook") renderFrontlineJobBook();
-  if (state.view === "frontline-timesheet") renderFrontlineTimesheet();
-  if (state.view === "frontline-messaging") renderFrontlineMessaging();
-  if (state.view === "frontline-trips") renderFrontlineTrips();
-  if (state.view === "frontline-receipts") renderFrontlineReceipts();
-  if (state.view === "frontline-location") renderFrontlineLocation();
-  if (state.view === "frontline-settings") renderFrontlineSettings();
   if (state.view === "frontline-consent") renderFrontlineConsent();
   // Phase 21: every field-* view is rendered by the field app module (field/index.js).
   if (state.view.startsWith("field-")) mountField(state.view);
@@ -2919,6 +2912,14 @@ const FRONTLINE_RETIRED_VIEWS = {
   "frontline-job-detail": "field-job",
   "frontline-forms": "field-forms",
   "frontline-invoices": "field-home",
+  // The utility screens keep their legacy renderers but draw inside the field shell (field/index.js).
+  "frontline-jobbook": "field-jobs",
+  "frontline-timesheet": "field-time",
+  "frontline-trips": "field-trips",
+  "frontline-receipts": "field-receipts",
+  "frontline-messaging": "field-messages",
+  "frontline-location": "field-location",
+  "frontline-settings": "field-settings",
 };
 
 const ROUTE_ID_FIELDS = [
@@ -34036,6 +34037,14 @@ export {
   findInventoryItem,
   getTimeEntries,
   getMessages,
+  // legacy Front Line utility renderers, drawn inside the field shell by field/index.js
+  renderFrontlineJobBook,
+  renderFrontlineTimesheet,
+  renderFrontlineTrips,
+  renderFrontlineReceipts,
+  renderFrontlineMessaging,
+  renderFrontlineLocation,
+  renderFrontlineSettings,
   // ERG (Phase 21, W4)
   ergLookup,
   ergIsolationFor,

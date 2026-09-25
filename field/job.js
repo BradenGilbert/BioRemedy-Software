@@ -35,7 +35,7 @@ const TABS = [
 function renderJob() {
   const job = currentJob();
   const employee = currentFieldEmployee();
-  if (!job) return `<section class="field-card"><p>Job not found.</p><button class="field-button field-button--secondary" type="button" data-view="frontline-jobbook">Job Book</button></section>`;
+  if (!job) return `<section class="field-card"><p>Job not found.</p><button class="field-button field-button--secondary" type="button" data-view="field-jobs">All jobs</button></section>`;
   if (!isOnJob(job, employee)) {
     return `<section class="field-card"><p>You're not assigned to this job.</p><button class="field-button field-button--secondary" type="button" data-view="field-home">My Day</button></section>`;
   }

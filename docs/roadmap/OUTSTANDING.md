@@ -198,7 +198,7 @@ Generic document store with hash de-duplication and versions, every Files tab li
 
 ### Phase 21 — Front Line 2 · 🟢 built 2026-09-25 in one pass; pilot feedback pending
 
-**What is left after the build** (details in the phase doc's build record): the five utility screens (Time, Trips, Receipts, Messages, Settings) still render through the legacy simulator code; the server-side advance gate is smaller than the client's readiness check; a dual-role session bypasses the device block; the ERG runs from the fixture until the PHMSA PDFs are saved into `docs/uploaded files/erg/`; video, scans and the GPS-walked perimeter were not exercised with real files or real GPS; the walk PDF is the print page. Phase 22 (desktop site workspace) is a placeholder only.
+**What is left after the build** (details in the phase doc's build record): the server-side advance gate is smaller than the client's readiness check; a dual-role session bypasses the device block; the ERG runs from the fixture until the PHMSA PDFs are saved into `docs/uploaded files/erg/`; video, scans and the GPS-walked perimeter were not exercised with real files or real GPS; the walk PDF is the print page. Phase 22 (desktop site workspace) is a placeholder only.
 
 *Original plan summary, kept for reference:*
 
