@@ -5546,13 +5546,15 @@ async function fieldClock(request) {
   const session = request.session;
   const role = getRoles(request);
   const data = await loadBackend();
-  const job = (data.dispatchJobs || []).find((item) => item.id === body.dispatchJobId && !item.deletedAt);
-  if (!job) throw requestError("Dispatch job not found.", 404);
+  // A clock entry may stand alone (a day's work or travel with no job yet): dispatchJobId is optional.
+  const job = body.dispatchJobId ? (data.dispatchJobs || []).find((item) => item.id === body.dispatchJobId && !item.deletedAt) : null;
+  if (body.dispatchJobId && !job) throw requestError("Dispatch job not found.", 404);
+  const jobId = job ? job.id : null;
   const targetEmployeeId = body.employeeId || session.employeeId;
   if (!targetEmployeeId) throw requestError("employeeId required.", 400);
   if (isFieldSession(session)) {
     const ctx = buildFieldContext(session, data);
-    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+    if (job && !ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
     if (targetEmployeeId !== session.employeeId) {
       if (!fieldSessionRoles(session).includes("Field Lead")) throw requestError("Only the lead may clock other crew.", 403);
       if (!ctx.crewMateIds.has(targetEmployeeId)) throw requestError("That person is not on this job.", 403);
@@ -5564,7 +5566,7 @@ async function fieldClock(request) {
   const at = body.at || new Date().toISOString();
   let record;
   if (body.action === "out") {
-    const open = (data.timeEntries || []).find((item) => item.employeeId === targetEmployeeId && item.dispatchJobId === job.id && !item.endedAt && !item.deletedAt);
+    const open = (data.timeEntries || []).find((item) => item.employeeId === targetEmployeeId && (item.dispatchJobId || null) === jobId && !item.endedAt && !item.deletedAt);
     if (!open) throw requestError("No open time entry to clock out.", 409);
     const durationMinutes = Math.max(0, Math.round((new Date(at).getTime() - new Date(open.startedAt).getTime()) / 60000));
     const updated = { ...open, endedAt: at, durationMinutes };
@@ -5573,13 +5575,13 @@ async function fieldClock(request) {
     data.timeEntries[index] = updated;
     record = updated;
   } else {
-    if ((data.timeEntries || []).some((item) => item.employeeId === targetEmployeeId && item.dispatchJobId === job.id && !item.endedAt && !item.deletedAt)) {
-      throw requestError("Already clocked in on this job.", 409);
+    if ((data.timeEntries || []).some((item) => item.employeeId === targetEmployeeId && (item.dispatchJobId || null) === jobId && !item.endedAt && !item.deletedAt)) {
+      throw requestError(job ? "Already clocked in on this job." : "Already clocked in.", 409);
     }
     record = touchRecord({
       id: makeId("time-entry"),
       employeeId: targetEmployeeId,
-      dispatchJobId: job.id,
+      dispatchJobId: jobId,
       entryType,
       startedAt: at,
       endedAt: null,
@@ -5591,7 +5593,7 @@ async function fieldClock(request) {
     data.timeEntries.push(record);
   }
   await saveBackend(data);
-  await audit(request, { action: "field-clock", collection: "timeEntries", recordId: record.id, summary: `${targetEmployeeId} ${body.action === "out" ? "out" : "in"} · ${job.jobNumber || job.id}` });
+  await audit(request, { action: "field-clock", collection: "timeEntries", recordId: record.id, summary: `${targetEmployeeId} ${body.action === "out" ? "out" : "in"} · ${job ? job.jobNumber || job.id : "no job"}` });
   return { status: 200, body: record };
 }
 

@@ -416,6 +416,8 @@ registerFieldAction("field-clock-in", async (button) => {
       throw error;
     }
   });
+  // The command created the row server-side; pull it before drawing the clock strip.
+  await crm.refreshBackendState().catch(() => {});
   crm.showToast("Clocked in.");
   crm.render();
 });
@@ -444,6 +446,7 @@ registerFieldAction("field-clock-out", async (button) => {
         throw error;
       }
     });
+  await crm.refreshBackendState().catch(() => {});
   crm.showToast(`Clocked out — ${crm.formatDuration(durationMinutes)} logged.`);
   crm.render();
 });

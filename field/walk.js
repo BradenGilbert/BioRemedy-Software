@@ -138,11 +138,34 @@ function sectionState(report, key) {
   return sections[key] || (sections[key] = { done: false, fields: {}, photoDocumentIds: [], shots: {} });
 }
 
-async function persistReport(report, { rerender = false } = {}) {
-  report.updatedAt = new Date().toISOString();
-  const saved = await saveFieldRecord("siteWalkReports", report);
-  if (rerender) crm.render();
-  return saved;
+// Report saves are serialised: the check-in save and the debounced autosave otherwise overlap and
+// the second one carries a version the server has already moved past (409).
+let persistChain = Promise.resolve();
+function persistReport(report, { rerender = false } = {}) {
+  const run = persistChain.then(async () => {
+    report.updatedAt = new Date().toISOString();
+    const stored = (crm.state.backend.siteWalkReports || []).find((row) => row.id === report.id);
+    if (stored && stored.version !== undefined) report.version = stored.version;
+    let saved;
+    try {
+      saved = await saveFieldRecord("siteWalkReports", report);
+    } catch (error) {
+      // A server command (share, complete) moved the row on while we held an older copy: take the
+      // server's row, lay the walker's own fields over it and save once more.
+      const current = error?.conflict ? error.payload?.current : null;
+      if (!current) throw error;
+      const ours = ["sections", "needs", "contactsMet", "measurements", "summary", "checkIn", "backgrounds", "referenceSnapshot", "status"];
+      const merged = { ...current };
+      for (const key of ours) if (report[key] !== undefined) merged[key] = report[key];
+      Object.assign(report, merged);
+      saved = await saveFieldRecord("siteWalkReports", report);
+    }
+    if (saved && typeof saved === "object") Object.assign(report, saved);
+    if (rerender) crm.render();
+    return saved;
+  });
+  persistChain = run.catch(() => {});
+  return run;
 }
 
 function queuePersist(report) {
