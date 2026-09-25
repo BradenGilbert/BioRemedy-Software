@@ -59,6 +59,11 @@ const parents = {
   assignmentId: "jobAssignments",
   vendorProfileId: "vendorProfiles",
   productId: "products",
+  // Phase 21 (Front Line 2, 2026-09-25): siteWalkReports/siteWalkObservations key off the schedule
+  // event (walkEventId), not an opportunity/facility id directly; libraryAcknowledgements off the
+  // library item it acknowledges.
+  walkEventId: "scheduleEvents",
+  libraryItemId: "libraryItems",
 };
 // Link rows: a dangling one carries no history worth keeping.
 const linkCollections = new Set([

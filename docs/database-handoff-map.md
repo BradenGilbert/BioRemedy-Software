@@ -680,7 +680,7 @@ gap. `crewMemberships` (Workforce, 4 frozen seed rows, confirmed zero
 was retired the same way, same day: removed from `server.mjs` entirely and
 deleted from `data/backend.json`.
 
-### Node JSON Backend - 103 collections
+### Node JSON Backend - 121 collections
 
 > The count was previously documented as 72, then 76, then 82, then 83, then 84.
 > Recounted directly from both `data/backend.json`'s top-level keys and
@@ -697,6 +697,12 @@ deleted from `data/backend.json`.
 > **2026-09-23 recount after sprint Wave 5: 103** `collectionAccess` entries (Wave 5 added
 > `weatherSnapshots`, `permits`, `wasteRecords`, `notifications`, `inventoryMovements`,
 > `sampleResults`).
+> **2026-09-25 recount after Phase 21 (Front Line 2) W1: 121** `collectionAccess` entries plus
+> `qboSettings`/`qboExports` -- Phase 21 added `jobSafetyBriefings`, `jobEquipmentUsage`,
+> `formTemplates`, `siteWalkReports`, `siteWalkObservations`, `siteReferenceLayers`,
+> `jurisdictions`, `libraryItems`, `libraryAcknowledgements`, `ergMaterials`, `ergGuides`,
+> `ergDistances` (12 new collections; the count between Wave 5 and Phase 21 also grew from other
+> phases' work not recounted here in detail -- see git history for the exact intermediate values).
 
 > **Workforce follow-up, September 17, 2026 (third live-bug/design session):**
 > owner asked for (1) a managed certification-TYPE catalog instead of free
@@ -915,7 +921,7 @@ there.
 
 ## Cutover inventory — every collection's destination (2026-09-24, sprint Wave 8)
 
-Generated from `server.mjs`'s `collectionAccess` map (108 collections including `qboSettings`/`qboExports`) and checked against it by the script that wrote this section: every collection has a row. **71 land in tables that already exist in `crm-schema/`**, **32 need new migrations (`029+`)**, **4 fold into `documents`**, **1 does not migrate**. The procedure is `docs/roadmap/cutover-runbook.md`.
+Generated from `server.mjs`'s `collectionAccess` map (121 collections including `qboSettings`/`qboExports`, after Phase 21's 12 new field-app collections) and checked against it by the script that wrote this section: every collection has a row. **71 land in tables that already exist in `crm-schema/`**, **44 need new migrations (`029+`)** (32 pre-Phase-21 + the 12 Phase 21 additions below), **4 fold into `documents`**, **1 does not migrate**. The procedure is `docs/roadmap/cutover-runbook.md`.
 
 | Collection | Destination | Notes |
 |---|---|---|
@@ -1028,6 +1034,18 @@ Generated from `server.mjs`'s `collectionAccess` map (108 collections including 
 | `documents` | files (012) **rewritten** as documents | Polymorphic entity link, sha-256, versions, visibility |
 | `documentTypes` | **new** document_types (029+) |  |
 | `documentRequirements` | **new** document_requirements (029+) |  |
+| `jobSafetyBriefings` | **new** job_safety_briefings (029+) | Phase 21: safety brief + JSA + roll call, one per job per operational day; `rollCall[]` → job_safety_roll_call child |
+| `jobEquipmentUsage` | **new** job_equipment_usage (029+) | Phase 21: field-recorded equipment hours/days, distinct from the office `equipmentLogs` |
+| `formTemplates` | **new** form_templates (029+) | Phase 21: data-driven standalone forms, replaces the hard-coded `FRONTLINE_STANDALONE_FORMS` in `app.js`; `fields[]` → form_template_fields child |
+| `siteWalkReports` | **new** site_walk_reports (029+) | Phase 21: one per site-walk `scheduleEvents` row; `shares[]` → site_walk_shares child, `backgrounds[]`/`measurements[]`/`referenceSnapshot` JSONB |
+| `siteWalkObservations` | **new** site_walk_observations (029+) | Phase 21: one row per map pin/line/area on a walk; `geometry` GeoJSON, `photoDocumentIds[]` → document links |
+| `siteReferenceLayers` | **new** site_reference_layers (029+) | Phase 21: per-facility or per-jurisdiction GIS reference layers (live ArcGIS or a GeoJSON snapshot) |
+| `jurisdictions` | **new** jurisdictions (029+) | Phase 21: city/county GIS portals; `layers[]` → jurisdiction_layers child |
+| `libraryItems` | **new** library_items (029+) | Phase 21: the Manuals & Training catalog (manuals/safety/sds/tutorials/resources shelves) |
+| `libraryAcknowledgements` | **new** library_acknowledgements (029+) | Phase 21: append-only, who acknowledged which library item version and when |
+| `ergMaterials` | **new** erg_materials (029+) | Phase 21: ERG 2024 yellow/blue pages (UN number → name → guide), loaded by `scripts/import-erg.mjs` |
+| `ergGuides` | **new** erg_guides (029+) | Phase 21: ERG 2024 orange guide pages (hazards/public safety/emergency response text) |
+| `ergDistances` | **new** erg_distances (029+) | Phase 21: ERG 2024 green-page Table 1 initial isolation / protective-action distances for TIH materials |
 
 **Outside `backend.json`:**
 
@@ -1039,7 +1057,9 @@ Generated from `server.mjs`'s `collectionAccess` map (108 collections including 
 | `auth.json › breakGlass` | server secret | Not a table |
 | `audit.log` | **new** audit_log (029+) | Imported verbatim |
 | `data/uploads/` | object storage / volume | documents.storage_name is the key |
+| `data/command-receipts.json` | **new** command_receipts (029+) | Phase 21: idempotency for `X-Client-Command-Id` replay -- {id: {status, body, at}}, last 5,000 kept, pruned past 30 days |
 | `IndexedDB syncQueue, settings` | **not migrating** | Device-local |
+| `IndexedDB fieldPackages, fieldOutbox, fieldTiles, fieldAreas` | **not migrating** | Phase 21 (W2/W3): device-scoped cache/outbox/tile store, same as syncQueue |
 
 Columns every table gains (Phase 20 / 12a / 13): `version integer`, `updated_at`, `deleted_at`, `deleted_by`, `deleted_via`; and the `WHERE version = $n` rule on every UPDATE.
 

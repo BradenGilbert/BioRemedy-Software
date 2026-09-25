@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
-import { readFile, mkdir, writeFile, rename, appendFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile, rename, appendFile, rm } from "node:fs/promises";
 import { createHash, randomBytes, scryptSync, timingSafeEqual, createPublicKey, verify } from "node:crypto";
-import { existsSync, statSync, readFileSync } from "node:fs";
+import { existsSync, statSync, readFileSync, createReadStream } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBackupCycle } from "./scripts/backup-lib.mjs";
@@ -85,13 +85,14 @@ const roleAccess = {
     "Operations Manager",
     "Scheduler",
     "Field Lead",
+    "Crew",
     "Inventory Manager",
     "Finance Manager",
   ],
   salesDocuments: ["Admin", "Office Manager", "Sales Manager", "Account Manager", "Finance Manager"],
   operations: ["Admin", "Office Manager", "Operations Manager", "Scheduler", "Field Lead"],
   workforce: ["Admin", "Office Manager", "Operations Manager", "Scheduler"],
-  dispatch: ["Admin", "Office Manager", "Operations Manager", "Scheduler", "Field Lead"],
+  dispatch: ["Admin", "Office Manager", "Operations Manager", "Scheduler", "Field Lead", "Crew"],
   inventory: ["Admin", "Office Manager", "Operations Manager", "Inventory Manager"],
   finance: ["Admin", "Office Manager", "Finance Manager"],
   identity: [
@@ -102,6 +103,7 @@ const roleAccess = {
     "Operations Manager",
     "Scheduler",
     "Field Lead",
+    "Crew",
     "Inventory Manager",
     "Finance Manager",
     // Phase 13 (2026-09-24): a customer login reads the backend too -- filterBackendForRole scopes it
@@ -2126,15 +2128,102 @@ const defaultBackend = {
     lastExportAt: ""
   },
   qboExports: [],
-  // Phase 21 (Front Line 2)
+  // Phase 21 (Front Line 2, 2026-09-25). formTemplates replaces app.js's hard-coded
+  // FRONTLINE_STANDALONE_FORMS with data the office can edit -- the four originals kept as the same
+  // four forms, plus Vehicle pre-trip inspection and Spill/incident report (fields match the TCEQ
+  // 30-day follow-up chronology, see phase-21-frontline-2.md "What the research says"). libraryItems
+  // seeds one placeholder per shelf; jurisdictions seeds the Georgetown TX pilot row. ergMaterials/
+  // ergGuides/ergDistances stay empty until scripts/import-erg.mjs loads them.
   jobSafetyBriefings: [],
   jobEquipmentUsage: [],
-  formTemplates: [],
+  formTemplates: [
+    {
+      id: "form-daily-safety-checklist", key: "daily-safety-checklist", name: "Daily Safety Checklist", category: "Safety", requiresJob: true, isActive: true,
+      fields: [
+        { key: "ppe", label: "PPE inspected and worn", type: "yesno", required: true },
+        { key: "vehicle", label: "Vehicle pre-trip inspection complete", type: "yesno", required: true },
+        { key: "hazards", label: "Site hazards reviewed with crew", type: "yesno", required: true },
+        { key: "contacts", label: "Emergency contacts confirmed", type: "yesno", required: true },
+      ],
+    },
+    {
+      id: "form-incident-report", key: "incident-report", name: "Incident Report", category: "Safety", requiresJob: true, isActive: true,
+      fields: [{ key: "notes", label: "What happened", type: "text", required: true }],
+    },
+    {
+      id: "form-vehicle-inspection", key: "vehicle-inspection", name: "Vehicle Inspection", category: "Safety", requiresJob: false, isActive: true,
+      fields: [
+        { key: "tires", label: "Tires and brakes checked", type: "yesno", required: true },
+        { key: "fluids", label: "Fluids checked", type: "yesno", required: true },
+        { key: "lights", label: "Lights and signals working", type: "yesno", required: true },
+        { key: "damage", label: "No visible damage", type: "yesno", required: true },
+      ],
+    },
+    {
+      id: "form-near-miss-report", key: "near-miss-report", name: "Near-Miss Report", category: "Safety", requiresJob: true, isActive: true,
+      fields: [{ key: "notes", label: "What almost happened", type: "text", required: true }],
+    },
+    {
+      id: "form-vehicle-pretrip", key: "vehicle-pretrip", name: "Vehicle pre-trip inspection", category: "Safety", requiresJob: false, isActive: true,
+      fields: [
+        { key: "odometer", label: "Odometer reading", type: "number", required: true },
+        { key: "tires", label: "Tires and brakes", type: "checklist", options: ["Tread and pressure OK", "Brakes respond normally"], required: true },
+        { key: "fluids", label: "Fluids", type: "checklist", options: ["Oil level OK", "Coolant level OK", "No visible leaks"], required: true },
+        { key: "lights", label: "Lights and signals", type: "checklist", options: ["Headlights", "Brake lights", "Turn signals", "Hazards"], required: true },
+        { key: "equipment", label: "Safety equipment on board", type: "checklist", options: ["Fire extinguisher", "First aid kit", "Spill kit", "Warning triangles"], required: true },
+        { key: "damage", label: "Body/glass damage noted", type: "text", required: false },
+        { key: "photo", label: "Photo of any damage", type: "photo", required: false },
+        { key: "signature", label: "Driver signature", type: "signature", required: true },
+      ],
+    },
+    {
+      id: "form-spill-incident-report", key: "spill-incident-report", name: "Spill / incident report", category: "Safety", requiresJob: true, isActive: true,
+      fields: [
+        { key: "timeDiscovered", label: "Time discovered", type: "text", required: true },
+        { key: "timeContained", label: "Time contained", type: "text", required: true },
+        { key: "material", label: "Material", type: "text", required: true },
+        { key: "quantityReleased", label: "Quantity released", type: "number", required: false },
+        { key: "quantityRecovered", label: "Quantity recovered", type: "number", required: false },
+        { key: "surface", label: "Surface", type: "text", required: false },
+        { key: "drainsWaterways", label: "Drains or waterways affected", type: "yesno", required: true },
+        { key: "weather", label: "Weather at the time", type: "text", required: false },
+        { key: "injuries", label: "Injuries", type: "yesno", required: true },
+        { key: "agenciesNotified", label: "Agencies notified", type: "text", required: false },
+        { key: "containmentEquipment", label: "Containment equipment used", type: "text", required: false },
+        { key: "photos", label: "Photos", type: "photo", required: false },
+      ],
+    },
+  ],
   siteWalkReports: [],
   siteWalkObservations: [],
   siteReferenceLayers: [],
-  jurisdictions: [],
-  libraryItems: [],
+  jurisdictions: [
+    {
+      id: "jurisdiction-georgetown-tx",
+      name: "Georgetown, TX",
+      kind: "city",
+      portalUrl: "https://opendata-georgetowntx.opendata.arcgis.com/",
+      // Layer ids are documented placeholders (owner, 2026-09-25): scripts/import-erg.mjs's sibling
+      // task -- inspecting https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer?f=json --
+      // fills in the real layer ids for Pressurized Mains / Gravity Mains / Manholes. This build
+      // environment could not reach that host to confirm them; "TBD" marks what W3/W4 must resolve
+      // before the live-layer mode is wired up for this jurisdiction.
+      layers: [
+        { key: "parcels", label: "Parcels", kind: "parcel", serviceUrl: "https://opendata-georgetowntx.opendata.arcgis.com/", layerId: "", mode: "snapshot" },
+        { key: "wastewater-pressurized", label: "Pressurized mains", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
+        { key: "wastewater-gravity", label: "Gravity mains", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
+        { key: "manholes", label: "Manholes", kind: "utility", serviceUrl: "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer", layerId: "TBD", mode: "live" },
+      ],
+      lastImportedAt: "",
+    },
+  ],
+  libraryItems: [
+    { id: "library-manuals-hasp-template", shelf: "manuals", title: "HASP template", category: "Manuals & procedures", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1 },
+    { id: "library-safety-erg", shelf: "safety", title: "Emergency Response Guidebook (ERG 2024)", category: "Safety references", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg", version: 1, sortOrder: 1 },
+    { id: "library-sds-index", shelf: "sds", title: "Safety Data Sheet index", category: "SDS", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
+    { id: "library-tutorials-app-basics", shelf: "tutorials", title: "How to run a job in Front Line", category: "Tutorials & training", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: ["Crew", "Field Lead"], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1 },
+    { id: "library-resources-disposal-hours", shelf: "resources", title: "Disposal facility hours", category: "Helpful resources", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
+  ],
   libraryAcknowledgements: [],
   ergMaterials: [],
   ergGuides: [],
@@ -2215,6 +2304,13 @@ const cascadeRules = {
     ["jobMileageEntries", "dispatchJobId"],
     ["jobSafetyBriefings", "jobId"],
     ["jobEquipmentUsage", "jobId"],
+  ],
+  // Phase 21 (Front Line 2, 2026-09-25): deleting a site-walk schedule event takes its report and
+  // observations with it (they exist only to describe that one walk) -- both key off the event's own
+  // id (walkEventId), not the report's id, so both cascade directly from scheduleEvents.
+  scheduleEvents: [
+    ["siteWalkReports", "walkEventId"],
+    ["siteWalkObservations", "walkEventId"],
   ],
 };
 
@@ -2399,6 +2495,59 @@ async function renameWithRetry(from, to) {
 // requests could read a half-written file (seen live 2026-09-23: "Expected double-quoted property
 // name" while a rate-sheet import ran during a save) or silently lose one request's change. One
 // API request at a time closes both; it costs little at prototype scale.
+// Phase 21 (Front Line 2, 2026-09-25): idempotent replay for outbox-queued writes. A client that
+// queued a write offline (or that never heard back after a flaky connection) retries the exact same
+// `X-Client-Command-Id`; the server runs the write once and hands back the same response on every
+// retry after that, so a replayed clock-in or photo caption never creates a second row. Kept last
+// 5,000 receipts, pruned past 30 days, in its own small file next to auth.json.
+const commandReceiptsFile = path.join(dataDir, "command-receipts.json");
+let commandReceiptsCache = null;
+async function loadCommandReceipts() {
+  if (commandReceiptsCache) return commandReceiptsCache;
+  if (!existsSync(commandReceiptsFile)) {
+    commandReceiptsCache = {};
+    return commandReceiptsCache;
+  }
+  try {
+    commandReceiptsCache = JSON.parse(await readFile(commandReceiptsFile, "utf8"));
+  } catch {
+    commandReceiptsCache = {};
+  }
+  return commandReceiptsCache;
+}
+async function saveCommandReceipts(receipts) {
+  commandReceiptsCache = receipts;
+  const tempFile = `${commandReceiptsFile}.tmp`;
+  await writeFile(tempFile, JSON.stringify(receipts), "utf8");
+  await renameWithRetry(tempFile, commandReceiptsFile);
+}
+function pruneCommandReceipts(receipts) {
+  const cutoff = Date.now() - 30 * 86400000;
+  const entries = Object.entries(receipts)
+    .filter(([, entry]) => new Date(entry.at).getTime() > cutoff)
+    .sort((a, b) => new Date(b[1].at).getTime() - new Date(a[1].at).getTime())
+    .slice(0, 5000);
+  return Object.fromEntries(entries);
+}
+// Looks up a command id already inside the same serializeApi task the write itself runs in --
+// callers pass the id (from X-Client-Command-Id) and get back the stored {status, body} on a
+// replay, or null the first time. Nothing is written here; recordCommandReceipt() does that once the
+// real write has happened.
+async function findCommandReceipt(commandId) {
+  if (!commandId) return null;
+  const receipts = await loadCommandReceipts();
+  return receipts[commandId] || null;
+}
+async function recordCommandReceipt(commandId, status, body) {
+  if (!commandId) return;
+  const receipts = await loadCommandReceipts();
+  receipts[commandId] = { status, body, at: new Date().toISOString() };
+  await saveCommandReceipts(pruneCommandReceipts(receipts));
+}
+function clientCommandId(request) {
+  return (request.headers["x-client-command-id"] || "").toString().slice(0, 200);
+}
+
 let apiQueue = Promise.resolve();
 function serializeApi(task) {
   const run = apiQueue.then(task, task);
@@ -2462,7 +2611,18 @@ function appendInventoryMovement(data, movement) {
   });
 }
 
+// Phase 21 (Front Line 2, 2026-09-25): a field session (a dispatch-link session, or a signed-in
+// person whose every effective role is Field Lead/Crew) reads through fieldProjections instead of
+// the office per-domain view below -- see the table after this function.
+function isFieldSession(session) {
+  if (!session) return false;
+  if (session.kind === "dispatch-link") return true;
+  const roles = effectiveRoles(session);
+  return roles.length > 0 && roles.every((item) => item === "Field Lead" || item === "Crew");
+}
+
 function filterBackendForRole(data, role, session = null) {
+  if (isFieldSession(session)) return applyFieldProjection(session, data);
   if (isPortalRole(role)) return portalView(data, session);
   return {
     documents: canAccess(role, "customerDirectory") ? data.documents || [] : [],
@@ -2590,6 +2750,191 @@ function filterBackendForRole(data, role, session = null) {
     ergGuides: canAccess(role, "customerDirectory") ? data.ergGuides : [],
     ergDistances: canAccess(role, "customerDirectory") ? data.ergDistances : [],
   };
+}
+
+function pickFields(row, fields) {
+  if (fields === "*") return row;
+  const picked = {};
+  for (const key of fields) picked[key] = row[key];
+  return picked;
+}
+
+// Everything a field session's rows are judged against: which jobs are mine (narrowed to one for a
+// dispatch-link session), and the projects/facilities/accounts/opportunities/walks that follow from
+// them. Built fresh per request -- cheap at this scale, and it can never go stale.
+function buildFieldContext(session, data) {
+  const employeeId = session.employeeId || "";
+  const liveAssignments = (data.jobAssignments || []).filter((item) => !item.deletedAt && item.employeeId === employeeId && item.status !== "Cancelled");
+  let myJobIds = new Set(liveAssignments.map((item) => item.jobId));
+  if (session.dispatchJobId) myJobIds = new Set([session.dispatchJobId]);
+  const myJobs = (data.dispatchJobs || []).filter((job) => myJobIds.has(job.id));
+  const myProjectIds = new Set(myJobs.map((job) => job.projectId).filter(Boolean));
+  const myProjects = (data.projects || []).filter((project) => myProjectIds.has(project.id));
+  const myFacilityIds = new Set([...myJobs.map((job) => job.facilityId).filter(Boolean), ...myProjects.map((project) => project.facilityId).filter(Boolean)]);
+  const myAccountIds = new Set([...myJobs.map((job) => job.accountId).filter(Boolean), ...myProjects.map((project) => project.accountId).filter(Boolean)]);
+  const myWalkEvents = (data.scheduleEvents || []).filter((event) => !event.deletedAt && event.kind === "site_walk" && (event.participantEmployeeIds || []).includes(employeeId));
+  const myWalkEventIds = new Set(myWalkEvents.map((event) => event.id));
+  const myOpportunityIds = new Set(myWalkEvents.map((event) => event.opportunityId).filter(Boolean));
+  for (const opportunityId of myOpportunityIds) {
+    const opportunity = (data.opportunities || []).find((item) => item.id === opportunityId);
+    if (opportunity?.accountId) myAccountIds.add(opportunity.accountId);
+    if (opportunity?.facilityId) myFacilityIds.add(opportunity.facilityId);
+  }
+  const crewMateIds = new Set(
+    (data.jobAssignments || [])
+      .filter((item) => !item.deletedAt && myJobIds.has(item.jobId) && item.status !== "Cancelled" && item.employeeId !== employeeId)
+      .map((item) => item.employeeId),
+  );
+  return { session, employeeId, myJobIds, myProjectIds, myFacilityIds, myAccountIds, myOpportunityIds, myWalkEventIds, crewMateIds, data };
+}
+
+function documentBelongsToFieldContext(document, ctx) {
+  if (document.deletedAt) return false;
+  const { entityType, entityId } = document;
+  if (entityType === "dispatchJob") return ctx.myJobIds.has(entityId);
+  if (entityType === "project") return ctx.myProjectIds.has(entityId);
+  if (entityType === "facility") return ctx.myFacilityIds.has(entityId);
+  if (entityType === "account") return ctx.myAccountIds.has(entityId);
+  if (entityType === "opportunity") return ctx.myOpportunityIds.has(entityId);
+  if (entityType === "siteWalk") return (ctx.data.siteWalkReports || []).some((item) => item.id === entityId && ctx.myWalkEventIds.has(item.walkEventId));
+  if (entityType === "libraryItem") return true;
+  if (entityType === "sample") return (ctx.data.sampleRecords || []).some((item) => item.id === entityId && ctx.myJobIds.has(item.dispatchJobId));
+  return false;
+}
+
+// Phase 21 (Front Line 2, 2026-09-25): the field access model -- a projection (field allowlist + row
+// predicate) per collection, instead of the office's all-or-nothing domain check. A collection absent
+// here returns [] to a field session; that is the safe default, not an oversight. Row scope follows
+// docs/roadmap/phase-21-frontline-2.md "Field access model": my jobs and everything hung off them,
+// my projects/facilities/accounts (directory fields only), my site walks and their opportunities
+// (needs lists only, no pipeline/finance), crew-mates on my jobs (name/title/phone/readiness only,
+// never pay), reference data (ERG, library, jurisdictions, form/job templates) that changes rarely
+// and carries no customer-specific risk.
+const fieldProjections = {
+  dispatchJobs: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.id) },
+  jobSteps: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobActions: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobFormSubmissions: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobAssignments: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobResources: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobStatusEvents: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobTaskAttachments: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobExpenses: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId || row.jobId) },
+  timeEntries: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) || row.employeeId === ctx.employeeId },
+  jobMileageEntries: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
+  messages: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
+  sampleRecords: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
+  sampleLabReports: { fields: "*", where: (row, ctx) => (ctx.data.sampleRecords || []).some((item) => item.id === row.sampleId && ctx.myJobIds.has(item.dispatchJobId)) },
+  sampleResults: { fields: "*", where: (row, ctx) => (ctx.data.sampleRecords || []).some((item) => item.id === row.sampleId && ctx.myJobIds.has(item.dispatchJobId)) },
+  wasteRecords: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
+  jobSafetyBriefings: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobEquipmentUsage: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  weatherSnapshots: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
+  spatialData: { fields: "*", where: (row, ctx) => ctx.myProjectIds.has(row.projectId) },
+  locations: { fields: "*", where: (row, ctx) => ctx.myProjectIds.has(row.projectId) || ctx.myWalkEventIds.has(row.scheduleEventId) },
+
+  projects: { fields: "*", where: (row, ctx) => ctx.myProjectIds.has(row.id) },
+  facilities: {
+    fields: ["id", "name", "addressLine1", "addressLine2", "city", "state", "postalCode", "accountId", "latitude", "longitude", "siteContactName", "siteContactPhone", "accessNotes"],
+    where: (row, ctx) => ctx.myFacilityIds.has(row.id),
+  },
+  facilityContacts: { fields: "*", where: (row, ctx) => ctx.myFacilityIds.has(row.facilityId) },
+  accounts: { fields: ["id", "name", "phone", "website", "addressLine1", "addressLine2", "city", "state", "postalCode"], where: (row, ctx) => ctx.myAccountIds.has(row.id) },
+  contacts: { fields: ["id", "fullName", "firstName", "lastName", "title", "phone", "mobilePhone", "email", "accountId"], where: (row, ctx) => ctx.myAccountIds.has(row.accountId) },
+  documents: { fields: "*", where: (row, ctx) => documentBelongsToFieldContext(row, ctx) },
+  documentTypes: { fields: "*", where: () => true },
+
+  opportunities: {
+    fields: ["id", "name", "accountId", "facilityId", "customerNeed", "currentSituation", "equipmentNeeds", "vendorNeeds", "resourceNeeds", "siteWalkStatus"],
+    where: (row, ctx) => ctx.myOpportunityIds.has(row.id),
+  },
+  opportunityLocations: { fields: "*", where: (row, ctx) => ctx.myOpportunityIds.has(row.opportunityId) },
+  scheduleEvents: { fields: "*", where: (row, ctx) => ctx.myWalkEventIds.has(row.id) },
+  siteWalkReports: { fields: "*", where: (row, ctx) => ctx.myWalkEventIds.has(row.walkEventId) },
+  siteWalkObservations: { fields: "*", where: (row, ctx) => ctx.myWalkEventIds.has(row.walkEventId) },
+
+  employees: {
+    fields: "*",
+    where: (row, ctx) => row.id === ctx.employeeId,
+    extra: (rows, ctx) => rows.concat((ctx.data.employees || []).filter((item) => ctx.crewMateIds.has(item.id) && !item.deletedAt).map((item) => pickFields(item, ["id", "displayName", "jobTitle", "mobilePhone", "readinessStatus"]))),
+  },
+  inventoryItems: { fields: ["id", "materialType", "name", "unit", "onHand", "productId", "category"], where: () => true },
+  equipmentAssets: { fields: ["id", "assetTag", "name", "category", "status"], where: () => true },
+  frontlineDevices: { fields: "*", where: (row, ctx) => row.employeeId === ctx.employeeId },
+  libraryItems: { fields: "*", where: () => true },
+  libraryAcknowledgements: { fields: "*", where: (row, ctx) => row.employeeId === ctx.employeeId },
+  formTemplates: { fields: "*", where: () => true },
+  jobTypeTemplates: { fields: "*", where: () => true },
+  ergMaterials: { fields: "*", where: () => true },
+  ergGuides: { fields: "*", where: () => true },
+  ergDistances: { fields: "*", where: () => true },
+  jurisdictions: { fields: "*", where: () => true },
+  siteReferenceLayers: { fields: "*", where: (row, ctx) => !row.facilityId || ctx.myFacilityIds.has(row.facilityId) },
+  gpsConsents: { fields: "*", where: (row, ctx) => row.employeeId === ctx.employeeId },
+};
+
+// The set of collections a field session may write to at all (POST /api/backend/{collection}); see
+// fieldPartialWriteFields below for the ones where only some columns may change. Everything else is
+// 403 for a field session -- field writes to other collections go through the /api/field/* commands,
+// which apply the right authority (e.g. only a command can flip dispatchJobs.status).
+const fieldWritable = new Set([
+  "timeEntries",
+  "jobMileageEntries",
+  "jobExpenses",
+  "jobFormSubmissions",
+  "jobActions",
+  "jobSteps",
+  "messages",
+  "locations",
+  "sampleRecords",
+  "wasteRecords",
+  "jobEquipmentUsage",
+  "jobSafetyBriefings",
+  "siteWalkReports",
+  "siteWalkObservations",
+  "libraryAcknowledgements",
+  "dispatchJobs",
+  "opportunities",
+  "spatialData",
+  "documents",
+]);
+
+// For collections in fieldWritable where a field session may change only part of the row, the fields
+// it may set (merged onto the stored row; everything else in the payload is ignored). Absent from
+// this map = every field in the payload is accepted (still gated by fieldProjections' `where`).
+const fieldPartialWriteFields = {
+  dispatchJobs: ["measurements", "customerAcknowledgement", "dailyNarratives", "postJobReview", "hazards", "ppeLevel", "ergGuideNumber", "ergSpillSize", "ergDayNight", "ergIsolationMeters", "ergProtectiveMeters"],
+  opportunities: ["equipmentNeeds", "vendorNeeds", "resourceNeeds", "siteWalkStatus"],
+};
+
+// Crew (the non-lead role) may not write these even though Field Lead can; enforced in the generic
+// POST handler alongside fieldWritable/fieldProjections.
+const crewForbiddenWrites = new Set(["jobSafetyBriefings", "siteWalkReports", "dispatchJobs"]);
+
+function fieldSessionRoles(session) {
+  return session.kind === "dispatch-link" ? ["Field Lead"] : effectiveRoles(session);
+}
+
+// Runs fieldProjections over every collection defaultBackend knows about, for GET /api/backend (the
+// single-shot full read) as well as GET /api/backend/{collection} (which used to bypass all of this).
+function applyFieldProjection(session, data) {
+  const ctx = buildFieldContext(session, data);
+  const out = {};
+  for (const collection of Object.keys(defaultBackend)) {
+    const projection = fieldProjections[collection];
+    if (!projection) {
+      out[collection] = [];
+      continue;
+    }
+    let rows = (data[collection] || [])
+      .filter((row) => !row.deletedAt)
+      .filter((row) => projection.where(row, ctx))
+      .map((row) => pickFields(row, projection.fields));
+    if (projection.extra) rows = projection.extra(rows, ctx);
+    out[collection] = rows;
+  }
+  out.qboSettings = { connectionStatus: "Restricted", realmId: "", lastExportAt: "" };
+  return out;
 }
 
 function validateScheduleEvent(data, record) {
@@ -3216,28 +3561,81 @@ async function handleJobTaskAttachmentUpload(request, response, actionId) {
 // X-CRM-Role header to an image request. Access rests on the attachment id being an opaque
 // random string. Upload and consumption stay gated. Revisit when real auth replaces the
 // header-based role shim.
+// Phase 21 (Front Line 2, 2026-09-25): shared Range/206 file serving so a phone video (and a large
+// photo) can resume/seek instead of the whole file always coming back as one 200. A request with no
+// Range header falls back to the original whole-file 200. `Accept-Ranges: bytes` is sent either way
+// so a client knows it may ask for a range next time.
+async function sendFileWithRange(request, response, filePath, { mimeType, fileName, inline = true, cacheControl = "private, no-store" }) {
+  const stat = statSync(filePath);
+  const total = stat.size;
+  const disposition = `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+  const range = (request.headers.range || "").toString();
+  const match = range.match(/^bytes=(\d*)-(\d*)$/);
+  if (match && (match[1] || match[2])) {
+    let start = match[1] ? Number(match[1]) : Math.max(0, total - Number(match[2]));
+    let end = match[1] && match[2] ? Number(match[2]) : total - 1;
+    if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= total) {
+      response.writeHead(416, { "Content-Range": `bytes */${total}`, "Cache-Control": cacheControl });
+      response.end();
+      return;
+    }
+    end = Math.min(end, total - 1);
+    response.writeHead(206, {
+      "Content-Type": mimeType,
+      "Content-Length": end - start + 1,
+      "Content-Range": `bytes ${start}-${end}/${total}`,
+      "Accept-Ranges": "bytes",
+      "Content-Disposition": disposition,
+      "Cache-Control": cacheControl,
+    });
+    createReadStream(filePath, { start, end }).pipe(response);
+    return;
+  }
+  const body = await readFile(filePath);
+  response.writeHead(200, {
+    "Content-Type": mimeType,
+    "Content-Length": body.length,
+    "Accept-Ranges": "bytes",
+    "Content-Disposition": disposition,
+    "Cache-Control": cacheControl,
+  });
+  response.end(body);
+}
+
 async function handleJobTaskAttachmentView(request, response, attachmentId) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   // Phase 12a: an <img src> cannot carry a header, but it carries the session cookie.
   if (!request.session) return json(response, 401, { error: "Sign in required.", unauthenticated: true });
+  // Phase 21 (2026-09-25) correction: this route used to accept ANY session -- a portal (customer)
+  // login could view any job-task attachment by id. Gated the same way handleDocumentFile is: the
+  // customerDirectory domain for internal roles, the portal's own account scope for a customer.
+  const role = getRoles(request);
+  if (isPortalRole(role)) {
+    const data = await loadBackend();
+    const attachment = data.jobTaskAttachments.find((item) => item.id === attachmentId);
+    if (!attachment) return json(response, 404, { error: "Attachment not found." });
+    const job = (data.dispatchJobs || []).find((item) => item.id === attachment.jobId);
+    if (!job || job.accountId !== request.session.clientAccountId) return json(response, 403, { error: "This attachment is not shared with your account." });
+    return sendAttachmentFile(request, response, attachment);
+  }
+  if (!canAccess(role, "customerDirectory")) return json(response, 403, { error: "Your role cannot open attachments." });
 
   const data = await loadBackend();
   const attachment = data.jobTaskAttachments.find((item) => item.id === attachmentId);
   if (!attachment) return json(response, 404, { error: "Attachment not found." });
+  if (isFieldSession(request.session)) {
+    const ctx = buildFieldContext(request.session, data);
+    if (!ctx.myJobIds.has(attachment.jobId)) return json(response, 403, { error: "You do not have access to this attachment." });
+  }
+  return sendAttachmentFile(request, response, attachment);
+}
 
+async function sendAttachmentFile(request, response, attachment) {
   const filePath = path.resolve(uploadsDir, attachment.storageName);
   if (path.dirname(filePath) !== path.resolve(uploadsDir) || !existsSync(filePath)) {
     return json(response, 404, { error: "Stored file is unavailable." });
   }
-
-  const body = await readFile(filePath);
-  response.writeHead(200, {
-    "Content-Type": attachment.mimeType || "application/octet-stream",
-    "Content-Length": body.length,
-    "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
-    "Cache-Control": "private, max-age=300",
-  });
-  response.end(body);
+  return sendFileWithRange(request, response, filePath, { mimeType: attachment.mimeType, fileName: attachment.fileName, inline: true, cacheControl: "private, max-age=300" });
 }
 
 // Material consumption is the only path in the app that draws inventory down, so it validates
@@ -3482,7 +3880,13 @@ const SESSION_TOUCH_MINUTES = 5;
 const LOGIN_MAX_FAILURES = 8;
 const LOGIN_LOCK_MINUTES = 15;
 const MIN_PASSWORD_LENGTH = 10;
-const KNOWN_ROLES = ["Admin", "Office Manager", "Sales Manager", "Account Manager", "Operations Manager", "Scheduler", "Field Lead", "Inventory Manager", "Finance Manager", "Client Portal"];
+// Phase 21 (Front Line 2, 2026-09-25): "Crew" is a lighter field role than Field Lead -- a
+// non-lead worker who taps through a job (clock in/out, acknowledge safety, take photos) but never
+// runs the close-out, briefing or a site walk. It carries the same three office-side domains Field
+// Lead already had (dispatch, identity, customerDirectory) since access.js gates by domain first and
+// fieldProjections narrows further; the actual crew-vs-lead distinction is enforced by fieldWritable
+// and the per-collection `where` predicates below.
+const KNOWN_ROLES = ["Admin", "Office Manager", "Sales Manager", "Account Manager", "Operations Manager", "Scheduler", "Field Lead", "Crew", "Inventory Manager", "Finance Manager", "Client Portal"];
 
 // 2026-09-24 (owner, after a two-role user saw only one role's apps): a person can hold several
 // roles and their access is the combination. KNOWN_ROLES is also the precedence order, used only
@@ -3610,6 +4014,17 @@ function requestOrigin(request) {
 
 function sessionExpired(session, now = Date.now()) {
   return new Date(session.expiresAt).getTime() <= now;
+}
+
+// Phase 21 (Front Line 2, 2026-09-25): a suspended/retired device may not be used for Front Line.
+// Mirrors the client's own check (app.js `hasUsableDevice`, Phase 18): an employee with no
+// registered device at all is unaffected (most office users); one with at least one device is
+// blocked only when every device they have is Suspended or Retired.
+function deviceBlockedForEmployee(data, employeeId) {
+  if (!employeeId) return false;
+  const devices = (data.frontlineDevices || []).filter((device) => device.employeeId === employeeId && !device.deletedAt);
+  if (!devices.length) return false;
+  return devices.every((device) => ["Suspended", "Retired"].includes(device.registrationStatus));
 }
 
 async function resolveSession(request) {
@@ -4250,6 +4665,7 @@ async function handleSignOnLink(request, response, token) {
   const employee = (data.employees || []).find((item) => item.id === link.employeeId);
   const job = (data.dispatchJobs || []).find((item) => item.id === link.dispatchJobId);
   if (!employee || !job) return html(410, "Sign-on link no longer valid", "The job or the person on this link no longer exists.");
+  if (deviceBlockedForEmployee(data, employee.id)) return html(409, "Device blocked", "This phone's Front Line device is suspended or retired. Ask dispatch to re-enable it or send a link for a different device.");
   const { session, token: sessionToken } = await createSession(auth, request, {
     kind: "dispatch-link",
     employeeId: employee.id,
@@ -4283,6 +4699,18 @@ const DOCUMENT_UPLOAD_MIME_TYPES = new Map([
   [".heic", "image/heic"],
   [".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
   [".txt", "text/plain; charset=utf-8"],
+  // Phase 21 (Front Line 2, 2026-09-25): site video, LiDAR/photogrammetry scans (Polycam/Scaniverse
+  // exports), a GeoJSON reference-layer snapshot, and a JSON measurements/markup export.
+  [".mp4", "video/mp4"],
+  [".mov", "video/quicktime"],
+  [".webm", "video/webm"],
+  [".glb", "model/gltf-binary"],
+  [".usdz", "model/vnd.usdz+zip"],
+  [".ply", "application/octet-stream"],
+  [".obj", "application/octet-stream"],
+  [".e57", "application/octet-stream"],
+  [".geojson", "application/geo+json"],
+  [".json", "application/json"],
 ]);
 const DOCUMENT_ENTITY_TYPES = new Map([
   ["account", "accounts"],
@@ -4508,6 +4936,11 @@ async function handleDocumentUpload(request, response) {
     visibility = "customer";
   } else if (!canAccess(role, "customerDirectory")) {
     return json(response, 403, { error: "Your role cannot upload documents." });
+  } else if (isFieldSession(session)) {
+    // Phase 21 (2026-09-25): a field session may only attach a document to a record fieldProjections
+    // already scopes it to -- the same rule the chunked upload-session route enforces.
+    const ctx = buildFieldContext(session, data);
+    if (!documentBelongsToFieldContext({ entityType, entityId, deletedAt: "" }, ctx)) return json(response, 403, { error: "You do not have access to that record." });
   }
   if (entityType === "documentType" && !role.includes("Admin")) return json(response, 403, { error: "Only an administrator can upload a document type's template." });
 
@@ -4583,17 +5016,14 @@ async function handleDocumentFile(request, response, documentId, inline) {
     if (!portalCanSeeDocument(request.session, document)) return json(response, 403, { error: "This document is not shared with your account." });
   } else if (!canAccess(role, "customerDirectory")) {
     return json(response, 403, { error: "Your role cannot open documents." });
+  } else if (isFieldSession(request.session)) {
+    const ctx = buildFieldContext(request.session, data);
+    if (!documentBelongsToFieldContext(document, ctx)) return json(response, 403, { error: "You do not have access to this document." });
   }
   const filePath = path.resolve(uploadsDir, document.storageName);
   if (path.dirname(filePath) !== path.resolve(uploadsDir) || !existsSync(filePath)) return json(response, 404, { error: "Stored file is unavailable." });
-  const body = await readFile(filePath);
-  response.writeHead(200, {
-    "Content-Type": document.mimeType || "application/octet-stream",
-    "Content-Length": body.length,
-    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(document.fileName)}`,
-    "Cache-Control": "private, no-store",
-  });
-  response.end(body);
+  // Phase 21 (2026-09-25): Range/206 so a 2-minute site video can seek instead of downloading whole.
+  return sendFileWithRange(request, response, filePath, { mimeType: document.mimeType || "application/octet-stream", fileName: document.fileName, inline, cacheControl: "private, no-store" });
 }
 
 // A type's blank form: the supplied PDF in docs/uploaded files (never served by the static branch),
@@ -4805,13 +5235,20 @@ async function handleApi(request, response, pathname) {
   const collection = collectionMatch[1];
   const domain = collectionAccess[collection];
   if (!domain || !Array.isArray(defaultBackend[collection])) return json(response, 404, { error: "Unknown collection." });
-  if (!canAccess(role, domain)) return json(response, 403, { error: `${domain} role required.` });
+  // Phase 21 (2026-09-25): scheduleEvents is an "operations" collection, which used to 403 a
+  // sales-only user scheduling a site walk. Sales may read/write site_walk-kind rows only.
+  const scheduleEventsSalesOverride = collection === "scheduleEvents" && !canAccess(role, "operations") && canAccess(role, "sales");
+  if (!canAccess(role, domain) && !scheduleEventsSalesOverride) return json(response, 403, { error: `${domain} role required.` });
 
   const data = await loadBackend();
 
   if (request.method === "GET") {
     if (collection === "itMessages") return json(response, 200, visibleItMessages(data, request.session, role));
-    return json(response, 200, data[collection]);
+    if (scheduleEventsSalesOverride) return json(response, 200, (data.scheduleEvents || []).filter((event) => !event.deletedAt && event.kind === "site_walk"));
+    // Phase 21 (2026-09-25): route the single-collection read through the same function as the full
+    // read, including the field-session projection -- this used to return the raw collection,
+    // bypassing every OR rule (and every field-session scope) the full read applied.
+    return json(response, 200, filterBackendForRole(data, role, request.session)[collection] ?? []);
   }
 
   if (request.method === "POST") {
@@ -4838,6 +5275,23 @@ async function handleApi(request, response, pathname) {
       return json(response, 403, { error: "Customers cannot write records directly." });
     }
     const body = await readJsonBody(request);
+    const commandId = clientCommandId(request);
+    const priorReceipt = await findCommandReceipt(commandId);
+    if (priorReceipt) return json(response, priorReceipt.status, priorReceipt.body);
+    if (scheduleEventsSalesOverride && body.kind !== "site_walk") {
+      return json(response, 403, { error: "Sales role may only schedule site-walk events." });
+    }
+    // Phase 21 (2026-09-25): a field session (dispatch-link, or Field Lead/Crew only) writes through
+    // this route only for collections listed in fieldWritable, and the target row must still pass
+    // that collection's fieldProjections predicate -- see the second check below, after `stored` is
+    // known. Everything else is a POST to /api/field/* (the right authority for the job it does).
+    if (isFieldSession(request.session)) {
+      if (!fieldWritable.has(collection)) return json(response, 403, { error: "Field sessions write through /api/field/* commands for this collection." });
+      const sessionRoles = fieldSessionRoles(request.session);
+      if (crewForbiddenWrites.has(collection) && sessionRoles.includes("Crew") && !sessionRoles.includes("Field Lead")) {
+        return json(response, 403, { error: "Crew cannot write this record." });
+      }
+    }
     if (collection === "systemUsers") {
       // 2026-09-24: several roles per person; `role` stays the primary one (first by precedence).
       const requestedRoles = (Array.isArray(body.roles) && body.roles.length ? body.roles : [body.role]).map((item) => String(item || "").trim()).filter(Boolean);
@@ -4859,7 +5313,21 @@ async function handleApi(request, response, pathname) {
       // Files enter only through /api/documents; this route edits a document's metadata.
       const storedDocument = (data.documents || []).find((item) => item.id === body.id);
       if (!storedDocument) return json(response, 405, { error: "Upload files through the document store, not this route." });
-      record = { ...storedDocument, visibility: body.visibility === "customer" ? "customer" : "internal", caption: String(body.caption || "").slice(0, 200), tags: Array.isArray(body.tags) ? body.tags : storedDocument.tags || [], documentTypeId: body.documentTypeId || storedDocument.documentTypeId, retainUntil: body.retainUntil || "" };
+      // Phase 21 (2026-09-25): extended with the field-capture metadata a walk/job photo carries --
+      // markup (annotation strokes JSON, written when a version is re-annotated), section/heading
+      // (which required-shot tray it fills) and requiredShotKey (which slot of that tray).
+      record = {
+        ...storedDocument,
+        visibility: body.visibility === "customer" ? "customer" : "internal",
+        caption: String(body.caption || "").slice(0, 200),
+        tags: Array.isArray(body.tags) ? body.tags : storedDocument.tags || [],
+        documentTypeId: body.documentTypeId || storedDocument.documentTypeId,
+        retainUntil: body.retainUntil || "",
+        markup: body.markup !== undefined ? body.markup : storedDocument.markup || null,
+        section: body.section !== undefined ? String(body.section || "") : storedDocument.section || "",
+        heading: body.heading !== undefined ? String(body.heading || "") : storedDocument.heading || "",
+        requiredShotKey: body.requiredShotKey !== undefined ? String(body.requiredShotKey || "") : storedDocument.requiredShotKey || "",
+      };
     }
     if (collection === "documentRequirements") {
       const storedRequirement = (data.documentRequirements || []).find((item) => item.id === body.id);
@@ -4897,6 +5365,19 @@ async function handleApi(request, response, pathname) {
     const stored = index >= 0 ? data[collection][index] : null;
     const conflict = versionConflict(stored, body);
     if (conflict) return json(response, 409, conflict);
+    if (isFieldSession(request.session)) {
+      const projection = fieldProjections[collection];
+      const ctx = buildFieldContext(request.session, data);
+      const targetRow = stored || record;
+      if (!projection || !projection.where(targetRow, ctx)) return json(response, 403, { error: "You do not have access to this record." });
+      const allowedFields = fieldPartialWriteFields[collection];
+      if (allowedFields) {
+        if (!stored) return json(response, 403, { error: "This record must exist before a field session can update it." });
+        const merged = { ...stored };
+        for (const key of allowedFields) if (Object.prototype.hasOwnProperty.call(body, key)) merged[key] = body[key];
+        record = merged;
+      }
+    }
     // Phase 11 (2026-09-23): manual onHand edits (the only other path that changes stock) get a
     // ledger row too, so the ledger stays the complete explanation for every onHand change. `body`
     // is the raw payload (pre-whitelist) so the transient adjustmentNote survives to here even though
@@ -4928,6 +5409,7 @@ async function handleApi(request, response, pathname) {
       await revokeSessions(auth, (session) => session.systemUserId === record.id, request.session?.name || "system");
     }
     await audit(request, { action: stored ? "update" : "create", collection, recordId: record.id, summary: recordSummary(record), changed: stored ? changedKeys(stored, record) : undefined });
+    if (commandId) await recordCommandReceipt(commandId, 200, record);
     return json(response, 200, record);
   }
 
@@ -4993,6 +5475,714 @@ async function handleSoftDelete(request, response, collection, id, restore) {
   await saveBackend(data);
   await audit(request, { action: "delete", collection, recordId: id, summary: recordSummary(root), cascade: summary.counts, total: summary.total });
   return json(response, 200, { root: { collection, id }, deleted: summary.counts, total: summary.total });
+}
+
+// ---- Phase 21 (Front Line 2, 2026-09-25): field commands, chunked uploads, walk share links -----
+//
+// Everything the phone does that isn't a plain row save goes through one of these: they apply the
+// authority a raw POST /api/backend/{collection} shouldn't have (only a command may flip a job's
+// status, complete a walk, or clock someone else in), and every one of them is idempotent via
+// X-Client-Command-Id (see runFieldCommand / findCommandReceipt / recordCommandReceipt above).
+
+async function runFieldCommand(request, response, handler) {
+  const commandId = clientCommandId(request);
+  if (commandId) {
+    const prior = await findCommandReceipt(commandId);
+    if (prior) return json(response, prior.status, prior.body);
+  }
+  const result = await handler();
+  const status = result?.status ?? 200;
+  const body = result?.body ?? result ?? { ok: true };
+  if (commandId) await recordCommandReceipt(commandId, status, body);
+  return json(response, status, body);
+}
+
+function fieldAccountPauseBlock(data, accountId) {
+  if (!accountId) return "";
+  const relationship = (data.accountRelationshipExtensions || []).find((item) => item.accountId === accountId && !item.deletedAt);
+  if (!relationship?.isPaused || !relationship.pauseFieldWork) return "";
+  const account = (data.accounts || []).find((item) => item.id === accountId);
+  return `${account?.name || "This account"} is paused for field work${relationship.pausedReason ? ` (${relationship.pausedReason})` : ""}. Lift the pause on the account page first.`;
+}
+
+// ---- POST /api/field/clock ----
+async function fieldClock(request) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const role = getRoles(request);
+  const data = await loadBackend();
+  const job = (data.dispatchJobs || []).find((item) => item.id === body.dispatchJobId && !item.deletedAt);
+  if (!job) throw requestError("Dispatch job not found.", 404);
+  const targetEmployeeId = body.employeeId || session.employeeId;
+  if (!targetEmployeeId) throw requestError("employeeId required.", 400);
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+    if (targetEmployeeId !== session.employeeId) {
+      if (!fieldSessionRoles(session).includes("Field Lead")) throw requestError("Only the lead may clock other crew.", 403);
+      if (!ctx.crewMateIds.has(targetEmployeeId)) throw requestError("That person is not on this job.", 403);
+    }
+  } else if (!canAccess(role, "dispatch")) {
+    throw requestError("Dispatch role required.", 403);
+  }
+  const entryType = body.entryType === "Travel" ? "Travel" : "Work";
+  const at = body.at || new Date().toISOString();
+  let record;
+  if (body.action === "out") {
+    const open = (data.timeEntries || []).find((item) => item.employeeId === targetEmployeeId && item.dispatchJobId === job.id && !item.endedAt && !item.deletedAt);
+    if (!open) throw requestError("No open time entry to clock out.", 409);
+    const durationMinutes = Math.max(0, Math.round((new Date(at).getTime() - new Date(open.startedAt).getTime()) / 60000));
+    const updated = { ...open, endedAt: at, durationMinutes };
+    touchRecord(updated, open);
+    const index = data.timeEntries.findIndex((item) => item.id === open.id);
+    data.timeEntries[index] = updated;
+    record = updated;
+  } else {
+    if ((data.timeEntries || []).some((item) => item.employeeId === targetEmployeeId && item.dispatchJobId === job.id && !item.endedAt && !item.deletedAt)) {
+      throw requestError("Already clocked in on this job.", 409);
+    }
+    record = touchRecord({
+      id: makeId("time-entry"),
+      employeeId: targetEmployeeId,
+      dispatchJobId: job.id,
+      entryType,
+      startedAt: at,
+      endedAt: null,
+      durationMinutes: null,
+      notes: body.notes || "",
+      source: "field",
+      enteredByEmployeeId: targetEmployeeId === session.employeeId ? "" : session.employeeId,
+    });
+    data.timeEntries.push(record);
+  }
+  await saveBackend(data);
+  await audit(request, { action: "field-clock", collection: "timeEntries", recordId: record.id, summary: `${targetEmployeeId} ${body.action === "out" ? "out" : "in"} · ${job.jobNumber || job.id}` });
+  return { status: 200, body: record };
+}
+
+// ---- POST /api/field/jobs/:id/advance ----
+// A server-side twin of app.js advanceDispatchJob()/getWorkPlanGate()/getJobReadiness(): the ladder
+// moves one step at a time, revalidated here so a queued-offline advance command can't skip a gate
+// that would have blocked it live (a job cancelled while the phone was offline, a work-plan step
+// still open, a paused account). Kept intentionally smaller than the client's full readiness check
+// (no live-eligibility/vendor/equipment sub-checks) -- see the Corrections note in the phase doc.
+const FIELD_DISPATCH_TRANSITIONS = {
+  draft: { status: "ready", dispatchStatus: "Ready to schedule", completionPercent: 0 },
+  ready: { status: "scheduled", dispatchStatus: "Scheduled", completionPercent: 0 },
+  scheduled: { status: "dispatched", dispatchStatus: "Sent", completionPercent: 8 },
+  dispatched: { status: "acknowledged", dispatchStatus: "Acknowledged", completionPercent: 10 },
+  acknowledged: { status: "en_route", dispatchStatus: "En route", completionPercent: 15 },
+  en_route: { status: "on_site", dispatchStatus: "On site", completionPercent: 20 },
+  on_site: { status: "in_progress", dispatchStatus: "In field", completionPercent: 25 },
+  in_progress: { status: "field_complete", dispatchStatus: "Returned", completionPercent: 100 },
+  field_complete: { status: "office_review", dispatchStatus: "Returned", completionPercent: 100 },
+  office_review: { status: "closed", dispatchStatus: "Closed", completionPercent: 100 },
+};
+const FIELD_POST_JOB_REVIEW_KEYS = ["accidents", "nearMisses", "injuries"];
+
+async function fieldAdvanceJob(request, jobId) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const role = getRoles(request);
+  const data = await loadBackend();
+  const job = (data.dispatchJobs || []).find((item) => item.id === jobId && !item.deletedAt);
+  if (!job) throw requestError("Job not found.", 404);
+  if (["cancelled"].includes(job.status)) throw Object.assign(requestError("This job was cancelled.", 409), { blocked: true });
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+  } else if (!canAccess(role, "dispatch")) {
+    throw requestError("Dispatch role required.", 403);
+  }
+  const transition = FIELD_DISPATCH_TRANSITIONS[job.status];
+  if (!transition) throw Object.assign(requestError(`Job "${job.status}" has no next status.`, 409), { blocked: true });
+  if (body.toStatus && body.toStatus !== transition.status) {
+    throw Object.assign(requestError(`This job is at "${job.status}"; the next status is "${transition.status}", not "${body.toStatus}". The ladder moves one step at a time.`, 409), { blocked: true });
+  }
+  if (transition.status === "dispatched") {
+    const assignments = (data.jobAssignments || []).filter((item) => item.jobId === job.id && item.status !== "Cancelled" && !item.deletedAt);
+    if (!assignments.length) throw Object.assign(requestError("No employees assigned; resolve blocking readiness checks before dispatching.", 409), { blocked: true });
+    const pause = fieldAccountPauseBlock(data, job.accountId);
+    if (pause) throw Object.assign(requestError(pause, 409), { blocked: true });
+  }
+  const steps = (data.jobSteps || []).filter((item) => item.jobId === job.id && !item.deletedAt).sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0));
+  if (steps.length) {
+    if (transition.status === "acknowledged") {
+      const pending = (data.jobActions || []).find((item) => item.stepId === steps[0].id && item.type === "Status transition" && item.status !== "Complete");
+      if (pending) throw Object.assign(requestError(`Complete "${pending.name}" in the work plan to acknowledge this job.`, 409), { blocked: true });
+    }
+    if (transition.status === "in_progress" && steps[0].status !== "Complete") {
+      throw Object.assign(requestError(`Finish the "${steps[0].name}" step before starting work.`, 409), { blocked: true });
+    }
+    if (transition.status === "field_complete") {
+      const outstanding = steps.filter((item) => item.required !== false && item.status !== "Complete");
+      if (outstanding.length) throw Object.assign(requestError(`${outstanding.length} work plan step${outstanding.length === 1 ? "" : "s"} still open.`, 409), { blocked: true });
+    }
+  }
+  if (transition.status === "closed") {
+    const review = job.postJobReview || {};
+    const complete = FIELD_POST_JOB_REVIEW_KEYS.every((key) => review[key] === "Yes" || review[key] === "No");
+    if (!complete) throw Object.assign(requestError("Answer the post-job review (accidents, near misses, injuries) before closing the job.", 409), { blocked: true });
+  }
+  const occurredAt = body.at || new Date().toISOString();
+  const updated = {
+    ...job,
+    status: transition.status,
+    dispatchStatus: transition.dispatchStatus,
+    operationalDate: transition.status === "in_progress" && !job.operationalDate ? occurredAt.slice(0, 10) : job.operationalDate || "",
+    officeReviewStatus: transition.status === "office_review" ? "In review" : transition.status === "closed" ? "Closed" : job.officeReviewStatus,
+    completionPercent: Math.max(Number(job.completionPercent || 0), transition.completionPercent),
+  };
+  touchRecord(updated, job);
+  const jobIndex = data.dispatchJobs.findIndex((item) => item.id === job.id);
+  data.dispatchJobs[jobIndex] = updated;
+  const statusEvent = touchRecord({ id: makeId("job-status-event"), jobId: job.id, fromStatus: job.status, toStatus: transition.status, occurredAt, by: body.by || attribution(request) });
+  data.jobStatusEvents.push(statusEvent);
+  await saveBackend(data);
+  await audit(request, { action: "field-advance", collection: "dispatchJobs", recordId: job.id, summary: `${job.jobNumber || job.id} → ${transition.status}` });
+  if (transition.status === "in_progress") captureResponseWeatherInBackground(job.id);
+  return { status: 200, body: updated };
+}
+
+// The response-weather twin of app.js captureWeatherInBackground(): fired without blocking the
+// advance command's response, using the same fetchWeatherObservation()/resolveWeatherAnchor() the
+// office's capture route uses (both defined further down this file; hoisted, so the forward
+// reference is fine).
+function captureResponseWeatherInBackground(dispatchJobId) {
+  serializeApi(async () => {
+    const data = await loadBackend();
+    const job = (data.dispatchJobs || []).find((item) => item.id === dispatchJobId);
+    if (!job || !job.projectId) return;
+    const project = data.projects.find((item) => item.id === job.projectId);
+    if (!project || findCapturedSnapshot(data, project.id, "response", job.id)) return;
+    const startedWork = (data.jobStatusEvents || []).filter((event) => event.jobId === job.id && event.toStatus === "in_progress").sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))[0];
+    const observedFor = startedWork?.occurredAt || "";
+    if (!observedFor) return;
+    const anchor = resolveWeatherAnchor(data, project, job);
+    const snapshot = {
+      id: makeId("weather"), projectId: project.id, dispatchJobId: job.id, kind: "response", observedFor,
+      latitude: anchor?.latitude ?? null, longitude: anchor?.longitude ?? null,
+      anchorSource: anchor?.anchorSource || "", anchorLocationId: anchor?.anchorLocationId || "", anchorLabel: anchor?.anchorLabel || "",
+      requestedBy: "Front Line", fetchedAt: new Date().toISOString(), status: "not_captured", error: "",
+    };
+    if (!anchor) {
+      snapshot.error = "No GPS location on this project to anchor the weather to.";
+    } else {
+      try {
+        Object.assign(snapshot, await fetchWeatherObservation({ latitude: anchor.latitude, longitude: anchor.longitude, at: observedFor }), { status: "captured" });
+      } catch (error) {
+        snapshot.error = error.message || "Weather lookup failed.";
+      }
+    }
+    const data2 = await loadBackend();
+    if (findCapturedSnapshot(data2, project.id, "response", job.id)) return;
+    data2.weatherSnapshots.push(snapshot);
+    await saveBackend(data2);
+  }).catch(() => {});
+}
+
+// ---- POST /api/field/jobs/:id/briefing (+ /acknowledge) ----
+async function fieldUpsertBriefing(request, jobId) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  if (isFieldSession(session) && fieldSessionRoles(session).includes("Crew") && !fieldSessionRoles(session).includes("Field Lead")) {
+    throw requestError("Crew cannot write the safety briefing.", 403);
+  }
+  const data = await loadBackend();
+  const job = (data.dispatchJobs || []).find((item) => item.id === jobId && !item.deletedAt);
+  if (!job) throw requestError("Job not found.", 404);
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+  } else if (!canAccess(getRoles(request), "dispatch")) {
+    throw requestError("Dispatch role required.", 403);
+  }
+  const operationalDate = body.operationalDate || job.operationalDate || new Date().toISOString().slice(0, 10);
+  const stored = (data.jobSafetyBriefings || []).find((item) => item.jobId === jobId && item.operationalDate === operationalDate && !item.deletedAt);
+  const record = {
+    id: stored?.id || makeId("job-safety-briefing"),
+    jobId,
+    operationalDate,
+    ppeLevel: body.ppeLevel ?? stored?.ppeLevel ?? "",
+    ppeRationale: body.ppeRationale ?? stored?.ppeRationale ?? "",
+    musterPoint: body.musterPoint ?? stored?.musterPoint ?? "",
+    emergencyContact: body.emergencyContact ?? stored?.emergencyContact ?? "",
+    nearestHospital: body.nearestHospital ?? stored?.nearestHospital ?? "",
+    hazards: body.hazards ?? stored?.hazards ?? [],
+    reminders: body.reminders ?? stored?.reminders ?? {},
+    airReadings: body.airReadings ?? stored?.airReadings ?? [],
+    rollCall: stored?.rollCall ?? [],
+    createdBy: stored?.createdBy || attribution(request),
+  };
+  touchRecord(record, stored);
+  if (stored) data.jobSafetyBriefings[data.jobSafetyBriefings.findIndex((item) => item.id === stored.id)] = record;
+  else data.jobSafetyBriefings.push(record);
+  await saveBackend(data);
+  await audit(request, { action: "field-briefing", collection: "jobSafetyBriefings", recordId: record.id, summary: `${job.jobNumber || jobId} · ${operationalDate}` });
+  return { status: 200, body: record };
+}
+
+async function fieldAcknowledgeBriefing(request, jobId) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const data = await loadBackend();
+  const job = (data.dispatchJobs || []).find((item) => item.id === jobId && !item.deletedAt);
+  if (!job) throw requestError("Job not found.", 404);
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+    if (body.employeeId && body.employeeId !== session.employeeId && !fieldSessionRoles(session).includes("Field Lead")) {
+      throw requestError("Only the lead may acknowledge for someone else.", 403);
+    }
+  } else if (!canAccess(getRoles(request), "dispatch")) {
+    throw requestError("Dispatch role required.", 403);
+  }
+  const employeeId = body.employeeId || session.employeeId;
+  if (!employeeId) throw requestError("employeeId required.", 400);
+  const operationalDate = job.operationalDate || new Date().toISOString().slice(0, 10);
+  const stored = (data.jobSafetyBriefings || []).find((item) => item.jobId === jobId && item.operationalDate === operationalDate && !item.deletedAt);
+  if (!stored) throw requestError("No safety briefing recorded for today yet.", 409);
+  const now = new Date().toISOString();
+  const rollCall = Array.isArray(stored.rollCall) ? stored.rollCall.slice() : [];
+  let entry = rollCall.find((item) => item.employeeId === employeeId);
+  if (!entry) {
+    entry = { employeeId, arrivedAt: now, leftAt: "", acknowledgedAt: "", signatureAttachmentId: "" };
+    rollCall.push(entry);
+  }
+  entry.acknowledgedAt = now;
+  entry.signatureAttachmentId = body.signatureAttachmentId || entry.signatureAttachmentId || "";
+  const record = { ...stored, rollCall };
+  touchRecord(record, stored);
+  data.jobSafetyBriefings[data.jobSafetyBriefings.findIndex((item) => item.id === stored.id)] = record;
+  await saveBackend(data);
+  await audit(request, { action: "field-briefing-acknowledge", collection: "jobSafetyBriefings", recordId: stored.id, summary: `${employeeId} acknowledged` });
+  return { status: 200, body: record };
+}
+
+// ---- POST /api/field/site-walk/:eventId/complete ----
+function mergeFieldNeeds(existing, incoming) {
+  const list = Array.isArray(existing) ? existing.map((item) => ({ ...item })) : [];
+  for (const item of incoming || []) {
+    if (!item?.name) continue;
+    const found = list.find((row) => String(row.name).toLowerCase() === String(item.name).toLowerCase());
+    if (found) found.note = item.note || found.note;
+    else list.push({ name: item.name, note: item.note || "" });
+  }
+  return list;
+}
+
+async function fieldCompleteSiteWalk(request, eventId) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const data = await loadBackend();
+  const event = (data.scheduleEvents || []).find((item) => item.id === eventId && !item.deletedAt);
+  if (!event || event.kind !== "site_walk") throw requestError("Site walk not found.", 404);
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myWalkEventIds.has(event.id)) throw requestError("You do not have access to this walk.", 403);
+    if (fieldSessionRoles(session).includes("Crew") && !fieldSessionRoles(session).includes("Field Lead")) throw requestError("Crew cannot complete a site walk.", 403);
+  } else if (!canAccess(getRoles(request), "sales")) {
+    throw requestError("Sales role required.", 403);
+  }
+  const opportunity = (data.opportunities || []).find((item) => item.id === event.opportunityId);
+  const stored = (data.siteWalkReports || []).find((item) => item.walkEventId === eventId && !item.deletedAt);
+  const record = {
+    id: stored?.id || makeId("site-walk-report"),
+    walkEventId: eventId,
+    opportunityId: event.opportunityId || "",
+    facilityId: opportunity?.facilityId || stored?.facilityId || "",
+    checkIn: body.checkIn ?? stored?.checkIn ?? null,
+    sections: body.sections ?? stored?.sections ?? {},
+    needs: body.needs ?? stored?.needs ?? {},
+    contactsMet: body.contactsMet ?? stored?.contactsMet ?? [],
+    measurements: body.measurements ?? stored?.measurements ?? [],
+    backgrounds: stored?.backgrounds ?? [],
+    referenceSnapshot: stored?.referenceSnapshot ?? { layers: [] },
+    shares: stored?.shares ?? [],
+    summary: body.summary ?? stored?.summary ?? "",
+    completedAt: new Date().toISOString(),
+    completedBy: attribution(request),
+  };
+  touchRecord(record, stored);
+  if (stored) data.siteWalkReports[data.siteWalkReports.findIndex((item) => item.id === stored.id)] = record;
+  else data.siteWalkReports.push(record);
+
+  const updatedEvent = { ...event, status: "Completed" };
+  touchRecord(updatedEvent, event);
+  data.scheduleEvents[data.scheduleEvents.findIndex((item) => item.id === event.id)] = updatedEvent;
+
+  const activity = (data.activities || []).find((item) => item.regardingScheduleEventId === event.id && !item.deletedAt);
+  if (activity) {
+    const updatedActivity = { ...activity, status: "Completed", description: record.summary || activity.description };
+    touchRecord(updatedActivity, activity);
+    data.activities[data.activities.findIndex((item) => item.id === activity.id)] = updatedActivity;
+  } else if (Array.isArray(data.activities)) {
+    data.activities.push(touchRecord({
+      id: makeId("activity"), type: "Site Visit", subject: "Site walk completed", opportunityId: event.opportunityId || "",
+      accountId: opportunity?.accountId || "", status: "Completed", regardingScheduleEventId: event.id, description: record.summary || "", occurredAt: record.completedAt,
+    }));
+  }
+
+  if (opportunity) {
+    const updatedOpportunity = {
+      ...opportunity,
+      siteWalkStatus: "Complete",
+      equipmentNeeds: mergeFieldNeeds(opportunity.equipmentNeeds, body.needs?.equipment),
+      vendorNeeds: mergeFieldNeeds(opportunity.vendorNeeds, body.needs?.vendor),
+      resourceNeeds: mergeFieldNeeds(opportunity.resourceNeeds, body.needs?.resource),
+    };
+    touchRecord(updatedOpportunity, opportunity);
+    data.opportunities[data.opportunities.findIndex((item) => item.id === opportunity.id)] = updatedOpportunity;
+  }
+
+  await saveBackend(data);
+  await audit(request, { action: "field-walk-complete", collection: "siteWalkReports", recordId: record.id, summary: opportunity?.name || eventId });
+  return { status: 200, body: record };
+}
+
+// ---- POST /api/field/measurements ----
+async function fieldAddMeasurement(request) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const data = await loadBackend();
+  const measurement = { id: makeId("measurement"), at: new Date().toISOString(), by: attribution(request), ...body.measurement };
+  if (body.target === "walk") {
+    const report = (data.siteWalkReports || []).find((item) => (item.id === body.id || item.walkEventId === body.id) && !item.deletedAt);
+    if (!report) throw requestError("Site walk report not found.", 404);
+    if (isFieldSession(session)) {
+      const ctx = buildFieldContext(session, data);
+      if (!ctx.myWalkEventIds.has(report.walkEventId)) throw requestError("You do not have access to this walk.", 403);
+    }
+    const record = { ...report, measurements: [...(report.measurements || []), measurement] };
+    touchRecord(record, report);
+    data.siteWalkReports[data.siteWalkReports.findIndex((item) => item.id === report.id)] = record;
+    await saveBackend(data);
+    return { status: 200, body: record };
+  }
+  if (body.target === "job") {
+    const job = (data.dispatchJobs || []).find((item) => item.id === body.id && !item.deletedAt);
+    if (!job) throw requestError("Job not found.", 404);
+    if (isFieldSession(session)) {
+      const ctx = buildFieldContext(session, data);
+      if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+    }
+    const record = { ...job, measurements: [...(job.measurements || []), measurement] };
+    touchRecord(record, job);
+    data.dispatchJobs[data.dispatchJobs.findIndex((item) => item.id === job.id)] = record;
+    await saveBackend(data);
+    return { status: 200, body: record };
+  }
+  throw requestError("target must be walk or job.", 400);
+}
+
+// ---- POST /api/field/walks/:reportId/share, DELETE .../share/:shareId ----
+async function fieldCreateWalkShare(request, reportId) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const data = await loadBackend();
+  const report = (data.siteWalkReports || []).find((item) => item.id === reportId && !item.deletedAt);
+  if (!report) throw requestError("Site walk report not found.", 404);
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myWalkEventIds.has(report.walkEventId)) throw requestError("You do not have access to this walk.", 403);
+  } else if (!canAccess(getRoles(request), "sales")) {
+    throw requestError("Sales role required.", 403);
+  }
+  const token = newToken();
+  const days = Number(body.expiresInDays) > 0 ? Number(body.expiresInDays) : 14;
+  const share = { id: makeId("walk-share"), tokenHash: hashToken(token), createdBy: attribution(request), createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + days * 86400000).toISOString(), revokedAt: "", opens: 0 };
+  const record = { ...report, shares: [...(report.shares || []), share] };
+  touchRecord(record, report);
+  data.siteWalkReports[data.siteWalkReports.findIndex((item) => item.id === report.id)] = record;
+  await saveBackend(data);
+  await audit(request, { action: "walk-share-created", collection: "siteWalkReports", recordId: report.id, summary: share.id, expiresAt: share.expiresAt });
+  return { status: 201, body: { id: share.id, url: `${requestOrigin(request)}/walk/${token}`, expiresAt: share.expiresAt } };
+}
+
+async function fieldRevokeWalkShare(request, reportId, shareId) {
+  const session = request.session;
+  const data = await loadBackend();
+  const report = (data.siteWalkReports || []).find((item) => item.id === reportId && !item.deletedAt);
+  if (!report) throw requestError("Site walk report not found.", 404);
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myWalkEventIds.has(report.walkEventId)) throw requestError("You do not have access to this walk.", 403);
+  } else if (!canAccess(getRoles(request), "sales")) {
+    throw requestError("Sales role required.", 403);
+  }
+  const share = (report.shares || []).find((item) => item.id === shareId);
+  if (!share) throw requestError("Share not found.", 404);
+  share.revokedAt = new Date().toISOString();
+  const record = { ...report };
+  touchRecord(record, report);
+  data.siteWalkReports[data.siteWalkReports.findIndex((item) => item.id === report.id)] = record;
+  await saveBackend(data);
+  await audit(request, { action: "walk-share-revoked", collection: "siteWalkReports", recordId: report.id, summary: shareId });
+  return { status: 200, body: { ok: true } };
+}
+
+function findWalkShareByToken(data, token) {
+  const tokenHash = hashToken(token);
+  for (const report of data.siteWalkReports || []) {
+    if (report.deletedAt) continue;
+    const share = (report.shares || []).find((item) => item.tokenHash === tokenHash);
+    if (share) return { report, share };
+  }
+  return null;
+}
+
+function walkShareStatusPage(response, status, title, body) {
+  response.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+  response.end(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>body{font-family:system-ui,sans-serif;margin:0;padding:32px 20px;background:#eef7ef;color:#13241b}main{max-width:420px;margin:auto;background:#fff;border:1px solid #d7e4d8;border-radius:16px;padding:24px}h1{font-size:1.2rem}</style></head><body><main><h1>${title}</h1><p>${body}</p></main></body></html>`);
+}
+
+// GET /walk/<token>: the standalone, no-session-required page (field/walk-share.html, built by W3);
+// this route only validates the token and counts the open. The page itself calls the two data routes
+// below, which validate the token again on every poll.
+async function handleWalkShare(request, response, token) {
+  const data = await loadBackend();
+  const found = findWalkShareByToken(data, token);
+  if (!found) return walkShareStatusPage(response, 404, "Link not found", "This site-walk link is not valid.");
+  const { report, share } = found;
+  if (share.revokedAt) return walkShareStatusPage(response, 410, "Link revoked", "This link was revoked by BioRemedy.");
+  if (new Date(share.expiresAt).getTime() < Date.now()) return walkShareStatusPage(response, 410, "Link expired", "This link has expired. Ask your BioRemedy contact for a new one.");
+  share.opens = Number(share.opens || 0) + 1;
+  const updated = { ...report };
+  touchRecord(updated, report);
+  data.siteWalkReports[data.siteWalkReports.findIndex((item) => item.id === report.id)] = updated;
+  await saveBackend(data);
+  const pagePath = path.join(root, "field", "walk-share.html");
+  if (!existsSync(pagePath)) return walkShareStatusPage(response, 404, "Not built yet", "The site-walk share page has not been built in this environment yet.");
+  const body = await readFile(pagePath);
+  response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+  response.end(body);
+}
+
+// GET /api/walk/<token>/data: no session. `visibility:"internal"` photos are excluded; everything
+// else on the walk (observations, sections, needs, measurements) is meant to be shown to the customer
+// who was handed the link.
+async function handleWalkShareData(request, response, token) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  const data = await loadBackend();
+  const found = findWalkShareByToken(data, token);
+  if (!found) return json(response, 404, { error: "Link not found." });
+  const { report, share } = found;
+  if (share.revokedAt) return json(response, 410, { error: "Link revoked." });
+  if (new Date(share.expiresAt).getTime() < Date.now()) return json(response, 410, { error: "Link expired." });
+  const opportunity = (data.opportunities || []).find((item) => item.id === report.opportunityId);
+  const facility = (data.facilities || []).find((item) => item.id === report.facilityId);
+  const observations = (data.siteWalkObservations || []).filter((item) => item.walkEventId === report.walkEventId && !item.deletedAt);
+  const photoIds = new Set();
+  for (const observation of observations) for (const documentId of observation.photoDocumentIds || []) photoIds.add(documentId);
+  const documents = (data.documents || []).filter((item) => photoIds.has(item.id) && !item.deletedAt && item.visibility !== "internal").map(documentSummary);
+  return json(response, 200, { report, observations, documents, opportunityName: opportunity?.name || "", facilityName: facility?.name || "", updatedAt: report.updatedAt });
+}
+
+// GET /api/walk/<token>/documents/:id/view: no session; only serves a photo this walk's own
+// observations reference, and never one flagged visibility:"internal".
+async function handleWalkShareDocument(request, response, token, documentId) {
+  if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
+  const data = await loadBackend();
+  const found = findWalkShareByToken(data, token);
+  if (!found) return json(response, 404, { error: "Link not found." });
+  const { report, share } = found;
+  if (share.revokedAt || new Date(share.expiresAt).getTime() < Date.now()) return json(response, 410, { error: "Link expired." });
+  const observations = (data.siteWalkObservations || []).filter((item) => item.walkEventId === report.walkEventId);
+  const belongs = observations.some((item) => (item.photoDocumentIds || []).includes(documentId));
+  if (!belongs) return json(response, 403, { error: "That photo is not part of this walk." });
+  const document = (data.documents || []).find((item) => item.id === documentId && !item.deletedAt);
+  if (!document || document.visibility === "internal") return json(response, 404, { error: "Not found." });
+  const filePath = path.resolve(uploadsDir, document.storageName);
+  if (path.dirname(filePath) !== path.resolve(uploadsDir) || !existsSync(filePath)) return json(response, 404, { error: "Stored file unavailable." });
+  return sendFileWithRange(request, response, filePath, { mimeType: document.mimeType || "application/octet-stream", fileName: document.fileName, inline: true, cacheControl: "private, max-age=300" });
+}
+
+// ---- Chunked document uploads: POST upload-session, PUT .../chunks/:n, POST .../complete ----
+// In-memory (not persisted): a resumable upload session lives minutes to a few hours, never across a
+// server restart worth preserving, and the chunk files on disk are the actual state that matters --
+// losing the in-memory index on a restart just means an in-flight upload has to restart, which the
+// outbox already handles by retrying. Abandoned sessions (created, never completed) are pruned after
+// 24h below.
+const uploadSessions = new Map();
+const CHUNK_SIZE = 5 * 1024 * 1024;
+const uploadCapsByDocumentType = { "site-video": 500 * 1024 * 1024 };
+const defaultChunkedUploadCap = 25 * 1024 * 1024;
+function uploadCapFor(documentType) {
+  return uploadCapsByDocumentType[documentType] || defaultChunkedUploadCap;
+}
+
+async function handleUploadSessionCreate(request) {
+  const role = getRoles(request);
+  if (!isFieldSession(request.session) && !canAccess(role, "customerDirectory")) throw requestError("Your role cannot upload documents.", 403);
+  const body = await readJsonBody(request);
+  const fileName = normalizeUploadFileName(body.fileName);
+  const extension = path.extname(fileName).toLowerCase();
+  const mimeType = DOCUMENT_UPLOAD_MIME_TYPES.get(extension) || (typeof body.mimeType === "string" ? body.mimeType : "");
+  if (!fileName || !mimeType) throw requestError("Unsupported file type for a chunked upload.", 415);
+  if (!documentEntityCollection(body.entityType)) throw requestError("Unknown record type for this document.", 400);
+  const data = await loadBackend();
+  const entity = findEntityRecord(data, body.entityType, body.entityId);
+  if (!entity) throw requestError("The record this document belongs to was not found.", 404);
+  if (isFieldSession(request.session)) {
+    const ctx = buildFieldContext(request.session, data);
+    if (!documentBelongsToFieldContext({ entityType: body.entityType, entityId: body.entityId, deletedAt: "" }, ctx)) throw requestError("You do not have access to that record.", 403);
+  }
+  const cap = uploadCapFor(body.documentType);
+  const sizeBytes = Number(body.sizeBytes || 0);
+  if (sizeBytes && sizeBytes > cap) throw requestError(`File exceeds the ${Math.round(cap / 1024 / 1024)} MB upload limit for this type.`, 413);
+  const sessionId = makeId("upload-session");
+  uploadSessions.set(sessionId, {
+    id: sessionId, fileName, extension, mimeType, entityType: body.entityType, entityId: body.entityId,
+    documentType: body.documentType || "", groupId: body.groupId || "", caption: String(body.caption || "").slice(0, 200),
+    visibility: body.visibility === "customer" ? "customer" : "internal", createdAt: Date.now(), chunkCount: 0, receivedBytes: 0, cap,
+  });
+  await mkdir(path.join(uploadsDir, "tmp", sessionId), { recursive: true });
+  return { status: 201, body: { sessionId, chunkSize: CHUNK_SIZE } };
+}
+
+async function handleUploadSessionChunk(request, sessionId, chunkIndex) {
+  const session = uploadSessions.get(sessionId);
+  if (!session) throw requestError("Upload session not found or expired.", 404);
+  const chunk = await readRequestBody(request, CHUNK_SIZE + 65536);
+  if (session.receivedBytes + chunk.length > session.cap) throw requestError("File exceeds the upload limit for this type.", 413);
+  await writeFile(path.join(uploadsDir, "tmp", sessionId, String(chunkIndex).padStart(6, "0")), chunk);
+  session.receivedBytes += chunk.length;
+  session.chunkCount = Math.max(session.chunkCount, chunkIndex + 1);
+  return { status: 200, body: { received: chunk.length, totalReceived: session.receivedBytes } };
+}
+
+async function handleUploadSessionComplete(request, sessionId) {
+  const session = uploadSessions.get(sessionId);
+  if (!session) throw requestError("Upload session not found or expired.", 404);
+  const dir = path.join(uploadsDir, "tmp", sessionId);
+  const chunkFiles = Array.from({ length: session.chunkCount }, (_, index) => path.join(dir, String(index).padStart(6, "0")));
+  const buffers = [];
+  for (const file of chunkFiles) {
+    if (!existsSync(file)) throw requestError("Missing a chunk; the upload is incomplete.", 409);
+    buffers.push(await readFile(file));
+  }
+  const full = Buffer.concat(buffers);
+  if (!full.length) throw requestError("Uploaded file is empty.", 400);
+  const sha256 = createHash("sha256").update(full).digest("hex");
+  const data = await loadBackend();
+  const entity = findEntityRecord(data, session.entityType, session.entityId);
+  if (!entity) throw requestError("The record this document belongs to was not found.", 404);
+  const accountId = accountIdForEntity(data, session.entityType, entity);
+  const duplicate = (data.documents || []).find((item) => !item.deletedAt && item.sha256 === sha256 && item.entityType === session.entityType && item.entityId === session.entityId);
+  if (duplicate) {
+    uploadSessions.delete(sessionId);
+    throw Object.assign(requestError(`That exact file is already attached (${duplicate.fileName}).`, 409), { duplicate: true });
+  }
+  const previous = session.groupId ? (data.documents || []).filter((item) => item.groupId === session.groupId).sort((a, b) => b.versionNumber - a.versionNumber)[0] : null;
+  const document = touchRecord({
+    id: makeId("document"), entityType: session.entityType, entityId: session.entityId, accountId,
+    documentTypeId: session.documentType || previous?.documentTypeId || "", requirementId: previous?.requirementId || "",
+    fileName: session.fileName, mimeType: session.mimeType, sizeBytes: full.length, sha256, storageName: "",
+    groupId: previous?.groupId || "", versionNumber: previous ? Number(previous.versionNumber || 1) + 1 : 1,
+    visibility: previous ? previous.visibility : session.visibility, caption: session.caption || previous?.caption || "",
+    tags: previous?.tags || [], uploadedAt: new Date().toISOString(), uploadedBy: attribution(request), uploadedBySessionKind: request.session?.kind || "",
+    retainUntil: "", deletedAt: "",
+  });
+  document.groupId = document.groupId || document.id;
+  document.storageName = `${document.id}${session.extension}`;
+  await mkdir(uploadsDir, { recursive: true });
+  await writeFile(path.join(uploadsDir, document.storageName), full);
+  if (!Array.isArray(data.documents)) data.documents = [];
+  data.documents.push(document);
+
+  // A poster frame for video (<video> -> canvas on the client), base64 PNG in X-Poster, stored as a
+  // second document sharing the same groupId so gallery code that already knows "latest of a group is
+  // the thumbnail" needs no new logic.
+  const posterHeader = request.headers["x-poster"]?.toString();
+  if (posterHeader) {
+    try {
+      const posterBuffer = Buffer.from(posterHeader, "base64");
+      if (posterBuffer.length) {
+        const posterDoc = touchRecord({
+          id: makeId("document"), entityType: session.entityType, entityId: session.entityId, accountId,
+          documentTypeId: session.documentType || "", requirementId: "", fileName: `${session.fileName}.poster.png`,
+          mimeType: "image/png", sizeBytes: posterBuffer.length, sha256: createHash("sha256").update(posterBuffer).digest("hex"),
+          storageName: "", groupId: document.groupId, versionNumber: 1, visibility: session.visibility, caption: "poster",
+          tags: ["poster"], uploadedAt: new Date().toISOString(), uploadedBy: attribution(request), uploadedBySessionKind: request.session?.kind || "",
+          retainUntil: "", deletedAt: "",
+        });
+        posterDoc.storageName = `${posterDoc.id}.png`;
+        await writeFile(path.join(uploadsDir, posterDoc.storageName), posterBuffer);
+        data.documents.push(posterDoc);
+      }
+    } catch {
+      // A bad poster frame never fails the video upload itself.
+    }
+  }
+
+  await saveBackend(data);
+  await audit(request, { action: "upload-chunked", collection: "documents", recordId: document.id, summary: `${document.fileName} → ${session.entityType}/${session.entityId}`, version: document.versionNumber });
+  uploadSessions.delete(sessionId);
+  Promise.all(chunkFiles.map((file) => rm(file, { force: true }))).catch(() => {});
+  return { status: 201, body: documentSummary(document) };
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - 24 * 3600000;
+  for (const [id, session] of uploadSessions) {
+    if (session.createdAt < cutoff) uploadSessions.delete(id);
+  }
+}, 3600000).unref();
+
+// The router for /api/field/* and /api/documents/upload-session*.
+async function handleFieldApi(request, response, pathname) {
+  const session = request.session;
+  const role = getRoles(request);
+
+  if (pathname === "/api/field/package" && request.method === "GET") {
+    const requestUrl = new URL(request.url ?? "/", "http://localhost");
+    const previewEmployeeId = requestUrl.searchParams.get("employeeId") || "";
+    const data = await loadBackend();
+    let contextSession = session;
+    if (previewEmployeeId && !isFieldSession(session)) {
+      if (!canAccess(role, "dispatch")) return json(response, 403, { error: "Dispatch role required to preview a field package." });
+      contextSession = { employeeId: previewEmployeeId, dispatchJobId: "", kind: "preview" };
+    } else if (!isFieldSession(session)) {
+      return json(response, 403, { error: "Field session required." });
+    }
+    const projected = applyFieldProjection(contextSession, data);
+    return json(response, 200, { ...projected, serverTime: new Date().toISOString() });
+  }
+
+  if (pathname === "/api/field/clock" && request.method === "POST") return runFieldCommand(request, response, () => fieldClock(request));
+
+  const advanceMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/advance$/);
+  if (advanceMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldAdvanceJob(request, advanceMatch[1]));
+
+  const briefingAckMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/briefing\/acknowledge$/);
+  if (briefingAckMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldAcknowledgeBriefing(request, briefingAckMatch[1]));
+
+  const briefingMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/briefing$/);
+  if (briefingMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldUpsertBriefing(request, briefingMatch[1]));
+
+  const walkCompleteMatch = pathname.match(/^\/api\/field\/site-walk\/([^/]+)\/complete$/);
+  if (walkCompleteMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldCompleteSiteWalk(request, walkCompleteMatch[1]));
+
+  if (pathname === "/api/field/measurements" && request.method === "POST") return runFieldCommand(request, response, () => fieldAddMeasurement(request));
+
+  const walkShareMatch = pathname.match(/^\/api\/field\/walks\/([^/]+)\/share$/);
+  if (walkShareMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldCreateWalkShare(request, walkShareMatch[1]));
+
+  const walkShareRevokeMatch = pathname.match(/^\/api\/field\/walks\/([^/]+)\/share\/([^/]+)$/);
+  if (walkShareRevokeMatch && request.method === "DELETE") return runFieldCommand(request, response, () => fieldRevokeWalkShare(request, walkShareRevokeMatch[1], walkShareRevokeMatch[2]));
+
+  if (pathname === "/api/documents/upload-session" && request.method === "POST") return runFieldCommand(request, response, () => handleUploadSessionCreate(request));
+
+  const chunkMatch = pathname.match(/^\/api\/documents\/upload-session\/([^/]+)\/chunks\/(\d+)$/);
+  if (chunkMatch && request.method === "PUT") {
+    const result = await handleUploadSessionChunk(request, chunkMatch[1], Number(chunkMatch[2]));
+    return json(response, result.status, result.body);
+  }
+
+  const completeMatch = pathname.match(/^\/api\/documents\/upload-session\/([^/]+)\/complete$/);
+  if (completeMatch && request.method === "POST") return runFieldCommand(request, response, () => handleUploadSessionComplete(request, completeMatch[1]));
+
+  return json(response, 404, { error: "Field API route not found." });
 }
 
 // ---- Phase 11 (2026-09-23): weather snapshots -----------------------------------------------
@@ -5169,6 +6359,20 @@ const server = createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? "/", "http://localhost");
     let pathname = decodeURIComponent(requestUrl.pathname);
 
+    // Phase 21 (Front Line 2, 2026-09-25): a shared site-walk report is read by whoever holds the
+    // link, no session at all -- the token itself is the credential (see mintWalkShare/handleWalkShare
+    // below). Checked before the generic /api/ session gate so it never demands a cookie.
+    const walkDataMatch = pathname.match(/^\/api\/walk\/([^/]+)\/data$/);
+    if (walkDataMatch) {
+      await serializeApi(() => handleWalkShareData(request, response, walkDataMatch[1]));
+      return;
+    }
+    const walkDocMatch = pathname.match(/^\/api\/walk\/([^/]+)\/documents\/([^/]+)\/view$/);
+    if (walkDocMatch) {
+      await handleWalkShareDocument(request, response, walkDocMatch[1], walkDocMatch[2]);
+      return;
+    }
+
     if (pathname.startsWith("/api/")) {
       // Phase 12a (2026-09-23): every API request resolves its session first. Auth routes handle
       // their own requirements; the OwnTracks device endpoint keeps its own (token-less) contract for
@@ -5182,8 +6386,22 @@ const server = createServer(async (request, response) => {
         json(response, 401, { error: "Sign in required.", unauthenticated: true });
         return;
       }
+      // Phase 21 (2026-09-25): a device suspended/retired after the session was created is blocked on
+      // every subsequent call, not just at sign-in (handleSignOnLink covers sign-in for dispatch-link
+      // sessions; this covers a Field Lead/Crew user session too).
+      if (request.session && isFieldSession(request.session)) {
+        const data = await loadBackend();
+        if (deviceBlockedForEmployee(data, request.session.employeeId)) {
+          json(response, 403, { error: "This device is suspended or retired and cannot be used for Front Line.", deviceBlocked: true });
+          return;
+        }
+      }
       if (pathname === "/api/weather-snapshots/capture") {
         await handleWeatherCapture(request, response);
+        return;
+      }
+      if (pathname.startsWith("/api/field/") || pathname.startsWith("/api/documents/upload-session")) {
+        await serializeApi(() => handleFieldApi(request, response, pathname));
         return;
       }
       await serializeApi(() => handleApi(request, response, pathname));
@@ -5191,6 +6409,11 @@ const server = createServer(async (request, response) => {
     }
     if (pathname.startsWith("/go/")) {
       await serializeApi(() => handleSignOnLink(request, response, pathname.slice(4)));
+      return;
+    }
+    const walkShareMatch = pathname.match(/^\/walk\/([^/]+)$/);
+    if (walkShareMatch) {
+      await serializeApi(() => handleWalkShare(request, response, walkShareMatch[1]));
       return;
     }
 
@@ -5227,7 +6450,7 @@ const server = createServer(async (request, response) => {
     response.end(body);
   } catch (error) {
     const status = error.status || (error instanceof SyntaxError ? 400 : 500);
-    json(response, status, { error: error.message || "Server error" });
+    json(response, status, { error: error.message || "Server error", ...(error.deviceBlocked ? { deviceBlocked: true } : {}), ...(error.blocked ? { blocked: true } : {}) });
   }
 });
 

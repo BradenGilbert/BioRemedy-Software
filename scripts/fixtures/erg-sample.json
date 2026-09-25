@@ -1,0 +1,60 @@
+{
+  "_comment": "Fixture for scripts/import-erg.mjs --fixture. A small, hand-checked sample (not the full ERG 2024) so field-api-check.mjs and manual testing work without the PHMSA PDFs, which the owner must save into docs/uploaded files/erg/ themselves (their CDN blocks scripted downloads -- see the phase doc). Guide/distance text below is a short paraphrase for the prototype, not the verbatim ERG text; the real import (--pdf) should replace these rows with the actual guide sections and distance tables.",
+  "materials": [
+    { "unNumber": "1203", "name": "Gasoline", "guide": "128", "tihFlag": false },
+    { "unNumber": "1075", "name": "Liquefied petroleum gas (LPG)", "guide": "115", "tihFlag": false },
+    { "unNumber": "1830", "name": "Sulfuric acid", "guide": "137", "tihFlag": false },
+    { "unNumber": "1993", "name": "Diesel fuel / flammable liquid n.o.s.", "guide": "128", "tihFlag": false },
+    { "unNumber": "1017", "name": "Chlorine", "guide": "124", "tihFlag": true },
+    { "unNumber": "1005", "name": "Ammonia, anhydrous", "guide": "125", "tihFlag": true },
+    { "unNumber": "1267", "name": "Petroleum crude oil", "guide": "128", "tihFlag": false },
+    { "unNumber": "3082", "name": "Environmentally hazardous substance, liquid, n.o.s.", "guide": "171", "tihFlag": false },
+    { "unNumber": "1863", "name": "Fuel, aviation, turbine engine (jet fuel)", "guide": "128", "tihFlag": false },
+    { "unNumber": "2031", "name": "Nitric acid", "guide": "157", "tihFlag": false },
+    { "unNumber": "1789", "name": "Hydrochloric acid", "guide": "157", "tihFlag": false },
+    { "unNumber": "1824", "name": "Sodium hydroxide solution", "guide": "154", "tihFlag": false },
+    { "unNumber": "1090", "name": "Acetone", "guide": "127", "tihFlag": false },
+    { "unNumber": "1170", "name": "Ethanol / ethyl alcohol", "guide": "127", "tihFlag": false },
+    { "unNumber": "1219", "name": "Isopropanol", "guide": "129", "tihFlag": false },
+    { "unNumber": "1223", "name": "Kerosene", "guide": "128", "tihFlag": false },
+    { "unNumber": "1268", "name": "Petroleum distillates, n.o.s.", "guide": "128", "tihFlag": false },
+    { "unNumber": "1760", "name": "Corrosive liquid, n.o.s.", "guide": "154", "tihFlag": false },
+    { "unNumber": "1992", "name": "Flammable liquid, toxic, n.o.s.", "guide": "131", "tihFlag": true },
+    { "unNumber": "2810", "name": "Toxic liquid, organic, n.o.s.", "guide": "153", "tihFlag": true },
+    { "unNumber": "3077", "name": "Environmentally hazardous substance, solid, n.o.s.", "guide": "171", "tihFlag": false },
+    { "unNumber": "1133", "name": "Adhesives", "guide": "128", "tihFlag": false },
+    { "unNumber": "1381", "name": "Phosphorus, white, dry", "guide": "136", "tihFlag": false },
+    { "unNumber": "1978", "name": "Propane", "guide": "115", "tihFlag": false },
+    { "unNumber": "2926", "name": "Flammable solid, toxic, organic, n.o.s.", "guide": "134", "tihFlag": true }
+  ],
+  "guides": [
+    { "guide": "115", "title": "Gases - Flammable (Including Refrigerated Liquids)", "sections": { "potentialHazards": "Extremely flammable; may form explosive mixtures with air; vapors from liquefied gas are heavier than air and spread along ground; may explode if ignited in an enclosed area.", "publicSafety": "CALL Emergency Response Telephone Number. As an immediate precaution, isolate spill or leak area for at least 100 meters in all directions. Eliminate all ignition sources.", "emergencyResponse": "FIRE: Do not extinguish a leaking gas fire unless leak can be stopped. Stop flow of gas if safe to do so. SPILL: Stop leak if safe to do so; ventilate area." } },
+    { "guide": "124", "title": "Gases - Toxic and/or Corrosive (Oxidizing)", "sections": { "potentialHazards": "Toxic; may be fatal if inhaled or absorbed through skin; contact may cause burns to skin and eyes; runoff may pollute waterways.", "publicSafety": "CALL Emergency Response Telephone Number. Isolate spill or leak area immediately for at least 100 meters in all directions; see the Table of Initial Isolation and Protective Action Distances for this guide.", "emergencyResponse": "Move victims to fresh air; positive-pressure self-contained breathing apparatus and chemical protective clothing required. Do not touch or walk through spilled material." } },
+    { "guide": "125", "title": "Gases - Corrosive", "sections": { "potentialHazards": "Toxic; corrosive; contact with gas or liquefied gas may cause burns, severe injury and/or frostbite.", "publicSafety": "CALL Emergency Response Telephone Number. Isolate spill or leak area immediately for at least 100 meters in all directions; see the Table of Initial Isolation and Protective Action Distances for this guide.", "emergencyResponse": "Fully encapsulating, vapor-protective clothing should be worn; self-contained breathing apparatus should be used." } },
+    { "guide": "127", "title": "Flammable Liquids (Water-Miscible / Polar / Non-Regulated for Marine Pollution)", "sections": { "potentialHazards": "Highly flammable; vapors may travel to an ignition source and flash back; container may explode in heat of fire.", "publicSafety": "Keep unnecessary people away; isolate hazard area and deny entry. Stay upwind. Eliminate all ignition sources.", "emergencyResponse": "FIRE: Use dry chemical, CO2, water spray or alcohol-resistant foam. SPILL: Absorb with non-combustible material; prevent entry into waterways." } },
+    { "guide": "128", "title": "Flammable Liquids (Non-Polar / Water-Immiscible)", "sections": { "potentialHazards": "Highly flammable; vapor may explode if ignited in an enclosed area; vapors are heavier than air and may travel along the ground to an ignition source.", "publicSafety": "Isolate spill or leak area for at least 50 meters in all directions for liquids and 25 meters for solids. Keep unauthorized personnel away; stay upwind; eliminate ignition sources.", "emergencyResponse": "FIRE: Use dry chemical, CO2, water spray or foam; do not use straight streams. SPILL: Absorb with sand or other non-combustible material; do not touch or walk through spilled material." } },
+    { "guide": "129", "title": "Flammable Liquids (Water-Miscible)", "sections": { "potentialHazards": "Highly flammable; may be irritating if inhaled at high concentrations; vapor may travel to an ignition source.", "publicSafety": "Isolate spill area; keep unauthorized personnel away; stay upwind; eliminate ignition sources.", "emergencyResponse": "FIRE: Use alcohol-resistant foam, dry chemical, CO2 or water spray. SPILL: Dike far ahead of liquid spill; absorb with non-combustible material." } },
+    { "guide": "131", "title": "Flammable Liquids - Toxic", "sections": { "potentialHazards": "Flammable and toxic; vapors may cause dizziness or suffocation; contact may irritate or burn skin and eyes.", "publicSafety": "CALL Emergency Response Telephone Number. Isolate spill area; positive-pressure self-contained breathing apparatus recommended.", "emergencyResponse": "FIRE: Use dry chemical, CO2, water spray or foam. SPILL: Do not touch or walk through spilled material; stop leak if safe to do so." } },
+    { "guide": "134", "title": "Flammable Solids - Toxic and/or Corrosive", "sections": { "potentialHazards": "May ignite on contact with moist air or moisture; toxic fumes may form in a fire.", "publicSafety": "CALL Emergency Response Telephone Number. Keep material dry; isolate area; positive-pressure self-contained breathing apparatus recommended.", "emergencyResponse": "FIRE: Use water spray, wet sand or dry chemical as recommended for the specific material. SPILL: Small dry spills - with clean shovel place material into clean, dry container." } },
+    { "guide": "136", "title": "Substances - Water-Reactive - Flammable/Toxic", "sections": { "potentialHazards": "May ignite spontaneously on contact with air or moisture; produces toxic and/or corrosive fumes in a fire or on contact with water.", "publicSafety": "CALL Emergency Response Telephone Number. Keep material dry; isolate area for at least 25-50 meters.", "emergencyResponse": "FIRE: Do NOT use water on the material itself. SPILL: Do not touch damaged containers or spilled material without protective clothing." } },
+    { "guide": "137", "title": "Substances - Water-Reactive - Corrosive", "sections": { "potentialHazards": "Contact with water releases toxic and corrosive fumes; may cause severe burns to skin, eyes and respiratory tract.", "publicSafety": "CALL Emergency Response Telephone Number. Keep material dry; isolate spill area for at least 50 meters.", "emergencyResponse": "FIRE: Do NOT get water inside containers. SPILL: Fully encapsulating, vapor-protective clothing should be worn." } },
+    { "guide": "153", "title": "Substances - Toxic and/or Corrosive (Combustible)", "sections": { "potentialHazards": "Toxic; may be fatal if inhaled, swallowed or absorbed through skin; corrosive to metals and tissue.", "publicSafety": "CALL Emergency Response Telephone Number. Isolate spill area; positive-pressure self-contained breathing apparatus and chemical protective clothing recommended.", "emergencyResponse": "FIRE: Use water spray, fog, dry chemical, CO2 or foam. SPILL: Do not touch or walk through spilled material; stop leak if safe to do so." } },
+    { "guide": "154", "title": "Substances - Toxic and/or Corrosive (Non-Combustible)", "sections": { "potentialHazards": "Corrosive and/or toxic; contact causes severe burns to skin, eyes and respiratory tract; runoff may pollute waterways.", "publicSafety": "CALL Emergency Response Telephone Number. Isolate spill area for at least 50 meters; chemical protective clothing recommended.", "emergencyResponse": "FIRE: Small fires - dry chemical, CO2, water spray or foam. SPILL: Do not touch spilled material; stop leak if safe to do so; dike far ahead of spill." } },
+    { "guide": "157", "title": "Substances - Corrosive (Oxidizing)", "sections": { "potentialHazards": "Corrosive and a strong oxidizer; contact causes severe burns; may react violently with combustible/organic materials.", "publicSafety": "CALL Emergency Response Telephone Number. Isolate spill area for at least 50 meters; chemical protective clothing recommended.", "emergencyResponse": "FIRE: Flood fire area with water. SPILL: Fully encapsulating, vapor-protective clothing should be worn for spills with no fire." } },
+    { "guide": "171", "title": "Substances - Environmentally Hazardous (Miscellaneous)", "sections": { "potentialHazards": "May be toxic to aquatic life; runoff from fire control or dilution water may pollute waterways.", "publicSafety": "Isolate spill area; keep out of waterways, sewers, basements or confined areas.", "emergencyResponse": "FIRE: Use extinguishing agent suitable for surrounding fire. SPILL: Prevent entry into waterways, sewers, basements; contain and collect for later disposal." } }
+  ],
+  "distances": [
+    {
+      "unNumber": "1017",
+      "name": "Chlorine",
+      "small": { "day": { "isolateMeters": 60, "protectKm": 0.3 }, "night": { "isolateMeters": 335, "protectKm": 1.6 } },
+      "large": { "day": { "isolateMeters": 600, "protectKm": 3.5 }, "night": { "isolateMeters": 1500, "protectKm": 6.8 } }
+    },
+    {
+      "unNumber": "1005",
+      "name": "Ammonia, anhydrous",
+      "small": { "day": { "isolateMeters": 30, "protectKm": 0.1 }, "night": { "isolateMeters": 30, "protectKm": 0.2 } },
+      "large": { "day": { "isolateMeters": 150, "protectKm": 0.8 }, "night": { "isolateMeters": 400, "protectKm": 1.8 } }
+    }
+  ]
+}

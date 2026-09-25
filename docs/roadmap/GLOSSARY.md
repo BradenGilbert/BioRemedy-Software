@@ -147,6 +147,18 @@ Another two-things-currently-collapsed-into-one problem, this time on `contacts`
 
 ---
 
+## Front Line 2 terms (Phase 21, 2026-09-25)
+
+- **Field session** — a `dispatch-link` session (from a `/go/` sign-on link) OR a signed-in session whose every held role is `Field Lead`/`Crew` (`isFieldSession()` in `server.mjs`). A field session reads and writes through `fieldProjections`/`fieldWritable`, never the office's full per-domain view.
+- **Crew** — a new, lighter role than **Field Lead**: taps through a job (clock in/out, acknowledge the safety briefing, take photos) but cannot write the safety briefing, complete a site walk, or change a dispatch job's status (`crewForbiddenWrites`). Field Lead runs the job; Crew mostly taps.
+- **`fieldProjections`** — the server-side access table (`server.mjs`) that replaces domain-level blocking for field sessions: per collection, which fields a field session may read (`"*"` or an allowlist) and which rows (`where`). This is *not* the same thing as `filterBackendForRole`'s office-role OR-list, which field sessions bypass entirely.
+- **Field command** — one of the `/api/field/*` routes (`clock`, `jobs/:id/advance`, `jobs/:id/briefing[/acknowledge]`, `site-walk/:id/complete`, `measurements`, `walks/:id/share`) that does one thing with the right authority, instead of a raw `POST /api/backend/{collection}` row save. All are idempotent via `X-Client-Command-Id`.
+- **Site walk** vs **walk event** vs **site walk report** — a *site walk* is the activity (a sales person visiting a facility before a job exists); the *walk event* is its `scheduleEvents{kind:"site_walk"}` row (the calendar entry); the **site walk report** (`siteWalkReports`) is the one-per-walk-event record of what was captured (sections, needs, measurements, shares). `siteWalkObservations` are the individual map pins/lines/areas on that walk — plural, one row each, never flattened into the report.
+- **Command receipt** — the idempotency record (`<data>/command-receipts.json`, keyed by `X-Client-Command-Id`) a replayed write reads back instead of re-executing. Not a `backend.json` collection; a small sibling file to `auth.json`.
+- **Walk share link** — a token minted into `siteWalkReports.shares[]` (`POST /api/field/walks/:id/share`); `GET /walk/<token>` and `GET /api/walk/<token>/data` need no session at all — the token is the credential, same pattern as `/go/<token>` sign-on links but for a read-only customer-facing page, not a login.
+
+---
+
 ## Status fields that must never be collapsed
 
 From `docs/erp-operational-architecture.md`:

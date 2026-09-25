@@ -104,6 +104,13 @@ try {
   const orphanCount = Number((firstLine.match(/(\d+) orphan/) || [0, NaN])[1]);
   check(orphanCount === 0, firstLine.trim() || integrity.stderr);
 
+  // ---- 3b. field API contract (Phase 21, Front Line 2) -----------------------------------------
+  console.log("\nField API");
+  const fieldCheck = spawnSync(process.execPath, ["scripts/field-api-check.mjs", "--url", base, "--password", smokePassword], { cwd: projectRoot, encoding: "utf8" });
+  console.log(fieldCheck.stdout || "");
+  if (fieldCheck.stderr?.trim()) console.log(fieldCheck.stderr.trim());
+  check(fieldCheck.status === 0, "scripts/field-api-check.mjs");
+
   // ---- 4. browser sweep -----------------------------------------------------------------------
   if (!noBrowser) {
     console.log("\nBrowser sweep");
