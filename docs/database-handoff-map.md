@@ -950,7 +950,7 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `materialUsage` | job_material_usage (023) | Office-side rows carry project_id, no work order |
 | `equipmentLogs` | job_equipment_usage (023) | Same |
 | `scheduledWork` | **fold into** schedule_events | Legacy; 3 rows |
-| `spatialData` | project_spatial_files (016) |  |
+| `spatialData` | project_spatial_files (016) | Phase 21 (2026-09-25, W4 "Add scan"): gained `documentId` (→ `documents`, the uploaded scan file), `format`, and `measurements[]` |
 | `scheduleEvents` | **new** schedule_events + schedule_event_participants (029+) | Site walks: kind, opportunity, facility, participants |
 | `locations` | **new** gps_points (029+) | GPS points with retention; job_locations (022) is a different thing (a job's addresses) |
 | `inventoryItems` | **new** inventory_items (029+) | Priority 1 gap |
@@ -975,7 +975,7 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `inventoryAlerts` | **new** inventory_alerts (029+) |  |
 | `jobRequests` | job_requests (022) | Adds `statusNote`, `statusChangedAt`, `statusChangedBy` (2026-09-24: what a "Needs information" request is waiting on, and who asked) |
 | `jobRequestDocuments` | **fold into** documents | Legacy store; files re-hashed on import |
-| `dispatchJobs` | work_orders (007) | Dispatch jobs are work orders in SQL (glossary) |
+| `dispatchJobs` | work_orders (007) | Dispatch jobs are work orders in SQL (glossary). Phase 21 (2026-09-25, W4 ERG): gained `ergGuideNumber, ergSpillSize, ergDayNight, ergIsolationMeters, ergProtectiveMeters` and (W4 measurements) `measurements[]` (fallback storage when `/api/field/measurements` isn't available) |
 | `jobAssignments` | job_assignments (022) |  |
 | `jobScheduleSegments` | job_schedule_segments (022) |  |
 | `jobResources` | job_resource_allocations (022) | vendorAccountId → subcontractor_assignments per the 027 note |
@@ -1050,7 +1050,7 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `qboExports` | **new** accounting_export_batches (029+) | Stores the QBO payload |
 | `gpsConsents` | **new** gps_consents (029+) | Append-only |
 | `itMessages` | **new** it_messages (029+) | Messages to IT (2026-09-24): thread_key = system_users.id, from_it, body, screenshot_document_id → documents (entity_type `itMessage`), page_url, user_agent, user_read_at, it_read_at |
-| `documents` | files (012) **rewritten** as documents | Polymorphic entity link, sha-256, versions, visibility |
+| `documents` | files (012) **rewritten** as documents | Polymorphic entity link, sha-256, versions, visibility. Phase 21 (2026-09-25, W4): a `markup` field (JSON strokes, so a photo can be re-opened for editing) and a `posterDataUrl` field (video poster frame) are written by the client; the server's generic metadata PATCH route does not keep either yet (whitelists only visibility/caption/tags/documentTypeId/retainUntil) — W1 extension pending, see phase-21-frontline-2.md corrections |
 | `documentTypes` | **new** document_types (029+) |  |
 | `documentRequirements` | **new** document_requirements (029+) |  |
 | `jobSafetyBriefings` | **new** job_safety_briefings (029+) | Phase 21: safety brief + JSA + roll call, one per job per operational day; `rollCall[]` → job_safety_roll_call child |
@@ -1065,6 +1065,14 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `ergMaterials` | **new** erg_materials (029+) | Phase 21: ERG 2024 yellow/blue pages (UN number → name → guide), loaded by `scripts/import-erg.mjs` |
 | `ergGuides` | **new** erg_guides (029+) | Phase 21: ERG 2024 orange guide pages (hazards/public safety/emergency response text) |
 | `ergDistances` | **new** erg_distances (029+) | Phase 21: ERG 2024 green-page Table 1 initial isolation / protective-action distances for TIH materials |
+
+| `libraryItems` | **new** library_items (029+) | Phase 21 (2026-09-25, W4): Manuals & Training shelves. `{shelf, title, category, audienceRoles[], requiredForRoles[], renewalMonths, pinnedOffline, documentId, url, version, isActive}` |
+| `libraryAcknowledgements` | **new** library_acknowledgements (029+) | Phase 21 (W4): `{employeeId, libraryItemId, itemVersion, acknowledgedAt}`, append-only |
+| `ergMaterials` | **new** erg_materials (029+) | Phase 21 (W4): `{unNumber, name, guide, tihFlag}`, loaded by `scripts/import-erg.mjs` (W1) |
+| `ergGuides` | **new** erg_guides (029+) | Phase 21 (W4): `{guide, title, sections:{potentialHazards, publicSafety, emergencyResponse}}` |
+| `ergDistances` | **new** erg_distances (029+) | Phase 21 (W4): `{unNumber, small:{isolateMeters, dayMeters, nightMeters}, large:{...}}` |
+| `jurisdictions` | **new** jurisdictions (029+) | Phase 21 (W4): city/county GIS layer catalog. `{name, kind, portalUrl, layers:[{key, label, kind, serviceUrl, layerId, mode}], lastImportedAt, bounds?}` |
+| `siteReferenceLayers` | **new** site_reference_layers (029+) | Phase 21 (W4): a jurisdiction layer's snapshot, optionally clipped to a facility. `{facilityId, jurisdictionId, kind, label, mode, geojson\|documentId, source, sourceDate, visibility}` |
 
 **Outside `backend.json`:**
 

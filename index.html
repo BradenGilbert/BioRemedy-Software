@@ -1283,19 +1283,8 @@
               <div class="it-composer-tools">
                 <button class="mini-button" type="button" data-action="it-capture-screen">Capture screen</button>
                 <label class="mini-button it-file-button">Choose image<input name="screenshotFile" type="file" accept="image/*" hidden /></label>
+                <button class="mini-button" type="button" data-action="it-remove-screenshot">Remove screenshot</button>
                 <span class="help-text" data-it-attach-note>No screenshot attached.</span>
-              </div>
-              <div class="it-annotator" data-it-annotator hidden>
-                <div class="it-annotator-tools">
-                  <button class="mini-button active" type="button" data-action="it-tool" data-tool="pen">Pen</button>
-                  <button class="mini-button" type="button" data-action="it-tool" data-tool="box">Box</button>
-                  <button class="mini-button" type="button" data-action="it-tool" data-tool="arrow">Arrow</button>
-                  <button class="mini-button" type="button" data-action="it-undo">Undo</button>
-                  <button class="mini-button" type="button" data-action="it-clear-marks">Clear marks</button>
-                  <button class="mini-button" type="button" data-action="it-remove-screenshot">Remove screenshot</button>
-                  <span class="help-text">Draw on the screenshot to point at the problem.</span>
-                </div>
-                <canvas class="it-annotator-canvas" data-it-canvas></canvas>
               </div>
               <menu class="modal-actions">
                 <button class="secondary-button" type="button" data-action="close-dialog">Close</button>
@@ -4094,8 +4083,9 @@
           <div class="form-grid">
             <label>
               Material
-              <input name="spillMaterial" maxlength="120" />
+              <input name="spillMaterial" maxlength="120" data-erg-material-hint />
             </label>
+            <p class="help-text" data-erg-hint></p>
             <label>
               Estimated quantity
               <input name="spillQuantity" maxlength="60" placeholder="e.g. ~50 gallons" />
@@ -6123,6 +6113,231 @@
           <button class="primary-button" type="button" data-camera-shoot>Take photo</button>
         </menu>
       </div>
+    </dialog>
+
+    <!-- Phase 21 (Front Line 2, W4, 2026-09-25): the shared photo-markup tool. It opens for job/walk
+         photos, satellite site sketches, and the IT-messages screenshot (field/media.js). On a phone
+         (`?surface=phone`) it gets the `field-markup` class for a full-screen, big-target layout. -->
+    <dialog id="imageMarkupDialog" class="modal image-markup-dialog">
+      <div class="modal-panel wide-modal-panel image-markup-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Markup</p>
+            <h2 data-markup-title>Mark up this photo</h2>
+          </div>
+          <button type="button" class="icon-button" data-field-action="markup-cancel" aria-label="Close">x</button>
+        </div>
+        <div class="markup-toolbar">
+          <div class="markup-tools" role="group" aria-label="Drawing tool">
+            <button class="mini-button markup-tool active" type="button" data-field-action="markup-tool" data-tool="pen">Pen</button>
+            <button class="mini-button markup-tool" type="button" data-field-action="markup-tool" data-tool="box">Box</button>
+            <button class="mini-button markup-tool" type="button" data-field-action="markup-tool" data-tool="arrow">Arrow</button>
+            <button class="mini-button markup-tool" type="button" data-field-action="markup-tool" data-tool="circle">Circle</button>
+            <button class="mini-button markup-tool" type="button" data-field-action="markup-tool" data-tool="text">Text</button>
+            <button class="mini-button markup-tool" type="button" data-field-action="markup-tool" data-tool="scale">Scale</button>
+          </div>
+          <div class="markup-colors" role="group" aria-label="Colour">
+            <button class="markup-color active" type="button" data-field-action="markup-color" data-color="red" aria-label="Red"></button>
+            <button class="markup-color" type="button" data-field-action="markup-color" data-color="orange" aria-label="Orange"></button>
+            <button class="markup-color" type="button" data-field-action="markup-color" data-color="yellow" aria-label="Yellow"></button>
+            <button class="markup-color" type="button" data-field-action="markup-color" data-color="blue" aria-label="Blue"></button>
+          </div>
+          <div class="markup-edit-tools">
+            <button class="mini-button" type="button" data-field-action="markup-undo">Undo</button>
+            <button class="mini-button" type="button" data-field-action="markup-clear">Clear</button>
+          </div>
+        </div>
+        <div class="markup-canvas-wrap">
+          <canvas class="markup-canvas" data-markup-canvas></canvas>
+        </div>
+        <label class="markup-caption">
+          Caption
+          <input type="text" data-markup-caption maxlength="200" placeholder="What this shows" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-field-action="markup-cancel">Cancel</button>
+          <button class="primary-button" type="button" data-field-action="markup-save">Save</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <dialog id="videoCaptureDialog" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Video</p>
+            <h2>Add a video</h2>
+          </div>
+          <button type="button" class="icon-button" data-field-action="video-cancel" aria-label="Close">x</button>
+        </div>
+        <label class="mini-button it-file-button">Choose or record a video<input name="videoFile" type="file" accept="video/*" capture="environment" hidden /></label>
+        <p class="help-text" data-video-status>Choose or record a clip (up to 500 MB).</p>
+        <progress data-video-progress max="100" value="0" hidden></progress>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-field-action="video-cancel">Close</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <dialog id="addScanDialog" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">3D scan</p>
+            <h2>Add a scan</h2>
+          </div>
+          <button type="button" class="icon-button" data-field-action="scan-cancel" aria-label="Close">x</button>
+        </div>
+        <label class="mini-button it-file-button">Choose a scan file<input name="scanFile" type="file" accept=".glb,.usdz,.ply,.obj,.e57,.zip,.pdf,.csv" hidden /></label>
+        <p class="help-text" data-scan-status>Share a .glb, .usdz, .ply, .obj, .e57, .zip, .pdf or .csv from your scanning app.</p>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-field-action="scan-cancel">Close</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <dialog id="measurementsDialog" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Measurements</p>
+            <h2>Site measurements</h2>
+          </div>
+          <button type="button" class="icon-button" data-field-action="measurements-cancel" aria-label="Close">x</button>
+        </div>
+        <div data-measurements-list class="record-list"></div>
+        <form class="form-grid" data-field-form="measurements">
+          <label>Label<input name="label" maxlength="80" placeholder="Excavation area" /></label>
+          <label>Method
+            <select name="method">
+              <option value="scan">Scan</option>
+              <option value="tape">Tape</option>
+              <option value="gps-walk">GPS walk</option>
+              <option value="estimate">Estimate</option>
+            </select>
+          </label>
+          <label>Area<input name="area" type="number" step="0.1" /></label>
+          <label>Area unit
+            <select name="areaUnit">
+              <option>sq ft</option>
+              <option>sq m</option>
+            </select>
+          </label>
+          <label>Length (ft)<input name="length" type="number" step="0.1" /></label>
+          <label>Depth (ft)<input name="depth" type="number" step="0.1" /></label>
+          <label>Volume (cu ft)<input name="volume" type="number" step="0.1" /></label>
+          <menu class="modal-actions">
+            <button class="primary-button" type="submit">Add measurement</button>
+          </menu>
+        </form>
+        <div class="gps-walk-controls">
+          <button class="mini-button" type="button" data-field-action="gps-walk-start">Start GPS-walked perimeter</button>
+          <button class="mini-button" type="button" data-field-action="gps-walk-stop" hidden>Stop &amp; save perimeter</button>
+          <p class="help-text" data-gps-status></p>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-field-action="measurements-cancel">Close</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <dialog id="ergLookupDialog" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Emergency Response Guidebook</p>
+            <h2>ERG lookup</h2>
+          </div>
+          <button type="button" class="icon-button" data-field-action="erg-cancel" aria-label="Close">x</button>
+        </div>
+        <form class="form-grid" data-field-form="erg-search">
+          <label>UN number or material name<input name="query" placeholder="e.g. 1203, or gasoline" /></label>
+          <menu class="modal-actions"><button class="primary-button" type="submit">Look up</button></menu>
+        </form>
+        <div data-erg-result></div>
+        <div class="form-grid">
+          <label>Spill size
+            <select name="spillSize"><option value="small">Small</option><option value="large">Large</option></select>
+          </label>
+          <label>Day/night
+            <select name="dayNight"><option value="day">Day</option><option value="night">Night</option></select>
+          </label>
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-field-action="erg-cancel">Close</button>
+          <button class="primary-button" type="button" data-field-action="erg-apply" hidden>Apply to job</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <dialog id="libraryItemDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="library-item">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Manuals &amp; Training</p>
+            <h2 data-library-item-title>Library item</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>Shelf
+            <select name="shelf">
+              <option value="manuals">Manuals</option>
+              <option value="safety">Safety</option>
+              <option value="sds">SDS</option>
+              <option value="tutorials">Tutorials</option>
+              <option value="resources">Resources</option>
+            </select>
+          </label>
+          <label>Category<input name="category" maxlength="80" /></label>
+        </div>
+        <label>Title<input name="title" required maxlength="160" /></label>
+        <label>Link (used when there is no uploaded file)<input name="url" type="url" maxlength="400" placeholder="https://…" /></label>
+        <label>Upload a file (PDF, image, or Office document)<input name="file" type="file" /></label>
+        <div class="form-grid">
+          <label>Renewal (months, blank = never expires)<input name="renewalMonths" type="number" min="0" /></label>
+          <label class="checkbox-field"><input name="pinnedOffline" type="checkbox" /> Pin for offline use</label>
+        </div>
+        <fieldset>
+          <legend>Audience roles</legend>
+          <div class="checkbox-grid" data-role-checkboxes="audienceRoles"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Required for these roles</legend>
+          <div class="checkbox-grid" data-role-checkboxes="requiredForRoles"></div>
+        </fieldset>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="jurisdictionDialog" class="modal">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="jurisdiction">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Map layers</p>
+            <h2 data-jurisdiction-title>Jurisdiction</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <div class="form-grid">
+          <label>Name<input name="name" required maxlength="120" /></label>
+          <label>Kind
+            <select name="kind"><option value="city">City</option><option value="county">County</option></select>
+          </label>
+        </div>
+        <label>GIS portal URL<input name="portalUrl" type="url" maxlength="400" /></label>
+        <div data-jurisdiction-layers class="record-list"></div>
+        <button class="mini-button" type="button" data-action="jurisdiction-add-layer">Add layer</button>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save</button>
+        </menu>
+      </form>
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>

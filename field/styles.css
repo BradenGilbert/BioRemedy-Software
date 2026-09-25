@@ -322,3 +322,164 @@ body[data-theme="dark"] .field-card,
 body[data-theme="dark"] .field-more-tile {
   background: var(--surface);
 }
+
+/* ============================================================================================
+   W4 media/library (Phase 21, 2026-09-25): image markup, video, scan, measurements, ERG, and the
+   Manuals & Training shelf. The markup/video/scan/measurements/ERG dialogs are shared across
+   field and office contexts (see field/media.js), so their styles live in this file even though
+   the dialogs live in index.html near the other <dialog> elements.
+   ============================================================================================ */
+
+.image-markup-panel {
+  max-width: 720px;
+}
+
+.markup-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.markup-tools,
+.markup-colors,
+.markup-edit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.markup-tool,
+.markup-edit-tools .mini-button {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.markup-color {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.markup-color[data-color="red"] { background: #e11d48; }
+.markup-color[data-color="orange"] { background: #f97316; }
+.markup-color[data-color="yellow"] { background: #eab308; }
+.markup-color[data-color="blue"] { background: #2563eb; }
+.markup-color.active {
+  border-color: var(--field-accent, #1f2937);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.markup-canvas-wrap {
+  width: 100%;
+  overflow: auto;
+  background: #111;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+}
+
+.markup-canvas {
+  max-width: 100%;
+  height: auto;
+  touch-action: none;
+  display: block;
+}
+
+.markup-caption {
+  display: block;
+  margin-top: 10px;
+}
+
+dialog.image-markup-dialog.field-markup {
+  width: 100vw;
+  height: 100dvh;
+  max-width: 100vw;
+  max-height: 100dvh;
+  margin: 0;
+  border-radius: 0;
+}
+
+dialog.image-markup-dialog.field-markup .image-markup-panel {
+  max-width: none;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.field-video-tile {
+  margin: 0 0 12px;
+}
+.field-video-tile video {
+  width: 100%;
+  border-radius: 10px;
+  background: #000;
+}
+.field-video-tile figcaption {
+  font-size: 0.85rem;
+  color: var(--muted-text, #666);
+  margin-top: 4px;
+}
+
+.gps-walk-controls {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.erg-card .erg-tih {
+  background: #e11d48;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.erg-section {
+  margin: 6px 0;
+  font-size: 0.9rem;
+}
+
+.erg-distance-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+.erg-distance-table th,
+.erg-distance-table td {
+  border: 1px solid var(--border, #ddd);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.field-search {
+  display: block;
+  margin: 10px 0;
+}
+.field-search input {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #ddd);
+  padding: 0 12px;
+}
+
+.field-card--alert {
+  border: 1px solid #e11d48;
+}
+
+.field-card-sub {
+  color: var(--muted-text, #666);
+}
+
+body[data-theme="dark"] .markup-canvas-wrap {
+  background: #000;
+}

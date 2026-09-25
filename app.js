@@ -2,6 +2,8 @@
 // (see the `export` block at the very end). The import is circular by design; field modules must
 // only touch these bindings inside functions, never at module top level.
 import { mountField } from "./field/index.js";
+import { openImageMarkup, markupItScreenshot, captureScreenForMarkup } from "./field/media.js";
+import "./field/library.js";
 
 const DB_NAME = "environmental-crm-foundation";
 const DB_VERSION = 3;
@@ -322,6 +324,8 @@ const workspaceModules = {
     { view: "office-alerts", label: "Alerts" },
     { view: "office-compliance", label: "Compliance" },
     { view: "office-schedule", label: "Schedule" },
+    { view: "office-library", label: "Manuals & Training" },
+    { view: "office-jurisdictions", label: "Map layers" },
   ],
   finance: [
     { view: "finance", label: "Overview" },
@@ -388,6 +392,8 @@ const viewWorkspace = {
   "office-alerts": "office",
   "office-compliance": "office",
   "office-schedule": "office",
+  "office-library": "office",
+  "office-jurisdictions": "office",
   finance: "finance",
   "finance-invoices": "finance",
   "finance-qbo": "finance",
@@ -1728,6 +1734,18 @@ async function dispatchClick(event) {
     state.officeComplianceFilter = actionButton.dataset.filter || "";
     renderOfficeCompliance();
   }
+  if (action === "filter-office-library") {
+    state.officeLibraryShelf = actionButton.dataset.shelf || "manuals";
+    renderOfficeLibrary();
+  }
+  if (action === "open-library-item") openLibraryItemDialog(id || "");
+  if (action === "toggle-library-item-active") await toggleLibraryItemActive(id);
+  if (action === "open-jurisdiction") openJurisdictionDialog(id || "");
+  if (action === "jurisdiction-add-layer") addJurisdictionLayerRow();
+  if (action === "jurisdiction-remove-layer") removeJurisdictionLayerRow(Number(actionButton.dataset.index));
+  if (action === "jurisdiction-test-layer") await testJurisdictionLayer(Number(actionButton.dataset.index));
+  if (action === "open-erg-lookup") window.fieldMedia?.openErgLookup({ job: id ? findDispatchJob(id) : null });
+  if (action === "markup-photo") await markupExistingPhoto(id);
   if (action === "open-account-vendor-tab") {
     state.selectedAccountId = id;
     state.accountDetailTab = "vendor-subcontractor";
@@ -2041,11 +2059,8 @@ async function dispatchClick(event) {
   if (action === "reload-app") location.reload();
   if (action === "dismiss-update-banner") document.querySelector(".update-banner")?.remove();
   if (action === "it-open-thread") { state.itMessagesThreadKey = actionButton.dataset.key; renderItMessagesDialog(); await markItThreadRead(); }
-  if (action === "it-capture-screen") await itCaptureScreen();
-  if (action === "it-tool") itSetTool(actionButton.dataset.tool);
-  if (action === "it-undo") { itAnnotator.strokes.pop(); itRedraw(); }
-  if (action === "it-clear-marks") { itAnnotator.strokes = []; itRedraw(); }
-  if (action === "it-remove-screenshot") itSetScreenshot(null);
+  if (action === "it-capture-screen") await itHandleCaptureScreen();
+  if (action === "it-remove-screenshot") itSetShot(null);
   if (action === "mark-notification-read") await markNotificationsRead([actionButton.dataset.id]);
   if (action === "mark-all-notifications-read") await markNotificationsRead(notificationsForCurrentUser().filter(notificationIsUnread).map((notification) => notification.id));
   if (action === "open-notification") await openNotification(actionButton.dataset.id);
@@ -2357,6 +2372,8 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "system-user") await saveSystemUser(form);
   if (form.dataset.form === "set-password") await saveSetPassword(form);
   if (form.dataset.form === "document-upload") await uploadDocument(form);
+  if (form.dataset.form === "library-item") await saveLibraryItem(form);
+  if (form.dataset.form === "jurisdiction") await saveJurisdiction(form);
   if (form.dataset.form === "requirement") await saveRequirement(form);
   if (form.dataset.form === "requirement-review") await saveRequirementReview(form);
   if (form.dataset.form === "requirement-form") await saveRequirementForm(form);
@@ -2833,6 +2850,8 @@ function render() {
   if (state.view === "office-alerts") renderOfficeAlertsPage();
   if (state.view === "office-compliance") renderOfficeCompliance();
   if (state.view === "office-schedule") renderOfficeSchedulePage();
+  if (state.view === "office-library") renderOfficeLibrary();
+  if (state.view === "office-jurisdictions") renderOfficeJurisdictions();
   if (state.view === "finance") renderFinance();
   if (state.view === "finance-invoices") renderFinanceInvoices();
   if (state.view === "finance-qbo") renderFinanceQbo();
@@ -10276,6 +10295,8 @@ function renderEmployeeDetail() {
             </div>
           </article>
 
+          ${renderEmployeeLibraryPanel(employee)}
+
           <article class="panel">
             <div class="panel-header"><div><h3>Assigned jobs</h3><span>Current and upcoming dispatch work</span></div></div>
             <div class="panel-body record-list">
@@ -12222,6 +12243,7 @@ function renderDispatchJobDetailsTab(job) {
             <div><dt>BioRemedy PO</dt><dd>${escapeHtml(job.bioremedyPoNumber || "Not assigned")}</dd></div>
             <div><dt>Customer PO</dt><dd>${escapeHtml(job.customerPoNumber || "Not provided")}</dd></div>
             <div><dt>Request</dt><dd>${escapeHtml(request?.requestNumber || "Direct job")} · ${escapeHtml(request?.receivedBy || "Internal")}</dd></div>
+            <div><dt>ERG</dt><dd>${job.ergGuideNumber ? `Guide ${escapeHtml(String(job.ergGuideNumber))} · ${escapeHtml(job.ergSpillSize || "small")} spill, ${escapeHtml(job.ergDayNight || "day")}${job.ergIsolationMeters ? ` · isolate ${escapeHtml(String(job.ergIsolationMeters))} m` : ""}` : "Not looked up"} <button class="mini-button" type="button" data-action="open-erg-lookup" data-id="${escapeAttribute(job.id)}">Look up</button></dd></div>
           </dl>
         </div>
       </article>
@@ -13689,6 +13711,442 @@ function renderOfficeSchedulePage() {
       </section>
     </section>
   `;
+}
+
+// ---- Manuals & Training (office admin), Phase 21 (2026-09-25) --------------------------------
+const LIBRARY_ROLE_OPTIONS = ["Admin", "Office Manager", "Sales Manager", "Account Manager", "Operations Manager", "Scheduler", "Field Lead", "Inventory Manager", "Finance Manager"];
+const LIBRARY_SHELVES = [
+  { key: "manuals", label: "Manuals" },
+  { key: "safety", label: "Safety" },
+  { key: "sds", label: "SDS" },
+  { key: "tutorials", label: "Tutorials" },
+  { key: "resources", label: "Resources" },
+];
+
+function getLibraryItems() {
+  return liveRows(state.backend.libraryItems);
+}
+
+function getLibraryAcknowledgements() {
+  return liveRows(state.backend.libraryAcknowledgements);
+}
+
+function findLibraryItem(id) {
+  return (state.backend.libraryItems || []).find((item) => item.id === id) || null;
+}
+
+function libraryAckStatus(item, employeeId) {
+  const acks = getLibraryAcknowledgements()
+    .filter((ack) => ack.libraryItemId === item.id && ack.employeeId === employeeId)
+    .sort((a, b) => String(b.acknowledgedAt).localeCompare(String(a.acknowledgedAt)));
+  const latest = acks[0];
+  if (!latest) return "missing";
+  if (Number(latest.itemVersion || 1) < Number(item.version || 1)) return "outdated";
+  if (item.renewalMonths) {
+    const due = new Date(latest.acknowledgedAt);
+    due.setMonth(due.getMonth() + Number(item.renewalMonths));
+    if (due < new Date()) return "expired";
+  }
+  return "current";
+}
+
+function renderOfficeLibrary() {
+  const shelf = state.officeLibraryShelf || "manuals";
+  const items = getLibraryItems().filter((item) => item.shelf === shelf);
+  app.innerHTML = `
+    <section class="view">
+      ${renderWorkspaceHeader("office", "Manuals & Training", "The manuals, safety, SDS, tutorial, and resource shelves the field app reads, and who has acknowledged what.", `<button class="primary-button" type="button" data-action="open-library-item">Add item</button>`)}
+      <div class="segment-tabs" role="tablist" aria-label="Library shelves">
+        ${LIBRARY_SHELVES.map((entry) => `<button type="button" role="tab" aria-selected="${entry.key === shelf}" class="${entry.key === shelf ? "active" : ""}" data-action="filter-office-library" data-shelf="${escapeAttribute(entry.key)}">${escapeHtml(entry.label)}</button>`).join("")}
+      </div>
+      <article class="panel">
+        <div class="panel-body">
+          ${renderDataTable({
+            tableId: "office-library",
+            columns: [
+              { key: "title", label: "Title", sortValue: (item) => item.title || "" },
+              { key: "category", label: "Category", sortValue: (item) => item.category || "" },
+              { key: "required", label: "Required for", sortable: false },
+              { key: "renewal", label: "Renewal", sortValue: (item) => item.renewalMonths || 0 },
+              { key: "pinned", label: "Offline", sortable: false },
+              { key: "status", label: "Status", sortable: false },
+              { key: "open", label: "", sortable: false },
+            ],
+            rows: items,
+            searchFields: [(item) => item.title, (item) => item.category],
+            searchPlaceholder: "Search this shelf",
+            emptyText: "Nothing on this shelf yet.",
+            renderRow: (item) => `
+              <tr>
+                <td><strong>${escapeHtml(item.title)}</strong></td>
+                <td>${escapeHtml(item.category || "—")}</td>
+                <td>${(item.requiredForRoles || []).map(escapeHtml).join(", ") || "—"}</td>
+                <td>${item.renewalMonths ? `${item.renewalMonths} mo` : "Never"}</td>
+                <td>${item.pinnedOffline ? "Pinned" : "—"}</td>
+                <td>${item.isActive === false ? `<span class="risk-badge medium">Retired</span>` : `<span class="risk-badge low">Active</span>`}</td>
+                <td>
+                  <button class="mini-button" type="button" data-action="open-library-item" data-id="${escapeAttribute(item.id)}">Edit</button>
+                  <button class="mini-button" type="button" data-action="toggle-library-item-active" data-id="${escapeAttribute(item.id)}">${item.isActive === false ? "Activate" : "Retire"}</button>
+                </td>
+              </tr>
+            `,
+          })}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
+function renderLibraryRoleCheckboxes(container, name, selected) {
+  container.innerHTML = LIBRARY_ROLE_OPTIONS.map(
+    (role) => `<label class="checkbox-field"><input type="checkbox" name="${escapeAttribute(name)}" value="${escapeAttribute(role)}" ${selected.includes(role) ? "checked" : ""} /> ${escapeHtml(role)}</label>`,
+  ).join("");
+}
+
+function openLibraryItemDialog(id = "") {
+  const dialog = document.querySelector("#libraryItemDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  const item = id ? findLibraryItem(id) : null;
+  form.elements.id.value = item?.id || "";
+  dialog.querySelector("[data-library-item-title]").textContent = item ? "Edit library item" : "Add a library item";
+  form.elements.shelf.value = item?.shelf || state.officeLibraryShelf || "manuals";
+  form.elements.category.value = item?.category || "";
+  form.elements.title.value = item?.title || "";
+  form.elements.url.value = item?.url || "";
+  form.elements.renewalMonths.value = item?.renewalMonths || "";
+  form.elements.pinnedOffline.checked = Boolean(item?.pinnedOffline);
+  renderLibraryRoleCheckboxes(dialog.querySelector("[data-role-checkboxes='audienceRoles']"), "audienceRoles", item?.audienceRoles || []);
+  renderLibraryRoleCheckboxes(dialog.querySelector("[data-role-checkboxes='requiredForRoles']"), "requiredForRoles", item?.requiredForRoles || []);
+  dialog.showModal();
+}
+
+async function saveLibraryItem(form) {
+  const data = new FormData(form);
+  const id = (data.get("id") || "").toString();
+  const existing = id ? findLibraryItem(id) : null;
+  const title = (data.get("title") || "").toString().trim();
+  if (!title) {
+    showToast("Title is required.");
+    return;
+  }
+  const audienceRoles = [...form.querySelectorAll("input[name=audienceRoles]:checked")].map((el) => el.value);
+  const requiredForRoles = [...form.querySelectorAll("input[name=requiredForRoles]:checked")].map((el) => el.value);
+  const record = {
+    ...(existing || {}),
+    id,
+    shelf: (data.get("shelf") || "manuals").toString(),
+    title,
+    category: (data.get("category") || "").toString().trim(),
+    url: (data.get("url") || "").toString().trim(),
+    audienceRoles,
+    requiredForRoles,
+    renewalMonths: Number(data.get("renewalMonths")) || null,
+    pinnedOffline: data.get("pinnedOffline") === "on",
+    isActive: existing ? existing.isActive !== false : true,
+    version: existing ? Number(existing.version || 1) : 1,
+  };
+  try {
+    let saved = await saveBackendRecord("libraryItems", record);
+    const file = form.elements.file?.files?.[0];
+    if (file) {
+      const type = documentTypeByCode(saved.shelf === "sds" ? "sds" : "other");
+      const uploaded = await uploadRawFile("/api/documents", file, { "X-Entity-Type": "libraryItem", "X-Entity-Id": saved.id, "X-Document-Type": type?.id || "", "X-Visibility": "internal" });
+      saved = await saveBackendRecord("libraryItems", { ...saved, documentId: uploaded.id, version: Number(saved.version || 1) + 1 });
+    }
+    closeDialogs();
+    render();
+    showToast("Saved.");
+  } catch (error) {
+    if (await handleSaveConflict(error)) return;
+    showToast(error.message || "Could not save this item.");
+  }
+}
+
+async function toggleLibraryItemActive(id) {
+  const item = findLibraryItem(id);
+  if (!item) return;
+  try {
+    await saveBackendRecord("libraryItems", { ...item, isActive: item.isActive === false });
+    render();
+  } catch (error) {
+    showToast(error.message || "Could not update this item.");
+  }
+}
+
+function employeeSystemRoles(employee) {
+  const user = getSystemUsers().find((item) => item.employeeId === employee.id);
+  return user ? (Array.isArray(user.roles) && user.roles.length ? user.roles : [user.role]).filter(Boolean) : [];
+}
+
+function renderEmployeeLibraryPanel(employee) {
+  const roles = employeeSystemRoles(employee);
+  const items = getLibraryItems().filter((item) => item.isActive !== false && (item.requiredForRoles || []).some((role) => roles.includes(role)));
+  const rows = items.map((item) => ({ item, status: libraryAckStatus(item, employee.id) }));
+  const flagged = rows.filter((row) => row.status !== "current");
+  return `
+    <article class="panel ${flagged.length ? "panel-needs-attention" : ""}">
+      <div class="panel-header"><h3>Required reading & training${flagged.length ? renderAlertDot(`${flagged.length} missing or expired`) : ""}</h3></div>
+      <div class="panel-body record-list">
+        ${rows
+          .map(
+            ({ item, status }) => `
+          <div class="detail-card">
+            <div class="row-meta"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.category || "")}</span></div>
+            <span class="risk-badge ${status === "current" ? "low" : "high"}">${status === "current" ? "Acknowledged" : status === "outdated" ? "New version — re-acknowledge" : status === "expired" ? "Renewal due" : "Not acknowledged"}</span>
+          </div>
+        `,
+          )
+          .join("") || `<div class="empty-state compact">Nothing required for this person's role.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+// ---- Jurisdictions & reference layers (office admin), Phase 21 (2026-09-25) -------------------
+function getJurisdictions() {
+  return liveRows(state.backend.jurisdictions);
+}
+
+function findJurisdiction(id) {
+  return (state.backend.jurisdictions || []).find((item) => item.id === id) || null;
+}
+
+function renderOfficeJurisdictions() {
+  const rows = getJurisdictions();
+  app.innerHTML = `
+    <section class="view">
+      ${renderWorkspaceHeader("office", "Jurisdictions & reference layers", "City/county GIS layers (parcels, utilities, drainage) used as background reference on the site walk and job maps.", `<button class="primary-button" type="button" data-action="open-jurisdiction">Add jurisdiction</button>`)}
+      <section class="record-list">
+        ${
+          rows
+            .map(
+              (row) => `
+          <article class="panel">
+            <div class="panel-header">
+              <div><h3>${escapeHtml(row.name)}</h3><span>${escapeHtml(row.kind || "")}${row.portalUrl ? ` · <a href="${escapeAttribute(row.portalUrl)}" target="_blank" rel="noopener">Portal</a>` : ""}</span></div>
+              <button class="mini-button" type="button" data-action="open-jurisdiction" data-id="${escapeAttribute(row.id)}">Edit</button>
+            </div>
+            <div class="panel-body record-list">
+              ${
+                (row.layers || [])
+                  .map((layer) => `<div class="detail-card"><div class="row-meta"><strong>${escapeHtml(layer.label || layer.key)}</strong><span>${escapeHtml(layer.kind || "")} · ${escapeHtml(layer.mode || "live")}</span></div></div>`)
+                  .join("") || `<div class="empty-state compact">No layers configured.</div>`
+              }
+            </div>
+          </article>
+        `,
+            )
+            .join("") || `<div class="empty-state">No jurisdictions on file yet.</div>`
+        }
+      </section>
+    </section>
+  `;
+}
+
+let jurisdictionLayerDraft = [];
+
+function renderJurisdictionLayerRows() {
+  const container = document.querySelector("[data-jurisdiction-layers]");
+  if (!container) return;
+  container.innerHTML = jurisdictionLayerDraft
+    .map(
+      (layer, index) => `
+    <div class="detail-card jurisdiction-layer-row" data-layer-index="${index}">
+      <div class="form-grid">
+        <label>Key<input data-layer-field="key" value="${escapeAttribute(layer.key || "")}" maxlength="40" /></label>
+        <label>Label<input data-layer-field="label" value="${escapeAttribute(layer.label || "")}" maxlength="80" /></label>
+        <label>Kind
+          <select data-layer-field="kind">
+            ${["parcel", "utility", "drainage", "other"].map((kind) => `<option value="${kind}" ${layer.kind === kind ? "selected" : ""}>${kind}</option>`).join("")}
+          </select>
+        </label>
+        <label>Mode
+          <select data-layer-field="mode">
+            <option value="live" ${layer.mode === "live" ? "selected" : ""}>Live</option>
+            <option value="snapshot" ${layer.mode === "snapshot" ? "selected" : ""}>Snapshot</option>
+          </select>
+        </label>
+      </div>
+      <label>Service URL<input data-layer-field="serviceUrl" value="${escapeAttribute(layer.serviceUrl || "")}" maxlength="400" /></label>
+      <label>Layer ID<input data-layer-field="layerId" value="${escapeAttribute(layer.layerId ?? "")}" maxlength="10" /></label>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="jurisdiction-test-layer" data-index="${index}">Test service</button>
+        <label class="mini-button">Import snapshot<input type="file" accept=".json,.geojson" data-action="jurisdiction-import-snapshot" data-index="${index}" hidden /></label>
+        <button class="mini-button" type="button" data-action="jurisdiction-remove-layer" data-index="${index}">Remove</button>
+        <span class="help-text" data-layer-test-result="${index}"></span>
+      </div>
+    </div>
+  `,
+    )
+    .join("");
+  container.querySelectorAll("[data-layer-field]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const row = input.closest("[data-layer-index]");
+      const index = Number(row.dataset.layerIndex);
+      jurisdictionLayerDraft[index][input.dataset.layerField] = input.value;
+    });
+  });
+  container.querySelectorAll("[data-action='jurisdiction-import-snapshot']").forEach((input) => {
+    input.addEventListener("change", (event) => handleJurisdictionSnapshotImport(event, Number(input.dataset.index)));
+  });
+}
+
+function openJurisdictionDialog(id = "") {
+  const dialog = document.querySelector("#jurisdictionDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  const jurisdiction = id ? findJurisdiction(id) : null;
+  form.elements.id.value = jurisdiction?.id || "";
+  dialog.querySelector("[data-jurisdiction-title]").textContent = jurisdiction ? "Edit jurisdiction" : "Add a jurisdiction";
+  form.elements.name.value = jurisdiction?.name || "";
+  form.elements.kind.value = jurisdiction?.kind || "city";
+  form.elements.portalUrl.value = jurisdiction?.portalUrl || "";
+  jurisdictionLayerDraft = structuredClone(jurisdiction?.layers || []);
+  renderJurisdictionLayerRows();
+  dialog.showModal();
+}
+
+function addJurisdictionLayerRow() {
+  jurisdictionLayerDraft.push({ key: "", label: "", kind: "parcel", serviceUrl: "", layerId: "", mode: "live" });
+  renderJurisdictionLayerRows();
+}
+
+function removeJurisdictionLayerRow(index) {
+  jurisdictionLayerDraft.splice(index, 1);
+  renderJurisdictionLayerRows();
+}
+
+async function testJurisdictionLayer(index) {
+  const layer = jurisdictionLayerDraft[index];
+  const result = document.querySelector(`[data-layer-test-result="${index}"]`);
+  if (!layer?.serviceUrl) {
+    if (result) result.textContent = "Add a service URL first.";
+    return;
+  }
+  if (result) result.textContent = "Testing…";
+  try {
+    const url = `${layer.serviceUrl.replace(/\/$/, "")}/${layer.layerId || 0}?f=json`;
+    const response = await fetch(url);
+    const body = await response.json();
+    if (result) result.textContent = body.error ? `Error: ${body.error.message || "service error"}` : `${body.name || "Layer"} (${body.geometryType || "unknown geometry"})`;
+  } catch (error) {
+    if (result) result.textContent = `Could not reach the service: ${error.message}`;
+  }
+}
+
+async function handleJurisdictionSnapshotImport(event, index) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  const layer = jurisdictionLayerDraft[index];
+  if (!layer) return;
+  try {
+    const text = await file.text();
+    if (file.size <= 2 * 1024 * 1024) {
+      await saveBackendRecord("siteReferenceLayers", {
+        facilityId: "",
+        jurisdictionId: document.querySelector("#jurisdictionDialog form").elements.id.value || "",
+        kind: layer.kind,
+        label: layer.label || layer.key,
+        mode: "snapshot",
+        geojson: text,
+        source: layer.serviceUrl,
+        sourceDate: todayIso(),
+        visibility: "internal",
+      });
+      showToast("Snapshot imported.");
+    } else {
+      const uploaded = await uploadRawFile("/api/documents", file, { "X-Entity-Type": "jurisdiction", "X-Entity-Id": document.querySelector("#jurisdictionDialog form").elements.id.value || "", "X-Document-Type": documentTypeByCode("other")?.id || "", "X-Visibility": "internal" });
+      await saveBackendRecord("siteReferenceLayers", {
+        facilityId: "",
+        jurisdictionId: document.querySelector("#jurisdictionDialog form").elements.id.value || "",
+        kind: layer.kind,
+        label: layer.label || layer.key,
+        mode: "snapshot",
+        documentId: uploaded.id,
+        source: layer.serviceUrl,
+        sourceDate: todayIso(),
+        visibility: "internal",
+      });
+      showToast("Snapshot uploaded (over 2 MB, stored as a document).");
+    }
+    layer.lastImportedAt = new Date().toISOString();
+  } catch (error) {
+    showToast(error.message || "Could not import that snapshot.");
+  }
+}
+
+async function saveJurisdiction(form) {
+  const data = new FormData(form);
+  const id = (data.get("id") || "").toString();
+  const existing = id ? findJurisdiction(id) : null;
+  const name = (data.get("name") || "").toString().trim();
+  if (!name) {
+    showToast("Name is required.");
+    return;
+  }
+  const record = {
+    ...(existing || {}),
+    id,
+    name,
+    kind: (data.get("kind") || "city").toString(),
+    portalUrl: (data.get("portalUrl") || "").toString().trim(),
+    layers: jurisdictionLayerDraft.map((layer) => ({ ...layer, layerId: layer.layerId === "" ? "" : Number.isNaN(Number(layer.layerId)) ? layer.layerId : Number(layer.layerId) })),
+    lastImportedAt: jurisdictionLayerDraft.some((layer) => layer.lastImportedAt) ? new Date().toISOString() : existing?.lastImportedAt || "",
+  };
+  try {
+    await saveBackendRecord("jurisdictions", record);
+    closeDialogs();
+    render();
+    showToast("Saved.");
+  } catch (error) {
+    if (await handleSaveConflict(error)) return;
+    showToast(error.message || "Could not save this jurisdiction.");
+  }
+}
+
+// ---- ERG (Emergency Response Guidebook) lookup, Phase 21 (2026-09-25) --------------------------
+function getErgMaterials() {
+  return liveRows(state.backend.ergMaterials);
+}
+
+function getErgGuides() {
+  return liveRows(state.backend.ergGuides);
+}
+
+function getErgDistances() {
+  return liveRows(state.backend.ergDistances);
+}
+
+function ergGuideByNumber(guide) {
+  return getErgGuides().find((item) => String(item.guide) === String(guide)) || null;
+}
+
+function ergDistanceByUn(unNumber) {
+  return getErgDistances().find((item) => String(item.unNumber) === String(unNumber)) || null;
+}
+
+// A UN number ("1203" or "UN1203") or the start of a material name.
+function ergLookup(query) {
+  const raw = String(query || "").trim();
+  if (!raw) return null;
+  const materials = getErgMaterials();
+  const unQuery = raw.replace(/^un/i, "").trim();
+  let material = materials.find((item) => String(item.unNumber) === unQuery);
+  if (!material) {
+    const lower = raw.toLowerCase();
+    material = materials.find((item) => (item.name || "").toLowerCase().startsWith(lower));
+  }
+  if (!material) return null;
+  return { material, guide: ergGuideByNumber(material.guide), distances: ergDistanceByUn(material.unNumber) };
+}
+
+function ergIsolationFor(unNumber, { spillSize = "small", dayNight = "day" } = {}) {
+  const distances = ergDistanceByUn(unNumber);
+  const bucket = distances?.[spillSize] || distances?.small;
+  if (!bucket) return null;
+  return { isolationMeters: bucket.isolateMeters ?? null, protectiveMeters: (dayNight === "night" ? bucket.nightMeters : bucket.dayMeters) ?? null };
 }
 
 function renderFinance() {
@@ -21347,7 +21805,11 @@ function openNotificationsDialog() {
 // draw on. One conversation per person; IT (any Admin) sees them all and answers inside them.
 // ============================================================================================
 const IT_MESSAGES_HINT = "Enter Issues, Comments, Errors, or messages to IT here";
-const itAnnotator = { image: null, strokes: [], tool: "pen", current: null, wired: false };
+// Phase 21 (2026-09-25): the screenshot annotator used to be inline here; it now opens the shared
+// markup tool (field/media.js openImageMarkup, via markupItScreenshot) and just keeps the resulting
+// PNG blob until the message is actually sent.
+let itShotBlob = null;
+let itComposerWired = false;
 
 function getItMessages() {
   return liveRows(state.backend.itMessages);
@@ -21406,8 +21868,8 @@ function openItMessagesDialog() {
   } else {
     state.itMessagesThreadKey = own;
   }
-  itWireAnnotator();
-  itSetScreenshot(null);
+  itWireComposer();
+  itSetShot(null);
   const form = dialog.querySelector("form");
   form.elements.body.value = "";
   renderItMessagesDialog();
@@ -21486,7 +21948,7 @@ async function sendItMessage(form) {
   const submitButton = form.querySelector('button[type="submit"]');
   if (submitButton?.disabled) return;
   const text = form.elements.body.value.trim();
-  const hasShot = Boolean(itAnnotator.image);
+  const hasShot = Boolean(itShotBlob);
   if (!text && !hasShot) {
     showToast("Type a message or attach a screenshot.");
     return;
@@ -21495,8 +21957,7 @@ async function sendItMessage(form) {
   try {
     const saved = await saveBackendRecord("itMessages", { body: text || "Screenshot attached.", threadKey: form.elements.threadKey.value || itOwnThreadKey(), pageUrl: `${location.pathname}${location.hash}` }, { refresh: false });
     if (hasShot) {
-      const blob = await itExportScreenshot();
-      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+      const file = new File([itShotBlob], `screenshot-${Date.now()}.png`, { type: "image/png" });
       try {
         const document = await uploadRawFile("/api/documents", file, { "X-Entity-Type": "itMessage", "X-Entity-Id": saved.id, "X-Visibility": "internal", "X-Caption": encodeURIComponent("Screenshot sent to IT") });
         await saveBackendRecord("itMessages", { ...saved, screenshotDocumentId: document.id }, { refresh: false });
@@ -21508,7 +21969,7 @@ async function sendItMessage(form) {
       await raiseNotification({ key: `it-message-${saved.id}`, title: `Message to IT from ${saved.authorName}`, body: (text || "Screenshot attached.").slice(0, 140), severity: "info", audienceRoles: ["Admin"], link: "" });
     }
     form.elements.body.value = "";
-    itSetScreenshot(null);
+    itSetShot(null);
     renderItMessagesDialog();
     renderItMessagesButton();
     showToast(saved.fromIT ? "Reply sent." : "Sent to IT. Thank you.");
@@ -21519,204 +21980,53 @@ async function sendItMessage(form) {
   }
 }
 
-// ---- screenshot + annotation ----
-function itWireAnnotator() {
-  if (itAnnotator.wired) return;
-  itAnnotator.wired = true;
+// ---- screenshot capture, handed to the shared markup tool (field/media.js) ----
+function itWireComposer() {
+  if (itComposerWired) return;
+  itComposerWired = true;
   const dialog = document.querySelector("#itMessagesDialog");
-  const canvas = dialog.querySelector("[data-it-canvas]");
   const fileInput = dialog.querySelector("input[name=screenshotFile]");
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files?.[0];
     fileInput.value = "";
     if (!file) return;
     try {
-      const image = await itLoadImage(URL.createObjectURL(file));
-      itSetScreenshot(image);
+      const result = await markupItScreenshot(file);
+      if (result?.blob) itSetShot(result.blob);
     } catch {
       showToast("That file could not be read as an image.");
     }
   });
-  const point = (event) => {
-    const rect = canvas.getBoundingClientRect();
-    return { x: ((event.clientX - rect.left) * canvas.width) / rect.width, y: ((event.clientY - rect.top) * canvas.height) / rect.height };
-  };
-  canvas.addEventListener("pointerdown", (event) => {
-    if (!itAnnotator.image) return;
-    event.preventDefault();
-    canvas.setPointerCapture(event.pointerId);
-    const p = point(event);
-    itAnnotator.current = { tool: itAnnotator.tool, points: [p], start: p, end: p };
-    itRedraw();
-  });
-  canvas.addEventListener("pointermove", (event) => {
-    if (!itAnnotator.current) return;
-    event.preventDefault();
-    const p = point(event);
-    if (itAnnotator.current.tool === "pen") itAnnotator.current.points.push(p);
-    itAnnotator.current.end = p;
-    itRedraw();
-  });
-  const finish = (event) => {
-    if (!itAnnotator.current) return;
-    event.preventDefault();
-    const stroke = itAnnotator.current;
-    itAnnotator.current = null;
-    const moved = Math.hypot(stroke.end.x - stroke.start.x, stroke.end.y - stroke.start.y) > 2 || stroke.points.length > 2;
-    if (moved) itAnnotator.strokes.push(stroke);
-    itRedraw();
-  };
-  canvas.addEventListener("pointerup", finish);
-  canvas.addEventListener("pointercancel", finish);
 }
 
-function itLoadImage(src) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = reject;
-    image.src = src;
-  });
-}
-
-function itSetTool(tool) {
-  itAnnotator.tool = ["pen", "box", "arrow"].includes(tool) ? tool : "pen";
-  document.querySelectorAll("#itMessagesDialog [data-action='it-tool']").forEach((button) => button.classList.toggle("active", button.dataset.tool === itAnnotator.tool));
-}
-
-function itSetScreenshot(image) {
+function itSetShot(blob) {
+  itShotBlob = blob || null;
   const dialog = document.querySelector("#itMessagesDialog");
-  if (!dialog) return;
-  const annotator = dialog.querySelector("[data-it-annotator]");
-  const note = dialog.querySelector("[data-it-attach-note]");
-  const canvas = dialog.querySelector("[data-it-canvas]");
-  itAnnotator.image = image || null;
-  itAnnotator.strokes = [];
-  itAnnotator.current = null;
-  if (!image) {
-    annotator.hidden = true;
-    note.textContent = "No screenshot attached.";
-    return;
-  }
-  // Keep the stored image a sensible size; the canvas is the natural size, scaled by CSS.
-  const scale = Math.min(1, 1600 / Math.max(1, image.naturalWidth || image.width));
-  canvas.width = Math.round((image.naturalWidth || image.width) * scale);
-  canvas.height = Math.round((image.naturalHeight || image.height) * scale);
-  annotator.hidden = false;
-  note.textContent = `Screenshot attached (${canvas.width}×${canvas.height}). Draw on it below.`;
-  itSetTool(itAnnotator.tool);
-  itRedraw();
+  const note = dialog?.querySelector("[data-it-attach-note]");
+  if (note) note.textContent = itShotBlob ? "Screenshot attached and marked up." : "No screenshot attached.";
 }
 
-function itRedraw() {
-  const canvas = document.querySelector("#itMessagesDialog [data-it-canvas]");
-  if (!canvas || !itAnnotator.image) return;
-  const context = canvas.getContext("2d");
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(itAnnotator.image, 0, 0, canvas.width, canvas.height);
-  const width = Math.max(3, Math.round(canvas.width / 320));
-  context.lineWidth = width;
-  context.strokeStyle = "#e11d48";
-  context.fillStyle = "#e11d48";
-  context.lineCap = "round";
-  context.lineJoin = "round";
-  for (const stroke of [...itAnnotator.strokes, ...(itAnnotator.current ? [itAnnotator.current] : [])]) {
-    if (stroke.tool === "pen") {
-      context.beginPath();
-      stroke.points.forEach((p, index) => (index ? context.lineTo(p.x, p.y) : context.moveTo(p.x, p.y)));
-      context.stroke();
-    } else if (stroke.tool === "box") {
-      context.strokeRect(Math.min(stroke.start.x, stroke.end.x), Math.min(stroke.start.y, stroke.end.y), Math.abs(stroke.end.x - stroke.start.x), Math.abs(stroke.end.y - stroke.start.y));
-    } else {
-      const { start, end } = stroke;
-      const angle = Math.atan2(end.y - start.y, end.x - start.x);
-      const head = width * 5;
-      context.beginPath();
-      context.moveTo(start.x, start.y);
-      context.lineTo(end.x, end.y);
-      context.stroke();
-      context.beginPath();
-      context.moveTo(end.x, end.y);
-      context.lineTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6));
-      context.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6));
-      context.closePath();
-      context.fill();
-    }
-  }
-}
-
-function itExportScreenshot() {
-  const canvas = document.querySelector("#itMessagesDialog [data-it-canvas]");
-  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Could not export the screenshot."))), "image/png"));
-}
-
-// Captures the screen through the browser's own picker (needs HTTPS or localhost). The dialog is
-// hidden for the frame so the shot shows the page underneath; phones and older browsers fall back
-// to "Choose image".
-async function itCaptureScreen() {
-  if (!navigator.mediaDevices?.getDisplayMedia) {
-    showToast("Screen capture is not available in this browser. Use Choose image instead.");
-    return;
-  }
+// Captures the screen through the browser's own picker (needs HTTPS or localhost), then opens it in
+// the shared markup tool. The dialog is hidden for the frame so the shot shows the page underneath,
+// not this window; phones and older browsers fall back to "Choose image".
+async function itHandleCaptureScreen() {
   const dialog = document.querySelector("#itMessagesDialog");
-  // Owner, 2026-09-24: the shot must show the page, not this window. Close the dialog (its backdrop
-  // too) before the browser's picker appears, and reopen it afterwards with the draft intact.
   const wasOpen = dialog.open;
   if (wasOpen) dialog.close();
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   const reopen = () => {
     if (wasOpen && !dialog.open) dialog.showModal();
   };
-  let stream = null;
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "browser" }, audio: false, preferCurrentTab: true, selfBrowserSurface: "include" });
-    const video = document.createElement("video");
-    video.srcObject = stream;
-    video.muted = true;
-    video.playsInline = true;
-    await video.play();
-    if (video.readyState < 2) await new Promise((resolve) => video.addEventListener("loadeddata", resolve, { once: true }));
-    // Two fresh frames after sharing starts, so the picker and any stale frame are gone.
-    await itWaitForVideoFrames(video, 2);
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    stream.getTracks().forEach((track) => track.stop());
-    const image = await itLoadImage(canvas.toDataURL("image/png"));
+    const canvas = await captureScreenForMarkup();
     reopen();
-    itSetScreenshot(image);
+    const result = await markupItScreenshot(canvas);
+    if (result?.blob) itSetShot(result.blob);
     scrollChatToBottom();
   } catch (error) {
-    if (stream) stream.getTracks().forEach((track) => track.stop());
     reopen();
-    if (error?.name !== "NotAllowedError") showToast("Could not capture the screen. Use Choose image instead.");
+    if (error?.name !== "NotAllowedError") showToast(error?.message || "Could not capture the screen. Use Choose image instead.");
   }
-}
-
-function itWaitForVideoFrames(video, count) {
-  return new Promise((resolve) => {
-    const failSafe = setTimeout(resolve, 1500);
-    if (typeof video.requestVideoFrameCallback !== "function") {
-      setTimeout(() => {
-        clearTimeout(failSafe);
-        resolve();
-      }, 400);
-      return;
-    }
-    let remaining = count;
-    const tick = () => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        clearTimeout(failSafe);
-        resolve();
-      } else {
-        video.requestVideoFrameCallback(tick);
-      }
-    };
-    video.requestVideoFrameCallback(tick);
-  });
 }
 
 async function markNotificationsRead(ids) {
@@ -29702,12 +30012,25 @@ function renderDocumentsPanel({ entityType, entityId, title = "Documents", subti
   `;
 }
 
+// Marks up any already-uploaded photo (the shared field/media.js tool). Saves a new version in the
+// same document group; the original is untouched.
+async function markupExistingPhoto(documentId) {
+  const source = findDocument(documentId);
+  if (!source) return;
+  const type = findDocumentType(source.documentTypeId);
+  const result = await openImageMarkup(source, { entityType: source.entityType, entityId: source.entityId, documentType: type?.code || "site-photo", groupId: source.groupId || source.id });
+  if (result) {
+    await refreshBackendState();
+    render();
+  }
+}
+
 function renderPhotoTile(document) {
   const viewUrl = `/api/documents/${encodeURIComponent(document.id)}/view`;
   return `
     <figure class="photo-tile">
       <a href="${viewUrl}" target="_blank" rel="noopener"><img src="${viewUrl}" alt="${escapeAttribute(document.caption || document.fileName)}" loading="lazy" /></a>
-      <figcaption>${escapeHtml(document.caption || document.fileName)}<small>${formatDate(document.uploadedAt)}${isPortalUser() ? "" : ` · <button class="link-button" type="button" data-action="delete-record" data-collection="documents" data-id="${escapeAttribute(document.id)}">Delete</button>`}</small></figcaption>
+      <figcaption>${escapeHtml(document.caption || document.fileName)}<small>${formatDate(document.uploadedAt)}${isPortalUser() ? "" : ` · <button class="link-button" type="button" data-action="markup-photo" data-id="${escapeAttribute(document.id)}">Mark up</button> · <button class="link-button" type="button" data-action="delete-record" data-collection="documents" data-id="${escapeAttribute(document.id)}">Delete</button>`}</small></figcaption>
     </figure>
   `;
 }
@@ -33674,8 +33997,12 @@ export {
   getDocuments,
   documentsForEntity,
   latestDocumentsForEntity,
+  documentTypeByCode,
   getInventoryItems,
   findInventoryItem,
   getTimeEntries,
   getMessages,
+  // ERG (Phase 21, W4)
+  ergLookup,
+  ergIsolationFor,
 };

@@ -7536,3 +7536,18 @@ label > .camera-capture-button {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================================================
+   W4 office admin (Phase 21, 2026-09-25): Manuals & Training and Jurisdictions & reference layers.
+   ============================================================================================ */
+
+.jurisdiction-layer-row {
+  border-left: 3px solid var(--accent, #2563eb);
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 4px 12px;
+  margin-top: 4px;
+}
