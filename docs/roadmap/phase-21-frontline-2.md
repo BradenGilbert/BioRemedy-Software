@@ -1,0 +1,301 @@
+# Phase 21 — Front Line 2: the field app, rebuilt (crew + sales)
+
+**Status:** 🔵 Planned 2026-09-24. Not started.
+**Depends on:** Phases 10, 11, 12, 13, 16, 18 (all shipped). Nothing outstanding.
+**Estimated sessions:** 5 passes (21a–21e below), each its own session or wave.
+**Source:** owner request 2026-09-24 ("rebuild the frontline app to be more in-depth and easier for workers to use … sales also needs a frontline app for the site walks"), plus the same-day additions: site-walk photo collection, LiDAR, video, photo annotation, a limited read/write model for the field instead of domain blocking, breaking the field code out of `app.js`, and the ERG with its distances plus SDS and company safety manuals.
+
+Owner decisions taken while planning (2026-09-24): **real phone route + keep the desktop simulator**; **offline = cached job packages + a queued outbox** (not the full conflict protocol); **one app with a role-based home** (crew and sales); **the Field Lead runs the job, crew are mostly tap-only**.
+
+---
+
+## Why this phase exists
+
+The Front Line simulator shipped tile-by-tile (Phase 10, Phase 11 close-out, Phase 18 links). Every tile is real, but the whole is a 420 px phone frame drawn inside the desktop app: nine equal tiles, no notion of "today", a full re-render after every save, no offline capture, no mobile breakpoints at all (a real phone still draws the rounded 760 px frame), and a Job Book that lists every job the role can see rather than the crew's day. Site walks show as an unclickable card. Safety is four hard-coded forms whose names a regex matches at report time.
+
+The owner wants a field app that is deeper (safety, waste, equipment, crew time, a close-out that feeds the post-work report and invoice without re-keying) and easier (a worker in gloves at a roadside spill at 2 am), plus a sales field mode for site walks.
+
+### What the code says today (verified 2026-09-24)
+
+| Area | Finding | Where |
+|---|---|---|
+| Shell | Workspace `frontline`, 13 `frontline-*` views, `.frontline-mode` hides sidebar/topbar; frame is `.frontline-device` max-width 420, min-height 760, no media queries | `app.js:309-452`, `:2772-2875`, `styles.css:5640-6103` |
+| Home | `FRONTLINE_TILES` (9 tiles), badges for unread + open jobs, Exit bar | `app.js:14603-14727` |
+| Job Book / job page | region filter parsed from `addressText`; job page = header, next-status button, `<details>` per step, close-out, "+ Activity", crew, submissions | `:14754`, `:15081` |
+| Capture | Checklist/Photo/Signature/Material/Timer/Sample/Odometer/Form via `frontlineCompleteAction`; ad hoc via a hidden `adHoc` step | `:14839-14971`, `:16693`, `:17006-17026` |
+| Status ladder | draft→ready→scheduled→dispatched→acknowledged→en_route→on_site→in_progress→field_complete→office_review→closed; `paused` off-ladder; only `advanceDispatchJob()` commits; `frontlineAutoAdvanceJob` walks to in_progress / field_complete | `:31956`, `:19287`, `:20924` |
+| Templates | `jobTypeTemplates.stages[].tasks[]`; editor lacks Odometer; `assigneeScope` never enforced; gating is positional | `:11524-11532`, `:31527`, `:31712-31732` |
+| Safety | `FRONTLINE_STANDALONE_FORMS` hard-coded (4 forms); the report's JSA section matches form names with `/safety\|jsa\|jha\|ppe\|tailgate\|hazard/`; no JSA, SDS, hazards or incident collection | `:15741`, `:20060`, `:20245` |
+| Waste / equipment | `wasteRecords` exists (office-only UI, 0 rows); no typed equipment usage from the field (`job_equipment_usage` is design only) | `:20572`, `:20459` |
+| Offline | `state.online` only changes a label; `syncQueue` is written by office saves and `simulateSync` just marks Synced; every Front Line write is a live POST; the service worker caches the shell only | `:1588`, `:22252-22263`, `service-worker.js` |
+| Site walks | `scheduleEvents{kind:"site_walk"}` + Site Visit meeting + `opportunityAssignments`; the Front Line card is a static `div`; nothing in the field completes a walk; `saveSiteWalk` sets `siteWalkStatus:"Scheduled"`, which is not a dropdown option | `:21247`, `:21351`, `index.html:383-388` |
+| Sign-on links | `/go/<token>` → `dispatch-link` session with role Field Lead; `filterBackendForRole` ignores `session.dispatchJobId`, so the phone sees every job | `server.mjs:4372-4402`, `:2612` |
+| Device check | The suspended-device block runs only in the office picker's `frontlineLogin`; real Field Lead / link sessions bypass it; Field Lead cannot read `frontlineDevices` | `app.js:16527`, `server.mjs:185` |
+| Likely bug | Timer completion writes `employees.hoursWorked`, a workforce-domain collection Field Lead lacks → 403 for a real field login | `app.js:16827` |
+| Reusable | A canvas annotator (pen/box/arrow) already exists in the IT-messages dialog; a three.js GLB viewer and a `spatialData` collection already exist on projects | `app.js:20833-21100`, `:6972`, `:9645` |
+| Camera / GPS | "Take photo" button on every file input (native camera on phones); `frontlineCaptureGps` high-accuracy 10 s | `:32237-32436`, `:16647` |
+
+### What the research says
+
+- **Used daily by field workers:** incident reporting, safety checklists / toolbox talks, photo capture, offline. **Ignored:** feature-dense screens, anything needing training.
+- **Field usability:** ≥44 px tap targets, gloves and dirty screens, one-handed thumb reach, colour for status not text, three taps or fewer for the common task, a sync state always visible. Roughly 40% of field work happens with poor or no signal.
+- **Resistance drivers:** surveillance framing of GPS, re-entering data the office already has, paper alternatives left open.
+- **HAZWOPER emergency-response record:** site safety briefing, PPE level with rationale, hot/warm/cold zones, air monitoring readings, incident commander and safety officer, personnel accountability roster with entry/exit times, decon method, post-incident critique. Lone Star's report already prints a JSA table, safety reminders, per-day billables and crew e-signatures.
+- **TCEQ 30-day follow-up needs:** response chronology with times, containment equipment and effectiveness, weather, injuries, quantities recovered vs lost, excavation extents with scaled maps, disposition of waste with facility names, sampling personnel/locations/methods, waste codes, manifests and the receiving facility. Most of this is field data; the app is where it is cheapest to collect.
+
+Sources are listed at the end.
+
+---
+
+## Design rules
+
+1. **Today first.** The home screen is *My Day*: the jobs and walks I'm on today, in order, plus my clock state and sync state. Tiles become a secondary "More" row.
+2. **Three taps to the common thing.** Photo, note and status change are reachable from the job page without opening a step. Big buttons, one column, a bottom-anchored primary action.
+3. **Never ask for what the office knows.** The job brief shows the intake facts, scope needs, documents and on-site contact. Capture forms prefill from them.
+4. **Capture once, print everywhere.** Every field record has a named home in the post-work report, the day-grouped invoice or the TCEQ chronology. Nothing is a free-text box a report later has to parse (the JSA regex goes away).
+5. **The lead runs the job, the crew tap.** Crew see a stripped job view: clock in/out, sign the safety brief, take photos. Narrative, samples, waste and close-out are lead screens.
+6. **Works with no signal.** Assigned jobs are cached; every write goes to an outbox and syncs when the phone is back; the outbox count is on screen; a rejected write stays visible with its reason.
+7. **Location is a job event, not tracking.** GPS is stamped on things the worker does (arrive, sample, photo) under an existing consent record, never a background trail (that is the separate OwnTracks device endpoint). Say so on the consent screen.
+8. **Same code, two surfaces.** One set of screens rendered full-screen at a real phone route and inside the desktop simulator frame. No duplicated screens.
+
+---
+
+## Delivery target
+
+- **Route:** `/#view=field` (new `field-*` view family), rendered without the `.frontline-device` frame when the viewport is ≤ 720 px or `?surface=phone` is set; the desktop simulator wraps the same views in the frame. Add mobile breakpoints to the field styles (there are none today).
+- **PWA:** keep `manifest.webmanifest` and the shell service worker; add a `shortcuts` entry / second start URL (`./#view=field`, `display: standalone`) so "Front Line" can be added to the home screen and opens straight to My Day. Sign-in is the existing Phase 12 session (Microsoft or local); the office employee picker stays for the simulator only.
+- **Offline (packages + outbox):**
+  - *Job package cache:* after sign-in, fetch the worker's assigned jobs (dispatchJobs + steps/actions + assignments + the project's brief fields + documents list + site-walk events + the ERG tables) and store in a new IndexedDB store `fieldPackages` keyed by job id. Rendering reads the cache; a refresh replaces it. Device-scoped, so a legitimate IndexedDB use under `CLAUDE.md`.
+  - *Outbox:* new IndexedDB store `fieldOutbox`: `{clientCommandId, kind, url, method, headers, body|fileBlob, createdAt, attempts, lastError, status}`. Every field write (`saveBackendRecord`, attachment uploads, consume, weather, consent, field commands) goes through `enqueueFieldCommand()`; when online, a drain loop replays in order. Server routes accept an `X-Client-Command-Id` header and dedupe on it (a small `commandReceipts` map in `data/`), the one piece of the designed contract worth taking now. The rest (conflict records, cursors) stays deferred; resumable uploads are pulled forward by video (below).
+  - *UI:* a sync pill in the header (Synced / n queued / Offline / Error); tapping it opens the outbox with retry and discard. Photos stay as blobs until uploaded; thumbnails render from the blob.
+  - *Contract rules honoured:* the server revalidates every status transition; a cancelled job or revoked assignment rejects queued reopen commands; rejected commands remain visible.
+
+---
+
+## Field access model — limited read/write instead of domain blocking
+
+Today access is all-or-nothing per domain (`server.mjs:67-209`): Field Lead has `operations`, `dispatch`, `customerDirectory` and `identity`, and nothing from `workforce`, `inventory` or `sales`. That is why the phone cannot show the crew's names and phones, the consumables list, the walk's opportunity title or the worker's own employee record, and why the Timer task 403s. Widening whole domains would hand the phone payroll rates, every account's pipeline and every asset. The middle path:
+
+- **A `field` access tier declared in one table** (`fieldProjections` in `server.mjs`): per collection, the fields a field session may read and the row predicate it must satisfy. Examples:
+  - `employees`: own row in full; crew-mates on my jobs → `id, name, title, mobile, readinessStatus` only (no pay, no others' hours)
+  - `inventoryItems`: `id, name, unit, category, onHand, isPpe` for every active item (the Material picker needs the catalog)
+  - `equipmentAssets`: assets on my `jobResources` → `id, name, assetTag, status, maintenanceDue`
+  - `opportunities`: walks I'm a participant on → `id, name, accountId, facilityId, customerNeed, currentSituation, equipmentNeeds, vendorNeeds, resourceNeeds, siteWalkStatus`
+  - `accounts` / `facilities` / `contacts`: those on my jobs and walks, directory fields only
+  - `frontlineDevices`: my own devices
+  - `dispatch-link` sessions: every predicate is further narrowed to `session.dispatchJobId`
+- **Applied in one place:** `filterBackendForRole` calls `applyFieldProjection(session, collection, rows)` when the session is a field surface (`dispatch-link`, or a user whose `activeRole` is Field Lead / Crew, or `?surface=phone` with a field role). Office roles are untouched.
+- **Limited writes as commands, not row saves:** the phone never PUTs an `employees` or `opportunities` row. It posts to small routes that do one thing with the right authority: `POST /api/field/timer` (writes `employees.hoursWorked`), `POST /api/field/clock` (lead clocks crew → `timeEntries`), `POST /api/field/site-walk/:eventId/complete` (needs lists, `siteWalkStatus`, activity and `scheduleEvents` status in one write), `POST /api/field/quick-lead`. These are the "commands" the designed contract wanted, and the idempotent replay targets for the outbox.
+- **`GET /api/field/package`** returns everything My Day and a job/walk page need in one projected response: the offline cache payload and the answer to "what may this person see".
+- **Device check** moves server-side into session creation for employees with registered devices.
+- **Audit:** every field command lands in `audit.log` like any other write (Phase 12a).
+
+---
+
+## Media capture
+
+All media goes through the Phase 13 `documents` store (versions via `groupId`, de-dup, visibility, captions), not a fourth file store; `jobTaskAttachments` keeps serving task photos/signatures until Phase 14 folds it in. New document types: `job-photo`, `site-video`, `site-scan`, `site-sketch` (`site-photo` exists).
+
+### Site-walk photo collection
+- Each checklist section on the walk has a photo tray; a **required-shot list** per walk type (entrance/access, staging area, area of concern wide, area of concern close, drains/waterways, hazards, before) shows as empty slots the salesperson fills, plus free extras.
+- Every photo: caption, section tag, GPS + compass heading + timestamp, "show customer" toggle (`visibility`). Batch capture (camera stays open, caption later).
+- Gallery on the opportunity (Develop & Planning) and on the project (site-photos panel, `app.js:28959`); ordering and section filter; before/after pairing on jobs (a job photo can reference a site photo as its "before").
+- Offline: blobs in `fieldOutbox`, thumbnails from the blob until uploaded.
+
+### Photo annotation
+- Lift the IT-messages annotator (`itAnnotator`, `app.js:20833-21100`) into a shared `openImageMarkup(documentOrBlob)`; add text label, circle, colour by severity (red/orange/yellow), a scale label ("≈ 3 ft"), undo, touch-friendly handles.
+- Save = a **new version** in the document group (original untouched) plus the stroke JSON on the version record (`markup`) so it can be re-edited; report and gallery show the latest version with a "view original" link. Works offline.
+- **Site sketch:** the same tool over a satellite snapshot (Leaflet/Esri tiles, already used on facility maps) or a blank grid, to mark spill extent, drains, sample points, staging — the scaled map TCEQ's follow-up asks for and Lone Star lacks. Saved as `site-sketch`.
+
+### Video capture
+- `<input type="file" accept="video/*" capture="environment">` on the job quick bar and every walk section. Use cases: walk-through narration, ER scene on arrival, equipment condition, drum staging.
+- **The size problem is the real work.** A phone clip is 60–150 MB/min; the documents route reads the whole body into memory with a 25 MB cap (`server.mjs:35`, `:2431`) and file serving has no `Range` support, so playback would fail. Needed: a chunked upload route (`POST /api/documents/upload-session` → `PUT …/chunks/:n` → `POST …/complete`, resumable by session id), `Range` support on `/api/documents/:id/view`, a per-type cap (proposed 500 MB, configurable), a poster frame generated client-side (`<video>` → canvas) stored as the thumbnail, and the outbox uploading chunks in the background with progress.
+- Client-side downsizing: ask for 720p via `MediaRecorder` where the browser records in-app; when the native camera app records (iOS), accept what it gives and rely on chunking. Videos print in the report as a poster frame + link, never inline.
+
+### LiDAR scanning
+- **What it is for:** measuring the affected area and excavation volume, staging areas and drum/container volumes; a 3D record of the scene before and after. TCEQ wants lateral/vertical extents; estimators want area and depth.
+- **Constraint:** a web app cannot drive the iPhone/iPad LiDAR sensor. Safari has no WebXR AR/depth API; Apple exposes LiDAR only through ARKit / RoomPlan / Object Capture in native apps, and RoomPlan exports USDZ (GLB via third-party apps).
+- **Three tiers:**
+  1. **Now (web):** "Add scan" on a walk or job accepts a scan shared from a scanning app (Polycam, Scaniverse, 3D Scanner App, RoomScan — GLB/USDZ/PLY/OBJ/E57 plus their PDF/CSV measurement exports) as a `site-scan` document and writes a `spatialData` row (the collection and the three.js GLB viewer already exist: `renderProjectSpatialRecord`, `initializeProjectModelViewer`). GLB renders in-app; USDZ opens in AR Quick Look on iOS via a plain link; other formats download. A **measurements form** (area, length, depth, volume, method: scan / tape / GPS walk) stores structured numbers on the walk report or job so the estimate and the report can use them without opening the model.
+  2. **Web-native measuring without LiDAR:** a GPS-walked perimeter (walk the edge, record points, compute area) and a photo with a scale reference.
+  3. **Later (native shell):** if in-app scanning is wanted, wrap the PWA in a thin native shell (Capacitor) with a RoomPlan / ARKit plugin that produces the same `site-scan` document. A delivery-target decision on its own; not built toward now.
+
+---
+
+## Manuals & Training — the ERG and its distances, SDS, manuals, tutorials and helpful resources
+
+A responder at a roadside spill needs the reference material on the phone, offline, without leaving the job; a new hire needs the manuals and tutorials before the first job. One library serves both.
+
+### The Emergency Response Guidebook (DOT/PHMSA ERG 2024)
+- **Source documents (owner-supplied 2026-09-25):**
+  - The complete ERG 2024: `https://www.phmsa.dot.gov/sites/phmsa.dot.gov/files/2024-04/ERG2024-Eng-Web-a.pdf`
+  - The methodology behind the green pages, *Development of the Table of Initial Isolation and Protective Action Distances for the ERG 2024*: `https://www.phmsa.dot.gov/sites/phmsa.dot.gov/files/2025-05/ERG2024-v10.pdf`
+  - **PHMSA's CDN refuses automated downloads** (Akamai "Access Denied" for curl, Node and headless Chromium alike, tried 2026-09-25). The files must be saved from a normal browser into `docs/uploaded files/erg/` (`ERG2024-Eng-Web-a.pdf`, `ERG2024-v10.pdf`); the import script reads them from there. Both are US government works in the public domain.
+- **What it holds:** yellow pages (UN/ID number → guide), blue pages (name → guide), the orange guides (potential hazards, public safety, PPE, evacuation, fire / spill / first-aid actions) and the green pages: **Table 1 initial isolation and protective-action distances** for toxic-inhalation materials (small vs large spill, day vs night), **Table 3** for the six common TIH gases by container size, plus the flammable-gas and explosives isolation tables. The v10 methodology report is what a reader should be pointed to when asking *why* a distance is what it is (spill-size definitions, the day/night meteorology, the exposure basis); the app shows the distance and links the reasoning, it does not re-derive it.
+- **In the app:**
+  - `ergMaterials` (UN number, name, guide number, TIH / water-reactive flags), `ergGuides` (orange-page text by section), `ergDistances` (Table 1/3 rows), imported by a re-runnable `scripts/import-erg.mjs` **from the PDF** (`pypdf` 6.x is available in the bundled Python; the ERG is typeset with real text, unlike the Lone Star PDFs). PHMSA's production `.xlsx` (on request from ERGComments@dot.gov) is a nicer source if it arrives, but is no longer a blocker. The import records the edition and page ranges it read, and a spot-check table (ten known UN numbers with their expected guide and distances) fails the script if the parse drifts. Same pattern as `scripts/import-rate-sheet.mjs`.
+  - **Lookup screen:** search by UN number, name or placard; opens the guide with the isolation/protective distances for the current spill size and time of day; **Draw on map** plots the initial isolation circle and the downwind protective-action zone from the spill GPS and the response weather snapshot's wind direction (`weatherSnapshots` already carries it). Shows the guide's call-first note and the 24-hour emergency numbers.
+  - **Wired into the flow:** the spill intake's material field and the job Brief show the matching guide number and distances as soon as a material is typed; the Safety briefing prefills PPE guidance from the guide; what was applied is stored on the job (`ergGuideNumber`, `ergSpillSize`, `ergDayNight`, `ergIsolationMeters`, `ergProtectiveMeters`) so the post-work report and the TCEQ chronology print it.
+  - **Offline:** the three ERG collections ride in the field package cache; they change once every four years.
+  - **Until the import lands:** an "Open in ERG app" deep link to the free official PHMSA app / PDF, so the tile is useful on day one.
+
+### Safety Data Sheets
+- `sds` becomes a document type; an SDS is a document on an `inventoryItem` (products we carry), a `project` or `dispatchJob` (the customer's material) or an `account` (a customer's product list). The job Brief lists every SDS relevant to the job; the walk's Hazards & PPE section can attach one; safety-briefing hazard rows can reference one. Cached with the job package.
+
+### Manuals & Training library (owner ask, 2026-09-25: "a manual or training section that we can throw in manuals, SDS, tutorials, or helpful resources")
+- **One library, four shelves.** A new `libraryItems` collection (title, shelf, category, description, audience roles, `requiredFor` roles, `renewEveryMonths`, `sortOrder`, `pinnedOffline`, tags) where each item is either an uploaded document (`documents{entityType:"libraryItem"}`, versioned) or a link (a YouTube tutorial, the NIOSH Pocket Guide, TCEQ spill rules, a vendor how-to). Shelves:
+  - **Manuals & procedures:** HASP template, PPE selection matrix, decon procedure, confined-space and excavation procedures, equipment manuals, the customer packet, permit copies.
+  - **Safety references:** the ERG (the PDF itself plus the in-app lookup), the v10 methodology, SDS index (every `sds` document across inventory items, jobs and accounts, searchable in one place), emergency contact card.
+  - **Tutorials & training:** short videos or PDFs on how to run a job in the app, how to take sample photos, how to fill the safety briefing, how to log waste, HAZWOPER refresher material; each can be marked required for a role with a renewal interval, and completion writes a `libraryAcknowledgements` row (append-only: who, what version, when) that the Workforce page shows next to certifications so training records live in one place.
+  - **Helpful resources:** anything else worth a tap: disposal facility hours, lab drop-off instructions, regional office numbers, weather and traffic links.
+- **Office side:** a new **Manuals & Training** view under Office (next to Compliance): add/edit items, upload versions, order the shelves, set required-for roles and renewal, see who has acknowledged what and who is overdue (red dot, per the alerts rule). Existing `documents` upload and version machinery is reused; the only new records are `libraryItems` and `libraryAcknowledgements`.
+- **Field app:** a **Manuals & Training** entry on the More row and on every job's Safety tab; searchable; "required for me" and "overdue" shown first; pinned items download for offline; SDS for the current job's materials surface on the job's Brief and Safety tabs; a "Call" strip with the office, the on-call standby (`currentStandbyEmployee`) and CHEMTREC / TCEQ / NRC numbers from settings.
+- **Client Portal:** items flagged customer-visible (e.g. "what to expect on site") can be shown there through the existing portal scoping; off by default.
+
+---
+
+## Code layout — break the field app out of `app.js`
+
+`app.js` is one 32 k-line ES module; the field screens are ~2,500 lines of it and will double. With no build step the app can still import a second module: `index.html` loads `app.js` as `type="module"`, so it can `import { … } from "./field/index.js"`. Split: `field/index.js` (routes + shell), `field/package.js` (cache + outbox), `field/job.js`, `field/safety.js`, `field/capture.js`, `field/walk.js`, `field/media.js` (markup, video, scan). Shared helpers stay in `app.js` and are passed in or imported back. Three things must follow: add the files to the static allowlist (`server.mjs:65`), to the service-worker shell list, and to the smoke sweep. Do this in 21a before the new screens are written so nothing new lands in the monolith.
+
+---
+
+## The crew app
+
+### My Day (home)
+- Today's cards in time order: dispatch jobs I'm assigned to (status chip, site, window, "Navigate" opens the maps app, "Call site contact"), site walks I'm a participant on, standby if I'm on call today.
+- Clock strip: the current open `timeEntries` entry, one-tap Clock in (Work / Travel) and Clock out.
+- Sync pill, unread-messages badge, Emergency button (calls the office / dispatch number from settings; for a Sales role, opens the phone-layout spill intake).
+- "More" row: Time, Trips, Receipts, Forms, Messages, Manuals & Training, Settings. Invoices is dropped from the crew app (open decision 1).
+
+### Job page — four tabs, replacing the one long scroll
+Header: job number, customer, site, status chip; the next ladder step pinned at the bottom (Acknowledge → En route → On site → Start work → Field complete). Quick bar: Photo · Video · Note · Message dispatch.
+
+1. **Brief** (read-only, from the office): scheduled window; site address with Navigate; on-site contact with Call; project class; for ER jobs the intake facts (material with its ERG guide and distances, quantity, surface, storm drain, off-road, agencies, absorbent, mobilization status); scope needs copied from sales; assigned crew, equipment and materials from `jobResources`; documents (permits, packet, waste authorization status, SDS); site photos and scans from the walk; both weather snapshots; hazards + PPE level once set.
+2. **Safety** (new, replaces the regex): the briefing for the operational day, filled by the lead, acknowledged by each crew member with a tap + signature: PPE level (A/B/C/D) and rationale, muster point, emergency contact, nearest hospital; hazard rows (*Major job step / Potential hazard / Control*, the JSA table Lone Star prints); the five yes/no reminders; optional repeatable air-monitoring readings for ER jobs; crew roll call with times, new arrivals addable. Stored in `jobSafetyBriefings` (one per job per operational day). The report's JSA section reads it directly. Links to the Safety library and the job's SDS.
+3. **Work** — the work plan redesigned: one step expanded at a time, ≥44 px rows, task-type icon, required marker, "done by / at". Capture forms keep today's types and payload shapes (so `renderSubmissionPayload`, the report and invoice keep working) with these changes: per-photo caption + "add to report" toggle + GPS + Markup button; Material quantity steppers with suggested items first; Sample with camera buttons per required photo and "Add another sample" on the form; **Equipment usage** (new task type + quick action: asset from `jobResources`, hours or days, condition → `jobEquipmentUsage`, feeding per-day equipment billables); **Waste / containers** (new task type + quick action: container type, count, contents, quantity, photo, manifest number when shipped → `wasteRecords`); "+ Activity" stays for anything not in the template; Odometer becomes selectable in the template editor.
+4. **Close** — gated as today (`postJobReviewAvailable`): per-day narrative with "Draft from field data", post-job review, **customer acknowledgement signature** (name, title, signature on the day's summary), then a **billables preview** (hours by person, equipment usage, materials, waste, expenses) the lead confirms before Field complete. Anything missing shows red, matching the report's "not recorded" lines.
+
+### Crew member view (non-lead)
+Same job page, but Safety shows only "Acknowledge briefing", Work shows Photo / Note / Material quick actions and tasks whose `assigneeScope` is Crew (enforced for the first time), Close is hidden. Clock in/out and Trips are theirs. The lead can clock the whole crew in or out from Brief → Crew (one `timeEntries` row per person via `POST /api/field/clock`).
+
+### Forms (moved from code to data)
+New `formTemplates` collection (name, category, fields[] typed text/number/yes-no/checklist/photo/signature, requiresJob) seeded from today's four hard-coded forms plus Vehicle pre-trip and a Spill/incident report matching the TCEQ chronology items. Submissions keep `jobFormSubmissions{standalone:true}`. Office edits templates on the Job Templates screen.
+
+### Time, Trips, Receipts, Messages, Location, Settings
+- Time and Trips: keep, restyle, prefill the job from My Day context; time entries show on the job's Close billables.
+- Receipts: keep (Phase 10 built it well); reachable from the job quick bar too.
+- Messages: keep the inbox/thread build; add photo attachment (`documents` on the dispatch job).
+- Location tile goes away: "Record location" lives on the job page and My Day; the map stays on Brief.
+- Settings: profile, device, sync diagnostics (outbox), notification prefs, consent status, sign out.
+
+---
+
+## Sales field mode
+
+Same app, same sign-in. A person with a Sales role sees on My Day: today's site walks, upcoming walks, and "New" (spill call, lead). Someone with both roles sees both sets.
+
+### Site walk page
+Opened from the walk card (today's static card becomes a link). Tabs:
+1. **Brief:** opportunity, account, facility address + Navigate, contact + Call, customer need / current situation, needs lists so far, documents, prior site photos, prior projects at the facility.
+2. **Walk:** check-in (GPS + time → a `locations` row linked via `opportunityLocations`), then a guided checklist with a photo tray on every section plus Video, Sketch, Add scan and Measurements: Access & staging; Hazards & PPE (SDS attachable); Area of concern (surface, estimated area and depth, drains/waterways/wells nearby); Waste streams expected; Needs (writes straight into `equipmentNeeds` / `vendorNeeds` / `resourceNeeds` in the existing `Name | Note` format, plus sampling needed); Contacts met (add contact inline); Notes.
+3. **Finish:** summary, then Complete → `POST /api/field/site-walk/:eventId/complete` sets `siteWalkStatus: "Complete"` (and "Scheduled" is added to the dropdown so the existing write stops being off-list), marks the `scheduleEvents` row Completed, logs a Site Visit activity with the summary, and the photos are `documents{entityType:"opportunity", type:"site-photo"}` so they flow to the project and the Proposed Solution generator.
+- Stored in `siteWalkReports` (one per walk event), read by a new "Site walk report" panel on Develop & Planning and by `composeOpportunityScope`.
+- **Map tab (investigated 2026-09-25):** an annotated site map on the walk — numbered observation pins with photos and notes, line/arrow/area drawing, an uploaded floor plan for indoor walks, a read-only share link and a PDF export, plus parcel and customer-drawing reference layers. Recommendation, imagery options, limitations and effort are in `phase-21-site-walk-mapping.md`.
+
+### Also for sales in the field
+- **Spill-call intake, phone layout:** the Phase 16 dialog re-rendered as a stepped mobile form (caller → location with "use my GPS" → spill facts with the ERG lookup → agencies → insurance/mobilization). Same `submitEmergencyIntake`, same guards.
+- **Quick lead:** account (lookup or new), contact, opportunity name, customer need, GPS or address → the three records through the existing save paths.
+
+---
+
+## Data model additions
+
+| Collection / field | Purpose | Notes |
+|---|---|---|
+| `jobSafetyBriefings` | Safety brief + JSA + roll call per job per day | New. The report's JSA section reads it. |
+| `jobEquipmentUsage` | Equipment hours/days from the field | Designed `job_equipment_usage`; report/invoice read it alongside `equipmentLogs`. |
+| `formTemplates` | Data-driven standalone forms | Replaces `FRONTLINE_STANDALONE_FORMS`. |
+| `siteWalkReports` (+ `measurements[]`) | Guided site-walk capture | Linked to `scheduleEvents` + opportunity. |
+| `dispatchJobs.hazards`, `.ppeLevel`, `.measurements[]` | Office-set hazards/PPE; field measurements | Shown on Brief; prefill Safety. |
+| `dispatchJobs.customerAcknowledgement` | Customer name/title/signature at close | Signature in `jobTaskAttachments{kind:"signature"}`. |
+| `dispatchJobs.ergGuideNumber`, `.ergSpillSize`, `.ergDayNight`, `.ergIsolationMeters`, `.ergProtectiveMeters` | What the ERG said for this job | Printed on the report. |
+| `ergMaterials`, `ergGuides`, `ergDistances` | The ERG 2024 in data form | `scripts/import-erg.mjs`; cached offline. |
+| `timeEntries.enteredByEmployeeId` | Crew clocked by the lead | Existing collection. |
+| `wasteRecords` | Field container log | Existing; field writes with `dispatchJobId`, `containerPhotoAttachmentId`. |
+| `spatialData.documentId`, `.format`, `.measurements[]` | Scans written from the field | Existing collection. |
+| `documents.markup`, `.section`, `.heading`, `.requiredShotKey` | Annotation strokes; walk-photo organisation | A markup save is a new version in the group. |
+| Document types `job-photo`, `site-video`, `site-scan`, `site-sketch`, `sds`; entity `libraryItem` | Media and reference kinds | `site-photo` exists. |
+| `libraryItems` | Manuals & Training catalog: shelf, category, audience, required-for roles, renewal, pinned-offline; a document or a link | Managed from Office → Manuals & Training. |
+| `libraryAcknowledgements` | Required reading / training completion per employee and item version | Append-only; shown beside certifications on Workforce. |
+| `documents` upload sessions + chunks | Resumable video upload | Session files under `data/uploads/tmp`. |
+| `fieldProjections` (server table) | Field allowlist + row predicate per collection for field sessions | The limited read model. |
+| `commandReceipts` (server data file) | Idempotency for replayed commands | Keyed by `X-Client-Command-Id`. |
+| IndexedDB `fieldPackages`, `fieldOutbox` | Cache + queue | Device-scoped. |
+| `opportunities.siteWalkStatus` | Add `Scheduled` as a real option | Fixes the off-list write. |
+
+Every new collection needs the three-place server wiring (`defaultBackend`, `collectionAccess`, `filterBackendForRole`) plus `normalizeRecord` where a field allowlist exists, and rows in `docs/database-handoff-map.md` and `GLOSSARY.md`.
+
+---
+
+## Build order (five passes)
+
+**21a — Foundation.** `field/` module split first; phone route + full-screen mode + breakpoints; My Day; job page shell with the four tabs and the pinned action; package cache + outbox + sync pill; the field access model (`fieldProjections`, `GET /api/field/package`, the first field commands: timer and clock); server-side device check; link-session scoping. Existing capture forms move into the Work tab unchanged. *Done when:* a real phone on the office Wi-Fi can sign in, see only its jobs, go to airplane mode, take two photos and a note, come back online and see them sync with zero duplicates; smoke green.
+
+**21b — The job, deep, and Manuals & Training.** Safety tab + `jobSafetyBriefings`; equipment usage and waste tasks; crew view + `assigneeScope` enforcement + lead clocks crew; Close tab with customer signature and billables preview; post-work report and invoice read the new records; forms as data. `scripts/import-erg.mjs` from the two PDFs, ERG lookup + distances + map circle, SDS on jobs, the Manuals & Training library (office view, field entry, acknowledgements on Workforce). *Done when:* a full ER job from the intake dialog runs on the phone from Acknowledge to Field complete and the report prints safety, equipment, waste and signatures with no red "not recorded" line; typing "UN1203" on an ER job shows Guide 128 with its distances and the isolation circle draws on the Brief map.
+
+**21c — Sales field mode + photo collection.** Role-based My Day; site walk page + `siteWalkReports`; required-shot photo trays with captions/section/heading; the walk-completion command; phone-layout spill intake; quick lead. *Done when:* a scheduled walk is completed on a phone and its needs, photos and report appear on the opportunity and carry into the project.
+
+**21d — Media depth: annotation, sketch, video, scans.** Shared markup tool lifted from the IT annotator, versioned markup saves, site sketch over a satellite snapshot; chunked/resumable upload + `Range` playback + poster frames for video; "Add scan" → `site-scan` document + `spatialData` row + in-app GLB viewer / AR Quick Look link; measurements form; GPS-walked perimeter. *Done when:* a 2-minute phone video uploads over a dropped-and-resumed connection and plays back in the office; an annotated photo shows the markup in the report with the original one version back; a Polycam GLB shared to the app renders on the project's spatial panel.
+
+**21e — Polish and desktop parity.** The simulator wraps the new screens (retire the old `renderFrontline*` renderers after an audit of every panel they showed, per the "audit before deleting" rule); the Job Templates editor gains Odometer, Equipment usage and Waste task types; Messages attachments; docs and glossary; Playwright sweep at 390 px and in the frame.
+
+Each pass ends with `node scripts/smoke.mjs` and a Playwright run on a scratch server using `page.setViewportSize({width:390,height:844})` and `context.setOffline(true)` for the outbox test.
+
+---
+
+## Files that change
+
+- `field/*.js` (new): shell/routes, package + outbox, job, safety, capture, walk, media.
+- `app.js`: imports `field/index.js`; `render()` surface switch; shared helpers exported; `itAnnotator` lifted into the shared markup tool; `renderFrontline*` retired in 21e.
+- `index.html`: field shell container, manifest shortcut, dialogs for the phone spill intake and the markup tool.
+- `styles.css`: `.field-*` styles with `@media (max-width: 720px)` full-screen rules; `.frontline-device` kept for the simulator.
+- `server.mjs`: `fieldProjections` + `applyFieldProjection`, `/api/field/*` commands and package, `X-Client-Command-Id` receipts, device check at session creation, chunked upload sessions, `Range` on document view, new document types and collections, static allowlist for `field/`.
+- `service-worker.js`: `field/*.js` in the shell list; cache bumped. Data caching is IndexedDB, not the SW.
+- `scripts/smoke.mjs`: the field route in the sweep at phone width. `scripts/import-erg.mjs`: new.
+- Docs: this file, `README.md`, `OUTSTANDING.md`, `GLOSSARY.md`, `database-handoff-map.md`, `erp-operational-architecture.md` (which contract rules are now real).
+
+---
+
+## Open decisions for the owner
+
+1. **Invoices tile:** drop from the crew app (recommended) or keep read-only?
+2. **Crew logins:** every crew member gets a Microsoft sign-in, or crew use a per-dispatch link on a personal phone (Phase 18) and only leads have accounts? Affects roll call and clock-by-lead.
+3. **Air monitoring:** capture readings in the app (ER jobs only) or leave on paper for now?
+4. **Customer signature at close:** required for Field complete, or optional with a red line on the report?
+5. **Site-walk checklist contents and required shots:** the sections and the seven-slot shot list are drafts from research; the owner should edit them before they are seeded.
+6. **Background location:** confirm it stays out (OwnTracks device pings only); the consent text gets a sentence saying so.
+7. **Name:** keep "Front Line" for the app? The route and glossary will use whatever is chosen.
+8. **LiDAR:** is "share a scan from Polycam/Scaniverse into the app" enough for now, or is in-app scanning wanted (a native shell around the PWA, a separate delivery decision)? Which scanning app does the team already use, if any?
+9. **Video limits:** per-clip cap (proposed 500 MB) and whether videos are ever customer-visible.
+10. **Field reads of other people's data:** confirm crew-mates' phone numbers and readiness status may show on the lead's phone, and that the inventory catalog (names, units, on hand) may be visible to every field session.
+11. **ERG source files:** save the two PDFs (links above) from a browser into `docs/uploaded files/erg/` — PHMSA's CDN blocks scripted downloads. The `.xlsx` from ERGComments@dot.gov is optional. Which manuals and tutorials go on the shelves first, and which are required for which roles?
+
+---
+
+## Corrections found during implementation
+
+*(none yet — this phase has not started)*
+
+---
+
+## Sources consulted (2026-09-24)
+
+- Field usability and adoption: [Mobile safety apps: which features actually get used](https://ehscareers.com/employer-blog/mobile-safety-apps-which-features-actually-get-used-by-field-workers/); [Why field technicians resist mobile apps — Prometheus Group](https://www.prometheusgroup.com/learning-center/why-field-technicians-resist-mobile-maintenance-apps-prometheus-group); [Designing a field service app that works in the field](https://deliveredsocial.com/designing-a-field-service-app-that-actually-works-in-the-field/); [Why offline-first apps matter in field service](https://www.nustechnology.com/blog/why-offline-first-mobile-apps-matter-in-field-service-operations)
+- Regulatory: [HAZWOPER emergency response guide — Velsafe](https://www.velsafe.com/guides/hazwoper-emergency-response-us-guide/); [OSHA HAZWOPER preparedness](https://www.osha.gov/emergency-preparedness/hazardous-waste-operations/preparedness); [TCEQ 30-day spill follow-up report contents](https://www.tceq.texas.gov/response/spills/followup.html); [TCEQ rules for spill cleanups](https://www.tceq.texas.gov/remediation/corrective_action/spill.html); [EPA e-Manifest FAQ](https://www.epa.gov/e-manifest/frequent-questions-about-e-manifest)
+- ERG: [PHMSA Emergency Response Guidebook (app, PDF, production files on request)](https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg); [ERG 2024 PDF](https://www.phmsa.dot.gov/sites/phmsa.dot.gov/files/2024-04/ERG2024-Eng-Web-a.pdf); [Development of the Table of Initial Isolation and Protective Action Distances for the ERG 2024 (v10)](https://www.phmsa.dot.gov/sites/phmsa.dot.gov/files/2025-05/ERG2024-v10.pdf)
+- Comparable products: [Fulcrum field reporting](https://www.fulcrumapp.com/apps/field-reporting-app/), [QNOPY](https://qnopy.com/environmental-field-data-collection-software/), [Fieldshare](https://fieldshare.io/services/environmental-field-services/), [FieldSnapp site survey checklist](https://fieldsnapp.com/blog/solar-site-survey-checklist), [Site Survey app](https://sitesurvey.app/), [Jotform hazmat app template](https://www.jotform.com/app-templates/hazmat-app)
+- LiDAR: [RoomPlan export formats (USDZ only)](https://developer.apple.com/forums/thread/708791); [LiDAR exposed via ARKit/RoomPlan, not raw](https://newly.app/sensors/lidar-scanner-mobile-apps); [iPhone LiDAR apps 2026](https://www.scanbrix.com/blog/best-iphone-lidar-scanner-apps-2026)
+- Annotation: [Inspection photo markup features](https://www.inspectly360.com/features/image-annotations/); [magicplan photo markup for estimators](https://magicplan.app/blog/photo-docs-for-restoration-estimators)
+- Video: [Uploading large videos, chunked/resumable](https://cloudinary.com/guides/video-effects/how-to-upload-large-video); [iOS Safari HTML media capture video quality](https://blog.addpipe.com/video-quality-when-recording-videos-from-safari-on-ios-through-html-media-capture/); [Large file uploads on mobile](https://uploadcare.com/blog/handling-large-file-uploads/)
+- In-repo: `phase-10-frontline.md`, `phase-11-field-ops-depth.md`, `phase-16-emergency-response.md`, `phase-18-workforce-and-devices.md`, `docs/erp-operational-architecture.md` (Front Line contract), the Lone Star report structure transcribed in Phase 11.
