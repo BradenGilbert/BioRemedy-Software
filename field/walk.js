@@ -516,6 +516,8 @@ async function persistObservationChange(walk, change) {
     updateMapFoot(walk);
   } catch (error) {
     crm.showToast(error.message || "Could not save the pin.");
+    // A refused save must not linger on the map as if it were kept: redraw from what the server has.
+    crm.render();
   }
 }
 

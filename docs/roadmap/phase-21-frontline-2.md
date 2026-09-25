@@ -306,6 +306,9 @@ Built as **one pass** on the owner's instruction, not the six passes in the buil
 
 ## Corrections found during implementation
 
+**Found live, 2026-09-25 evening (owner report):** Logan, whose account holds only Operations Manager, could open a site walk and drop pins, but every pin vanished when he switched tabs. The two walk collections (`siteWalkReports`, `siteWalkObservations`) are "sales"-domain, so his saves were refused with 403 while the map kept the pin only until its next render; a sales-only user would have hit the mirror problem on check-in (`locations` is "operations"). Fix: a **walk-participant rule** in `server.mjs` (`walkParticipation`, `withWalkParticipantRows`, `walkParticipantMayWrite`, `walkParticipantMayDelete`): anyone on a walk's `participantEmployeeIds` can read and write that walk's own rows (report, observations, check-in point, the event, its opportunity's needs lists and walk status, its facility and contacts) whatever their office domains, judged per row. `scripts/field-api-check.mjs` check 9 covers it. The client now also refreshes its state after a failed save so a refused pin disappears immediately with the toast instead of lingering.
+
+
 **W1 (server field model, commands, uploads, share links, ERG import), 2026-09-25:**
 
 - **`fieldProjections`/`applyFieldProjection` replace the "widen `filterBackendForRole`" idea from the plan.** The build plan sketches the access model at the level of "a projection table applied inside `filterBackendForRole`"; the actual implementation adds `isFieldSession()`/`buildFieldContext()`/`applyFieldProjection()` as new functions and has `filterBackendForRole` delegate to them at the top when `isFieldSession(session)` is true, rather than threading field logic through the existing 120-branch office object. Functionally equivalent to the plan's intent; noted because a reader of `filterBackendForRole` alone would miss where field access is actually decided.

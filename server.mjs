@@ -2420,9 +2420,11 @@ async function readRequestBody(request, maxBytes = Number.POSITIVE_INFINITY) {
 }
 
 async function readJsonBody(request) {
+  // Parsed once; a pre-check (the walk-participant rule) may need the body before the handler does.
+  if (request.parsedJsonBody !== undefined) return request.parsedJsonBody;
   const body = await readRequestBody(request);
-  if (!body.length) return {};
-  return JSON.parse(body.toString("utf8"));
+  request.parsedJsonBody = body.length ? JSON.parse(body.toString("utf8")) : {};
+  return request.parsedJsonBody;
 }
 
 async function loadBackend() {
@@ -2659,10 +2661,78 @@ function isFieldSession(session) {
   return roles.length > 0 && roles.every((item) => item === "Field Lead" || item === "Crew");
 }
 
+// Phase 21 (2026-09-25): the people on a site walk's participant list record that walk whatever
+// their office role's domains say -- an Operations Manager walks sites too. What "on the walk" opens
+// up, read and write, is exactly the walk's own rows: the report and its observations, the check-in
+// GPS point, the walk event, and the walk's opportunity (its needs lists and walk status), facility
+// and contacts. Sales-domain roles already see all of it; this only matters for everyone else.
+function walkParticipation(data, employeeId) {
+  const walks = (data.scheduleEvents || []).filter((event) => !event.deletedAt && event.kind === "site_walk" && (event.participantEmployeeIds || []).includes(employeeId));
+  const walkIds = new Set(walks.map((event) => event.id));
+  const opportunityIds = new Set(walks.map((event) => event.opportunityId).filter(Boolean));
+  const facilityIds = new Set(walks.map((event) => event.facilityId).filter(Boolean));
+  for (const opportunity of (data.opportunities || []).filter((item) => opportunityIds.has(item.id))) if (opportunity.facilityId) facilityIds.add(opportunity.facilityId);
+  for (const link of (data.opportunityLocations || []).filter((item) => !item.deletedAt && opportunityIds.has(item.opportunityId))) if (link.facilityId) facilityIds.add(link.facilityId);
+  return { walkIds, opportunityIds, facilityIds };
+}
+
+function withWalkParticipantRows(view, data, session) {
+  const employeeId = session?.employeeId;
+  if (!employeeId) return view;
+  const walk = walkParticipation(data, employeeId);
+  if (!walk.walkIds.size) return view;
+  const add = (collection, predicate, fields = null) => {
+    const have = new Set((view[collection] || []).map((row) => row.id));
+    const extra = (data[collection] || []).filter((row) => !row.deletedAt && !have.has(row.id) && predicate(row));
+    if (!extra.length) return;
+    const rows = fields ? extra.map((row) => Object.fromEntries(fields.map((key) => [key, row[key]]).concat([["version", row.version]]))) : extra;
+    view[collection] = [...(view[collection] || []), ...rows];
+  };
+  add("opportunities", (row) => walk.opportunityIds.has(row.id), fieldProjections.opportunities.fields);
+  add("opportunityLocations", (row) => walk.opportunityIds.has(row.opportunityId));
+  add("opportunityAssignments", (row) => walk.opportunityIds.has(row.opportunityId));
+  add("facilities", (row) => walk.facilityIds.has(row.id));
+  add("facilityContacts", (row) => walk.facilityIds.has(row.facilityId));
+  add("scheduleEvents", (row) => walk.walkIds.has(row.id));
+  add("siteWalkReports", (row) => walk.walkIds.has(row.walkEventId));
+  add("siteWalkObservations", (row) => walk.walkIds.has(row.walkEventId));
+  add("locations", (row) => walk.walkIds.has(row.scheduleEventId));
+  return view;
+}
+
+// Which generic writes the participant rule may open, and how the row is tied to a walk.
+const walkParticipantWriteKeys = {
+  siteWalkReports: (body) => [body.walkEventId],
+  siteWalkObservations: (body) => [body.walkEventId],
+  locations: (body) => [body.scheduleEventId],
+  scheduleEvents: (body) => [body.id],
+};
+const walkParticipantOpportunityWrites = { opportunityLocations: (body) => body.opportunityId, opportunities: (body) => body.id };
+
+async function walkParticipantMayWrite(request, collection, data) {
+  const employeeId = request.session?.employeeId;
+  if (!employeeId) return false;
+  const body = await readJsonBody(request);
+  const walk = walkParticipation(data, employeeId);
+  if (walkParticipantWriteKeys[collection]) return walkParticipantWriteKeys[collection](body).some((id) => id && walk.walkIds.has(id));
+  if (walkParticipantOpportunityWrites[collection]) return walk.opportunityIds.has(walkParticipantOpportunityWrites[collection](body));
+  return false;
+}
+
+function walkParticipantMayDelete(request, collection, row, data) {
+  const employeeId = request.session?.employeeId;
+  if (!employeeId || !row) return false;
+  const walk = walkParticipation(data, employeeId);
+  if (collection === "siteWalkObservations" || collection === "siteWalkReports") return walk.walkIds.has(row.walkEventId);
+  if (collection === "locations") return walk.walkIds.has(row.scheduleEventId);
+  if (collection === "opportunityLocations") return walk.opportunityIds.has(row.opportunityId);
+  return false;
+}
+
 function filterBackendForRole(data, role, session = null) {
   if (isFieldSession(session)) return applyFieldProjection(session, data);
   if (isPortalRole(role)) return portalView(data, session);
-  return {
+  const view = {
     documents: canAccess(role, "customerDirectory") ? data.documents || [] : [],
     documentTypes: data.documentTypes || [],
     documentRequirements: canAccess(role, "customerDirectory") ? data.documentRequirements || [] : [],
@@ -2788,6 +2858,7 @@ function filterBackendForRole(data, role, session = null) {
     ergGuides: canAccess(role, "customerDirectory") ? data.ergGuides : [],
     ergDistances: canAccess(role, "customerDirectory") ? data.ergDistances : [],
   };
+  return withWalkParticipantRows(view, data, session);
 }
 
 function pickFields(row, fields) {
@@ -5324,9 +5395,19 @@ async function handleApi(request, response, pathname) {
   // Phase 21 (2026-09-25): scheduleEvents is an "operations" collection, which used to 403 a
   // sales-only user scheduling a site walk. Sales may read/write site_walk-kind rows only.
   const scheduleEventsSalesOverride = collection === "scheduleEvents" && !canAccess(role, "operations") && canAccess(role, "sales");
-  if (!canAccess(role, domain) && !scheduleEventsSalesOverride) return json(response, 403, { error: `${domain} role required.` });
-
   const data = await loadBackend();
+  // Phase 21: a participant on the walk may write that walk's rows (see walkParticipation above).
+  const walkParticipantOverride =
+    !canAccess(role, domain) && request.method === "POST" && !isFieldSession(request.session) && (walkParticipantWriteKeys[collection] || walkParticipantOpportunityWrites[collection])
+      ? await walkParticipantMayWrite(request, collection, data)
+      : false;
+  if (walkParticipantOverride) request.walkParticipantWrite = true;
+  // ...and read them through the single-collection route the same way the full read shows them.
+  if (!canAccess(role, domain) && !scheduleEventsSalesOverride && request.method === "GET" && request.session?.employeeId && !isFieldSession(request.session)) {
+    const rows = withWalkParticipantRows({}, data, request.session)[collection];
+    if (rows) return json(response, 200, rows);
+  }
+  if (!canAccess(role, domain) && !scheduleEventsSalesOverride && !walkParticipantOverride) return json(response, 403, { error: `${domain} role required.` });
 
   if (request.method === "GET") {
     if (collection === "itMessages") return json(response, 200, visibleItMessages(data, request.session, role));
@@ -5451,6 +5532,12 @@ async function handleApi(request, response, pathname) {
     const stored = index >= 0 ? data[collection][index] : null;
     const conflict = versionConflict(stored, body);
     if (conflict) return json(response, 409, conflict);
+    if (request.walkParticipantWrite && fieldPartialWriteFields[collection]) {
+      if (!stored) return json(response, 403, { error: "This record must exist before a walk participant can update it." });
+      const merged = { ...stored };
+      for (const key of fieldPartialWriteFields[collection]) if (Object.prototype.hasOwnProperty.call(body, key)) merged[key] = body[key];
+      record = merged;
+    }
     if (isFieldSession(request.session)) {
       const projection = fieldProjections[collection];
       const ctx = buildFieldContext(request.session, data);
@@ -5506,11 +5593,13 @@ async function handleSoftDelete(request, response, collection, id, restore) {
   const role = getRoles(request);
   const domain = collectionAccess[collection];
   if (!domain || !Array.isArray(defaultBackend[collection])) return json(response, 404, { error: "Unknown collection." });
-  if (!canAccess(role, domain)) return json(response, 403, { error: `${domain} role required.` });
   const requestUrl = new URL(request.url ?? "/", "http://localhost");
   const dryRun = !restore && requestUrl.searchParams.get("dryRun") === "1";
   const actor = attribution(request);
   const data = await loadBackend();
+  // Phase 21: a walk participant may remove that walk's own rows (a pin, a check-in point).
+  const walkRow = !restore && !canAccess(role, domain) ? (data[collection] || []).find((record) => record.id === id) : null;
+  if (!canAccess(role, domain) && !walkParticipantMayDelete(request, collection, walkRow, data)) return json(response, 403, { error: `${domain} role required.` });
   if (collection === "itMessages" && !role.includes("Admin")) {
     const row = (data.itMessages || []).find((item) => item.id === id);
     if (!row || row.threadKey !== itThreadKeyForSession(request.session)) return json(response, 403, { error: "Not your conversation." });

@@ -238,6 +238,40 @@ await step("suspended-device employee is refused a sign-on link session", async 
   assert(openResponse.status === 409, `open link -> ${openResponse.status} (want 409 device blocked)`);
 });
 
+// ---- 9. a walk participant records the walk whatever their office domains say -------------------
+// (2026-09-25, found live: an Operations Manager on a site walk could see the map but every pin save
+// was refused because siteWalkObservations is a "sales" collection.)
+await step("walk participant without the sales domain can write the walk's pins, not another walk's", async () => {
+  const [scheduleEvents, systemUsers] = await Promise.all([adminGet("scheduleEvents"), adminGet("systemUsers")]);
+  const walks = (scheduleEvents || []).filter((event) => event.kind === "site_walk" && !event.deletedAt);
+  const salesRoles = new Set(["Admin", "Office Manager", "Sales Manager", "Account Manager"]);
+  const candidate = (systemUsers || []).find((user) => {
+    const roles = user.roles?.length ? user.roles : [user.role];
+    return user.employeeId && !user.isDisabled && user.username && roles.every((role) => !salesRoles.has(role)) && walks.some((walk) => (walk.participantEmployeeIds || []).includes(user.employeeId));
+  });
+  if (!candidate) return "skip";
+  const walk = walks.find((item) => (item.participantEmployeeIds || []).includes(candidate.employeeId));
+  const otherWalk = walks.find((item) => !(item.participantEmployeeIds || []).includes(candidate.employeeId));
+  const scratchPassword = `walk-check-${Date.now()}`;
+  const setPassword = await apiPost("/api/auth/password", { userId: candidate.id, password: scratchPassword });
+  assert(setPassword.response.ok, `set scratch password -> ${setPassword.response.status}`);
+  const login = await fetch(`${baseUrl}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: candidate.username, password: scratchPassword }) });
+  assert(login.ok, `login as ${candidate.username} -> ${login.status}`);
+  const headers = { "Content-Type": "application/json", Cookie: cookieOf(login), "X-Client-Command-Id": `walk-check-${Date.now()}` };
+  const pin = { id: `obs-check-${Date.now()}`, walkEventId: walk.id, opportunityId: walk.opportunityId || "", facilityId: walk.facilityId || "", seq: 999, kind: "sample", label: "check", lat: 30.6, lng: -97.6 };
+  const write = await fetch(`${baseUrl}/api/backend/siteWalkObservations`, { method: "POST", headers, body: JSON.stringify(pin) });
+  assert(write.ok, `participant writes a pin on their walk -> ${write.status} (want 200)`);
+  const read = await fetch(`${baseUrl}/api/backend/siteWalkObservations`, { headers });
+  const rows = await j(read);
+  assert(Array.isArray(rows) && rows.some((row) => row.id === pin.id), "participant reads the pin back through the collection route");
+  const del = await fetch(`${baseUrl}/api/backend/siteWalkObservations/${pin.id}`, { method: "DELETE", headers });
+  assert(del.ok, `participant deletes their own pin -> ${del.status} (want 200)`);
+  if (otherWalk) {
+    const foreign = await fetch(`${baseUrl}/api/backend/siteWalkObservations`, { method: "POST", headers: { ...headers, "X-Client-Command-Id": `walk-check-foreign-${Date.now()}` }, body: JSON.stringify({ ...pin, id: `${pin.id}-x`, walkEventId: otherWalk.id }) });
+    assert(foreign.status === 403, `pin on a walk they are not on -> ${foreign.status} (want 403)`);
+  }
+});
+
 console.log("");
 const failed = results.filter((item) => item.status === "FAIL").length;
 const skipped = results.filter((item) => item.status === "SKIP").length;
