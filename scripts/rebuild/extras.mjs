@@ -1,7 +1,7 @@
 // The sections the first build left thin (docs/sample-data-plan.md, 2026-09-25): addresses of every
 // type, facility contacts, divisions, comments, employment history, connections, activity parties,
 // leads, quote products and notes, sales orders, sales tasks, conflicts, expenses, the stock ledger,
-// paperwork documents, request documents, an IT thread, and more GPS points.
+// paperwork documents, request documents, and more GPS points.
 import { join } from "node:path";
 import { out, push, at, dayOffset, money, EMP, NAME, USER, NOW, TODAY, dataDir } from "./core.mjs";
 import { ACCT, CONTACT, FAC, OPP } from "./accounts.mjs";
@@ -266,9 +266,7 @@ for (const [requestId, accountKey, when] of [["req-permian-release", "permian-mi
   push("jobRequestDocuments", { id, jobRequestId: requestId, accountId: ACCT[accountKey], documentRole: "customer_packet", fileName: "New Customer Packet trey.pdf", storageName: `${id}.pdf`, mimeType: "application/pdf", sizeBytes: 0, uploadedAt: when, uploadedBy: NAME.charlotte }, when);
 }
 
-// ---- IT messages: one thread ------------------------------------------------------------------------
-push("itMessages", { id: "it-message-tristan-1", threadKey: USER.tristan, threadName: NAME.tristan, authorUserId: USER.tristan, authorName: NAME.tristan, authorRole: "Field Lead", fromIT: false, body: "The consumables table won't sort by on-hand on my phone — tapping the header does nothing.", screenshotDocumentId: "", pageUrl: "/#view=inventory-consumables", userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Mobile/15E148 Safari/604.1", userReadAt: at("2026-09-24", "12:50"), itReadAt: at("2026-09-24", "13:05") }, at("2026-09-24", "12:50"));
-push("itMessages", { id: "it-message-tristan-2", threadKey: USER.tristan, threadName: NAME.tristan, authorUserId: USER.braden, authorName: NAME.braden, authorRole: "Admin", fromIT: true, body: "Thanks — reproduced on a 390px screen. On the list for the Front Line 2 pass; use the desktop sort for now.", screenshotDocumentId: "", pageUrl: "", userAgent: "", userReadAt: "", itReadAt: at("2026-09-24", "13:20") }, at("2026-09-24", "13:20"));
+// IT messages are real reports and are never generated; main.mjs carries the live ones over.
 
 // ---- more GPS points ---------------------------------------------------------------------------------
 const point = (id, projectKey, label, lat, lng, type, when, extra = {}) => push("locations", { id, projectId: PROJ[projectKey], scheduleEventId: "", label, latitude: lat, longitude: lng, assetTags: [], status: "Active", lastPingAt: when, source: "Front Line check-in", locationType: type, linearReference: "", isTemporary: true, retainUntil: dayOffset(when.slice(0, 10), 730), retentionReason: "Project record retention", reportedByEmployeeId: EMP.logan, consentId: "", ...extra }, when);

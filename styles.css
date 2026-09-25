@@ -7428,6 +7428,77 @@ label > .camera-capture-button {
   right: 8px;
 }
 
+/* Work strip under a message to IT: assignee, status, delete (owner, 2026-09-25). */
+.it-ticket {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  align-self: flex-start;
+  margin: -2px 0 4px 4px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.it-ticket.mine {
+  align-self: flex-end;
+  margin: -2px 4px 4px 0;
+}
+
+.it-status {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+select.it-status {
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.it-status.open {
+  border-color: #e3b7b3;
+  background: #fbeceb;
+  color: #9d2d24;
+}
+
+.it-status.progress {
+  border-color: #ecd49a;
+  background: #fdf5e1;
+  color: #8a5a00;
+}
+
+.it-status.done {
+  border-color: #b7dcc0;
+  background: #e8f5ec;
+  color: #1f6b35;
+}
+
+.it-ticket .danger-text,
+[data-it-thread-title] .danger-text {
+  color: #b42318;
+}
+
+body[data-theme="dark"] .it-status.open {
+  border-color: #6b2c27;
+  background: #3a1b19;
+  color: #f2b8b2;
+}
+
+body[data-theme="dark"] .it-status.progress {
+  border-color: #6b5320;
+  background: #352a12;
+  color: #f3d58c;
+}
+
+body[data-theme="dark"] .it-status.done {
+  border-color: #2f5e3b;
+  background: #16301e;
+  color: #a8dcb5;
+}
+
 .it-thread {
   display: grid;
   gap: 10px;

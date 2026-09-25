@@ -2041,6 +2041,15 @@ async function dispatchClick(event) {
   if (action === "reload-app") location.reload();
   if (action === "dismiss-update-banner") document.querySelector(".update-banner")?.remove();
   if (action === "it-open-thread") { state.itMessagesThreadKey = actionButton.dataset.key; renderItMessagesDialog(); await markItThreadRead(); }
+  if (action === "it-delete-message") {
+    const message = getItMessages().find((item) => item.id === actionButton.dataset.id);
+    if (message) await deleteItMessages([message.id], `Delete this message from ${message.authorName}?\n\n"${String(message.body || "").slice(0, 120)}"`);
+  }
+  if (action === "it-delete-thread") {
+    const messages = getItMessages().filter((item) => item.threadKey === actionButton.dataset.key);
+    const name = messages.find((item) => !item.fromIT)?.threadName || messages[0]?.threadName || "this person";
+    await deleteItMessages(messages.map((item) => item.id), `Delete the whole conversation with ${name}?`);
+  }
   if (action === "it-capture-screen") await itCaptureScreen();
   if (action === "it-tool") itSetTool(actionButton.dataset.tool);
   if (action === "it-undo") { itAnnotator.strokes.pop(); itRedraw(); }
@@ -2396,6 +2405,10 @@ function handleInput(event) {
 }
 
 function handleInputInner(event) {
+  if (event.type === "change" && event.target.matches?.("[data-action-change='it-message-status']")) {
+    setItMessageStatus(event.target.dataset.id, event.target.value);
+    return;
+  }
   if (event.type === "change" && event.target.matches?.("[data-onboard-category]")) {
     renderInventoryOnboardOptions(event.target.closest("dialog"));
     return;
@@ -20823,11 +20836,22 @@ function itViewerIsIT() {
   return userHasRole("Admin") && state.itMessagesThreadKey && state.itMessagesThreadKey !== itOwnThreadKey();
 }
 
+const IT_MESSAGE_STATUSES = ["Open", "In progress", "Done"];
+
+function itMessageIsWork(message) {
+  return !message.fromIT;
+}
+
+function itOpenCount(messages = getItMessages()) {
+  return messages.filter((message) => itMessageIsWork(message) && (message.status || "Open") !== "Done").length;
+}
+
 function itThreads() {
   const byKey = new Map();
   for (const message of getItMessages()) {
-    const entry = byKey.get(message.threadKey) || { key: message.threadKey, name: message.threadName || message.authorName, last: "", unread: 0, count: 0 };
+    const entry = byKey.get(message.threadKey) || { key: message.threadKey, name: message.threadName || message.authorName, last: "", unread: 0, count: 0, open: 0 };
     entry.count += 1;
+    if (itMessageIsWork(message) && (message.status || "Open") !== "Done") entry.open += 1;
     if (!message.fromIT && !message.itReadAt) entry.unread += 1;
     if (message.createdAt > entry.last) entry.last = message.createdAt;
     if (!message.fromIT && message.threadName) entry.name = message.threadName;
@@ -20888,11 +20912,11 @@ function renderItMessagesDialog() {
     list.hidden = false;
     layout.classList.add("has-threads");
     list.innerHTML = [
-      `<p class="eyebrow">Conversations</p>`,
+      `<p class="eyebrow">Conversations · ${itOpenCount()} open for ${escapeHtml(getItMessages().find(itMessageIsWork)?.assignedToName || "IT")}</p>`,
       ...threads.map((thread) => `
         <button class="it-thread-row ${thread.key === state.itMessagesThreadKey ? "active" : ""}" type="button" data-action="it-open-thread" data-key="${escapeAttribute(thread.key)}">
           <strong>${escapeHtml(thread.key === own ? "You" : thread.name || "Unknown")}</strong>
-          <span>${thread.count} message${thread.count === 1 ? "" : "s"} · ${formatDateTime(thread.last)}</span>
+          <span>${thread.open ? `${thread.open} open · ` : ""}${thread.count} message${thread.count === 1 ? "" : "s"} · ${formatDateTime(thread.last)}</span>
           ${thread.unread && thread.key !== own ? `<span class="notification-count static">${thread.unread}</span>` : ""}
         </button>
       `),
@@ -20906,7 +20930,10 @@ function renderItMessagesDialog() {
   const viewerIsIT = itViewerIsIT();
   const messages = getItMessages().filter((message) => message.threadKey === state.itMessagesThreadKey).sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
   const threadName = threads.find((thread) => thread.key === state.itMessagesThreadKey)?.name || "";
-  dialog.querySelector("[data-it-thread-title]").textContent = viewerIsIT ? `Conversation with ${threadName || "a user"} — you are answering as IT.` : isAdmin ? "Your own notes to IT." : "";
+  const titleNode = dialog.querySelector("[data-it-thread-title]");
+  titleNode.innerHTML = `${escapeHtml(viewerIsIT ? `Conversation with ${threadName || "a user"} — you are answering as IT.` : isAdmin ? "Your own notes to IT." : "")}${
+    isAdmin && messages.length ? ` <button class="mini-button danger-text" type="button" data-action="it-delete-thread" data-key="${escapeAttribute(state.itMessagesThreadKey)}">Delete conversation</button>` : ""
+  }`;
   dialog.querySelector("[data-it-thread]").innerHTML =
     messages
       .map((message) => {
@@ -20919,11 +20946,71 @@ function renderItMessagesDialog() {
             ${message.screenshotDocumentId ? `<a class="it-shot-link" href="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" target="_blank" rel="noopener"><img class="it-shot" src="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" alt="Screenshot" loading="lazy" /></a>` : ""}
             <time datetime="${escapeAttribute(message.createdAt)}">${formatDateTime(message.createdAt)}${message.pageUrl && viewerIsIT ? ` · ${escapeHtml(message.pageUrl)}` : ""}</time>
           </article>
+          ${renderItMessageTicket(message, { isAdmin, mine })}
         `;
       })
       .join("") || `<div class="chat-empty">${viewerIsIT ? "No messages in this conversation yet." : "Nothing sent yet. Describe the issue, comment, or error below; a screenshot helps."}</div>`;
   dialog.querySelector("form").elements.threadKey.value = state.itMessagesThreadKey || "";
   scrollChatToBottom();
+}
+
+// The work strip under a report to IT: who it is assigned to and where it stands. IT changes the status
+// and can delete it; the person who sent it sees the same line read-only.
+function renderItMessageTicket(message, { isAdmin, mine }) {
+  if (!itMessageIsWork(message)) {
+    return isAdmin ? `<div class="it-ticket ${mine ? "mine" : ""}"><button class="link-button danger-text" type="button" data-action="it-delete-message" data-id="${escapeAttribute(message.id)}">Delete</button></div>` : "";
+  }
+  const status = message.status || "Open";
+  const tone = status === "Done" ? "done" : status === "In progress" ? "progress" : "open";
+  const assignee = message.assignedToName || "IT";
+  if (!isAdmin) {
+    return `<div class="it-ticket ${mine ? "mine" : ""}"><span class="it-status ${tone}">${escapeHtml(status)}</span><span>Assigned to ${escapeHtml(assignee)}</span></div>`;
+  }
+  return `
+    <div class="it-ticket ${mine ? "mine" : ""}">
+      <span>Assigned to ${escapeHtml(assignee)}</span>
+      <label class="it-status-select">
+        <select data-action-change="it-message-status" data-id="${escapeAttribute(message.id)}" class="it-status ${tone}" aria-label="Status of this message">
+          ${IT_MESSAGE_STATUSES.map((option) => `<option ${option === status ? "selected" : ""}>${option}</option>`).join("")}
+        </select>
+      </label>
+      ${message.statusChangedBy && status !== "Open" ? `<span>${escapeHtml(status)} · ${escapeHtml(message.statusChangedBy)} · ${formatDateTime(message.statusChangedAt)}</span>` : ""}
+      <button class="link-button danger-text" type="button" data-action="it-delete-message" data-id="${escapeAttribute(message.id)}">Delete</button>
+    </div>
+  `;
+}
+
+async function setItMessageStatus(id, status) {
+  const message = getItMessages().find((item) => item.id === id);
+  if (!message || !IT_MESSAGE_STATUSES.includes(status) || message.status === status) return;
+  try {
+    await saveBackendRecord("itMessages", { ...message, status }, { refresh: false });
+    await refreshBackendState();
+    renderItMessagesDialog();
+    renderItMessagesButton();
+    showToast(`Marked ${status.toLowerCase()}.`);
+  } catch (error) {
+    showToast(error.message || "Could not change the status.");
+    renderItMessagesDialog();
+  }
+}
+
+async function deleteItMessages(ids, label) {
+  if (!ids.length) return;
+  const count = ids.length;
+  const message = `${label}\n\n${count === 1 ? "The message and its screenshot are" : `All ${count} messages and their screenshots are`} removed from the inbox. An administrator can restore them from Identity & Sync › Recently deleted.`;
+  if (!window.confirm(message)) return;
+  try {
+    for (const id of ids) await deleteBackendRecord("itMessages", id);
+    await refreshBackendState();
+    const threads = itThreads();
+    if (!threads.some((thread) => thread.key === state.itMessagesThreadKey)) state.itMessagesThreadKey = threads[0]?.key || itOwnThreadKey();
+    renderItMessagesDialog();
+    renderItMessagesButton();
+    showToast(count === 1 ? "Message deleted." : `${count} messages deleted.`);
+  } catch (error) {
+    showToast(error.message || "Could not delete.");
+  }
 }
 
 async function markItThreadRead() {
@@ -28144,6 +28231,7 @@ function openActivityTaskDialog(accountId = "", contactId = "", opportunityId = 
 // on everything the server's cascade table says belongs to it; ?dryRun=1 only reports what would go,
 // which is what the confirm shows. Lists hide deleted rows; find* still resolves them for history.
 const deletableRecordLabels = {
+  itMessages: { noun: "message to IT", name: (record) => `${record.authorName || ""}: ${String(record.body || "").slice(0, 60)}`, after: () => ({}) },
   accounts: { noun: "account", name: (record) => record.name, after: () => ({ view: "accounts", selectedAccountId: "" }) },
   contacts: { noun: "contact", name: (record) => record.name, after: () => ({ view: "contacts", selectedContactId: "" }) },
   opportunities: { noun: "opportunity", name: (record) => record.name, after: () => ({ view: "pipeline", selectedOpportunityId: "" }) },
