@@ -2317,6 +2317,8 @@ const cascadeRules = {
     ["invoices", "projectId"],
   ],
   invoices: [["invoiceLines", "invoiceId"]],
+  // A deleted message to IT takes its screenshot with it (documents.entityId = the message id).
+  itMessages: [["documents", "entityId"]],
   jobRequests: [["jobRequestDocuments", "jobRequestId"]],
   dispatchJobs: [
     ["jobAssignments", "jobId"],
@@ -2486,6 +2488,7 @@ async function loadBackend() {
   let dirty = seedDemoData && (await seedDemoCollections(data));
   if (ensureDocumentTypes(data)) dirty = true;
   if (ensureFieldSeeds(data)) dirty = true;
+  if (ensureItMessageAssignments(data)) dirty = true;
   if (dirty) await saveBackend(data);
   return data;
 }
@@ -4835,13 +4838,43 @@ function itThreadKeyForSession(session) {
   return session?.systemUserId || (session?.kind === "breakglass" ? "breakglass" : session?.id || "");
 }
 
+// Every message to IT is assigned to one person (owner, 2026-09-25: "all messages to IT assigned to
+// Braden Gilbert"), carries a work status, and stays until that person deletes it. CRM_IT_ASSIGNEE_USER_ID
+// overrides the assignee without a code change.
+const IT_ASSIGNEE_USER_ID = process.env.CRM_IT_ASSIGNEE_USER_ID || "user-braden";
+const IT_MESSAGE_STATUSES = ["Open", "In progress", "Done"];
+
+function itAssignee(data) {
+  const user = (data.systemUsers || []).find((item) => item.id === IT_ASSIGNEE_USER_ID && !item.deletedAt);
+  return { id: user?.id || IT_ASSIGNEE_USER_ID, name: user?.fullName || "Braden Gilbert" };
+}
+
+// Older rows (and anything restored from a backup) get the assignee and an Open status on load.
+function ensureItMessageAssignments(data) {
+  const assignee = itAssignee(data);
+  let changed = false;
+  for (const row of data.itMessages || []) {
+    if (row.fromIT) continue;
+    if (!row.assignedToUserId) {
+      row.assignedToUserId = assignee.id;
+      row.assignedToName = assignee.name;
+      changed = true;
+    }
+    if (!IT_MESSAGE_STATUSES.includes(row.status)) {
+      row.status = "Open";
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function visibleItMessages(data, session, roles) {
   const list = Array.isArray(roles) ? roles : [roles];
   if (!session || isPortalRole(list)) return [];
-  const rows = (data.itMessages || []).filter((row) => !row.deletedAt);
-  if (list.includes("Admin")) return rows;
+  // IT also receives deleted rows, so Identity & Sync › Recently deleted can put one back.
+  if (list.includes("Admin")) return data.itMessages || [];
   const key = itThreadKeyForSession(session);
-  return rows.filter((row) => row.threadKey === key);
+  return (data.itMessages || []).filter((row) => !row.deletedAt && row.threadKey === key);
 }
 
 function normalizeItMessageWrite(data, request, body, stored) {
@@ -4851,9 +4884,24 @@ function normalizeItMessageWrite(data, request, body, stored) {
   const isAdmin = roles.includes("Admin");
   const ownKey = itThreadKeyForSession(session);
   if (stored) {
-    // After the fact only the read markers and the screenshot link change; text and author stay.
+    // After the fact only the read markers, the screenshot link and (for IT) the work status and
+    // assignee change; text and author stay.
     if (!isAdmin && stored.threadKey !== ownKey) return { error: "Not your conversation.", status: 403 };
     const record = { ...stored, userReadAt: stored.userReadAt || String(body.userReadAt || ""), itReadAt: stored.itReadAt || String(body.itReadAt || "") };
+    if (isAdmin && !stored.fromIT) {
+      if (body.status && body.status !== stored.status) {
+        if (!IT_MESSAGE_STATUSES.includes(body.status)) return { error: `Status must be one of: ${IT_MESSAGE_STATUSES.join(", ")}.`, status: 400 };
+        record.status = body.status;
+        record.statusChangedAt = new Date().toISOString();
+        record.statusChangedBy = session.name;
+      }
+      if (body.assignedToUserId && body.assignedToUserId !== stored.assignedToUserId) {
+        const user = (data.systemUsers || []).find((item) => item.id === body.assignedToUserId && !item.deletedAt);
+        if (!user) return { error: "That user does not exist.", status: 400 };
+        record.assignedToUserId = user.id;
+        record.assignedToName = user.fullName;
+      }
+    }
     if (!stored.screenshotDocumentId && body.screenshotDocumentId) {
       const document = (data.documents || []).find((item) => item.id === body.screenshotDocumentId && !item.deletedAt && item.entityType === "itMessage" && item.entityId === stored.id);
       if (!document) return { error: "That screenshot is not attached to this message.", status: 400 };
@@ -4874,6 +4922,7 @@ function normalizeItMessageWrite(data, request, body, stored) {
     fromIT = true;
   }
   const now = new Date().toISOString();
+  const assignee = itAssignee(data);
   return {
     record: {
       id: String(body.id || "") || makeId("it-message"),
@@ -4890,6 +4939,8 @@ function normalizeItMessageWrite(data, request, body, stored) {
       createdAt: now,
       userReadAt: fromIT ? "" : now,
       itReadAt: fromIT ? now : "",
+      // A report to IT is work for the assignee; IT's own replies are not.
+      ...(fromIT ? {} : { assignedToUserId: assignee.id, assignedToName: assignee.name, status: "Open", statusChangedAt: now, statusChangedBy: "" }),
     },
   };
 }

@@ -12635,44 +12635,6 @@
       "version": 1
     }
   ],
-  "itMessages": [
-    {
-      "id": "it-message-tristan-1",
-      "threadKey": "user-mufwltzb-370whz",
-      "threadName": "Tristan Tarrant",
-      "authorUserId": "user-mufwltzb-370whz",
-      "authorName": "Tristan Tarrant",
-      "authorRole": "Field Lead",
-      "fromIT": false,
-      "body": "The consumables table won't sort by on-hand on my phone — tapping the header does nothing.",
-      "screenshotDocumentId": "",
-      "pageUrl": "/#view=inventory-consumables",
-      "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Mobile/15E148 Safari/604.1",
-      "userReadAt": "2026-09-24T17:50:00.000Z",
-      "itReadAt": "2026-09-24T18:05:00.000Z",
-      "createdAt": "2026-09-24T17:50:00.000Z",
-      "updatedAt": "2026-09-24T17:50:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "it-message-tristan-2",
-      "threadKey": "user-mufwltzb-370whz",
-      "threadName": "Tristan Tarrant",
-      "authorUserId": "user-braden",
-      "authorName": "Braden Gilbert",
-      "authorRole": "Admin",
-      "fromIT": true,
-      "body": "Thanks — reproduced on a 390px screen. On the list for the Front Line 2 pass; use the desktop sort for now.",
-      "screenshotDocumentId": "",
-      "pageUrl": "",
-      "userAgent": "",
-      "userReadAt": "",
-      "itReadAt": "2026-09-24T18:20:00.000Z",
-      "createdAt": "2026-09-24T18:20:00.000Z",
-      "updatedAt": "2026-09-24T18:20:00.000Z",
-      "version": 1
-    }
-  ],
   "documents": [
     {
       "id": "document-photo-001",

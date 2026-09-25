@@ -53,7 +53,7 @@
 | Equipment, maintenance | `equipmentAssets`, `equipmentMaintenanceRecords`, `equipmentLogs` | 21 assets on rate lines, one on hold, checkout logs from every job | Done |
 | Office › Alerts / Compliance / Schedule | `notifications`, `documentRequirements`, `employeeCertifications`, vendor COI, `scheduleEvents` | Alerts for the blocked spill call, PO release, lab results, expiring cert, expiring COI | Done |
 | Finance › Invoices / QuickBooks | `invoices`, `invoiceLines`, `qboExports`, `salesOrders`, `salesOrderLines` | Paid / Sent / Draft invoices itemized from the rate sheet; sales orders behind the accepted quotes | Invoices done; **sales orders added (extras)** |
-| Identity › Users, IT messages | `systemUsers`, `itMessages` | The real logins; one IT thread | Users done; **IT thread added (extras)** |
+| Identity › Users, IT messages | `systemUsers`, `itMessages` | The real logins; IT messages are **real, never generated** — carried over by the rebuild | Done |
 | Client portal (Georgetown login) | scoped reads of the above | Georgetown has projects, spills, documents, contacts | Done |
 
 ## Empty by design

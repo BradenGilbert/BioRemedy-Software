@@ -13,6 +13,16 @@ import "./extras.mjs";
 const projectRoot = join(dataDir, "..");
 const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15);
 
+// ---- real records that are never regenerated -------------------------------------------------
+// Messages to IT are real reports from real people (owner, 2026-09-25: "hard saved"). They, their
+// screenshot documents and the upload files behind them are carried over from the current data as-is,
+// deleted rows included, so a rebuild can never lose one. They never go into demo-seed.json.
+const PRESERVED_COLLECTIONS = ["itMessages"];
+const preservedDocuments = (backend.documents || []).filter((row) => row.entityType === "itMessage");
+for (const key of PRESERVED_COLLECTIONS) out[key] = structuredClone(backend[key] || []);
+out.documents = [...out.documents.filter((row) => row.entityType !== "itMessage"), ...structuredClone(preservedDocuments)];
+const preservedFiles = preservedDocuments.map((row) => row.storageName).filter(Boolean);
+
 // ---- referential check before anything is written -------------------------------------------
 const parents = { accountId: "accounts", vendorAccountId: "accounts", subcontractorAccountId: "accounts", projectId: "projects", opportunityId: "opportunities", facilityId: "facilities", contactId: "contacts", dispatchJobId: "dispatchJobs", jobId: "dispatchJobs", jobRequestId: "jobRequests", employeeId: "employees", quoteId: "quotes", estimateId: "estimates", invoiceId: "invoices", inventoryItemId: "inventoryItems", actionId: "jobActions", stepId: "jobSteps", assignmentId: "jobAssignments", vendorProfileId: "vendorProfiles", productId: "products" };
 const ids = Object.fromEntries(Object.entries(out).filter(([, rows]) => Array.isArray(rows)).map(([k, rows]) => [k, new Set(rows.map((r) => r.id))]));
@@ -100,6 +110,10 @@ if (existsSync(uploadsDir)) {
 for (const name of readdirSync(staging)) {
   if (name !== "manifest.json" && name !== "convert.py") renameSync(join(staging, name), join(uploadsDir, name));
 }
+for (const name of preservedFiles) {
+  if (existsSync(join(backupDir, "uploads", name))) copyFileSync(join(backupDir, "uploads", name), join(uploadsDir, name));
+  else console.warn(`Preserved upload missing: ${name}`);
+}
 console.log(`Previous data backed up to ${backupDir}`);
 
 // backend.json — keep the key order of the old file, then any new keys.
@@ -111,8 +125,8 @@ writeFileSync(join(dataDir, "backend.json"), `${JSON.stringify(ordered, null, 2)
 // demo-seed.json — the generated sample set (everything except the reference catalog).
 const seed = {};
 for (const [key, rows] of Object.entries(ordered)) {
-  if (!Array.isArray(rows) || !rows.length || referenceCollections.includes(key) || ["products", "productPriceLevels", "jobTypeTemplates"].includes(key)) continue;
-  seed[key] = rows;
+  if (!Array.isArray(rows) || !rows.length || referenceCollections.includes(key) || PRESERVED_COLLECTIONS.includes(key) || ["products", "productPriceLevels", "jobTypeTemplates"].includes(key)) continue;
+  seed[key] = key === "documents" ? rows.filter((row) => row.entityType !== "itMessage") : rows;
 }
 writeFileSync(join(projectRoot, "data", "demo-seed.json"), `${JSON.stringify(seed, null, 2)}\n`, "utf8");
 
