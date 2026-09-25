@@ -5,6 +5,10 @@ import { mountField } from "./field/index.js";
 import { openImageMarkup, markupItScreenshot, captureScreenForMarkup } from "./field/media.js";
 import "./field/library.js";
 
+// Phase 21 W3: the sales field mode registers its routes at import time; index.js must be fully
+// evaluated first (its route table is a const), which this import order guarantees.
+import "./field/walk.js";
+
 const DB_NAME = "environmental-crm-foundation";
 const DB_VERSION = 3;
 const AUTH_SESSION_KEY = "enviroCrm.pkce";
@@ -1184,6 +1188,8 @@ const state = {
   frontlineOpenActionId: "",
   frontlineSignatureStrokes: [],
   frontlineGps: null,
+  fieldWalkEventId: "",
+  fieldWalkTab: "brief",
   frontlineNotificationPrefs: defaultFrontlineNotificationPrefs,
   // "+ Activity" ad hoc capture (Phase 10, Part 2 gap item 4) -- open type picker on the job detail
   // screen, independent of the template's work-plan gating.
@@ -1826,6 +1832,16 @@ async function dispatchClick(event) {
   if (action === "retire-frontline-device") await retireFrontlineDevice(id);
   if (action === "delete-frontline-device") await deleteFrontlineDevice(id);
   if (action === "quick-schedule-site-walk") openSiteWalkDialog(actionButton.dataset.opportunityId);
+  // Phase 21 W3 — site walk report panel, share links, exports, facility reference layers.
+  if (action === "walk-open-share") openWalkShareDialog(actionButton.dataset.reportId);
+  if (action === "walk-share-mint") await mintWalkShare(actionButton.dataset.reportId);
+  if (action === "walk-share-revoke") await revokeWalkShare(actionButton.dataset.reportId, actionButton.dataset.shareId);
+  if (action === "walk-export-pdf") window.fieldWalk?.exportWalkPdf(actionButton.dataset.walkEventId);
+  if (action === "walk-export-zip") await window.fieldWalk?.exportWalkZip(actionButton.dataset.walkEventId);
+  if (action === "walk-open-field") openWalkInField(actionButton.dataset.walkEventId);
+  if (action === "facility-fetch-parcel") await fetchFacilityParcel(actionButton.dataset.facilityId);
+  if (action === "facility-download-tiles") await downloadFacilityTilesAction(actionButton.dataset.facilityId);
+  if (action === "facility-remove-layer") await removeFacilityReferenceLayer(actionButton.dataset.id);
   if (action === "open-opportunity-location") openOpportunityLocationDialog(actionButton.dataset.opportunityId);
   if (action === "remove-opportunity-location") await unlinkOpportunityLocation(id);
   if (action === "open-standby-assignment") openStandbyAssignmentDialog(id);
@@ -2902,6 +2918,7 @@ const ROUTE_ID_FIELDS = [
   "accountDetailTab",
   "contactDetailTab",
   "frontlineSelectedJobId",
+  "fieldWalkEventId",
 ];
 
 function computeRouteHash() {
@@ -4068,6 +4085,8 @@ function renderOpportunityDevelopPlanningTab(opportunity, missingFields = []) {
       ${renderStakeholdersPanel(opportunity, "Stakeholders")}
 
       ${renderOpportunityLocationsPanel(opportunity, "Sites & Locations")}
+
+      ${renderSiteWalkReportPanel(opportunity)}
 
       <article class="panel">
         <div class="panel-header">
@@ -6612,6 +6631,7 @@ function renderFacilityDetail() {
             ${renderFacilityMapPanel(facility)}
             ${renderFacilityWorkHistoryPanel(facility)}
             ${renderFacilityPhotosPanel(facility)}
+            ${renderFacilityReferenceLayersPanel(facility)}
           </div>
           <article class="panel crm-profile-grid-full">
             <div class="panel-header">
@@ -8414,6 +8434,8 @@ function renderProjectPlanTab(job, ctx) {
         </article>
 
         ${renderProjectPricedBaselinePanel(job)}
+
+        ${renderProjectWalkMapPanel(job)}
 
         <article class="panel">
           <div class="panel-header"><h3>LiDAR and spatial render</h3></div>
@@ -22615,7 +22637,9 @@ async function saveSiteWalk(form) {
         { refresh: false },
       );
     }
-    if (!opportunity.siteWalkStatus || /incomplete|not/i.test(opportunity.siteWalkStatus)) {
+    // Only an Incomplete walk becomes Scheduled: "Not needed" is a decision and "Complete" is history
+    // (the old /incomplete|not/ regex overwrote "Not needed"; fixed 2026-09-25, Phase 21 W3).
+    if (!opportunity.siteWalkStatus || /^incomplete$/i.test(opportunity.siteWalkStatus.trim())) {
       await saveBackendRecord("opportunities", buildCoreOpportunityRecord({ ...opportunity, siteWalkStatus: "Scheduled", updatedAt: new Date().toISOString() }), { refresh: false });
     }
     closeDialogs();
@@ -33896,6 +33920,255 @@ init().catch((error) => {
 // already existed; exporting it changes no behaviour. Add to this list rather than duplicating a
 // helper in field/. Bindings are live, so `state` is always the current object.
 // ---------------------------------------------------------------------------------------------
+// ---- Phase 21 W3 (2026-09-25): site walk report, walk map panels, facility reference layers ----
+//
+// The map component lives in field/map.js (window.fieldMap) and the walk logic in field/walk.js
+// (window.fieldWalk); app.js reaches them through those globals so the import graph stays one-way
+// (app.js → field/index.js → …). The panels below are plain renderers called from the existing
+// tab renderers with one-line insertions.
+
+// A facility's coordinates: its own latitude/longitude, else the first GPS point logged by a
+// project at that facility. Used by the walk map, the parcel fetch and the tile download.
+function facilityCoordinates(facility) {
+  if (!facility) return null;
+  if (Number.isFinite(Number(facility.latitude)) && Number.isFinite(Number(facility.longitude)) && facility.latitude !== "" && facility.longitude !== "") {
+    return { lat: Number(facility.latitude), lng: Number(facility.longitude) };
+  }
+  const point = locationsForFacility(facility.id).find((location) => Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude)));
+  return point ? { lat: Number(point.latitude), lng: Number(point.longitude) } : null;
+}
+
+function siteWalkReportsForOpportunity(opportunityId) {
+  return liveRows(state.backend.siteWalkReports).filter((report) => report.opportunityId === opportunityId).sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+}
+
+function siteWalkObservationsForWalk(walkEventId) {
+  return liveRows(state.backend.siteWalkObservations).filter((row) => row.walkEventId === walkEventId).sort((a, b) => Number(a.seq) - Number(b.seq));
+}
+
+function scheduleWalkMapMount() {
+  requestAnimationFrame(() => window.fieldMap?.mountSummaryMaps?.(document));
+}
+
+function walkSectionLabel(key) {
+  return (window.fieldWalk?.WALK_SECTIONS || []).find((section) => section.key === key)?.title || key;
+}
+
+function renderSiteWalkReportPanel(opportunity) {
+  const walks = siteWalkEvents().filter((event) => event.opportunityId === opportunity.id).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const reports = siteWalkReportsForOpportunity(opportunity.id);
+  const report = reports[0] || null;
+  const walk = report ? walks.find((event) => event.id === report.walkEventId) || getScheduleEvents().find((event) => event.id === report.walkEventId) : walks[0] || null;
+  const facility = findFacility(walk?.facilityId || opportunity.facilityId || "");
+  const observations = walk ? siteWalkObservationsForWalk(walk.id) : [];
+  const status = opportunity.siteWalkStatus || "Incomplete";
+  const summary = walk || facilityCoordinates(facility) ? window.fieldMap?.renderWalkMapSummary?.(walk ? { walkEventId: walk.id } : { facilityId: facility?.id }, { height: 340 }) : null;
+  if (summary) scheduleWalkMapMount();
+  const sections = report ? Object.entries(report.sections || {}).filter(([, value]) => value && (value.done || Object.keys(value.fields || {}).length || (value.photoDocumentIds || []).length)) : [];
+  const shares = (report?.shares || []).filter((share) => !share.revokedAt);
+  const participants = walk ? siteWalkParticipants(walk).map((person) => person.displayName).join(", ") : "";
+  return `
+    <article class="panel crm-profile-grid-full site-walk-report-panel">
+      <div class="panel-header">
+        <div><h3>Site walk report</h3><span>${escapeHtml(walk ? `${formatDate(walk.date)}${walk.startTime ? ` ${walk.startTime}` : ""}${participants ? ` · ${participants}` : ""}` : "No walk scheduled yet")}</span></div>
+        <div class="inline-actions">
+          <span class="tag">${escapeHtml(status)}</span>
+          ${walk && !report?.completedAt ? `<button class="mini-button" type="button" data-action="walk-open-field" data-walk-event-id="${escapeAttribute(walk.id)}">Open on this device</button>` : ""}
+          ${report ? `<button class="mini-button" type="button" data-action="walk-open-share" data-report-id="${escapeAttribute(report.id)}">Share link${shares.length ? ` (${shares.length})` : ""}</button>` : ""}
+          ${walk ? `<button class="mini-button" type="button" data-action="walk-export-pdf" data-walk-event-id="${escapeAttribute(walk.id)}">Export PDF</button>` : ""}
+          ${walk && observations.length ? `<button class="mini-button" type="button" data-action="walk-export-zip" data-walk-event-id="${escapeAttribute(walk.id)}">Site package</button>` : ""}
+          ${!walk && status === "Incomplete" ? `<button class="mini-button" type="button" data-action="quick-schedule-site-walk" data-opportunity-id="${escapeAttribute(opportunity.id)}">Schedule</button>` : ""}
+        </div>
+      </div>
+      <div class="panel-body site-walk-report-body">
+        <div class="site-walk-report-facts">
+          <dl class="detail-list">
+            <div><dt>Check-in</dt><dd>${report?.checkIn ? `${escapeHtml(formatDateTime(report.checkIn.at))}${report.checkIn.accuracyM ? ` · GPS ±${Math.round(report.checkIn.accuracyM)} m` : " · no GPS fix"}` : "Not checked in"}</dd></div>
+            <div><dt>Completed</dt><dd>${report?.completedAt ? `${escapeHtml(formatDateTime(report.completedAt))}${report.completedBy ? ` by ${escapeHtml(report.completedBy)}` : ""}` : report ? "In progress" : "—"}</dd></div>
+            <div><dt>Summary</dt><dd>${escapeHtml(report?.summary || "Not written")}</dd></div>
+            <div><dt>Pins &amp; shapes</dt><dd>${observations.length}${observations.some((row) => row.areaSqFt) ? ` · areas ${observations.filter((row) => row.areaSqFt).map((row) => `${Math.round(row.areaSqFt).toLocaleString()} sq ft`).join(", ")}` : ""}</dd></div>
+            <div><dt>Measurements</dt><dd>${(report?.measurements || []).length ? report.measurements.map((item) => `${escapeHtml(item.label || item.kind)} ${escapeHtml(item.value)} ${escapeHtml(item.unit)}${item.note ? ` (${escapeHtml(item.note)})` : ""}`).join("; ") : "None"}</dd></div>
+            <div><dt>Contacts met</dt><dd>${(report?.contactsMet || []).length ? report.contactsMet.map((id) => escapeHtml(findContact(id)?.name || id)).join(", ") : "None recorded"}</dd></div>
+            <div><dt>Reference layers</dt><dd>${(report?.referenceSnapshot?.layers || []).length ? report.referenceSnapshot.layers.map((layer) => escapeHtml(`${layer.label} (${[layer.source, layer.sourceDate].filter(Boolean).join(", ")})`)).join("; ") : "None on the map"}</dd></div>
+          </dl>
+          ${
+            sections.length
+              ? `<div class="site-walk-sections">${sections
+                  .map(
+                    ([key, value]) => `
+                    <details class="site-walk-section">
+                      <summary>${escapeHtml(walkSectionLabel(key))}${value.done ? " ✓" : ""}${(value.photoDocumentIds || []).length ? ` · ${(value.photoDocumentIds || []).length} photo${(value.photoDocumentIds || []).length === 1 ? "" : "s"}` : ""}</summary>
+                      <dl class="detail-list">${Object.entries(value.fields || {})
+                        .filter(([, fieldValue]) => fieldValue !== "" && fieldValue !== null && fieldValue !== undefined && !(Array.isArray(fieldValue) && !fieldValue.length))
+                        .map(([fieldKey, fieldValue]) => `<div><dt>${escapeHtml(fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()))}</dt><dd>${escapeHtml(Array.isArray(fieldValue) ? fieldValue.join(", ") : fieldValue)}</dd></div>`)
+                        .join("")}</dl>
+                      ${(value.photoDocumentIds || []).length ? `<div class="photo-grid document-list">${value.photoDocumentIds.map((id) => findDocument(id)).filter(Boolean).map(renderPhotoTile).join("")}</div>` : ""}
+                    </details>`,
+                  )
+                  .join("")}</div>`
+              : ""
+          }
+        </div>
+        <div class="site-walk-report-map">${summary ? summary.html : `<div class="empty-state compact">${walk ? "This site has no coordinates yet." : "Schedule a walk to start a map."}</div>`}</div>
+      </div>
+    </article>
+  `;
+}
+
+// The same map on the project's Plan tab, read from the originating opportunity's walk.
+function renderProjectWalkMapPanel(job) {
+  const opportunityId = job.opportunityId || state.opportunities.find((opportunity) => opportunity.projectId === job.id)?.id || "";
+  const report = opportunityId ? siteWalkReportsForOpportunity(opportunityId)[0] : null;
+  const facility = findFacility(job.facilityId || report?.facilityId || "");
+  if (!report && !facilityCoordinates(facility)) return "";
+  const summary = window.fieldMap?.renderWalkMapSummary?.(report ? { walkEventId: report.walkEventId } : { facilityId: facility.id }, { height: 320 });
+  if (!summary) return "";
+  scheduleWalkMapMount();
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <div><h3>Site map from the walk</h3><span>${escapeHtml(report ? `${report.completedAt ? "Completed" : "In progress"} · ${siteWalkObservationsForWalk(report.walkEventId).length} pins & shapes` : "No walk recorded; the facility's location")}</span></div>
+        ${report ? `<button class="mini-button" type="button" data-action="walk-export-pdf" data-walk-event-id="${escapeAttribute(report.walkEventId)}">Export PDF</button>` : ""}
+      </div>
+      <div class="panel-body">${summary.html}</div>
+    </article>
+  `;
+}
+
+function renderFacilityReferenceLayersPanel(facility) {
+  const rows = liveRows(state.backend.siteReferenceLayers).filter((row) => row.facilityId === facility.id);
+  const point = facilityCoordinates(facility);
+  return `
+    <article class="panel">
+      <div class="panel-header">
+        <div><h3>Reference layers</h3><span>Parcel lines and customer drawings under this site's maps</span></div>
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-action="facility-fetch-parcel" data-facility-id="${escapeAttribute(facility.id)}" ${point ? "" : 'disabled title="Add coordinates to the facility first"'}>Fetch parcel</button>
+          <button class="mini-button" type="button" data-action="facility-download-tiles" data-facility-id="${escapeAttribute(facility.id)}" ${point ? "" : 'disabled title="Add coordinates to the facility first"'}>Download facility tiles</button>
+        </div>
+      </div>
+      <div class="panel-body record-list">
+        ${
+          rows
+            .map(
+              (row) => `
+              <article class="detail-card">
+                <div class="row-meta">
+                  <div><strong>${escapeHtml(row.label || row.kind)}</strong><span class="tag">${escapeHtml(row.kind || "other")} · ${escapeHtml(row.mode || (row.geojson ? "snapshot" : "live"))}</span></div>
+                  <button class="mini-button" type="button" data-action="facility-remove-layer" data-id="${escapeAttribute(row.id)}">Remove</button>
+                </div>
+                <p class="help-text">${escapeHtml([row.source, row.sourceDate].filter(Boolean).join(" · ") || "No source recorded")}${row.properties?.legalArea ? ` · legal area ${escapeHtml(row.properties.legalArea)} ac` : ""}</p>
+              </article>`,
+            )
+            .join("") || `<div class="empty-state compact">${point ? "No reference layers yet. Fetch parcel pulls the approximate parcel outline from the county appraisal district via TxGIO." : "This facility has no coordinates, so nothing can be fetched or downloaded for it yet."}</div>`
+        }
+        <p class="help-text">Parcel lines are tax-map accuracy (3–15 m), never a survey. No public data shows underground lines; a Texas 811 locate is still required before digging.</p>
+      </div>
+    </article>
+  `;
+}
+
+function openWalkInField(walkEventId) {
+  if (!walkEventId) return;
+  if (!state.frontlineSession && state.session?.employeeId) state.frontlineSession = { employeeId: state.session.employeeId, loginAt: new Date().toISOString() };
+  if (window.fieldWalk?.openWalk) {
+    window.fieldWalk.openWalk(walkEventId, "brief");
+    return;
+  }
+  state.fieldWalkEventId = walkEventId;
+  state.view = "field-walk";
+  render();
+}
+
+function openWalkShareDialog(reportId) {
+  const report = liveRows(state.backend.siteWalkReports).find((row) => row.id === reportId);
+  const dialog = document.querySelector("#walkShareDialog");
+  if (!report || !dialog) return;
+  const shares = report.shares || [];
+  dialog.querySelector("[data-walk-share-list]").innerHTML =
+    shares
+      .map(
+        (share) => `
+        <article class="detail-card">
+          <div class="row-meta">
+            <div><strong>${share.revokedAt ? "Revoked" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`}</strong><span>Created ${escapeHtml(formatDateTime(share.createdAt))}${share.createdBy ? ` by ${escapeHtml(share.createdBy)}` : ""} · ${Number(share.opens || 0)} open${Number(share.opens || 0) === 1 ? "" : "s"}</span></div>
+            ${share.revokedAt ? "" : `<button class="mini-button" type="button" data-action="walk-share-revoke" data-report-id="${escapeAttribute(report.id)}" data-share-id="${escapeAttribute(share.id)}">Revoke</button>`}
+          </div>
+          ${share.url ? `<code class="file-ref">${escapeHtml(share.url)}</code>` : `<p class="help-text">The link itself is only shown once, when it is created.</p>`}
+        </article>`,
+      )
+      .join("") || `<div class="empty-state compact">No share links yet.</div>`;
+  dialog.querySelector('[data-action="walk-share-mint"]').dataset.reportId = report.id;
+  dialog.showModal();
+}
+
+async function mintWalkShare(reportId) {
+  if (!reportId || !window.fieldWalk?.mintShareLink) return;
+  try {
+    const result = await window.fieldWalk.mintShareLink(reportId, { expiresInDays: 14 });
+    const url = result?.url?.startsWith("http") ? result.url : `${location.origin}${result?.url || ""}`;
+    try {
+      await navigator.clipboard?.writeText(url);
+    } catch {
+      // clipboard may be unavailable
+    }
+    await refreshBackendState();
+    render();
+    window.prompt("Share link (copied to the clipboard):", url);
+  } catch (error) {
+    showToast(/does not have/.test(error?.message || "") ? "Share links need the server update: the walk share route is not deployed yet." : error.message || "Could not create a share link.");
+  }
+}
+
+async function revokeWalkShare(reportId, shareId) {
+  if (!reportId || !shareId || !window.fieldWalk?.revokeShareLink) return;
+  try {
+    await window.fieldWalk.revokeShareLink(reportId, shareId);
+    await refreshBackendState();
+    closeDialogs();
+    render();
+    showToast("Share link revoked.");
+  } catch (error) {
+    showToast(/does not have/.test(error?.message || "") ? "Revoking needs the server update: the walk share route is not deployed yet." : error.message || "Could not revoke the link.");
+  }
+}
+
+async function fetchFacilityParcel(facilityId) {
+  try {
+    showToast("Looking up the parcel…");
+    const module = await import("./field/layers.js");
+    const row = await module.fetchParcelForFacility(facilityId);
+    render();
+    showToast(`Parcel saved: ${row.label}`);
+  } catch (error) {
+    showToast(error.message || "Parcel lookup failed.");
+  }
+}
+
+async function downloadFacilityTilesAction(facilityId) {
+  if (!window.fieldMap?.downloadFacilityTiles) return;
+  try {
+    await window.fieldMap.downloadFacilityTiles(facilityId);
+  } catch (error) {
+    showToast(error.message || "Tile download failed.");
+  }
+}
+
+async function removeFacilityReferenceLayer(id) {
+  const row = liveRows(state.backend.siteReferenceLayers).find((item) => item.id === id);
+  if (!row) return;
+  if (!window.confirm(`Remove the reference layer "${row.label || row.kind}"?`)) return;
+  try {
+    await apiRequest(`/api/backend/siteReferenceLayers/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await refreshBackendState();
+    render();
+    showToast("Reference layer removed.");
+  } catch (error) {
+    showToast(error.message || "Could not remove the layer.");
+  }
+}
+
+
 export {
   // core
   state,
@@ -34048,4 +34321,29 @@ export {
   getStandbyAssignments,
   formatPhoneNumber,
   renderFrontlineAdHocCaptureForm,
+
+  // Phase 21 W3 (site walk / map): record builders and lookups the sales field mode reuses
+  buildCoreOpportunityRecord,
+  buildCoreAccountRecord,
+  buildCoreContactRecord,
+  buildCoreActivityRecord,
+  facilityCoordinates,
+  facilitiesForAccount,
+  contactsForAccount,
+  contactsForOpportunity,
+  facilityContactsForFacility,
+  projectsForFacility,
+  findContact,
+  findLocation,
+  assignmentsForOpportunity,
+  splitNeedsListInput,
+  OPPORTUNITY_NEEDS_LIST_CONFIG,
+  composeOpportunityScope,
+  getJobTypeTemplates,
+  parseGpsPin,
+  addDays,
+  refreshState,
+  getInitials,
+  siteWalkReportsForOpportunity,
+  siteWalkObservationsForWalk,
 };

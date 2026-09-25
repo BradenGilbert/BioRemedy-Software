@@ -14,6 +14,13 @@ const APP_SHELL = [
   "./field/safety.js",
   "./field/capture.js",
   "./field/forms.js",
+
+  "./field/walk.js",
+  "./field/map.js",
+  "./field/map-core.js",
+  "./field/layers.js",
+  "./field/walk-share.js",
+  "./field/walk-share.html",
   "./field/styles.css",
   "./manifest.webmanifest",
   "./public/favicon.svg",
