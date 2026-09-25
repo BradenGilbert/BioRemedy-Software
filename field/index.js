@@ -204,6 +204,7 @@ function renderMyDay() {
       ${renderMoreTile("frontline-receipts", "Receipts")}
       ${renderMoreTile("frontline-forms", "Forms")}
       ${renderMoreTile("frontline-jobbook", "All jobs")}
+      ${renderMoreTile("field-library", "Manuals & Training")}
       ${renderMoreTile("field-outbox", "Sync")}
       ${renderMoreTile("frontline-settings", "Settings")}
     </div>
@@ -268,6 +269,7 @@ function renderMore() {
     ${renderMoreTile("frontline-receipts", "Receipts")}
     ${renderMoreTile("frontline-forms", "Forms")}
     ${renderMoreTile("frontline-location", "Location")}
+    ${renderMoreTile("field-library", "Manuals & Training")}
     ${renderMoreTile("field-outbox", "Sync")}
     ${renderMoreTile("frontline-settings", "Settings")}
   </div>`;

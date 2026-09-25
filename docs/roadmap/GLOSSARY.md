@@ -159,6 +159,13 @@ These are three independent axes. Collapsing them into one field will break the 
 
 ---
 
+## Phase 21 (Front Line 2, W4) additions — 2026-09-25
+
+- **`jurisdictions`** — a city/county's GIS layer catalog (parcels, utilities, drainage), *not* a customer site. Do not confuse with `facilities` (a customer's physical place) — a `siteReferenceLayers` row optionally links a jurisdiction's layer snapshot to a `facilityId` when someone clips it to one site.
+- **ERG** — the DOT Emergency Response Guidebook. `ergMaterials`/`ergGuides`/`ergDistances` are reference data (UN number → guide → hazard sections/isolation distances), not something the app authors; `dispatchJobs.ergGuideNumber` etc. is the applied result on a specific job.
+- **`libraryItems`** — the Manuals & Training shelves (manuals/safety/sds/tutorials/resources), a different thing from `documentTypes` (which classifies *uploaded files* generically) even though a `libraryItem` usually points at a `documents` row via `documentId`.
+- **`markup`** (on a `documents` row) — the JSON stroke data from the shared image-markup tool (`field/media.js`), separate from `caption`/`tags`. As of 2026-09-25 the generic document metadata PATCH route does not persist it yet (see `phase-21-frontline-2.md` corrections).
+
 ## Deprecated
 
 | Thing | Why | Replacement |

@@ -1,4 +1,4 @@
-const CACHE_NAME = "environmental-crm-shell-v63";
+const CACHE_NAME = "environmental-crm-shell-v64";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -7,6 +7,8 @@ const APP_SHELL = [
   // Phase 21: every field/*.js module must be listed here or the app will not start offline.
   "./field/index.js",
   "./field/package.js",
+  "./field/media.js",
+  "./field/library.js",
   "./field/styles.css",
   "./manifest.webmanifest",
   "./public/favicon.svg",
