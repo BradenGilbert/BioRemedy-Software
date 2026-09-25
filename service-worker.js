@@ -9,6 +9,11 @@ const APP_SHELL = [
   "./field/package.js",
   "./field/media.js",
   "./field/library.js",
+
+  "./field/job.js",
+  "./field/safety.js",
+  "./field/capture.js",
+  "./field/forms.js",
   "./field/styles.css",
   "./manifest.webmanifest",
   "./public/favicon.svg",

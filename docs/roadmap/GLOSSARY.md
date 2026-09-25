@@ -86,6 +86,10 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 | Next step | derived (`projectNextStep`) | What a project is waiting on when no crew is in the field: "Awaiting lab results (n)" or "No further work scheduled". Not a stored status. |
 | Labor role ("bills as") | `employees.laborProductId` | The Labor rate line a person bills at (e.g. "Technician - HazMat trained…"). **Not** `jobTitle`, which is free text for the org chart. Set under Rate Card → Catalog alignment. |
 | Invoice line day | `invoiceLines.operationalDate` | The operational day a billed line belongs to; drives the invoice's "Day N" headings. Same rule as the report (Q5). |
+| Safety briefing | `jobSafetyBriefings` (Phase 21 W2, 2026-09-25) | One per `jobId` + operational day: PPE level, JSA hazard rows, five yes/no reminders, roll call, per-crew-member acknowledgement + signature. Filled by the field lead on the job's Safety tab. **Not** `postJobReview` (answered at close) and not a `jobActions` submission. |
+| Equipment usage | `jobEquipmentUsage` (Phase 21 W2, 2026-09-25) | Hours/days an asset was used on a job, logged from the field as a quick action (not a `jobActions` task type). Feeds the job's billables preview alongside `jobResources`. |
+| Field outbox | IndexedDB `environmental-crm-field › fieldOutbox` (Phase 21 W2, 2026-09-25) | Device-scoped queue of field-app writes made while offline (or on a network failure), replayed in order once back online. **Not** the legacy `syncQueue` store, and not a JSON backend collection — nothing here is shared between devices. |
+| Field package | IndexedDB `environmental-crm-field › fieldPackages` (Phase 21 W2, 2026-09-25) | The cached snapshot of `GET /api/field/package` (or, until that route exists, a snapshot of `state.backend`) a field device reads from when it opens offline. |
 
 ---
 

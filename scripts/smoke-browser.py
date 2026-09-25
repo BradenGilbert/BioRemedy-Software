@@ -41,6 +41,17 @@ summary = {"views": 0, "tabs": 0, "dialogs": 0, "resaved": 0, "consoleErrors": [
 where = {"at": "start"}
 
 
+def is_expected_field_api_404(text):
+    """Phase 21 W2's field/package.js probes W1's /api/field/* routes first and falls back
+    gracefully on a 404 — but Chrome logs "Failed to load resource: 404" for any fetch() that gets a
+    4xx response, regardless of how the app handles it, and that log is a console "error" event
+    Playwright can't tell apart from a genuine bug. Until W1's server.mjs routes are merged into
+    whichever worktree runs this script, every field-app screen trips that log at least once on load
+    (refreshFieldPackage), so this narrowly excludes 404s under /api/field/ rather than every console
+    error. Remove this once W1's routes are merged for good."""
+    return "404" in text and "/api/field/" in text
+
+
 def note_bad_text(page, label):
     text = page.evaluate("() => document.body.innerText")
     hits = sorted({m.group(0) for m in BAD_TEXT.finditer(text)})
@@ -60,7 +71,7 @@ def first_id(page, collection):
 with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_context(viewport={"width": 1440, "height": 1000}).new_page()
-    page.on("console", lambda m: summary["consoleErrors"].append(f"[{where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text else None)
+    page.on("console", lambda m: summary["consoleErrors"].append(f"[{where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text and not is_expected_field_api_404(m.text) else None)
     page.on("pageerror", lambda e: summary["consoleErrors"].append(f"[{where['at']}] pageerror: {str(e)[:160]}"))
     page.on("dialog", lambda d: d.accept())
     # Phase 12a: sign in with the scratch server's break-glass account before the first page load, so
@@ -201,7 +212,7 @@ with sync_playwright() as p:
     # repeated because a new context has no in-memory session.
     phone = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
     phone_page = phone.new_page()
-    phone_page.on("console", lambda m: summary["consoleErrors"].append(f"[phone {where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text else None)
+    phone_page.on("console", lambda m: summary["consoleErrors"].append(f"[phone {where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text and not is_expected_field_api_404(m.text) else None)
     phone_page.on("pageerror", lambda e: summary["consoleErrors"].append(f"[phone {where['at']}] pageerror: {str(e)[:160]}"))
     phone_page.on("dialog", lambda d: d.accept())
     phone_login = phone.request.post(BASE + "api/auth/break-glass", data={"password": SMOKE_PASSWORD})
@@ -225,6 +236,70 @@ with sync_playwright() as p:
             if overflow > 2:
                 summary["badText"].append(f"phone {view}: horizontal overflow {overflow}px")
         print(f"  field (phone): {len(field_views)} screens")
+
+        # Phase 21 W2: offline capture. Open the job the logged-in field lead actually leads, go
+        # offline, add a note through the "+ Activity" ad hoc form (queues through field/package.js's
+        # outbox instead of failing outright), come back online, wait for the drain, and check the
+        # outbox emptied with exactly one new jobFormSubmissions row (no duplicate replay).
+        where["at"] = "field-job offline capture"
+        employee_id = phone_page.eval_on_selector("#frontlineFieldLeadSelect", "el => el.value") if phone_page.locator("#frontlineFieldLeadSelect").count() else None
+        jobs = api(phone_page, "dispatchJobs")
+        assignments = api(phone_page, "jobAssignments")
+        led_job = None
+        if employee_id:
+            led_ids = {a["jobId"] for a in assignments if a.get("employeeId") == employee_id and a.get("isFieldLead") and not a.get("deletedAt")}
+            non_terminal = {"closed", "cancelled"}
+            candidates = [j for j in jobs if j["id"] in led_ids and not j.get("deletedAt") and j.get("status") not in non_terminal] or [
+                j for j in jobs if j["id"] in led_ids and not j.get("deletedAt")
+            ]
+            led_job = candidates[0] if candidates else None
+
+        if led_job:
+            submissions_before = len([s for s in api(phone_page, "jobFormSubmissions") if not s.get("deletedAt")])
+            # A `page.goto` mid-session is a real navigation (new document load), which drops the
+            # in-memory frontlineSession — there is no persisted field-app session to resume from, so
+            # a full reload bounces back to the login picker. Everything after login must be driven
+            # through in-app clicks/taps instead, starting from field-home's own "open job" action.
+            phone_page.goto(BASE + "?surface=phone#view=field-home")
+            phone_page.wait_for_timeout(500)
+            dismiss_banner = phone_page.locator('[data-action="dismiss-update-banner"]')
+            if dismiss_banner.count():
+                dismiss_banner.first.click(force=True)
+                phone_page.wait_for_timeout(200)
+            job_card = phone_page.locator(f'button[data-field-action="field-open-job"][data-id="{led_job["id"]}"]')
+            if job_card.count():
+                job_card.first.click()
+                phone_page.wait_for_timeout(600)
+                phone_page.click('button[data-field-action="field-job-tab"][data-tab="work"]')
+                phone_page.wait_for_timeout(400)
+
+                phone_page.context.set_offline(True)
+                phone_page.click('button[data-action="frontline-adhoc-pick-type"][data-type="Note"]')
+                phone_page.wait_for_timeout(300)
+                phone_page.fill('form[data-field-form="field-adhoc-activity"] textarea[name="summary"]', "Smoke test offline note")
+                phone_page.click('form[data-field-form="field-adhoc-activity"] button[type="submit"]')
+                phone_page.wait_for_timeout(500)
+                phone_page.context.set_offline(False)
+                phone_page.wait_for_timeout(500)
+                phone_page.evaluate("async () => { if (window.fieldPackage) await window.fieldPackage.drainOutbox(); }")
+                phone_page.wait_for_timeout(1500)
+
+                outbox_summary = phone_page.evaluate("() => window.fieldPackage ? window.fieldPackage.outboxSummary() : null")
+                if outbox_summary is None:
+                    summary["consoleErrors"].append("[offline capture] window.fieldPackage was not exposed for testing")
+                elif outbox_summary.get("queued", 0) or outbox_summary.get("failed", 0):
+                    summary["badText"].append(f"offline capture: outbox did not drain — {json.dumps(outbox_summary)}")
+
+                submissions_after = len([s for s in api(phone_page, "jobFormSubmissions") if not s.get("deletedAt")])
+                if submissions_after != submissions_before + 1:
+                    summary["badText"].append(
+                        f"offline capture: expected jobFormSubmissions to grow by 1 ({submissions_before} -> {submissions_before + 1}), got {submissions_after}"
+                    )
+            else:
+                summary["consoleErrors"].append(f"[offline capture] job card for {led_job['id']} not found on My Day")
+        else:
+            summary["consoleErrors"].append("[offline capture] no dispatch job led by the logged-in field lead — skipped")
+
     phone.close()
     browser.close()
 
