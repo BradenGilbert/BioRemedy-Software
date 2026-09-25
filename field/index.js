@@ -196,6 +196,8 @@ function renderMyDay() {
         : ""
     }
 
+    ${renderSalesHomeSections(employee)}
+
     <h2 class="field-section-title">More</h2>
     <div class="field-more-grid">
       ${renderMoreTile("frontline-messaging", "Messages", unread)}
@@ -282,4 +284,28 @@ function renderOutbox() {
       <p class="field-muted">Offline capture and the outbox arrive with the package and outbox build. Until then every save goes straight to the server.</p>
     </section>
   `;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Sales home sections (W3). walk.js registers the site-walk cards and the "New" row; the My Day
+// renderer calls renderSalesHomeSections(employee) where the sales part of the home belongs.
+// ---------------------------------------------------------------------------------------------
+
+const salesHomeSections = [];
+
+export function registerSalesHomeSection(renderSection) {
+  if (typeof renderSection === "function") salesHomeSections.push(renderSection);
+}
+
+export function renderSalesHomeSections(employee) {
+  if (!employee) return "";
+  return salesHomeSections
+    .map((renderSection) => {
+      try {
+        return renderSection(employee) || "";
+      } catch (error) {
+        return `<section class="field-card"><p class="field-muted">${crm.escapeHtml(error?.message || "A home section failed to render.")}</p></section>`;
+      }
+    })
+    .join("");
 }

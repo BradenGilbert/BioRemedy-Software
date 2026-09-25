@@ -913,6 +913,54 @@ there.
   load, so the derivation happens transparently for existing rows. No
   `activities` (`014_activities.sql`) column for this yet.
 
+### Phase 21 W3 — the sales site walk and its annotated map (2026-09-25)
+
+Built in `field/walk.js`, `field/map.js`, `field/map-core.js`, `field/layers.js`, `field/walk-share.*`. The
+four collections W1 registered are now written as follows (all through `POST /api/backend/{c}`, the
+generic pass-through normaliser; no server-side whitelist yet — Phase 14 tables per the shapes below).
+
+- **`siteWalkReports`** — one row per `scheduleEvents{kind:"site_walk"}` (`walkEventId`), upserted as the
+  walk goes on: `opportunityId`, `facilityId`, `status` (`In progress` | `Complete`),
+  `checkIn{at, lat, lng, accuracyM, locationId}`, `sections{<key>: {done, fields{…}, photoDocumentIds[],
+  shots{<slot label>: documentId}}}` for the keys `access hazards area waste needs contacts notes`,
+  `needs{samplingNeeded}`, `contactsMet[contactId]`, `measurements[{id, kind, label, value, unit, method:
+  scan|tape|gps-walk|estimate, note, at, by}]`, `backgrounds[{id, kind:"plan", label, documentId, widthPx,
+  heightPx}]`, `referenceSnapshot{capturedAt, bounds, layers[{layerId, label, kind, geojson, source,
+  sourceDate}]}`, `shares[]` (server-owned, W1), `summary`, `completedAt`, `completedBy`, `startedAt`,
+  `createdBy`. SQL: `site_walk_reports` + child tables `site_walk_measurements`, `site_walk_backgrounds`;
+  the sections can stay JSONB.
+- **`siteWalkObservations`** — one row per pin or shape, never a flattened image: `walkEventId`,
+  `opportunityId`, `facilityId`, `seq` (walk order across every background), `kind`
+  (`observation drain access hazard tank staging sample custom`), `label`, `note`, `backgroundId`
+  (`"aerial"` or a report background id), `lat`/`lng`/`accuracyM` (aerial; `accuracyM` null = placed by
+  hand) **or** `x`/`y` image pixels (plan), `geometry` (GeoJSON LineString/Polygon for shapes, null for
+  pins), `shapeKind` (`line arrow area`), `areaSqFt`, `lengthFt`, `color` (`red orange yellow blue`),
+  `photoDocumentIds[]`, `createdBy`, `createdAt`, `updatedAt`. Deleted with the generic soft delete.
+  SQL: `site_walk_observations` with a PostGIS `geometry` column once Phase 14 lands.
+- **`siteReferenceLayers`** — per-facility snapshot rows written by "Fetch parcel" on the facility page:
+  `facilityId`, `jurisdictionId`, `kind:"parcel"`, `label`, `mode:"snapshot"`, `serviceUrl`, `layerId`,
+  `geojson`, `source` ("County appraisal district via TxGIO StratMap 2025 Land Parcels"), `sourceDate`,
+  `visibility`, `properties{propId, ownerName, situsAddress, legalArea, gisArea}`, `fetchedAt`. Live rows
+  (`mode:"live"`, `serviceUrl` + `layerId`, no `geojson`) are read the same way; W4's jurisdictions admin
+  writes those. `jurisdictions[].layers[]` with `bounds{north,south,east,west}` are also read.
+- **`locations`** — the walk check-in writes a row with `scheduleEventId` = the walk event, `source:
+  "Site walk check-in"`, `locationType: "Check-in"`, `reportedByEmployeeId`; the server's `locations`
+  whitelist drops `opportunityId`, so the link to the opportunity is an `opportunityLocations` row
+  (`type:"Location"`, `role:"Site walk check-in"`). Quick lead writes `locationType:"Lead"` the same way.
+- **`documents`** — walk photos are `site-photo` on the **opportunity** (caption carries the section and
+  required-shot slot, or "Pin N · label"); uploaded plans are `site-plan` on the facility (opportunity when
+  the walk has none); the fallback sketch is `site-sketch` on the opportunity. The observation and the
+  report section hold the document ids; the `documents.section` field W1 planned is not written yet
+  because the upload route has no header for it.
+- **`opportunities`** — `siteWalkStatus` now has `Scheduled` in both dropdowns; the field Complete sets
+  `Complete`; needs written from the walk land in `equipmentNeeds / vendorNeeds / resourceNeeds` as
+  `{name, note}` (and "Sampling" in `resourceNeeds` when flagged). `scheduleEvents.status` becomes
+  `Completed` and the Site Visit `activities` row `Completed` with the summary appended.
+- **Browser IndexedDB `environmental-crm-field` v1** (device-scoped, not synced): `fieldTiles` (key
+  `"<source>/<z>/<x>/<y>"`, value Blob; sources `esri` and `wayback:<releaseId>`), `fieldAreas` (key =
+  area id, `{id, label, bounds, sources, zooms, tileCount, bytes, failed, downloadedAt}`), plus W2's
+  `fieldPackages` and `fieldOutbox`. Filled only by "Download facility tiles" / `downloadArea()`.
+
 ## Cutover inventory — every collection's destination (2026-09-24, sprint Wave 8)
 
 Generated from `server.mjs`'s `collectionAccess` map (108 collections including `qboSettings`/`qboExports`) and checked against it by the script that wrote this section: every collection has a row. **71 land in tables that already exist in `crm-schema/`**, **32 need new migrations (`029+`)**, **4 fold into `documents`**, **1 does not migrate**. The procedure is `docs/roadmap/cutover-runbook.md`.

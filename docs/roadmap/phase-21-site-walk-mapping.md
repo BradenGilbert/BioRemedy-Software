@@ -186,9 +186,58 @@ Be plain about this in the UI:
 ---
 
 ## Corrections found during implementation
-*(none yet)*
+
+**W3 build, 2026-09-25 (field/walk.js, map.js, map-core.js, layers.js, walk-share.*).**
+
+1. **Observations are their own collection.** §4.3 folds `observations[]` into `siteWalkReports`; the
+   approved build plan pinned `siteWalkObservations` (one record per pin/shape) and that is what was
+   built: the map's `onChange` upserts one row per pin and soft-deletes on removal. `siteWalkReports`
+   keeps `backgrounds[]`, `referenceSnapshot`, `measurements[]`, `shares[]` as §4.3 says.
+2. **TxGIO parcels refuse `/query`.** The statewide layer
+   (`feature.geographic.texas.gov/arcgis/rest/services/Parcels/stratmap_land_parcels_48_most_recent/MapServer`)
+   lists `Query` in its capabilities but answers "Requested operation is not supported"; only `/identify`
+   by point works (Esri JSON, converted to GeoJSON in `layers.js`). "Fetch parcel" therefore identifies
+   the parcel under the facility point rather than querying by envelope. The older
+   `services.arcgis.com/…/Stratmap_Land_Parcels` guess does not exist.
+3. **The map core imports nothing from app.js** (`field/map-core.js`) so the share page can use it with
+   no app shell; `field/map.js` is the app-wired wrapper. `field/map.js` and `field/walk.js` expose
+   `window.fieldMap` / `window.fieldWalk` so app.js's office panels reach them without importing them
+   (keeps the import graph one-way and avoids the const-TDZ trap when a sibling module registers routes
+   before `field/index.js` has evaluated). app.js imports `./field/walk.js` right after `./field/index.js`.
+4. **Long press on a pin is hand-rolled.** Leaflet 1.9 no longer synthesises `contextmenu` from a touch
+   long-press on most browsers, so the pin's icon gets its own pointer timer (650 ms, cancelled by 12 px
+   of movement). Delete asks first and the toast offers Undo.
+5. **PDF export is the print page, not a file.** No client-side PDF can be produced without a library, so
+   Export PDF opens the print page (map at the walk's extent, legend, one block per observation, sections,
+   measurements, reference sources) and calls `window.print()` once the tiles have loaded; the person saves
+   it as PDF from the print dialog. A `site-map` document is **not** filed automatically (§4.2 said it
+   would be) — a server-side render or a PDF library would be needed for that.
+6. **Zip export works without a library.** `CompressionStream("deflate-raw")` plus a hand-rolled ZIP
+   container (local headers, central directory, CRC-32) produces `observations.geojson`, `report.json`,
+   `README.txt`, `photos/` and `plans/`; browsers without `CompressionStream` get a toast instead.
+7. **Wayback release list** comes from `config.maptiles.arcgis.com/waybackconfig.json` (S3) and the tile
+   template `wayback.maptiles.arcgis.com/…/tile/{releaseId}/{z}/{y}/{x}`; fetched lazily, cached in
+   memory, and the History panel degrades to "needs a connection" offline. NAIP dates from TxGIO are
+   **not** listed yet (§5 recommended them; the WMTS endpoint was not verified this session).
+8. **`locations` drops `opportunityId` on the server** (its whitelist), so the check-in row is linked to
+   the opportunity through `opportunityLocations` (`type:"Location"`, `role:"Site walk check-in"`) and
+   carries `scheduleEventId` = the walk event, as the existing `frontlineRecordLocationPing` shape allows.
+9. **`saveSiteWalk` regex fixed.** `/incomplete|not/i` overwrote "Not needed" with "Scheduled"; now only
+   an empty or `Incomplete` status becomes `Scheduled`, and both `siteWalkStatus` selects list `Scheduled`.
+10. **Offline tile store key** is `"<source>/<z>/<x>/<y>"` (task contract), not `"z/x/y@source"` as the
+    build plan's IndexedDB note had it. The store is opened by map-core with the same database name and
+    version W2 uses (`environmental-crm-field` v1, stores `fieldPackages fieldOutbox fieldTiles fieldAreas`).
+11. **Move is both a drag handle and the crosshair.** "Move" on the pin sheet makes the pin draggable until
+    Done and also offers "Use crosshair" (pan under the crosshair, tap Move here), because dragging a 40 px
+    pin on a 390 px screen fights with panning.
+12. **Not built this pass:** Video / Add scan buttons hand off to `window.fieldMedia` (W4) and toast when it
+    is absent; the sketch tool falls back to a plain canvas pad when `openImageMarkup` is not loaded; the
+    walk package tile pre-cache at package fetch time is W2's (the `downloadArea()` it should call exists);
+    NAIP/TxGIO historical imagery, elevation/hillshade overlays and city storm/sewer live layers are wired
+    (any ArcGIS REST layer draws) but no jurisdiction row is seeded (W1).
 
 ## Sources consulted (2026-09-25)
+- **Verified during the W3 build (2026-09-25):** `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}` (basemap, keyless, in use); `https://s3-us-west-2.amazonaws.com/config.maptiles.arcgis.com/waybackconfig.json` (Wayback release list; each entry's `itemURL` is `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/{releaseId}/{level}/{row}/{col}`); `https://feature.geographic.texas.gov/arcgis/rest/services/Parcels/stratmap_land_parcels_48_most_recent/MapServer` (TxGIO StratMap 2025 Land Parcels, statewide; `/identify` works, `/0/query` does not); ArcGIS REST `…/{layerId}/query?…&f=geojson` for FeatureServer/MapServer layers (city GIS); Leaflet 1.9.4 `L.CRS.Simple` + `L.imageOverlay` for plan backgrounds, `L.TileLayer.extend({ createTile })` for the stored-tile layer; the spherical-excess area formula from Leaflet.draw's `L.GeometryUtil.geodesicArea`.
 - Esri: ArcGIS Location Platform pricing and free tier; World Imagery Wayback (WMTS, versions since 2014); basemap attribution and offline-use terms.
 - TxGIO (Texas Geographic Information Office): statewide orthoimagery (NAIP and higher-resolution programs), historical aerial photo archive, Stratmap Land Parcels, DataHub feature services.
 - USGS: 3DEP elevation, The National Map tile services (hillshade, contours).

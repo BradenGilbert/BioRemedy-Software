@@ -385,6 +385,7 @@
           Site walk
           <select name="siteWalkStatus">
             <option>Incomplete</option>
+            <option>Scheduled</option>
             <option>Complete</option>
             <option>Not needed</option>
           </select>
@@ -1630,6 +1631,7 @@
             Site walk
             <select name="siteWalkStatus">
               <option>Incomplete</option>
+              <option>Scheduled</option>
               <option>Complete</option>
               <option>Not needed</option>
             </select>
@@ -6121,6 +6123,53 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-camera-cancel>Cancel</button>
           <button class="primary-button" type="button" data-camera-shoot>Take photo</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <!-- Phase 21 W3 (2026-09-25): site walk dialogs. The sketch pad is the fallback when the media
+         module's openImageMarkup is not loaded; the share dialog lists and revokes a walk's links. -->
+    <dialog id="fieldSketchDialog" class="modal field-sketch-dialog">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Site walk</p>
+            <h2>Sketch</h2>
+          </div>
+          <button type="button" class="icon-button" data-sketch-cancel aria-label="Close">x</button>
+        </div>
+        <div class="field-sketch-colors">
+          <button type="button" class="field-sketch-swatch is-active" data-sketch-color="#c92a2a" style="--swatch:#c92a2a" aria-label="Red"></button>
+          <button type="button" class="field-sketch-swatch" data-sketch-color="#e67700" style="--swatch:#e67700" aria-label="Orange"></button>
+          <button type="button" class="field-sketch-swatch" data-sketch-color="#1971c2" style="--swatch:#1971c2" aria-label="Blue"></button>
+          <button type="button" class="field-sketch-swatch" data-sketch-color="#111111" style="--swatch:#111111" aria-label="Black"></button>
+        </div>
+        <canvas class="field-sketch-canvas" aria-label="Sketch pad"></canvas>
+        <label>
+          Caption
+          <input data-sketch-caption maxlength="120" placeholder="Site sketch — spill extent and drains" />
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-sketch-cancel>Cancel</button>
+          <button class="primary-button" type="button" data-sketch-save>Save sketch</button>
+        </menu>
+      </div>
+    </dialog>
+
+    <dialog id="walkShareDialog" class="modal">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Site walk</p>
+            <h2>Share links</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">A read-only link to this walk's map, pins and photos. Anyone with the link can view it until it expires or is revoked; every open is audited.</p>
+        <div class="record-list" data-walk-share-list></div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Close</button>
+          <button class="primary-button" type="button" data-action="walk-share-mint" data-report-id="">New link (14 days)</button>
         </menu>
       </div>
     </dialog>

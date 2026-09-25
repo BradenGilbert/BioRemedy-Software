@@ -7,6 +7,12 @@ const APP_SHELL = [
   // Phase 21: every field/*.js module must be listed here or the app will not start offline.
   "./field/index.js",
   "./field/package.js",
+  "./field/walk.js",
+  "./field/map.js",
+  "./field/map-core.js",
+  "./field/layers.js",
+  "./field/walk-share.js",
+  "./field/walk-share.html",
   "./field/styles.css",
   "./manifest.webmanifest",
   "./public/favicon.svg",

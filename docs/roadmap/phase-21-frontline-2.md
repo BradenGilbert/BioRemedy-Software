@@ -285,7 +285,13 @@ Each pass ends with `node scripts/smoke.mjs` and a Playwright run on a scratch s
 
 ## Corrections found during implementation
 
-*(none yet — this phase has not started)*
+**W3 — sales field mode (2026-09-25).** Built: `field-walk` (Brief / Walk / Map / Finish), `field-spill-intake`, `field-quick-lead`, the sales section of My Day (`registerSalesHomeSection` in `field/index.js`, called from `renderMyDay`), the map (`field/map-core.js` + `field/map.js`), reference layers (`field/layers.js`), the share page (`field/walk-share.html/.js`), and the office side (Site walk report panel on Develop & Planning, walk map on the project Plan tab, Reference layers on the facility page, `Scheduled` in both `siteWalkStatus` selects, the `saveSiteWalk` regex). Details and the map-specific corrections are in `phase-21-site-walk-mapping.md` § Corrections.
+
+1. **Sales field mode ships without W1's commands.** `POST /api/field/site-walk/:eventId/complete`, the share routes and `/api/field/measurements` are called through `fieldRequest`; a 404 falls back to the same writes client-side (report `completedAt`, event `Completed`, activity `Completed`, `siteWalkStatus: "Complete"`), and share/revoke toast "needs the server update". Remove the fallback once W1 lands or keep it as the offline path.
+2. **Module load order matters.** `field/index.js`'s route table is a `const`; a sibling module that imports `index.js` and registers routes at its top level throws in the TDZ if `index.js` imports it back (circular). `app.js` therefore imports `./field/walk.js` itself, after `./field/index.js`. W2/W4 modules should be imported the same way (from app.js, after index.js), or register from a function index.js calls.
+3. **Spill intake on the phone is the same form, stepped.** All fields stay in the DOM (hidden steps) so `submitEmergencyIntake(form)` reads them unchanged; the plan's "ERG lookup on the spill step" waits for W4's ERG UI.
+4. **Photos carry their section in the caption**, not in `documents.section`: the upload route has no header for W1's new field yet. The report's `sections[key].photoDocumentIds` / `shots{}` and the observation's `photoDocumentIds` are the joins.
+5. **The camera "Take photo" decoration** (`installCameraCapture`) lands inside the required-shot slots and the pin sheet's photo tray automatically; the slots reserve room for it.
 
 ---
 
