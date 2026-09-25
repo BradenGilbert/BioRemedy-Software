@@ -401,6 +401,8 @@ contain unrelated customers or jobs.
 7. Rejected commands remain visible to the worker with a resolvable reason.
 8. Device revocation stops new package and change delivery immediately.
 
+**Status 2026-09-25 (Phase 21, Front Line 2):** rules 1, 4, 5, 7 and 8 are now real in the prototype — every field write carries `X-Client-Command-Id` and the server keeps receipts (`<data>/command-receipts.json`), `/api/field/jobs/:id/advance` revalidates the ladder one step at a time and refuses a queued advance on a cancelled job or revoked assignment, rejected outbox commands stay visible on the phone's Sync screen with the server's reason, and a suspended/retired device blocks a field session. Rule 2 is the existing per-record `version` (409 on a stale save); the field app serialises its own saves and merge-retries on conflict. Rules 3 and 6 (append-only merge by key, hash-verified attachment linking) are partial: the chunked upload completes with a sha-256 check, but conflict records and change cursors from the designed protocol are still deferred to Phase 14.
+
 ## Reporting and Billing Dictionary
 
 Migration: `025_job_reporting_and_billing_views.sql`
