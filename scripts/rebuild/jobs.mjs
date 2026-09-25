@@ -1,8 +1,20 @@
 // Projects, job requests, dispatch jobs and everything the field wrote on them, invoices, photos.
-import { out, push, at, dayOffset, money, rate, P, productById, templateById, EMP, NAME, NOW, TODAY, CDT, CST } from "./core.mjs";
+import { join } from "node:path";
+import { out, push, at, dayOffset, money, rate, P, productById, templateById, EMP, NAME, NOW, TODAY, CDT, CST, dataDir } from "./core.mjs";
 import { ACCT, CONTACT, FAC, OPP, totals, generatedLines, activity } from "./accounts.mjs";
 
 export const photoManifest = []; // { src, dest } — converted by main.mjs
+export const fileManifest = []; // { src, dest } — copied as-is by main.mjs (lab reports)
+const LAB_REPORT_DIR = join(dataDir, "..", "docs", "uploaded files");
+// Sample-capture photos (2026-07-14 set): the three Front Line requires per sample, reused across samples.
+const SAMPLE_PHOTO_POOL = {
+  north: ["20260714_152144641_iOS.heic", "20260714_152338569_iOS.heic", "south 20260714_153927796_iOS.heic", "20260714_172334064_iOS.heic"],
+  interval: ["20260714_153007375_iOS.heic", "20260714_152338569_iOS.heic", "20260714_152144641_iOS.heic"],
+  label: ["20260714_154656225_iOS.heic", "20260714_160700983_iOS.heic", "20260714_161500109_iOS.heic", "20260714_163756097_iOS.heic", "20260714_164206244_iOS.heic", "20260714_164917605_iOS.heic", "20260714_165531691_iOS.heic", "20260714_170125155_iOS.heic", "20260714_170819516_iOS.heic", "20260714_173136977_iOS.heic", "south 20260714_155144920_iOS.heic", "south 20260714_162217950_iOS.heic", "south20260714_161148435_iOS.heic"],
+};
+const MIME = { ".pdf": "application/pdf", ".xls": "application/vnd.ms-excel", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+let reportSeq = 0;
+let resultSeq = 0;
 export const PROJ = {};
 const empName = (key) => NAME[key];
 const empId = (key) => EMP[key];
@@ -156,13 +168,33 @@ export function buildJob(spec) {
     return push("jobFormSubmissions", { id: `form-sub-${spec.key}-${subSeq}`, jobId: id, actionId: action.id, formName: action.name, status: "Submitted", submittedBy: by, submittedAt: when, summary, payload }, when);
   };
 
+  // Ad-hoc step and actions, the way Front Line's "+ Activity" creates them (repeatable Photo/Sample capture).
+  let adHocStep = null;
+  let adHocSeq = 0;
+  const adHocAction = (type, when) => {
+    if (!adHocStep) adHocStep = push("jobSteps", { id: `step-${spec.key}-adhoc`, jobId: id, name: "Additional field activity", sequence: stages.length + 1000, status: "Complete", adHoc: true }, when);
+    adHocSeq += 1;
+    return push("jobActions", { id: `action-${spec.key}-adhoc-${adHocSeq}`, jobId: id, stepId: adHocStep.id, sequence: adHocSeq, name: `Ad hoc: ${type}`, formName: `Ad hoc: ${type}`, type, assigneeScope: "Any assigned worker", status: "Complete", adHoc: true, config: {} }, when);
+  };
+  const attach = (actionId, file, caption, when, by) => {
+    attachmentSeq += 1;
+    const attachmentId = `job-task-attachment-${spec.key}-${attachmentSeq}`;
+    const storageName = `${attachmentId}.jpg`;
+    photoManifest.push({ src: file, dest: storageName });
+    return push("jobTaskAttachments", { id: attachmentId, jobId: id, actionId, kind: "photo", fileName: file.replace(/\.(heic|HEIC|jpeg|JPG)$/, ".jpg"), storageName, mimeType: "image/jpeg", sizeBytes: 0, caption, uploadedAt: when, uploadedBy: by }, when);
+  };
+
   // Field records per work day.
   const timerAction = doneActions("Timer")[0];
-  const photoAction = doneActions("Photo")[0] || (actionsByType.Photo || [])[0]?.action;
   const materialAction = doneActions("Material")[0];
-  const sampleAction = doneActions("Sample")[0];
-  let mileageSeq = 0;
+  const templateSampleAction = doneActions("Sample")[0];
+  const firstDayStart = days.length ? at(days[0].date, days[0].from || "08:00", offset) : t.in_progress;
+  const lastDayEnd = days.length ? at(days[days.length - 1].date, days[days.length - 1].to || "17:00", offset) : t.field_complete;
+  const hasPhotos = days.some((d) => (d.photos || []).length);
+  const photoAction = hasPhotos ? doneActions("Photo")[0] || adHocAction("Photo", firstDayStart) : null;
+  let photoCount = 0;
   let sampleSeq = 0;
+  let mileageSeq = 0;
   days.forEach((day, dayIndex) => {
     const dayStart = at(day.date, day.from || "08:00", offset);
     const dayEnd = at(day.date, day.to || "17:00", offset);
@@ -175,12 +207,8 @@ export function buildJob(spec) {
       push("jobMileageEntries", { id: `mileage-${spec.key}-${mileageSeq}`, employeeId: empId(lead), dispatchJobId: id, mileageType: "travel_to", beginningOdometer: day.miles[0], endingOdometer: day.miles[1], calculatedDistance: day.miles[1] - day.miles[0], capturedAt: dayStart, notes: "Shop to site" }, dayStart);
     }
     (day.photos || []).forEach((file, photoIndex) => {
-      attachmentSeq += 1;
-      const attachmentId = `job-task-attachment-${spec.key}-${attachmentSeq}`;
-      const storageName = `${attachmentId}.jpg`;
-      photoManifest.push({ src: file, dest: storageName });
-      const captions = day.captions || {};
-      push("jobTaskAttachments", { id: attachmentId, jobId: id, actionId: photoAction?.id || "", kind: "photo", fileName: file.replace(/\.(heic|HEIC|jpeg|JPG)$/, ".jpg"), storageName, mimeType: "image/jpeg", sizeBytes: 0, caption: captions[file] || `Day ${dayIndex + 1} — photo ${photoIndex + 1}`, uploadedAt: at(day.date, day.to || "17:00", offset), uploadedBy: empName(day.photographer || lead) }, at(day.date, day.to || "17:00", offset));
+      photoCount += 1;
+      attach(photoAction.id, file, (day.captions || {})[file] || `Day ${dayIndex + 1} — photo ${photoIndex + 1}`, dayEnd, empName(day.photographer || lead));
     });
     (day.materials || []).forEach(([inventoryItemId, quantity], materialIndex) => {
       const item = out.inventoryItems.find((i) => i.id === inventoryItemId);
@@ -190,9 +218,36 @@ export function buildJob(spec) {
     });
     (day.samples || []).forEach((sample) => {
       sampleSeq += 1;
-      push("sampleRecords", { id: `sample-${spec.key}-${sampleSeq}`, sampleId: `${spec.jobNumber}-${String(sampleSeq).padStart(2, "0")}`, samplingSessionId: `session-${spec.key}`, samplingSessionName: `${spec.name} — sampling`, projectId: project.id, dispatchJobId: id, actionId: sampleAction?.id || "", accountId: acct.id, facilityId: project.facilityId, sampleLocation: sample.location, sampleType: sample.type || "Soil", sampleMatrix: sample.matrix || "Soil", collectionMethod: sample.method || "Direct-push grab", depthInterval: sample.depth || "", collectionTime: at(day.date, sample.time || "10:00", offset), collector: empName(sample.collector || lead), gpsAccuracyMeters: 3, latitude: sample.lat ?? spec.lat, longitude: sample.lng ?? spec.lng, containerSummary: sample.containers || "2 amber jars, 3 VOA vials", preservation: "Cooled to 4 °C", requestedAnalyses: sample.analyses || ["TPH-DRO/GRO", "BTEX"], fieldNotes: sample.notes || "", chainOfCustody: spec.coc || "", labName: "Eurofins Environment Testing — Austin", labStatus: sample.labStatus || "Pending", labResults: sample.results || "", photos: [], labReceivedAt: sample.labReceivedAt || "", reviewedBy: sample.reviewedBy || "", labReportUri: "" }, at(day.date, sample.time || "10:00", offset), NOW);
+      const when = at(day.date, sample.time || "10:00", offset);
+      // One action per sample, as Front Line records them: the template's Sample task for the first, ad hoc after that.
+      const action = sampleSeq === 1 && templateSampleAction ? templateSampleAction : adHocAction("Sample", when);
+      const collector = empName(sample.collector || lead);
+      const sampleId = `${spec.jobNumber}-${String(sampleSeq).padStart(2, "0")}`;
+      const pool = SAMPLE_PHOTO_POOL;
+      [["North view", pool.north[sampleSeq % pool.north.length]], ["Sample interval", pool.interval[sampleSeq % pool.interval.length]], ["Container label", pool.label[sampleSeq % pool.label.length]]].forEach(([caption, file]) => attach(action.id, file, caption, when, collector));
+      const recordId = `sample-${spec.key}-${sampleSeq}`;
+      const reportIds = (sample.labReports || []).map((file) => {
+        reportSeq += 1;
+        const reportId = `sample-lab-report-${String(reportSeq).padStart(3, "0")}`;
+        const extension = file.slice(file.lastIndexOf(".")).toLowerCase();
+        const storageName = `${reportId}${extension}`;
+        fileManifest.push({ src: join(LAB_REPORT_DIR, file), dest: storageName });
+        push("sampleLabReports", { id: reportId, sampleId: recordId, fileName: file, storageName, mimeType: MIME[extension] || "application/octet-stream", sizeBytes: 0, uploadedAt: sample.labReceivedAt || NOW, uploadedBy: sample.reviewedBy || NAME.logan }, sample.labReceivedAt || NOW);
+        return reportId;
+      });
+      push("sampleRecords", { id: recordId, sampleId, samplingSessionId: `session-${spec.key}`, samplingSessionName: `${spec.name} — sampling`, projectId: project.id, dispatchJobId: id, actionId: action.id, accountId: acct.id, facilityId: project.facilityId, sampleLocation: sample.location, sampleType: sample.type || "Soil", sampleMatrix: sample.matrix || "Soil", collectionMethod: sample.method || "Direct-push grab", depthInterval: sample.depth || "", collectionTime: when, collector, gpsAccuracyMeters: 3, latitude: sample.lat ?? spec.lat, longitude: sample.lng ?? spec.lng, containerSummary: sample.containers || "2 amber jars, 3 VOA vials", preservation: "Cooled to 4 °C", requestedAnalyses: sample.analyses || ["TPH (TX1005)", "BTEX"], fieldNotes: sample.notes || "", chainOfCustody: spec.coc || "", labName: sample.labName || "Eurofins Environment Testing — Austin", labStatus: sample.labStatus || "Pending", labResults: sample.results || "", photos: [], labReceivedAt: sample.labReceivedAt || "", reviewedBy: sample.reviewedBy || "", labReportUri: "" }, when, sample.labReceivedAt || when);
+      submit(action, collector, when, `${sampleId} — ${sample.location}`, { sampleId, sampleLocation: sample.location, sampleMatrix: sample.matrix || "Soil", depthInterval: sample.depth || "", requestedAnalyses: (sample.analyses || ["TPH (TX1005)", "BTEX"]).join("\n"), notes: sample.notes || "" });
+      (sample.analytics || []).forEach((row) => {
+        resultSeq += 1;
+        const resultValue = String(row.value);
+        const parsed = Number(resultValue);
+        const resultNumeric = resultValue !== "" && Number.isFinite(parsed) ? parsed : null;
+        const actionLevel = row.actionLevel ?? null;
+        push("sampleResults", { id: `sample-result-${String(resultSeq).padStart(3, "0")}`, sampleId: recordId, projectId: project.id, analyte: row.analyte, method: row.method || "TX1005", resultValue, resultNumeric, units: row.units || "mg/kg", detectionLimit: row.mdl ?? null, reportingLimit: row.rl ?? null, qualifier: row.qualifier || "", actionLevel, actionLevelSource: actionLevel != null ? row.source || "TRRP Tier 1 residential (sample data)" : "", exceedsActionLevel: resultNumeric != null && actionLevel != null && resultNumeric > actionLevel, labReportId: reportIds[0] || "", reportedOn: sample.labReceivedAt ? sample.labReceivedAt.slice(0, 10) : "", enteredBy: sample.reviewedBy || NAME.logan, deletedAt: "" }, sample.labReceivedAt || NOW);
+      });
     });
   });
+  if (photoAction) submit(photoAction, empName(lead), lastDayEnd, `${photoCount} photo${photoCount === 1 ? "" : "s"}`, { photoCount, minPhotos: 1 });
 
   // Equipment on the job.
   (spec.equipment || []).forEach((assetTag, index) => {

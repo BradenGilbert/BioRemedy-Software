@@ -3898,11 +3898,15 @@
       "serviceProfile": "",
       "equipmentNeeds": [
         {
-          "name": "HazMat Recovery Truck",
+          "name": "Truck",
           "note": ""
         },
         {
-          "name": "Vactron",
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
           "note": ""
         },
         {
@@ -3910,15 +3914,32 @@
           "note": ""
         }
       ],
-      "vendorNeeds": [],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
       "resourceNeeds": [
         {
-          "name": "Absorbent boom and pads",
+          "name": "PPE",
           "note": ""
         },
         {
-          "name": "Micro-Bac-S",
-          "note": "swale treatment"
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
         }
       ],
       "siteWalkStatus": "Complete",
@@ -3994,14 +4015,44 @@
       "insuranceCarrier": "",
       "claimNumber": "",
       "serviceProfile": "",
-      "equipmentNeeds": [],
-      "vendorNeeds": [
+      "equipmentNeeds": [
         {
-          "name": "Venditti Trucking",
-          "note": "30-yd roll-off"
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
         }
       ],
-      "resourceNeeds": [],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": "Venditti 30-yd roll-off"
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Degreaser",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "sitePhotoRefs": [],
       "quoteId": "",
@@ -4046,9 +4097,52 @@
       "insuranceCarrier": "",
       "claimNumber": "",
       "serviceProfile": "",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "sitePhotoRefs": [],
       "quoteId": "",
@@ -4122,9 +4216,44 @@
       "insuranceCarrier": "",
       "claimNumber": "",
       "serviceProfile": "",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Degreaser",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "sitePhotoRefs": [],
       "quoteId": "",
@@ -4169,9 +4298,52 @@
       "insuranceCarrier": "",
       "claimNumber": "",
       "serviceProfile": "",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Not needed",
       "sitePhotoRefs": [],
       "quoteId": "",
@@ -4245,9 +4417,44 @@
       "insuranceCarrier": "",
       "claimNumber": "",
       "serviceProfile": "",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Degreaser",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "sitePhotoRefs": [],
       "quoteId": "quote-wolf-pond",
@@ -4295,39 +4502,59 @@
       "serviceProfile": "Crude-impacted soil, non-hazardous (profile PMP-2026-14)",
       "equipmentNeeds": [
         {
+          "name": "Truck",
+          "note": ""
+        },
+        {
           "name": "Skid steer",
           "note": ""
         },
         {
-          "name": "Mini-excavator",
+          "name": "Excavator",
           "note": ""
         },
         {
-          "name": "Vactron",
+          "name": "Vac truck",
           "note": ""
         },
         {
-          "name": "Microbial spray trailer",
+          "name": "Spray trailer",
           "note": ""
         }
       ],
       "vendorNeeds": [
         {
-          "name": "Venditti Trucking",
-          "note": "roll-offs"
+          "name": "Roll-off vendor",
+          "note": "Venditti"
         },
         {
-          "name": "Eurofins",
-          "note": "confirmation samples"
+          "name": "Lab",
+          "note": "Eurofins — confirmation samples"
+        },
+        {
+          "name": "Excavation subcontractor",
+          "note": "Balfour if EXC-402 is down"
         }
       ],
       "resourceNeeds": [
         {
-          "name": "Mega-Bac X",
+          "name": "PPE",
           "note": ""
         },
         {
-          "name": "Level D PPE",
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "Sampling supplies",
+          "note": ""
+        },
+        {
+          "name": "Poly sheeting",
+          "note": ""
+        },
+        {
+          "name": "3-person crew",
           "note": ""
         }
       ],
@@ -4375,14 +4602,44 @@
       "insuranceCarrier": "",
       "claimNumber": "",
       "serviceProfile": "",
-      "equipmentNeeds": [],
-      "vendorNeeds": [
+      "equipmentNeeds": [
         {
-          "name": "Eurofins",
-          "note": "TPH/BTEX"
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Direct-push rig (rental)",
+          "note": ""
+        },
+        {
+          "name": "PID",
+          "note": ""
         }
       ],
-      "resourceNeeds": [],
+      "vendorNeeds": [
+        {
+          "name": "Lab",
+          "note": "Eurofins — TPH/BTEX, 10-day"
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Sampling supplies",
+          "note": ""
+        },
+        {
+          "name": "Drums for cuttings",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "sitePhotoRefs": [],
       "quoteId": "",
@@ -4426,9 +4683,52 @@
       "insuranceCarrier": "",
       "claimNumber": "",
       "serviceProfile": "",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Not needed",
       "sitePhotoRefs": [],
       "quoteId": "",
@@ -4580,25 +4880,62 @@
       "serviceProfile": "",
       "equipmentNeeds": [
         {
-          "name": "Vactron",
+          "name": "Truck",
           "note": ""
         },
         {
-          "name": "Dump trailer",
+          "name": "Skid steer",
+          "note": ""
+        },
+        {
+          "name": "Excavator",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Spray trailer",
           "note": ""
         }
       ],
       "vendorNeeds": [
         {
-          "name": "Balfour Services",
-          "note": "excavator + operator"
+          "name": "Roll-off vendor",
+          "note": "Republic — sludge haul-off"
         },
         {
-          "name": "Republic Services",
-          "note": "sludge haul-off"
+          "name": "Lab",
+          "note": ""
+        },
+        {
+          "name": "Excavation subcontractor",
+          "note": "Balfour — excavator + operator"
         }
       ],
-      "resourceNeeds": [],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "Sampling supplies",
+          "note": ""
+        },
+        {
+          "name": "Poly sheeting",
+          "note": ""
+        },
+        {
+          "name": "3-person crew",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "sitePhotoRefs": [],
       "quoteId": "quote-bluebonnet-lagoon",
@@ -14682,6 +15019,17 @@
       "version": 1
     },
     {
+      "id": "step-lonestar-diesel-adhoc",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "name": "Additional field activity",
+      "sequence": 1004,
+      "status": "Complete",
+      "adHoc": true,
+      "createdAt": "2025-07-03T16:10:00.000Z",
+      "updatedAt": "2025-07-03T16:10:00.000Z",
+      "version": 1
+    },
+    {
       "id": "step-brazos-debris-mobilize",
       "jobId": "dispatch-job-brazos-debris",
       "key": "mobilize",
@@ -14715,6 +15063,17 @@
       "required": true,
       "createdAt": "2025-08-01T16:00:00.000Z",
       "updatedAt": "2025-08-06T22:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "step-brazos-debris-adhoc",
+      "jobId": "dispatch-job-brazos-debris",
+      "name": "Additional field activity",
+      "sequence": 1003,
+      "status": "Complete",
+      "adHoc": true,
+      "createdAt": "2025-08-06T13:00:00.000Z",
+      "updatedAt": "2025-08-06T13:00:00.000Z",
       "version": 1
     },
     {
@@ -14802,6 +15161,17 @@
       "version": 1
     },
     {
+      "id": "step-domain-garage-adhoc",
+      "jobId": "dispatch-job-domain-garage",
+      "name": "Additional field activity",
+      "sequence": 1003,
+      "status": "Complete",
+      "adHoc": true,
+      "createdAt": "2026-05-01T03:00:00.000Z",
+      "updatedAt": "2026-05-01T03:00:00.000Z",
+      "version": 1
+    },
+    {
       "id": "step-georgetown-storm-drain-mobilize",
       "jobId": "dispatch-job-georgetown-storm-drain",
       "key": "mobilize",
@@ -14883,6 +15253,17 @@
       "required": true,
       "createdAt": "2026-09-15T16:00:00.000Z",
       "updatedAt": "2026-09-21T06:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "step-wolf-pond-1-adhoc",
+      "jobId": "dispatch-job-wolf-pond-1",
+      "name": "Additional field activity",
+      "sequence": 1003,
+      "status": "Complete",
+      "adHoc": true,
+      "createdAt": "2026-09-21T02:00:00.000Z",
+      "updatedAt": "2026-09-21T02:00:00.000Z",
       "version": 1
     },
     {
@@ -15042,6 +15423,17 @@
       "version": 1
     },
     {
+      "id": "step-permian-stage2-adhoc",
+      "jobId": "dispatch-job-permian-stage2",
+      "name": "Additional field activity",
+      "sequence": 1005,
+      "status": "Complete",
+      "adHoc": true,
+      "createdAt": "2026-09-22T12:00:00.000Z",
+      "updatedAt": "2026-09-22T12:00:00.000Z",
+      "version": 1
+    },
+    {
       "id": "step-hch-borings-mobilize",
       "jobId": "dispatch-job-hch-borings",
       "key": "mobilize",
@@ -15075,6 +15467,17 @@
       "required": true,
       "createdAt": "2026-08-28T16:00:00.000Z",
       "updatedAt": "2026-09-11T21:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "step-hch-borings-adhoc",
+      "jobId": "dispatch-job-hch-borings",
+      "name": "Additional field activity",
+      "sequence": 1003,
+      "status": "Complete",
+      "adHoc": true,
+      "createdAt": "2026-09-10T13:00:00.000Z",
+      "updatedAt": "2026-09-10T13:00:00.000Z",
       "version": 1
     },
     {
@@ -15362,6 +15765,38 @@
       "version": 1
     },
     {
+      "id": "action-lonestar-diesel-adhoc-1",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "stepId": "step-lonestar-diesel-adhoc",
+      "sequence": 1,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2025-07-03T16:10:00.000Z",
+      "updatedAt": "2025-07-03T16:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-lonestar-diesel-adhoc-2",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "stepId": "step-lonestar-diesel-adhoc",
+      "sequence": 2,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2025-07-03T16:25:00.000Z",
+      "updatedAt": "2025-07-03T16:25:00.000Z",
+      "version": 1
+    },
+    {
       "id": "action-brazos-debris-accept_dispatch",
       "jobId": "dispatch-job-brazos-debris",
       "stepId": "step-brazos-debris-mobilize",
@@ -15461,6 +15896,22 @@
       "config": {},
       "createdAt": "2025-08-01T16:00:00.000Z",
       "updatedAt": "2025-08-06T22:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-brazos-debris-adhoc-1",
+      "jobId": "dispatch-job-brazos-debris",
+      "stepId": "step-brazos-debris-adhoc",
+      "sequence": 1,
+      "name": "Ad hoc: Photo",
+      "formName": "Ad hoc: Photo",
+      "type": "Photo",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2025-08-06T13:00:00.000Z",
+      "updatedAt": "2025-08-06T13:00:00.000Z",
       "version": 1
     },
     {
@@ -15752,6 +16203,22 @@
       "version": 1
     },
     {
+      "id": "action-domain-garage-adhoc-1",
+      "jobId": "dispatch-job-domain-garage",
+      "stepId": "step-domain-garage-adhoc",
+      "sequence": 1,
+      "name": "Ad hoc: Photo",
+      "formName": "Ad hoc: Photo",
+      "type": "Photo",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-05-01T03:00:00.000Z",
+      "updatedAt": "2026-05-01T03:00:00.000Z",
+      "version": 1
+    },
+    {
       "id": "action-georgetown-storm-drain-accept_dispatch",
       "jobId": "dispatch-job-georgetown-storm-drain",
       "stepId": "step-georgetown-storm-drain-mobilize",
@@ -16037,6 +16504,22 @@
       "config": {},
       "createdAt": "2026-09-15T16:00:00.000Z",
       "updatedAt": "2026-09-21T06:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-wolf-pond-1-adhoc-1",
+      "jobId": "dispatch-job-wolf-pond-1",
+      "stepId": "step-wolf-pond-1-adhoc",
+      "sequence": 1,
+      "name": "Ad hoc: Photo",
+      "formName": "Ad hoc: Photo",
+      "type": "Photo",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-21T02:00:00.000Z",
+      "updatedAt": "2026-09-21T02:00:00.000Z",
       "version": 1
     },
     {
@@ -16516,6 +16999,70 @@
       "version": 1
     },
     {
+      "id": "action-permian-stage2-adhoc-1",
+      "jobId": "dispatch-job-permian-stage2",
+      "stepId": "step-permian-stage2-adhoc",
+      "sequence": 1,
+      "name": "Ad hoc: Photo",
+      "formName": "Ad hoc: Photo",
+      "type": "Photo",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-22T12:00:00.000Z",
+      "updatedAt": "2026-09-22T12:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-permian-stage2-adhoc-2",
+      "jobId": "dispatch-job-permian-stage2",
+      "stepId": "step-permian-stage2-adhoc",
+      "sequence": 2,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-22T20:40:00.000Z",
+      "updatedAt": "2026-09-22T20:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-permian-stage2-adhoc-3",
+      "jobId": "dispatch-job-permian-stage2",
+      "stepId": "step-permian-stage2-adhoc",
+      "sequence": 3,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-22T20:55:00.000Z",
+      "updatedAt": "2026-09-22T20:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-permian-stage2-adhoc-4",
+      "jobId": "dispatch-job-permian-stage2",
+      "stepId": "step-permian-stage2-adhoc",
+      "sequence": 4,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-22T21:10:00.000Z",
+      "updatedAt": "2026-09-22T21:10:00.000Z",
+      "version": 1
+    },
+    {
       "id": "action-hch-borings-accept_dispatch",
       "jobId": "dispatch-job-hch-borings",
       "stepId": "step-hch-borings-mobilize",
@@ -16615,6 +17162,198 @@
       "config": {},
       "createdAt": "2026-08-28T16:00:00.000Z",
       "updatedAt": "2026-09-11T21:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-1",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 1,
+      "name": "Ad hoc: Photo",
+      "formName": "Ad hoc: Photo",
+      "type": "Photo",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-10T13:00:00.000Z",
+      "updatedAt": "2026-09-10T13:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-2",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 2,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-10T15:05:00.000Z",
+      "updatedAt": "2026-09-10T15:05:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-3",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 3,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-10T16:20:00.000Z",
+      "updatedAt": "2026-09-10T16:20:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-4",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 4,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-10T16:45:00.000Z",
+      "updatedAt": "2026-09-10T16:45:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-5",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 5,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-10T19:10:00.000Z",
+      "updatedAt": "2026-09-10T19:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-6",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 6,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-10T19:35:00.000Z",
+      "updatedAt": "2026-09-10T19:35:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-7",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 7,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-11T14:30:00.000Z",
+      "updatedAt": "2026-09-11T14:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-8",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 8,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-11T14:55:00.000Z",
+      "updatedAt": "2026-09-11T14:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-9",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 9,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-11T16:15:00.000Z",
+      "updatedAt": "2026-09-11T16:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-10",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 10,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-11T16:40:00.000Z",
+      "updatedAt": "2026-09-11T16:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-11",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 11,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-11T18:50:00.000Z",
+      "updatedAt": "2026-09-11T18:50:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-hch-borings-adhoc-12",
+      "jobId": "dispatch-job-hch-borings",
+      "stepId": "step-hch-borings-adhoc",
+      "sequence": 12,
+      "name": "Ad hoc: Sample",
+      "formName": "Ad hoc: Sample",
+      "type": "Sample",
+      "assigneeScope": "Any assigned worker",
+      "status": "Complete",
+      "adHoc": true,
+      "config": {},
+      "createdAt": "2026-09-11T19:15:00.000Z",
+      "updatedAt": "2026-09-11T19:15:00.000Z",
       "version": 1
     },
     {
@@ -17089,6 +17828,65 @@
     {
       "id": "form-sub-lonestar-diesel-6",
       "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-adhoc-1",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2025-07-03T16:10:00.000Z",
+      "summary": "JOB-2025-0702-01-01 — SW-1 — swale bank 20 ft below the culvert",
+      "payload": {
+        "sampleId": "JOB-2025-0702-01-01",
+        "sampleLocation": "SW-1 — swale bank 20 ft below the culvert",
+        "sampleMatrix": "Soil",
+        "depthInterval": "0-6 in",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "Stained soil below the sandbags."
+      },
+      "createdAt": "2025-07-03T16:10:00.000Z",
+      "updatedAt": "2025-07-03T16:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-lonestar-diesel-7",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-adhoc-2",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2025-07-03T16:25:00.000Z",
+      "summary": "JOB-2025-0702-01-02 — SW-2 — swale bank at the culvert inlet",
+      "payload": {
+        "sampleId": "JOB-2025-0702-01-02",
+        "sampleLocation": "SW-2 — swale bank at the culvert inlet",
+        "sampleMatrix": "Soil",
+        "depthInterval": "0-6 in",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": ""
+      },
+      "createdAt": "2025-07-03T16:25:00.000Z",
+      "updatedAt": "2025-07-03T16:25:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-lonestar-diesel-8",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-photos",
+      "formName": "Capture before, progress, and after photos",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2025-07-03T20:30:00.000Z",
+      "summary": "17 photos",
+      "payload": {
+        "photoCount": 17,
+        "minPhotos": 1
+      },
+      "createdAt": "2025-07-03T20:30:00.000Z",
+      "updatedAt": "2025-07-03T20:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-lonestar-diesel-9",
+      "jobId": "dispatch-job-lonestar-diesel",
       "actionId": "action-lonestar-diesel-arrival",
       "formName": "Arrive and verify site contact",
       "status": "Submitted",
@@ -17104,7 +17902,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lonestar-diesel-7",
+      "id": "form-sub-lonestar-diesel-10",
       "jobId": "dispatch-job-lonestar-diesel",
       "actionId": "action-lonestar-diesel-drain_check",
       "formName": "Document drain or soil impact",
@@ -17120,7 +17918,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lonestar-diesel-8",
+      "id": "form-sub-lonestar-diesel-11",
       "jobId": "dispatch-job-lonestar-diesel",
       "actionId": "action-lonestar-diesel-recap",
       "formName": "Complete job recap",
@@ -17136,7 +17934,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lonestar-diesel-9",
+      "id": "form-sub-lonestar-diesel-12",
       "jobId": "dispatch-job-lonestar-diesel",
       "actionId": "action-lonestar-diesel-site_safety",
       "formName": "Complete site safety assessment",
@@ -17161,7 +17959,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lonestar-diesel-10",
+      "id": "form-sub-lonestar-diesel-13",
       "jobId": "dispatch-job-lonestar-diesel",
       "actionId": "action-lonestar-diesel-containment",
       "formName": "Deploy containment and protect drains",
@@ -17178,7 +17976,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lonestar-diesel-11",
+      "id": "form-sub-lonestar-diesel-14",
       "jobId": "dispatch-job-lonestar-diesel",
       "actionId": "action-lonestar-diesel-signature",
       "formName": "Capture customer completion signature",
@@ -17197,6 +17995,23 @@
     {
       "id": "form-sub-brazos-debris-1",
       "jobId": "dispatch-job-brazos-debris",
+      "actionId": "action-brazos-debris-adhoc-1",
+      "formName": "Ad hoc: Photo",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2025-08-06T22:30:00.000Z",
+      "summary": "13 photos",
+      "payload": {
+        "photoCount": 13,
+        "minPhotos": 1
+      },
+      "createdAt": "2025-08-06T22:30:00.000Z",
+      "updatedAt": "2025-08-06T22:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-brazos-debris-2",
+      "jobId": "dispatch-job-brazos-debris",
       "actionId": "action-brazos-debris-arrival",
       "formName": "Arrive and verify site contact",
       "status": "Submitted",
@@ -17212,7 +18027,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-brazos-debris-2",
+      "id": "form-sub-brazos-debris-3",
       "jobId": "dispatch-job-brazos-debris",
       "actionId": "action-brazos-debris-recap",
       "formName": "Complete job recap",
@@ -17228,7 +18043,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-brazos-debris-3",
+      "id": "form-sub-brazos-debris-4",
       "jobId": "dispatch-job-brazos-debris",
       "actionId": "action-brazos-debris-service_checklist",
       "formName": "Complete scheduled service checklist",
@@ -17245,7 +18060,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-brazos-debris-4",
+      "id": "form-sub-brazos-debris-5",
       "jobId": "dispatch-job-brazos-debris",
       "actionId": "action-brazos-debris-signature",
       "formName": "Capture customer completion signature",
@@ -17378,6 +18193,23 @@
     {
       "id": "form-sub-lakeway-crawlspace-7",
       "jobId": "dispatch-job-lakeway-crawlspace",
+      "actionId": "action-lakeway-crawlspace-photos",
+      "formName": "Capture before, progress, and after photos",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-03-04T22:00:00.000Z",
+      "summary": "14 photos",
+      "payload": {
+        "photoCount": 14,
+        "minPhotos": 1
+      },
+      "createdAt": "2026-03-04T22:00:00.000Z",
+      "updatedAt": "2026-03-04T22:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-lakeway-crawlspace-8",
+      "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-arrival",
       "formName": "Arrive and verify site contact",
       "status": "Submitted",
@@ -17393,7 +18225,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lakeway-crawlspace-8",
+      "id": "form-sub-lakeway-crawlspace-9",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-drain_check",
       "formName": "Document drain or soil impact",
@@ -17409,7 +18241,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lakeway-crawlspace-9",
+      "id": "form-sub-lakeway-crawlspace-10",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-recap",
       "formName": "Complete job recap",
@@ -17425,7 +18257,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lakeway-crawlspace-10",
+      "id": "form-sub-lakeway-crawlspace-11",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-site_safety",
       "formName": "Complete site safety assessment",
@@ -17450,7 +18282,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lakeway-crawlspace-11",
+      "id": "form-sub-lakeway-crawlspace-12",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-containment",
       "formName": "Deploy containment and protect drains",
@@ -17467,7 +18299,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-lakeway-crawlspace-12",
+      "id": "form-sub-lakeway-crawlspace-13",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-signature",
       "formName": "Capture customer completion signature",
@@ -17486,6 +18318,23 @@
     {
       "id": "form-sub-domain-garage-1",
       "jobId": "dispatch-job-domain-garage",
+      "actionId": "action-domain-garage-adhoc-1",
+      "formName": "Ad hoc: Photo",
+      "status": "Submitted",
+      "submittedBy": "Tristan Tarrant",
+      "submittedAt": "2026-05-01T10:00:00.000Z",
+      "summary": "8 photos",
+      "payload": {
+        "photoCount": 8,
+        "minPhotos": 1
+      },
+      "createdAt": "2026-05-01T10:00:00.000Z",
+      "updatedAt": "2026-05-01T10:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-domain-garage-2",
+      "jobId": "dispatch-job-domain-garage",
       "actionId": "action-domain-garage-arrival",
       "formName": "Arrive and verify site contact",
       "status": "Submitted",
@@ -17501,7 +18350,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-domain-garage-2",
+      "id": "form-sub-domain-garage-3",
       "jobId": "dispatch-job-domain-garage",
       "actionId": "action-domain-garage-recap",
       "formName": "Complete job recap",
@@ -17517,7 +18366,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-domain-garage-3",
+      "id": "form-sub-domain-garage-4",
       "jobId": "dispatch-job-domain-garage",
       "actionId": "action-domain-garage-service_checklist",
       "formName": "Complete scheduled service checklist",
@@ -17534,7 +18383,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-domain-garage-4",
+      "id": "form-sub-domain-garage-5",
       "jobId": "dispatch-job-domain-garage",
       "actionId": "action-domain-garage-signature",
       "formName": "Capture customer completion signature",
@@ -17699,6 +18548,23 @@
     {
       "id": "form-sub-wolf-pond-1-1",
       "jobId": "dispatch-job-wolf-pond-1",
+      "actionId": "action-wolf-pond-1-adhoc-1",
+      "formName": "Ad hoc: Photo",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-20T06:30:00.000Z",
+      "summary": "7 photos",
+      "payload": {
+        "photoCount": 7,
+        "minPhotos": 1
+      },
+      "createdAt": "2026-09-20T06:30:00.000Z",
+      "updatedAt": "2026-09-20T06:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-wolf-pond-1-2",
+      "jobId": "dispatch-job-wolf-pond-1",
       "actionId": "action-wolf-pond-1-arrival",
       "formName": "Arrive and verify site contact",
       "status": "Submitted",
@@ -17714,7 +18580,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-wolf-pond-1-2",
+      "id": "form-sub-wolf-pond-1-3",
       "jobId": "dispatch-job-wolf-pond-1",
       "actionId": "action-wolf-pond-1-recap",
       "formName": "Complete job recap",
@@ -17730,7 +18596,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-wolf-pond-1-3",
+      "id": "form-sub-wolf-pond-1-4",
       "jobId": "dispatch-job-wolf-pond-1",
       "actionId": "action-wolf-pond-1-service_checklist",
       "formName": "Complete scheduled service checklist",
@@ -17747,7 +18613,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-wolf-pond-1-4",
+      "id": "form-sub-wolf-pond-1-5",
       "jobId": "dispatch-job-wolf-pond-1",
       "actionId": "action-wolf-pond-1-signature",
       "formName": "Capture customer completion signature",
@@ -17842,6 +18708,23 @@
     {
       "id": "form-sub-permian-day1-5",
       "jobId": "dispatch-job-permian-day1",
+      "actionId": "action-permian-day1-photos",
+      "formName": "Capture before, progress, and after photos",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-19T23:30:00.000Z",
+      "summary": "8 photos",
+      "payload": {
+        "photoCount": 8,
+        "minPhotos": 1
+      },
+      "createdAt": "2026-09-19T23:30:00.000Z",
+      "updatedAt": "2026-09-19T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-permian-day1-6",
+      "jobId": "dispatch-job-permian-day1",
       "actionId": "action-permian-day1-arrival",
       "formName": "Arrive and verify site contact",
       "status": "Submitted",
@@ -17857,7 +18740,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-permian-day1-6",
+      "id": "form-sub-permian-day1-7",
       "jobId": "dispatch-job-permian-day1",
       "actionId": "action-permian-day1-site_safety",
       "formName": "Complete site safety assessment",
@@ -17873,7 +18756,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-permian-day1-7",
+      "id": "form-sub-permian-day1-8",
       "jobId": "dispatch-job-permian-day1",
       "actionId": "action-permian-day1-impact_findings",
       "formName": "Document soil or groundwater impact findings",
@@ -17889,7 +18772,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-permian-day1-8",
+      "id": "form-sub-permian-day1-9",
       "jobId": "dispatch-job-permian-day1",
       "actionId": "action-permian-day1-recap",
       "formName": "Complete job recap",
@@ -17905,7 +18788,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-permian-day1-9",
+      "id": "form-sub-permian-day1-10",
       "jobId": "dispatch-job-permian-day1",
       "actionId": "action-permian-day1-exclusion_zone",
       "formName": "Deploy containment and exclusion zones",
@@ -17922,7 +18805,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-permian-day1-10",
+      "id": "form-sub-permian-day1-11",
       "jobId": "dispatch-job-permian-day1",
       "actionId": "action-permian-day1-signature",
       "formName": "Capture customer completion signature",
@@ -17998,6 +18881,69 @@
     {
       "id": "form-sub-permian-stage2-4",
       "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-2",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-22T20:40:00.000Z",
+      "summary": "JOB-2026-0922-01-01 — S-1 — excavation floor, east half (pre-treatment)",
+      "payload": {
+        "sampleId": "JOB-2026-0922-01-01",
+        "sampleLocation": "S-1 — excavation floor, east half (pre-treatment)",
+        "sampleMatrix": "Soil",
+        "depthInterval": "3-3.5 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "Black-stained clay, strong odor, PID 40 ppm."
+      },
+      "createdAt": "2026-09-22T20:40:00.000Z",
+      "updatedAt": "2026-09-22T20:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-permian-stage2-5",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-3",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-22T20:55:00.000Z",
+      "summary": "JOB-2026-0922-01-02 — S-2 — east sidewall, 3 ft",
+      "payload": {
+        "sampleId": "JOB-2026-0922-01-02",
+        "sampleLocation": "S-2 — east sidewall, 3 ft",
+        "sampleMatrix": "Soil",
+        "depthInterval": "2.5-3 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 38 ppm."
+      },
+      "createdAt": "2026-09-22T20:55:00.000Z",
+      "updatedAt": "2026-09-22T20:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-permian-stage2-6",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-4",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-22T21:10:00.000Z",
+      "summary": "JOB-2026-0922-01-03 — S-3 — west sidewall, 3 ft (background side)",
+      "payload": {
+        "sampleId": "JOB-2026-0922-01-03",
+        "sampleLocation": "S-3 — west sidewall, 3 ft (background side)",
+        "sampleMatrix": "Soil",
+        "depthInterval": "2.5-3 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "Tan clay, no odor, PID 2 ppm."
+      },
+      "createdAt": "2026-09-22T21:10:00.000Z",
+      "updatedAt": "2026-09-22T21:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-permian-stage2-7",
+      "jobId": "dispatch-job-permian-stage2",
       "actionId": "action-permian-stage2-travel",
       "formName": "Capture travel and truck time",
       "status": "Submitted",
@@ -18015,7 +18961,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-permian-stage2-5",
+      "id": "form-sub-permian-stage2-8",
       "jobId": "dispatch-job-permian-stage2",
       "actionId": "action-permian-stage2-travel",
       "formName": "Capture travel and truck time",
@@ -18034,7 +18980,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-permian-stage2-6",
+      "id": "form-sub-permian-stage2-9",
       "jobId": "dispatch-job-permian-stage2",
       "actionId": "action-permian-stage2-travel",
       "formName": "Capture travel and truck time",
@@ -18047,6 +18993,23 @@
         "computedHours": 11.25,
         "timerAnchor": "on_site",
         "notes": ""
+      },
+      "createdAt": "2026-09-24T23:15:00.000Z",
+      "updatedAt": "2026-09-24T23:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-permian-stage2-10",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-1",
+      "formName": "Ad hoc: Photo",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-24T23:15:00.000Z",
+      "summary": "7 photos",
+      "payload": {
+        "photoCount": 7,
+        "minPhotos": 1
       },
       "createdAt": "2026-09-24T23:15:00.000Z",
       "updatedAt": "2026-09-24T23:15:00.000Z",
@@ -18093,6 +19056,132 @@
     {
       "id": "form-sub-hch-borings-3",
       "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-samples",
+      "formName": "Collect samples at planned locations",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-10T14:40:00.000Z",
+      "summary": "JOB-2026-0910-01-01 — B-1 — UST pad, north corner",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-01",
+        "sampleLocation": "B-1 — UST pad, north corner",
+        "sampleMatrix": "Soil",
+        "depthInterval": "4-6 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 6 ppm"
+      },
+      "createdAt": "2026-09-10T14:40:00.000Z",
+      "updatedAt": "2026-09-10T14:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-4",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-2",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-10T15:05:00.000Z",
+      "summary": "JOB-2026-0910-01-02 — B-1 — UST pad, north corner",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-02",
+        "sampleLocation": "B-1 — UST pad, north corner",
+        "sampleMatrix": "Soil",
+        "depthInterval": "10-12 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 2 ppm"
+      },
+      "createdAt": "2026-09-10T15:05:00.000Z",
+      "updatedAt": "2026-09-10T15:05:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-5",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-3",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-10T16:20:00.000Z",
+      "summary": "JOB-2026-0910-01-03 — B-2 — UST pad, center",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-03",
+        "sampleLocation": "B-2 — UST pad, center",
+        "sampleMatrix": "Soil",
+        "depthInterval": "4-6 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 48 ppm, hydrocarbon odor"
+      },
+      "createdAt": "2026-09-10T16:20:00.000Z",
+      "updatedAt": "2026-09-10T16:20:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-6",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-4",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-10T16:45:00.000Z",
+      "summary": "JOB-2026-0910-01-04 — B-2 — UST pad, center",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-04",
+        "sampleLocation": "B-2 — UST pad, center",
+        "sampleMatrix": "Soil",
+        "depthInterval": "10-12 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 11 ppm"
+      },
+      "createdAt": "2026-09-10T16:45:00.000Z",
+      "updatedAt": "2026-09-10T16:45:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-7",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-5",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-10T19:10:00.000Z",
+      "summary": "JOB-2026-0910-01-05 — B-3 — UST pad, south corner",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-05",
+        "sampleLocation": "B-3 — UST pad, south corner",
+        "sampleMatrix": "Soil",
+        "depthInterval": "4-6 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 3 ppm"
+      },
+      "createdAt": "2026-09-10T19:10:00.000Z",
+      "updatedAt": "2026-09-10T19:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-8",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-6",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-10T19:35:00.000Z",
+      "summary": "JOB-2026-0910-01-06 — B-3 — UST pad, south corner",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-06",
+        "sampleLocation": "B-3 — UST pad, south corner",
+        "sampleMatrix": "Soil",
+        "depthInterval": "10-12 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 1 ppm"
+      },
+      "createdAt": "2026-09-10T19:35:00.000Z",
+      "updatedAt": "2026-09-10T19:35:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-9",
+      "jobId": "dispatch-job-hch-borings",
       "actionId": "action-hch-borings-travel",
       "formName": "Capture travel and truck time",
       "status": "Submitted",
@@ -18110,7 +19199,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-hch-borings-4",
+      "id": "form-sub-hch-borings-10",
       "jobId": "dispatch-job-hch-borings",
       "actionId": "action-hch-borings-travel",
       "formName": "Capture travel and truck time",
@@ -18129,7 +19218,150 @@
       "version": 1
     },
     {
-      "id": "form-sub-hch-borings-5",
+      "id": "form-sub-hch-borings-11",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-7",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-11T14:30:00.000Z",
+      "summary": "JOB-2026-0910-01-07 — B-4 — grease line, 20 ft east of cleanout",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-07",
+        "sampleLocation": "B-4 — grease line, 20 ft east of cleanout",
+        "sampleMatrix": "Soil",
+        "depthInterval": "2-4 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 22 ppm"
+      },
+      "createdAt": "2026-09-11T14:30:00.000Z",
+      "updatedAt": "2026-09-11T14:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-12",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-8",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-11T14:55:00.000Z",
+      "summary": "JOB-2026-0910-01-08 — B-4 — grease line, 20 ft east of cleanout",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-08",
+        "sampleLocation": "B-4 — grease line, 20 ft east of cleanout",
+        "sampleMatrix": "Soil",
+        "depthInterval": "6-8 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 4 ppm"
+      },
+      "createdAt": "2026-09-11T14:55:00.000Z",
+      "updatedAt": "2026-09-11T14:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-13",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-9",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-11T16:15:00.000Z",
+      "summary": "JOB-2026-0910-01-09 — B-5 — grease line, tree line",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-09",
+        "sampleLocation": "B-5 — grease line, tree line",
+        "sampleMatrix": "Soil",
+        "depthInterval": "2-4 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 9 ppm"
+      },
+      "createdAt": "2026-09-11T16:15:00.000Z",
+      "updatedAt": "2026-09-11T16:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-14",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-10",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-11T16:40:00.000Z",
+      "summary": "JOB-2026-0910-01-10 — B-5 — grease line, tree line",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-10",
+        "sampleLocation": "B-5 — grease line, tree line",
+        "sampleMatrix": "Soil",
+        "depthInterval": "6-8 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 1 ppm"
+      },
+      "createdAt": "2026-09-11T16:40:00.000Z",
+      "updatedAt": "2026-09-11T16:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-15",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-11",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-11T18:50:00.000Z",
+      "summary": "JOB-2026-0910-01-11 — B-6 — background, east property line",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-11",
+        "sampleLocation": "B-6 — background, east property line",
+        "sampleMatrix": "Soil",
+        "depthInterval": "2-4 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 0 ppm"
+      },
+      "createdAt": "2026-09-11T18:50:00.000Z",
+      "updatedAt": "2026-09-11T18:50:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-16",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-12",
+      "formName": "Ad hoc: Sample",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-11T19:15:00.000Z",
+      "summary": "JOB-2026-0910-01-12 — B-6 — background, east property line",
+      "payload": {
+        "sampleId": "JOB-2026-0910-01-12",
+        "sampleLocation": "B-6 — background, east property line",
+        "sampleMatrix": "Soil",
+        "depthInterval": "6-8 ft",
+        "requestedAnalyses": "TPH (TX1005)\nBTEX",
+        "notes": "PID 0 ppm"
+      },
+      "createdAt": "2026-09-11T19:15:00.000Z",
+      "updatedAt": "2026-09-11T19:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-17",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-1",
+      "formName": "Ad hoc: Photo",
+      "status": "Submitted",
+      "submittedBy": "Logan Gallman",
+      "submittedAt": "2026-09-11T21:30:00.000Z",
+      "summary": "15 photos",
+      "payload": {
+        "photoCount": 15,
+        "minPhotos": 1
+      },
+      "createdAt": "2026-09-11T21:30:00.000Z",
+      "updatedAt": "2026-09-11T21:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "form-sub-hch-borings-18",
       "jobId": "dispatch-job-hch-borings",
       "actionId": "action-hch-borings-custody",
       "formName": "Complete chain of custody",
@@ -18145,7 +19377,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-hch-borings-6",
+      "id": "form-sub-hch-borings-19",
       "jobId": "dispatch-job-hch-borings",
       "actionId": "action-hch-borings-recap",
       "formName": "Complete shift recap",
@@ -18161,7 +19393,7 @@
       "version": 1
     },
     {
-      "id": "form-sub-hch-borings-7",
+      "id": "form-sub-hch-borings-20",
       "jobId": "dispatch-job-hch-borings",
       "actionId": "action-hch-borings-lab_delivery",
       "formName": "Log lab courier or delivery",
@@ -19981,12 +21213,108 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-18",
+      "id": "job-task-attachment-lonestar-diesel-18",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-adhoc-1",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-lonestar-diesel-18.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "North view",
+      "uploadedAt": "2025-07-03T16:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-03T16:10:00.000Z",
+      "updatedAt": "2025-07-03T16:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lonestar-diesel-19",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-adhoc-1",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-lonestar-diesel-19.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "Sample interval",
+      "uploadedAt": "2025-07-03T16:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-03T16:10:00.000Z",
+      "updatedAt": "2025-07-03T16:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lonestar-diesel-20",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-adhoc-1",
+      "kind": "photo",
+      "fileName": "20260714_160700983_iOS.jpg",
+      "storageName": "job-task-attachment-lonestar-diesel-20.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 350013,
+      "caption": "Container label",
+      "uploadedAt": "2025-07-03T16:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-03T16:10:00.000Z",
+      "updatedAt": "2025-07-03T16:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lonestar-diesel-21",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-adhoc-2",
+      "kind": "photo",
+      "fileName": "south 20260714_153927796_iOS.jpg",
+      "storageName": "job-task-attachment-lonestar-diesel-21.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 302298,
+      "caption": "North view",
+      "uploadedAt": "2025-07-03T16:25:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-03T16:25:00.000Z",
+      "updatedAt": "2025-07-03T16:25:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lonestar-diesel-22",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-adhoc-2",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-lonestar-diesel-22.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "Sample interval",
+      "uploadedAt": "2025-07-03T16:25:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-03T16:25:00.000Z",
+      "updatedAt": "2025-07-03T16:25:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lonestar-diesel-23",
+      "jobId": "dispatch-job-lonestar-diesel",
+      "actionId": "action-lonestar-diesel-adhoc-2",
+      "kind": "photo",
+      "fileName": "20260714_161500109_iOS.jpg",
+      "storageName": "job-task-attachment-lonestar-diesel-23.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 356478,
+      "caption": "Container label",
+      "uploadedAt": "2025-07-03T16:25:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-03T16:25:00.000Z",
+      "updatedAt": "2025-07-03T16:25:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-brazos-debris-24",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_215449916_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-18.jpg",
+      "storageName": "job-task-attachment-brazos-debris-24.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 793540,
       "caption": "Before — debris and stained pad",
@@ -19997,12 +21325,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-19",
+      "id": "job-task-attachment-brazos-debris-25",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_215450987_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-19.jpg",
+      "storageName": "job-task-attachment-brazos-debris-25.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 688354,
       "caption": "Day 1 — photo 2",
@@ -20013,12 +21341,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-20",
+      "id": "job-task-attachment-brazos-debris-26",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_215452208_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-20.jpg",
+      "storageName": "job-task-attachment-brazos-debris-26.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 508672,
       "caption": "Venditti roll-off placed",
@@ -20029,12 +21357,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-21",
+      "id": "job-task-attachment-brazos-debris-27",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_220014930_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-21.jpg",
+      "storageName": "job-task-attachment-brazos-debris-27.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 505746,
       "caption": "Day 1 — photo 4",
@@ -20045,12 +21373,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-22",
+      "id": "job-task-attachment-brazos-debris-28",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_220018422_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-22.jpg",
+      "storageName": "job-task-attachment-brazos-debris-28.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 588695,
       "caption": "Day 1 — photo 5",
@@ -20061,12 +21389,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-23",
+      "id": "job-task-attachment-brazos-debris-29",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_220024608_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-23.jpg",
+      "storageName": "job-task-attachment-brazos-debris-29.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 797604,
       "caption": "Day 1 — photo 6",
@@ -20077,12 +21405,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-24",
+      "id": "job-task-attachment-brazos-debris-30",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_220042495_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-24.jpg",
+      "storageName": "job-task-attachment-brazos-debris-30.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 459195,
       "caption": "Day 1 — photo 7",
@@ -20093,12 +21421,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-25",
+      "id": "job-task-attachment-brazos-debris-31",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_220500263_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-25.jpg",
+      "storageName": "job-task-attachment-brazos-debris-31.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 484916,
       "caption": "Skid steer loading debris",
@@ -20109,12 +21437,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-26",
+      "id": "job-task-attachment-brazos-debris-32",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_220508757_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-26.jpg",
+      "storageName": "job-task-attachment-brazos-debris-32.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 493795,
       "caption": "Day 1 — photo 9",
@@ -20125,12 +21453,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-27",
+      "id": "job-task-attachment-brazos-debris-33",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_221548004_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-27.jpg",
+      "storageName": "job-task-attachment-brazos-debris-33.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 584934,
       "caption": "Day 1 — photo 10",
@@ -20141,12 +21469,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-28",
+      "id": "job-task-attachment-brazos-debris-34",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_234855806_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-28.jpg",
+      "storageName": "job-task-attachment-brazos-debris-34.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 480046,
       "caption": "CyberResponse unit on site",
@@ -20157,12 +21485,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-29",
+      "id": "job-task-attachment-brazos-debris-35",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_235740116_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-29.jpg",
+      "storageName": "job-task-attachment-brazos-debris-35.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 584102,
       "caption": "Day 1 — photo 12",
@@ -20173,12 +21501,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-brazos-debris-30",
+      "id": "job-task-attachment-brazos-debris-36",
       "jobId": "dispatch-job-brazos-debris",
-      "actionId": "",
+      "actionId": "action-brazos-debris-adhoc-1",
       "kind": "photo",
       "fileName": "20250806_235924531_iOS.jpg",
-      "storageName": "job-task-attachment-brazos-debris-30.jpg",
+      "storageName": "job-task-attachment-brazos-debris-36.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 500575,
       "caption": "After — pad washed",
@@ -20189,111 +21517,15 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-lakeway-crawlspace-31",
-      "jobId": "dispatch-job-lakeway-crawlspace",
-      "actionId": "action-lakeway-crawlspace-photos",
-      "kind": "photo",
-      "fileName": "IMG_0823.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-31.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 421312,
-      "caption": "Crawlspace access hatch",
-      "uploadedAt": "2026-03-03T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-03-03T23:30:00.000Z",
-      "updatedAt": "2026-03-03T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-lakeway-crawlspace-32",
-      "jobId": "dispatch-job-lakeway-crawlspace",
-      "actionId": "action-lakeway-crawlspace-photos",
-      "kind": "photo",
-      "fileName": "IMG_0828.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-32.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 383644,
-      "caption": "Picture #2 — before",
-      "uploadedAt": "2026-03-03T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-03-03T23:30:00.000Z",
-      "updatedAt": "2026-03-03T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-lakeway-crawlspace-33",
-      "jobId": "dispatch-job-lakeway-crawlspace",
-      "actionId": "action-lakeway-crawlspace-photos",
-      "kind": "photo",
-      "fileName": "IMG_0829.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-33.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 274125,
-      "caption": "Picture #3 — before",
-      "uploadedAt": "2026-03-03T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-03-03T23:30:00.000Z",
-      "updatedAt": "2026-03-03T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-lakeway-crawlspace-34",
-      "jobId": "dispatch-job-lakeway-crawlspace",
-      "actionId": "action-lakeway-crawlspace-photos",
-      "kind": "photo",
-      "fileName": "IMG_0830.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-34.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 269228,
-      "caption": "Picture #4 — before",
-      "uploadedAt": "2026-03-03T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-03-03T23:30:00.000Z",
-      "updatedAt": "2026-03-03T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-lakeway-crawlspace-35",
-      "jobId": "dispatch-job-lakeway-crawlspace",
-      "actionId": "action-lakeway-crawlspace-photos",
-      "kind": "photo",
-      "fileName": "IMG_0831.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-35.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 379360,
-      "caption": "Picture #5 — before",
-      "uploadedAt": "2026-03-03T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-03-03T23:30:00.000Z",
-      "updatedAt": "2026-03-03T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-lakeway-crawlspace-36",
-      "jobId": "dispatch-job-lakeway-crawlspace",
-      "actionId": "action-lakeway-crawlspace-photos",
-      "kind": "photo",
-      "fileName": "IMG_0836.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-36.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 279067,
-      "caption": "Picture #3 — during",
-      "uploadedAt": "2026-03-03T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-03-03T23:30:00.000Z",
-      "updatedAt": "2026-03-03T23:30:00.000Z",
-      "version": 1
-    },
-    {
       "id": "job-task-attachment-lakeway-crawlspace-37",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-photos",
       "kind": "photo",
-      "fileName": "IMG_0844.jpg",
+      "fileName": "IMG_0823.jpg",
       "storageName": "job-task-attachment-lakeway-crawlspace-37.jpg",
       "mimeType": "image/jpeg",
-      "sizeBytes": 383598,
-      "caption": "Vacuum hose through the hatch",
+      "sizeBytes": 421312,
+      "caption": "Crawlspace access hatch",
       "uploadedAt": "2026-03-03T23:30:00.000Z",
       "uploadedBy": "Logan Gallman",
       "createdAt": "2026-03-03T23:30:00.000Z",
@@ -20305,11 +21537,11 @@
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-photos",
       "kind": "photo",
-      "fileName": "IMG_0845.jpg",
+      "fileName": "IMG_0828.jpg",
       "storageName": "job-task-attachment-lakeway-crawlspace-38.jpg",
       "mimeType": "image/jpeg",
-      "sizeBytes": 297633,
-      "caption": "Picture #1 — during",
+      "sizeBytes": 383644,
+      "caption": "Picture #2 — before",
       "uploadedAt": "2026-03-03T23:30:00.000Z",
       "uploadedBy": "Logan Gallman",
       "createdAt": "2026-03-03T23:30:00.000Z",
@@ -20321,8 +21553,104 @@
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-photos",
       "kind": "photo",
-      "fileName": "IMG_0846.jpg",
+      "fileName": "IMG_0829.jpg",
       "storageName": "job-task-attachment-lakeway-crawlspace-39.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 274125,
+      "caption": "Picture #3 — before",
+      "uploadedAt": "2026-03-03T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-03-03T23:30:00.000Z",
+      "updatedAt": "2026-03-03T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lakeway-crawlspace-40",
+      "jobId": "dispatch-job-lakeway-crawlspace",
+      "actionId": "action-lakeway-crawlspace-photos",
+      "kind": "photo",
+      "fileName": "IMG_0830.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-40.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 269228,
+      "caption": "Picture #4 — before",
+      "uploadedAt": "2026-03-03T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-03-03T23:30:00.000Z",
+      "updatedAt": "2026-03-03T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lakeway-crawlspace-41",
+      "jobId": "dispatch-job-lakeway-crawlspace",
+      "actionId": "action-lakeway-crawlspace-photos",
+      "kind": "photo",
+      "fileName": "IMG_0831.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-41.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 379360,
+      "caption": "Picture #5 — before",
+      "uploadedAt": "2026-03-03T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-03-03T23:30:00.000Z",
+      "updatedAt": "2026-03-03T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lakeway-crawlspace-42",
+      "jobId": "dispatch-job-lakeway-crawlspace",
+      "actionId": "action-lakeway-crawlspace-photos",
+      "kind": "photo",
+      "fileName": "IMG_0836.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-42.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 279067,
+      "caption": "Picture #3 — during",
+      "uploadedAt": "2026-03-03T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-03-03T23:30:00.000Z",
+      "updatedAt": "2026-03-03T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lakeway-crawlspace-43",
+      "jobId": "dispatch-job-lakeway-crawlspace",
+      "actionId": "action-lakeway-crawlspace-photos",
+      "kind": "photo",
+      "fileName": "IMG_0844.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-43.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 383598,
+      "caption": "Vacuum hose through the hatch",
+      "uploadedAt": "2026-03-03T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-03-03T23:30:00.000Z",
+      "updatedAt": "2026-03-03T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lakeway-crawlspace-44",
+      "jobId": "dispatch-job-lakeway-crawlspace",
+      "actionId": "action-lakeway-crawlspace-photos",
+      "kind": "photo",
+      "fileName": "IMG_0845.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-44.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 297633,
+      "caption": "Picture #1 — during",
+      "uploadedAt": "2026-03-03T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-03-03T23:30:00.000Z",
+      "updatedAt": "2026-03-03T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-lakeway-crawlspace-45",
+      "jobId": "dispatch-job-lakeway-crawlspace",
+      "actionId": "action-lakeway-crawlspace-photos",
+      "kind": "photo",
+      "fileName": "IMG_0846.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-45.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 285114,
       "caption": "Picture #4/#5 — after",
@@ -20333,12 +21661,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-lakeway-crawlspace-40",
+      "id": "job-task-attachment-lakeway-crawlspace-46",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-photos",
       "kind": "photo",
       "fileName": "IMG_0849.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-40.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-46.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 263002,
       "caption": "Picture #1 — after",
@@ -20349,12 +21677,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-lakeway-crawlspace-41",
+      "id": "job-task-attachment-lakeway-crawlspace-47",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-photos",
       "kind": "photo",
       "fileName": "IMG_0850.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-41.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-47.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 357732,
       "caption": "Picture #2 — after, bacteria applied",
@@ -20365,12 +21693,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-lakeway-crawlspace-42",
+      "id": "job-task-attachment-lakeway-crawlspace-48",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-photos",
       "kind": "photo",
       "fileName": "IMG_0851.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-42.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-48.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 267491,
       "caption": "Picture #3 — after",
@@ -20381,12 +21709,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-lakeway-crawlspace-43",
+      "id": "job-task-attachment-lakeway-crawlspace-49",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-photos",
       "kind": "photo",
       "fileName": "IMG_0852.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-43.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-49.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 242006,
       "caption": "Picture #3 — after, clean out",
@@ -20397,12 +21725,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-lakeway-crawlspace-44",
+      "id": "job-task-attachment-lakeway-crawlspace-50",
       "jobId": "dispatch-job-lakeway-crawlspace",
       "actionId": "action-lakeway-crawlspace-photos",
       "kind": "photo",
       "fileName": "IMG_0857.jpg",
-      "storageName": "job-task-attachment-lakeway-crawlspace-44.jpg",
+      "storageName": "job-task-attachment-lakeway-crawlspace-50.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 326933,
       "caption": "Final inspection",
@@ -20413,12 +21741,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-domain-garage-45",
+      "id": "job-task-attachment-domain-garage-51",
       "jobId": "dispatch-job-domain-garage",
-      "actionId": "",
+      "actionId": "action-domain-garage-adhoc-1",
       "kind": "photo",
       "fileName": "20260501_040750428_iOS.jpg",
-      "storageName": "job-task-attachment-domain-garage-45.jpg",
+      "storageName": "job-task-attachment-domain-garage-51.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 284093,
       "caption": "Level 2 wash in progress",
@@ -20429,12 +21757,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-domain-garage-46",
+      "id": "job-task-attachment-domain-garage-52",
       "jobId": "dispatch-job-domain-garage",
-      "actionId": "",
+      "actionId": "action-domain-garage-adhoc-1",
       "kind": "photo",
       "fileName": "20260501_040752791_iOS.jpg",
-      "storageName": "job-task-attachment-domain-garage-46.jpg",
+      "storageName": "job-task-attachment-domain-garage-52.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 343208,
       "caption": "Day 1 — photo 2",
@@ -20445,12 +21773,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-domain-garage-47",
+      "id": "job-task-attachment-domain-garage-53",
       "jobId": "dispatch-job-domain-garage",
-      "actionId": "",
+      "actionId": "action-domain-garage-adhoc-1",
       "kind": "photo",
       "fileName": "20260501_040808743_iOS.jpg",
-      "storageName": "job-task-attachment-domain-garage-47.jpg",
+      "storageName": "job-task-attachment-domain-garage-53.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 407210,
       "caption": "Squeegee recovery",
@@ -20461,12 +21789,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-domain-garage-48",
+      "id": "job-task-attachment-domain-garage-54",
       "jobId": "dispatch-job-domain-garage",
-      "actionId": "",
+      "actionId": "action-domain-garage-adhoc-1",
       "kind": "photo",
       "fileName": "20260501_040810132_iOS.jpg",
-      "storageName": "job-task-attachment-domain-garage-48.jpg",
+      "storageName": "job-task-attachment-domain-garage-54.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 409530,
       "caption": "Day 1 — photo 4",
@@ -20477,12 +21805,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-domain-garage-49",
+      "id": "job-task-attachment-domain-garage-55",
       "jobId": "dispatch-job-domain-garage",
-      "actionId": "",
+      "actionId": "action-domain-garage-adhoc-1",
       "kind": "photo",
       "fileName": "20260501_041002474_iOS.jpg",
-      "storageName": "job-task-attachment-domain-garage-49.jpg",
+      "storageName": "job-task-attachment-domain-garage-55.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 320163,
       "caption": "Day 2 — photo 1",
@@ -20493,12 +21821,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-domain-garage-50",
+      "id": "job-task-attachment-domain-garage-56",
       "jobId": "dispatch-job-domain-garage",
-      "actionId": "",
+      "actionId": "action-domain-garage-adhoc-1",
       "kind": "photo",
       "fileName": "20260501_041045064_iOS.jpg",
-      "storageName": "job-task-attachment-domain-garage-50.jpg",
+      "storageName": "job-task-attachment-domain-garage-56.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 351916,
       "caption": "Day 2 — photo 2",
@@ -20509,12 +21837,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-domain-garage-51",
+      "id": "job-task-attachment-domain-garage-57",
       "jobId": "dispatch-job-domain-garage",
-      "actionId": "",
+      "actionId": "action-domain-garage-adhoc-1",
       "kind": "photo",
       "fileName": "20260501_041045626_iOS.jpg",
-      "storageName": "job-task-attachment-domain-garage-51.jpg",
+      "storageName": "job-task-attachment-domain-garage-57.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 349894,
       "caption": "Day 2 — photo 3",
@@ -20525,12 +21853,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-domain-garage-52",
+      "id": "job-task-attachment-domain-garage-58",
       "jobId": "dispatch-job-domain-garage",
-      "actionId": "",
+      "actionId": "action-domain-garage-adhoc-1",
       "kind": "photo",
       "fileName": "20260501_041047292_iOS.jpg",
-      "storageName": "job-task-attachment-domain-garage-52.jpg",
+      "storageName": "job-task-attachment-domain-garage-58.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 356430,
       "caption": "After — level 3",
@@ -20541,12 +21869,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-wolf-pond-1-53",
+      "id": "job-task-attachment-wolf-pond-1-59",
       "jobId": "dispatch-job-wolf-pond-1",
-      "actionId": "",
+      "actionId": "action-wolf-pond-1-adhoc-1",
       "kind": "photo",
       "fileName": "20250920_002328404_iOS.jpg",
-      "storageName": "job-task-attachment-wolf-pond-1-53.jpg",
+      "storageName": "job-task-attachment-wolf-pond-1-59.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 161179,
       "caption": "Day 1 — photo 1",
@@ -20557,12 +21885,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-wolf-pond-1-54",
+      "id": "job-task-attachment-wolf-pond-1-60",
       "jobId": "dispatch-job-wolf-pond-1",
-      "actionId": "",
+      "actionId": "action-wolf-pond-1-adhoc-1",
       "kind": "photo",
       "fileName": "20250920_033612329_iOS.jpg",
-      "storageName": "job-task-attachment-wolf-pond-1-54.jpg",
+      "storageName": "job-task-attachment-wolf-pond-1-60.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 261739,
       "caption": "Setting up on the pond trail",
@@ -20573,12 +21901,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-wolf-pond-1-55",
+      "id": "job-task-attachment-wolf-pond-1-61",
       "jobId": "dispatch-job-wolf-pond-1",
-      "actionId": "",
+      "actionId": "action-wolf-pond-1-adhoc-1",
       "kind": "photo",
       "fileName": "20250920_034003165_iOS.jpg",
-      "storageName": "job-task-attachment-wolf-pond-1-55.jpg",
+      "storageName": "job-task-attachment-wolf-pond-1-61.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 241907,
       "caption": "Perimeter application along the north bank",
@@ -20589,12 +21917,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-wolf-pond-1-56",
+      "id": "job-task-attachment-wolf-pond-1-62",
       "jobId": "dispatch-job-wolf-pond-1",
-      "actionId": "",
+      "actionId": "action-wolf-pond-1-adhoc-1",
       "kind": "photo",
       "fileName": "20250920_034009123_iOS.jpg",
-      "storageName": "job-task-attachment-wolf-pond-1-56.jpg",
+      "storageName": "job-task-attachment-wolf-pond-1-62.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 217020,
       "caption": "Day 1 — photo 4",
@@ -20605,12 +21933,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-wolf-pond-1-57",
+      "id": "job-task-attachment-wolf-pond-1-63",
       "jobId": "dispatch-job-wolf-pond-1",
-      "actionId": "",
+      "actionId": "action-wolf-pond-1-adhoc-1",
       "kind": "photo",
       "fileName": "20250920_034138976_iOS.jpg",
-      "storageName": "job-task-attachment-wolf-pond-1-57.jpg",
+      "storageName": "job-task-attachment-wolf-pond-1-63.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 348894,
       "caption": "Outfall weir application",
@@ -20621,12 +21949,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-wolf-pond-1-58",
+      "id": "job-task-attachment-wolf-pond-1-64",
       "jobId": "dispatch-job-wolf-pond-1",
-      "actionId": "",
+      "actionId": "action-wolf-pond-1-adhoc-1",
       "kind": "photo",
       "fileName": "20250920_035328578_iOS.jpg",
-      "storageName": "job-task-attachment-wolf-pond-1-58.jpg",
+      "storageName": "job-task-attachment-wolf-pond-1-64.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 167316,
       "caption": "After — pond at 1am",
@@ -20637,12 +21965,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-wolf-pond-1-59",
+      "id": "job-task-attachment-wolf-pond-1-65",
       "jobId": "dispatch-job-wolf-pond-1",
-      "actionId": "",
+      "actionId": "action-wolf-pond-1-adhoc-1",
       "kind": "photo",
       "fileName": "20250920_035350763_iOS.jpg",
-      "storageName": "job-task-attachment-wolf-pond-1-59.jpg",
+      "storageName": "job-task-attachment-wolf-pond-1-65.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 227118,
       "caption": "Day 1 — photo 7",
@@ -20653,111 +21981,15 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-permian-day1-60",
-      "jobId": "dispatch-job-permian-day1",
-      "actionId": "action-permian-day1-photos",
-      "kind": "photo",
-      "fileName": "20250919_173943860_iOS.jpg",
-      "storageName": "job-task-attachment-permian-day1-60.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 257203,
-      "caption": "Staging on the caliche pad",
-      "uploadedAt": "2026-09-19T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-09-19T23:30:00.000Z",
-      "updatedAt": "2026-09-19T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-permian-day1-61",
-      "jobId": "dispatch-job-permian-day1",
-      "actionId": "action-permian-day1-photos",
-      "kind": "photo",
-      "fileName": "20250919_223854555_iOS.jpg",
-      "storageName": "job-task-attachment-permian-day1-61.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 372283,
-      "caption": "Skid steer and flatbed at the pad",
-      "uploadedAt": "2026-09-19T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-09-19T23:30:00.000Z",
-      "updatedAt": "2026-09-19T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-permian-day1-62",
-      "jobId": "dispatch-job-permian-day1",
-      "actionId": "action-permian-day1-photos",
-      "kind": "photo",
-      "fileName": "20250919_230831051_iOS.jpg",
-      "storageName": "job-task-attachment-permian-day1-62.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 456822,
-      "caption": "Day 1 — photo 3",
-      "uploadedAt": "2026-09-19T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-09-19T23:30:00.000Z",
-      "updatedAt": "2026-09-19T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-permian-day1-63",
-      "jobId": "dispatch-job-permian-day1",
-      "actionId": "action-permian-day1-photos",
-      "kind": "photo",
-      "fileName": "20250919_231816126_iOS.jpg",
-      "storageName": "job-task-attachment-permian-day1-63.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 343550,
-      "caption": "Release area from the flatbed",
-      "uploadedAt": "2026-09-19T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-09-19T23:30:00.000Z",
-      "updatedAt": "2026-09-19T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-permian-day1-64",
-      "jobId": "dispatch-job-permian-day1",
-      "actionId": "action-permian-day1-photos",
-      "kind": "photo",
-      "fileName": "20250919_231818212_iOS.jpg",
-      "storageName": "job-task-attachment-permian-day1-64.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 399973,
-      "caption": "Day 1 — photo 5",
-      "uploadedAt": "2026-09-19T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-09-19T23:30:00.000Z",
-      "updatedAt": "2026-09-19T23:30:00.000Z",
-      "version": 1
-    },
-    {
-      "id": "job-task-attachment-permian-day1-65",
-      "jobId": "dispatch-job-permian-day1",
-      "actionId": "action-permian-day1-photos",
-      "kind": "photo",
-      "fileName": "20250919_231821633_iOS.jpg",
-      "storageName": "job-task-attachment-permian-day1-65.jpg",
-      "mimeType": "image/jpeg",
-      "sizeBytes": 700171,
-      "caption": "Day 1 — photo 6",
-      "uploadedAt": "2026-09-19T23:30:00.000Z",
-      "uploadedBy": "Logan Gallman",
-      "createdAt": "2026-09-19T23:30:00.000Z",
-      "updatedAt": "2026-09-19T23:30:00.000Z",
-      "version": 1
-    },
-    {
       "id": "job-task-attachment-permian-day1-66",
       "jobId": "dispatch-job-permian-day1",
       "actionId": "action-permian-day1-photos",
       "kind": "photo",
-      "fileName": "20250919_231826698_iOS.jpg",
+      "fileName": "20250919_173943860_iOS.jpg",
       "storageName": "job-task-attachment-permian-day1-66.jpg",
       "mimeType": "image/jpeg",
-      "sizeBytes": 339433,
-      "caption": "Telehandler placing totes",
+      "sizeBytes": 257203,
+      "caption": "Staging on the caliche pad",
       "uploadedAt": "2026-09-19T23:30:00.000Z",
       "uploadedBy": "Logan Gallman",
       "createdAt": "2026-09-19T23:30:00.000Z",
@@ -20769,8 +22001,104 @@
       "jobId": "dispatch-job-permian-day1",
       "actionId": "action-permian-day1-photos",
       "kind": "photo",
-      "fileName": "20250919_234350121_iOS.jpg",
+      "fileName": "20250919_223854555_iOS.jpg",
       "storageName": "job-task-attachment-permian-day1-67.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 372283,
+      "caption": "Skid steer and flatbed at the pad",
+      "uploadedAt": "2026-09-19T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-19T23:30:00.000Z",
+      "updatedAt": "2026-09-19T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-day1-68",
+      "jobId": "dispatch-job-permian-day1",
+      "actionId": "action-permian-day1-photos",
+      "kind": "photo",
+      "fileName": "20250919_230831051_iOS.jpg",
+      "storageName": "job-task-attachment-permian-day1-68.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 456822,
+      "caption": "Day 1 — photo 3",
+      "uploadedAt": "2026-09-19T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-19T23:30:00.000Z",
+      "updatedAt": "2026-09-19T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-day1-69",
+      "jobId": "dispatch-job-permian-day1",
+      "actionId": "action-permian-day1-photos",
+      "kind": "photo",
+      "fileName": "20250919_231816126_iOS.jpg",
+      "storageName": "job-task-attachment-permian-day1-69.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 343550,
+      "caption": "Release area from the flatbed",
+      "uploadedAt": "2026-09-19T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-19T23:30:00.000Z",
+      "updatedAt": "2026-09-19T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-day1-70",
+      "jobId": "dispatch-job-permian-day1",
+      "actionId": "action-permian-day1-photos",
+      "kind": "photo",
+      "fileName": "20250919_231818212_iOS.jpg",
+      "storageName": "job-task-attachment-permian-day1-70.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 399973,
+      "caption": "Day 1 — photo 5",
+      "uploadedAt": "2026-09-19T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-19T23:30:00.000Z",
+      "updatedAt": "2026-09-19T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-day1-71",
+      "jobId": "dispatch-job-permian-day1",
+      "actionId": "action-permian-day1-photos",
+      "kind": "photo",
+      "fileName": "20250919_231821633_iOS.jpg",
+      "storageName": "job-task-attachment-permian-day1-71.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 700171,
+      "caption": "Day 1 — photo 6",
+      "uploadedAt": "2026-09-19T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-19T23:30:00.000Z",
+      "updatedAt": "2026-09-19T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-day1-72",
+      "jobId": "dispatch-job-permian-day1",
+      "actionId": "action-permian-day1-photos",
+      "kind": "photo",
+      "fileName": "20250919_231826698_iOS.jpg",
+      "storageName": "job-task-attachment-permian-day1-72.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 339433,
+      "caption": "Telehandler placing totes",
+      "uploadedAt": "2026-09-19T23:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-19T23:30:00.000Z",
+      "updatedAt": "2026-09-19T23:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-day1-73",
+      "jobId": "dispatch-job-permian-day1",
+      "actionId": "action-permian-day1-photos",
+      "kind": "photo",
+      "fileName": "20250919_234350121_iOS.jpg",
+      "storageName": "job-task-attachment-permian-day1-73.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 299989,
       "caption": "Recovered product in totes",
@@ -20781,12 +22109,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-permian-stage2-68",
+      "id": "job-task-attachment-permian-stage2-74",
       "jobId": "dispatch-job-permian-stage2",
-      "actionId": "action-permian-stage2-photos",
+      "actionId": "action-permian-stage2-adhoc-1",
       "kind": "photo",
       "fileName": "20250919_231822939_iOS.jpg",
-      "storageName": "job-task-attachment-permian-stage2-68.jpg",
+      "storageName": "job-task-attachment-permian-stage2-74.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 393352,
       "caption": "Day 1 — photo 1",
@@ -20797,12 +22125,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-permian-stage2-69",
+      "id": "job-task-attachment-permian-stage2-75",
       "jobId": "dispatch-job-permian-stage2",
-      "actionId": "action-permian-stage2-photos",
+      "actionId": "action-permian-stage2-adhoc-1",
       "kind": "photo",
       "fileName": "20250919_231824959_iOS.jpg",
-      "storageName": "job-task-attachment-permian-stage2-69.jpg",
+      "storageName": "job-task-attachment-permian-stage2-75.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 424018,
       "caption": "Excavation — east half",
@@ -20813,12 +22141,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-permian-stage2-70",
+      "id": "job-task-attachment-permian-stage2-76",
       "jobId": "dispatch-job-permian-stage2",
-      "actionId": "action-permian-stage2-photos",
+      "actionId": "action-permian-stage2-adhoc-1",
       "kind": "photo",
       "fileName": "20250919_234351553_iOS.jpg",
-      "storageName": "job-task-attachment-permian-stage2-70.jpg",
+      "storageName": "job-task-attachment-permian-stage2-76.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 348578,
       "caption": "Frac tank and transfer",
@@ -20829,12 +22157,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-permian-stage2-71",
+      "id": "job-task-attachment-permian-stage2-77",
       "jobId": "dispatch-job-permian-stage2",
-      "actionId": "action-permian-stage2-photos",
+      "actionId": "action-permian-stage2-adhoc-1",
       "kind": "photo",
       "fileName": "20250919_234356179_iOS.jpg",
-      "storageName": "job-task-attachment-permian-stage2-71.jpg",
+      "storageName": "job-task-attachment-permian-stage2-77.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 312604,
       "caption": "Day 1 — photo 4",
@@ -20845,12 +22173,156 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-permian-stage2-72",
+      "id": "job-task-attachment-permian-stage2-78",
       "jobId": "dispatch-job-permian-stage2",
-      "actionId": "action-permian-stage2-photos",
+      "actionId": "action-permian-stage2-adhoc-2",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-78.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "North view",
+      "uploadedAt": "2026-09-22T20:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T20:40:00.000Z",
+      "updatedAt": "2026-09-22T20:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-79",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-2",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-79.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-22T20:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T20:40:00.000Z",
+      "updatedAt": "2026-09-22T20:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-80",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-2",
+      "kind": "photo",
+      "fileName": "20260714_160700983_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-80.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 350013,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-22T20:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T20:40:00.000Z",
+      "updatedAt": "2026-09-22T20:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-81",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-3",
+      "kind": "photo",
+      "fileName": "south 20260714_153927796_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-81.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 302298,
+      "caption": "North view",
+      "uploadedAt": "2026-09-22T20:55:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T20:55:00.000Z",
+      "updatedAt": "2026-09-22T20:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-82",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-3",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-82.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-22T20:55:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T20:55:00.000Z",
+      "updatedAt": "2026-09-22T20:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-83",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-3",
+      "kind": "photo",
+      "fileName": "20260714_161500109_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-83.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 356478,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-22T20:55:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T20:55:00.000Z",
+      "updatedAt": "2026-09-22T20:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-84",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-4",
+      "kind": "photo",
+      "fileName": "20260714_172334064_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-84.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 266392,
+      "caption": "North view",
+      "uploadedAt": "2026-09-22T21:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T21:10:00.000Z",
+      "updatedAt": "2026-09-22T21:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-85",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-4",
+      "kind": "photo",
+      "fileName": "20260714_153007375_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-85.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 217211,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-22T21:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T21:10:00.000Z",
+      "updatedAt": "2026-09-22T21:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-86",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-4",
+      "kind": "photo",
+      "fileName": "20260714_163756097_iOS.jpg",
+      "storageName": "job-task-attachment-permian-stage2-86.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 257855,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-22T21:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-22T21:10:00.000Z",
+      "updatedAt": "2026-09-22T21:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-permian-stage2-87",
+      "jobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-1",
       "kind": "photo",
       "fileName": "20250919_234359813_iOS.jpg",
-      "storageName": "job-task-attachment-permian-stage2-72.jpg",
+      "storageName": "job-task-attachment-permian-stage2-87.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 348269,
       "caption": "Day 2 — photo 1",
@@ -20861,12 +22333,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-permian-stage2-73",
+      "id": "job-task-attachment-permian-stage2-88",
       "jobId": "dispatch-job-permian-stage2",
-      "actionId": "action-permian-stage2-photos",
+      "actionId": "action-permian-stage2-adhoc-1",
       "kind": "photo",
       "fileName": "20250919_234402178_iOS.jpg",
-      "storageName": "job-task-attachment-permian-stage2-73.jpg",
+      "storageName": "job-task-attachment-permian-stage2-88.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 312596,
       "caption": "Day 2 — photo 2",
@@ -20877,12 +22349,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-permian-stage2-74",
+      "id": "job-task-attachment-permian-stage2-89",
       "jobId": "dispatch-job-permian-stage2",
-      "actionId": "action-permian-stage2-photos",
+      "actionId": "action-permian-stage2-adhoc-1",
       "kind": "photo",
       "fileName": "20250919_234936187_iOS.jpg",
-      "storageName": "job-task-attachment-permian-stage2-74.jpg",
+      "storageName": "job-task-attachment-permian-stage2-89.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 223882,
       "caption": "End of day — telehandler and windrows",
@@ -20893,12 +22365,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-75",
+      "id": "job-task-attachment-hch-borings-90",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260218_133802161_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-75.jpg",
+      "storageName": "job-task-attachment-hch-borings-90.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 400666,
       "caption": "Rig and truck at the north yard",
@@ -20909,12 +22381,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-76",
+      "id": "job-task-attachment-hch-borings-91",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260218_164528902_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-76.jpg",
+      "storageName": "job-task-attachment-hch-borings-91.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 610327,
       "caption": "Grease line cleanout — stained pavement",
@@ -20925,12 +22397,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-77",
+      "id": "job-task-attachment-hch-borings-92",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260218_175727450_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-77.jpg",
+      "storageName": "job-task-attachment-hch-borings-92.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 340947,
       "caption": "Day 1 — photo 3",
@@ -20941,12 +22413,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-78",
+      "id": "job-task-attachment-hch-borings-93",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260218_180648724_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-78.jpg",
+      "storageName": "job-task-attachment-hch-borings-93.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 418925,
       "caption": "Day 1 — photo 4",
@@ -20957,12 +22429,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-79",
+      "id": "job-task-attachment-hch-borings-94",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260218_212424884_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-79.jpg",
+      "storageName": "job-task-attachment-hch-borings-94.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 418968,
       "caption": "Day 1 — photo 5",
@@ -20973,12 +22445,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-80",
+      "id": "job-task-attachment-hch-borings-95",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260218_212549564_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-80.jpg",
+      "storageName": "job-task-attachment-hch-borings-95.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 469825,
       "caption": "B-2 core",
@@ -20989,12 +22461,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-81",
+      "id": "job-task-attachment-hch-borings-96",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260218_213106058_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-81.jpg",
+      "storageName": "job-task-attachment-hch-borings-96.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 435611,
       "caption": "Cuttings drummed at B-2",
@@ -21005,12 +22477,300 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-82",
+      "id": "job-task-attachment-hch-borings-97",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-samples",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-97.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "North view",
+      "uploadedAt": "2026-09-10T14:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T14:40:00.000Z",
+      "updatedAt": "2026-09-10T14:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-98",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-samples",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-98.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-10T14:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T14:40:00.000Z",
+      "updatedAt": "2026-09-10T14:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-99",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-samples",
+      "kind": "photo",
+      "fileName": "20260714_160700983_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-99.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 350013,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-10T14:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T14:40:00.000Z",
+      "updatedAt": "2026-09-10T14:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-100",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-2",
+      "kind": "photo",
+      "fileName": "south 20260714_153927796_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-100.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 302298,
+      "caption": "North view",
+      "uploadedAt": "2026-09-10T15:05:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T15:05:00.000Z",
+      "updatedAt": "2026-09-10T15:05:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-101",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-2",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-101.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-10T15:05:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T15:05:00.000Z",
+      "updatedAt": "2026-09-10T15:05:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-102",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-2",
+      "kind": "photo",
+      "fileName": "20260714_161500109_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-102.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 356478,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-10T15:05:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T15:05:00.000Z",
+      "updatedAt": "2026-09-10T15:05:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-103",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-3",
+      "kind": "photo",
+      "fileName": "20260714_172334064_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-103.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 266392,
+      "caption": "North view",
+      "uploadedAt": "2026-09-10T16:20:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T16:20:00.000Z",
+      "updatedAt": "2026-09-10T16:20:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-104",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-3",
+      "kind": "photo",
+      "fileName": "20260714_153007375_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-104.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 217211,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-10T16:20:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T16:20:00.000Z",
+      "updatedAt": "2026-09-10T16:20:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-105",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-3",
+      "kind": "photo",
+      "fileName": "20260714_163756097_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-105.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 257855,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-10T16:20:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T16:20:00.000Z",
+      "updatedAt": "2026-09-10T16:20:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-106",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-4",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-106.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "North view",
+      "uploadedAt": "2026-09-10T16:45:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T16:45:00.000Z",
+      "updatedAt": "2026-09-10T16:45:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-107",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-4",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-107.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-10T16:45:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T16:45:00.000Z",
+      "updatedAt": "2026-09-10T16:45:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-108",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-4",
+      "kind": "photo",
+      "fileName": "20260714_164206244_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-108.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 245261,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-10T16:45:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T16:45:00.000Z",
+      "updatedAt": "2026-09-10T16:45:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-109",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-5",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-109.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "North view",
+      "uploadedAt": "2026-09-10T19:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T19:10:00.000Z",
+      "updatedAt": "2026-09-10T19:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-110",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-5",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-110.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-10T19:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T19:10:00.000Z",
+      "updatedAt": "2026-09-10T19:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-111",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-5",
+      "kind": "photo",
+      "fileName": "20260714_164917605_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-111.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 275941,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-10T19:10:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T19:10:00.000Z",
+      "updatedAt": "2026-09-10T19:10:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-112",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-6",
+      "kind": "photo",
+      "fileName": "south 20260714_153927796_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-112.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 302298,
+      "caption": "North view",
+      "uploadedAt": "2026-09-10T19:35:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T19:35:00.000Z",
+      "updatedAt": "2026-09-10T19:35:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-113",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-6",
+      "kind": "photo",
+      "fileName": "20260714_153007375_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-113.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 217211,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-10T19:35:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T19:35:00.000Z",
+      "updatedAt": "2026-09-10T19:35:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-114",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-6",
+      "kind": "photo",
+      "fileName": "20260714_165531691_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-114.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 287921,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-10T19:35:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-10T19:35:00.000Z",
+      "updatedAt": "2026-09-10T19:35:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-115",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260219_174916836_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-82.jpg",
+      "storageName": "job-task-attachment-hch-borings-115.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 450341,
       "caption": "Grease line cleanout",
@@ -21021,12 +22781,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-83",
+      "id": "job-task-attachment-hch-borings-116",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260219_184808683_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-83.jpg",
+      "storageName": "job-task-attachment-hch-borings-116.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 585824,
       "caption": "Day 2 — photo 2",
@@ -21037,12 +22797,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-84",
+      "id": "job-task-attachment-hch-borings-117",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260219_190724131_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-84.jpg",
+      "storageName": "job-task-attachment-hch-borings-117.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 732370,
       "caption": "Rig at the tree line — B-4",
@@ -21053,12 +22813,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-85",
+      "id": "job-task-attachment-hch-borings-118",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260219_190938356_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-85.jpg",
+      "storageName": "job-task-attachment-hch-borings-118.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 800228,
       "caption": "Day 2 — photo 4",
@@ -21069,12 +22829,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-86",
+      "id": "job-task-attachment-hch-borings-119",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260219_200236446_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-86.jpg",
+      "storageName": "job-task-attachment-hch-borings-119.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 758927,
       "caption": "Day 2 — photo 5",
@@ -21085,12 +22845,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-87",
+      "id": "job-task-attachment-hch-borings-120",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260219_203303339_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-87.jpg",
+      "storageName": "job-task-attachment-hch-borings-120.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 547029,
       "caption": "Day 2 — photo 6",
@@ -21101,12 +22861,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-88",
+      "id": "job-task-attachment-hch-borings-121",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260219_203411564_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-88.jpg",
+      "storageName": "job-task-attachment-hch-borings-121.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 321171,
       "caption": "B-6 core, 2-4 ft",
@@ -21117,12 +22877,12 @@
       "version": 1
     },
     {
-      "id": "job-task-attachment-hch-borings-89",
+      "id": "job-task-attachment-hch-borings-122",
       "jobId": "dispatch-job-hch-borings",
-      "actionId": "",
+      "actionId": "action-hch-borings-adhoc-1",
       "kind": "photo",
       "fileName": "20260219_203416642_iOS.jpg",
-      "storageName": "job-task-attachment-hch-borings-89.jpg",
+      "storageName": "job-task-attachment-hch-borings-122.jpg",
       "mimeType": "image/jpeg",
       "sizeBytes": 632014,
       "caption": "B-6 core, clay at 6 ft",
@@ -21130,6 +22890,294 @@
       "uploadedBy": "Logan Gallman",
       "createdAt": "2026-09-11T21:30:00.000Z",
       "updatedAt": "2026-09-11T21:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-123",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-7",
+      "kind": "photo",
+      "fileName": "20260714_172334064_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-123.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 266392,
+      "caption": "North view",
+      "uploadedAt": "2026-09-11T14:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T14:30:00.000Z",
+      "updatedAt": "2026-09-11T14:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-124",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-7",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-124.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-11T14:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T14:30:00.000Z",
+      "updatedAt": "2026-09-11T14:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-125",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-7",
+      "kind": "photo",
+      "fileName": "20260714_170125155_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-125.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 291654,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-11T14:30:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T14:30:00.000Z",
+      "updatedAt": "2026-09-11T14:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-126",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-8",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-126.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "North view",
+      "uploadedAt": "2026-09-11T14:55:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T14:55:00.000Z",
+      "updatedAt": "2026-09-11T14:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-127",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-8",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-127.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-11T14:55:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T14:55:00.000Z",
+      "updatedAt": "2026-09-11T14:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-128",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-8",
+      "kind": "photo",
+      "fileName": "20260714_170819516_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-128.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 289095,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-11T14:55:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T14:55:00.000Z",
+      "updatedAt": "2026-09-11T14:55:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-129",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-9",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-129.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "North view",
+      "uploadedAt": "2026-09-11T16:15:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T16:15:00.000Z",
+      "updatedAt": "2026-09-11T16:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-130",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-9",
+      "kind": "photo",
+      "fileName": "20260714_153007375_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-130.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 217211,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-11T16:15:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T16:15:00.000Z",
+      "updatedAt": "2026-09-11T16:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-131",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-9",
+      "kind": "photo",
+      "fileName": "20260714_173136977_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-131.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 248538,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-11T16:15:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T16:15:00.000Z",
+      "updatedAt": "2026-09-11T16:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-132",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-10",
+      "kind": "photo",
+      "fileName": "south 20260714_153927796_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-132.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 302298,
+      "caption": "North view",
+      "uploadedAt": "2026-09-11T16:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T16:40:00.000Z",
+      "updatedAt": "2026-09-11T16:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-133",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-10",
+      "kind": "photo",
+      "fileName": "20260714_152338569_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-133.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 529694,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-11T16:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T16:40:00.000Z",
+      "updatedAt": "2026-09-11T16:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-134",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-10",
+      "kind": "photo",
+      "fileName": "south 20260714_155144920_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-134.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 337600,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-11T16:40:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T16:40:00.000Z",
+      "updatedAt": "2026-09-11T16:40:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-135",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-11",
+      "kind": "photo",
+      "fileName": "20260714_172334064_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-135.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 266392,
+      "caption": "North view",
+      "uploadedAt": "2026-09-11T18:50:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T18:50:00.000Z",
+      "updatedAt": "2026-09-11T18:50:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-136",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-11",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-136.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-11T18:50:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T18:50:00.000Z",
+      "updatedAt": "2026-09-11T18:50:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-137",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-11",
+      "kind": "photo",
+      "fileName": "south 20260714_162217950_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-137.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 329875,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-11T18:50:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T18:50:00.000Z",
+      "updatedAt": "2026-09-11T18:50:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-138",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-12",
+      "kind": "photo",
+      "fileName": "20260714_152144641_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-138.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 659107,
+      "caption": "North view",
+      "uploadedAt": "2026-09-11T19:15:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T19:15:00.000Z",
+      "updatedAt": "2026-09-11T19:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-139",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-12",
+      "kind": "photo",
+      "fileName": "20260714_153007375_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-139.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 217211,
+      "caption": "Sample interval",
+      "uploadedAt": "2026-09-11T19:15:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T19:15:00.000Z",
+      "updatedAt": "2026-09-11T19:15:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "job-task-attachment-hch-borings-140",
+      "jobId": "dispatch-job-hch-borings",
+      "actionId": "action-hch-borings-adhoc-12",
+      "kind": "photo",
+      "fileName": "south20260714_161148435_iOS.jpg",
+      "storageName": "job-task-attachment-hch-borings-140.jpg",
+      "mimeType": "image/jpeg",
+      "sizeBytes": 299448,
+      "caption": "Container label",
+      "uploadedAt": "2026-09-11T19:15:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-11T19:15:00.000Z",
+      "updatedAt": "2026-09-11T19:15:00.000Z",
       "version": 1
     }
   ],
@@ -21562,8 +23610,456 @@
     }
   ],
   "laborAssignments": [],
-  "sampleLabReports": [],
-  "sampleResults": [],
+  "sampleLabReports": [
+    {
+      "id": "sample-lab-report-001",
+      "sampleId": "sample-lonestar-diesel-1",
+      "fileName": "Sample Lab Report.pdf",
+      "storageName": "sample-lab-report-001.pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 541163,
+      "uploadedAt": "2025-07-15T15:00:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-lab-report-002",
+      "sampleId": "sample-lonestar-diesel-1",
+      "fileName": "Sample Lab Report.xls",
+      "storageName": "sample-lab-report-002.xls",
+      "mimeType": "application/vnd.ms-excel",
+      "sizeBytes": 11776,
+      "uploadedAt": "2025-07-15T15:00:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-lab-report-003",
+      "sampleId": "sample-lonestar-diesel-2",
+      "fileName": "Sample Lab Report.pdf",
+      "storageName": "sample-lab-report-003.pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 541163,
+      "uploadedAt": "2025-07-15T15:00:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-lab-report-004",
+      "sampleId": "sample-permian-stage2-1",
+      "fileName": "sample lab report 2.pdf",
+      "storageName": "sample-lab-report-004.pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 394553,
+      "uploadedAt": "2026-09-24T19:00:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-lab-report-005",
+      "sampleId": "sample-permian-stage2-1",
+      "fileName": "sample lab report 2.xls",
+      "storageName": "sample-lab-report-005.xls",
+      "mimeType": "application/vnd.ms-excel",
+      "sizeBytes": 14848,
+      "uploadedAt": "2026-09-24T19:00:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-lab-report-006",
+      "sampleId": "sample-permian-stage2-2",
+      "fileName": "sample lab report 2.pdf",
+      "storageName": "sample-lab-report-006.pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 394553,
+      "uploadedAt": "2026-09-24T19:00:00.000Z",
+      "uploadedBy": "Logan Gallman",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    }
+  ],
+  "sampleResults": [
+    {
+      "id": "sample-result-001",
+      "sampleId": "sample-lonestar-diesel-1",
+      "projectId": "proj-lonestar-diesel",
+      "analyte": "TPH C6-C12",
+      "method": "TX1005",
+      "resultValue": "<13.4",
+      "resultNumeric": null,
+      "units": "mg/kg",
+      "detectionLimit": 4,
+      "reportingLimit": 13.4,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-001",
+      "reportedOn": "2025-07-15",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-002",
+      "sampleId": "sample-lonestar-diesel-1",
+      "projectId": "proj-lonestar-diesel",
+      "analyte": "TPH >C12-C28",
+      "method": "TX1005",
+      "resultValue": "<13.4",
+      "resultNumeric": null,
+      "units": "mg/kg",
+      "detectionLimit": 4,
+      "reportingLimit": 13.4,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-001",
+      "reportedOn": "2025-07-15",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-003",
+      "sampleId": "sample-lonestar-diesel-1",
+      "projectId": "proj-lonestar-diesel",
+      "analyte": "TPH >C28-C35",
+      "method": "TX1005",
+      "resultValue": "<13.4",
+      "resultNumeric": null,
+      "units": "mg/kg",
+      "detectionLimit": 4,
+      "reportingLimit": 13.4,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-001",
+      "reportedOn": "2025-07-15",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-004",
+      "sampleId": "sample-lonestar-diesel-1",
+      "projectId": "proj-lonestar-diesel",
+      "analyte": "TPH C6-C35",
+      "method": "TX1005",
+      "resultValue": "<13.4",
+      "resultNumeric": null,
+      "units": "mg/kg",
+      "detectionLimit": 4,
+      "reportingLimit": 13.4,
+      "qualifier": "",
+      "actionLevel": 1000,
+      "actionLevelSource": "TRRP Tier 1 residential (sample data)",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-001",
+      "reportedOn": "2025-07-15",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-005",
+      "sampleId": "sample-lonestar-diesel-2",
+      "projectId": "proj-lonestar-diesel",
+      "analyte": "TPH C6-C12",
+      "method": "TX1005",
+      "resultValue": "<13.4",
+      "resultNumeric": null,
+      "units": "mg/kg",
+      "detectionLimit": 4,
+      "reportingLimit": 13.4,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-003",
+      "reportedOn": "2025-07-15",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-006",
+      "sampleId": "sample-lonestar-diesel-2",
+      "projectId": "proj-lonestar-diesel",
+      "analyte": "TPH >C12-C28",
+      "method": "TX1005",
+      "resultValue": "18.6",
+      "resultNumeric": 18.6,
+      "units": "mg/kg",
+      "detectionLimit": 4,
+      "reportingLimit": 13.4,
+      "qualifier": "J",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-003",
+      "reportedOn": "2025-07-15",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-007",
+      "sampleId": "sample-lonestar-diesel-2",
+      "projectId": "proj-lonestar-diesel",
+      "analyte": "TPH >C28-C35",
+      "method": "TX1005",
+      "resultValue": "<13.4",
+      "resultNumeric": null,
+      "units": "mg/kg",
+      "detectionLimit": 4,
+      "reportingLimit": 13.4,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-003",
+      "reportedOn": "2025-07-15",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-008",
+      "sampleId": "sample-lonestar-diesel-2",
+      "projectId": "proj-lonestar-diesel",
+      "analyte": "TPH C6-C35",
+      "method": "TX1005",
+      "resultValue": "18.6",
+      "resultNumeric": 18.6,
+      "units": "mg/kg",
+      "detectionLimit": 4,
+      "reportingLimit": 13.4,
+      "qualifier": "J",
+      "actionLevel": 1000,
+      "actionLevelSource": "TRRP Tier 1 residential (sample data)",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-003",
+      "reportedOn": "2025-07-15",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2025-07-15T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-009",
+      "sampleId": "sample-permian-stage2-1",
+      "projectId": "proj-permian-release",
+      "analyte": "TPH C6-C12",
+      "method": "TX1005",
+      "resultValue": "875",
+      "resultNumeric": 875,
+      "units": "mg/kg",
+      "detectionLimit": 750,
+      "reportingLimit": 2500,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-004",
+      "reportedOn": "2026-09-24",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-010",
+      "sampleId": "sample-permian-stage2-1",
+      "projectId": "proj-permian-release",
+      "analyte": "TPH >C12-C28",
+      "method": "TX1005",
+      "resultValue": "11000",
+      "resultNumeric": 11000,
+      "units": "mg/kg",
+      "detectionLimit": 750,
+      "reportingLimit": 2500,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-004",
+      "reportedOn": "2026-09-24",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-011",
+      "sampleId": "sample-permian-stage2-1",
+      "projectId": "proj-permian-release",
+      "analyte": "TPH >C28-C35",
+      "method": "TX1005",
+      "resultValue": "1550",
+      "resultNumeric": 1550,
+      "units": "mg/kg",
+      "detectionLimit": 750,
+      "reportingLimit": 2500,
+      "qualifier": "J",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-004",
+      "reportedOn": "2026-09-24",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-012",
+      "sampleId": "sample-permian-stage2-1",
+      "projectId": "proj-permian-release",
+      "analyte": "TPH C6-C35",
+      "method": "TX1005",
+      "resultValue": "13400",
+      "resultNumeric": 13400,
+      "units": "mg/kg",
+      "detectionLimit": 750,
+      "reportingLimit": 2500,
+      "qualifier": "",
+      "actionLevel": 1000,
+      "actionLevelSource": "TRRP Tier 1 residential (sample data)",
+      "exceedsActionLevel": true,
+      "labReportId": "sample-lab-report-004",
+      "reportedOn": "2026-09-24",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-013",
+      "sampleId": "sample-permian-stage2-2",
+      "projectId": "proj-permian-release",
+      "analyte": "TPH C6-C12",
+      "method": "TX1005",
+      "resultValue": "<709",
+      "resultNumeric": null,
+      "units": "mg/kg",
+      "detectionLimit": 606,
+      "reportingLimit": 2020,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-006",
+      "reportedOn": "2026-09-24",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-014",
+      "sampleId": "sample-permian-stage2-2",
+      "projectId": "proj-permian-release",
+      "analyte": "TPH >C12-C28",
+      "method": "TX1005",
+      "resultValue": "10600",
+      "resultNumeric": 10600,
+      "units": "mg/kg",
+      "detectionLimit": 606,
+      "reportingLimit": 2020,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-006",
+      "reportedOn": "2026-09-24",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-015",
+      "sampleId": "sample-permian-stage2-2",
+      "projectId": "proj-permian-release",
+      "analyte": "TPH >C28-C35",
+      "method": "TX1005",
+      "resultValue": "5880",
+      "resultNumeric": 5880,
+      "units": "mg/kg",
+      "detectionLimit": 606,
+      "reportingLimit": 2020,
+      "qualifier": "",
+      "actionLevel": null,
+      "actionLevelSource": "",
+      "exceedsActionLevel": false,
+      "labReportId": "sample-lab-report-006",
+      "reportedOn": "2026-09-24",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-result-016",
+      "sampleId": "sample-permian-stage2-2",
+      "projectId": "proj-permian-release",
+      "analyte": "TPH C6-C35",
+      "method": "TX1005",
+      "resultValue": "16500",
+      "resultNumeric": 16500,
+      "units": "mg/kg",
+      "detectionLimit": 606,
+      "reportingLimit": 2020,
+      "qualifier": "",
+      "actionLevel": 1000,
+      "actionLevelSource": "TRRP Tier 1 residential (sample data)",
+      "exceedsActionLevel": true,
+      "labReportId": "sample-lab-report-006",
+      "reportedOn": "2026-09-24",
+      "enteredBy": "Logan Gallman",
+      "deletedAt": "",
+      "createdAt": "2026-09-24T19:00:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    }
+  ],
   "sampleRecords": [
     {
       "id": "sample-lonestar-diesel-1",
@@ -21572,7 +24068,7 @@
       "samplingSessionName": "Diesel release — saddle tank rupture — sampling",
       "projectId": "proj-lonestar-diesel",
       "dispatchJobId": "dispatch-job-lonestar-diesel",
-      "actionId": "",
+      "actionId": "action-lonestar-diesel-adhoc-1",
       "accountId": "acct-lonestar-freight",
       "facilityId": "fac-lsf-yard",
       "sampleLocation": "SW-1 — swale bank 20 ft below the culvert",
@@ -21588,20 +24084,20 @@
       "containerSummary": "2 amber jars, 3 VOA vials",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "Stained soil below the sandbags.",
       "chainOfCustody": "COC-2025-0703",
-      "labName": "Eurofins Environment Testing — Austin",
+      "labName": "SPL — Round Rock",
       "labStatus": "Results received",
-      "labResults": "TPH-DRO 210 mg/kg; BTEX not detected. Below Tier 1 residential PCL.",
+      "labResults": "TPH (TX1005) C6–C35 not detected (<13.4 mg/kg); BTEX not detected. Below Tier 1 residential PCL.",
       "photos": [],
       "labReceivedAt": "2025-07-15T15:00:00.000Z",
       "reviewedBy": "Logan Gallman",
       "labReportUri": "",
       "createdAt": "2025-07-03T16:10:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
       "version": 1
     },
     {
@@ -21611,7 +24107,7 @@
       "samplingSessionName": "Diesel release — saddle tank rupture — sampling",
       "projectId": "proj-lonestar-diesel",
       "dispatchJobId": "dispatch-job-lonestar-diesel",
-      "actionId": "",
+      "actionId": "action-lonestar-diesel-adhoc-2",
       "accountId": "acct-lonestar-freight",
       "facilityId": "fac-lsf-yard",
       "sampleLocation": "SW-2 — swale bank at the culvert inlet",
@@ -21627,20 +24123,137 @@
       "containerSummary": "2 amber jars, 3 VOA vials",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "",
       "chainOfCustody": "COC-2025-0703",
-      "labName": "Eurofins Environment Testing — Austin",
+      "labName": "SPL — Round Rock",
       "labStatus": "Results received",
-      "labResults": "TPH-DRO 95 mg/kg; BTEX not detected.",
+      "labResults": "TPH (TX1005) >C12–C28 18.6 mg/kg (J); BTEX not detected. Below Tier 1 residential PCL.",
       "photos": [],
       "labReceivedAt": "2025-07-15T15:00:00.000Z",
       "reviewedBy": "Logan Gallman",
       "labReportUri": "",
       "createdAt": "2025-07-03T16:25:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2025-07-15T15:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-permian-stage2-1",
+      "sampleId": "JOB-2026-0922-01-01",
+      "samplingSessionId": "session-permian-stage2",
+      "samplingSessionName": "Stage 2 — excavation and on-site treatment — sampling",
+      "projectId": "proj-permian-release",
+      "dispatchJobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-2",
+      "accountId": "acct-permian-midstream",
+      "facilityId": "fac-pmp-valve-site",
+      "sampleLocation": "S-1 — excavation floor, east half (pre-treatment)",
+      "sampleType": "Soil",
+      "sampleMatrix": "Soil",
+      "collectionMethod": "Direct-push grab",
+      "depthInterval": "3-3.5 ft",
+      "collectionTime": "2026-09-22T20:40:00.000Z",
+      "collector": "Logan Gallman",
+      "gpsAccuracyMeters": 3,
+      "latitude": 30.5729,
+      "longitude": -97.409,
+      "containerSummary": "2 amber jars, 3 VOA vials",
+      "preservation": "Cooled to 4 °C",
+      "requestedAnalyses": [
+        "TPH (TX1005)",
+        "BTEX"
+      ],
+      "fieldNotes": "Black-stained clay, strong odor, PID 40 ppm.",
+      "chainOfCustody": "COC-2026-0922",
+      "labName": "DHL Analytical — Round Rock",
+      "labStatus": "Results received",
+      "labResults": "TPH (TX1005) C6–C35 13,400 mg/kg — above the Tier 1 PCL; excavation floor needs another lift before backfill.",
+      "photos": [],
+      "labReceivedAt": "2026-09-24T19:00:00.000Z",
+      "reviewedBy": "Logan Gallman",
+      "labReportUri": "",
+      "createdAt": "2026-09-22T20:40:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-permian-stage2-2",
+      "sampleId": "JOB-2026-0922-01-02",
+      "samplingSessionId": "session-permian-stage2",
+      "samplingSessionName": "Stage 2 — excavation and on-site treatment — sampling",
+      "projectId": "proj-permian-release",
+      "dispatchJobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-3",
+      "accountId": "acct-permian-midstream",
+      "facilityId": "fac-pmp-valve-site",
+      "sampleLocation": "S-2 — east sidewall, 3 ft",
+      "sampleType": "Soil",
+      "sampleMatrix": "Soil",
+      "collectionMethod": "Direct-push grab",
+      "depthInterval": "2.5-3 ft",
+      "collectionTime": "2026-09-22T20:55:00.000Z",
+      "collector": "Logan Gallman",
+      "gpsAccuracyMeters": 3,
+      "latitude": 30.5731,
+      "longitude": -97.4088,
+      "containerSummary": "2 amber jars, 3 VOA vials",
+      "preservation": "Cooled to 4 °C",
+      "requestedAnalyses": [
+        "TPH (TX1005)",
+        "BTEX"
+      ],
+      "fieldNotes": "PID 38 ppm.",
+      "chainOfCustody": "COC-2026-0922",
+      "labName": "DHL Analytical — Round Rock",
+      "labStatus": "Results received",
+      "labResults": "TPH (TX1005) C6–C35 16,500 mg/kg — above the Tier 1 PCL; sidewall to be cut back 2 ft.",
+      "photos": [],
+      "labReceivedAt": "2026-09-24T19:00:00.000Z",
+      "reviewedBy": "Logan Gallman",
+      "labReportUri": "",
+      "createdAt": "2026-09-22T20:55:00.000Z",
+      "updatedAt": "2026-09-24T19:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "sample-permian-stage2-3",
+      "sampleId": "JOB-2026-0922-01-03",
+      "samplingSessionId": "session-permian-stage2",
+      "samplingSessionName": "Stage 2 — excavation and on-site treatment — sampling",
+      "projectId": "proj-permian-release",
+      "dispatchJobId": "dispatch-job-permian-stage2",
+      "actionId": "action-permian-stage2-adhoc-4",
+      "accountId": "acct-permian-midstream",
+      "facilityId": "fac-pmp-valve-site",
+      "sampleLocation": "S-3 — west sidewall, 3 ft (background side)",
+      "sampleType": "Soil",
+      "sampleMatrix": "Soil",
+      "collectionMethod": "Direct-push grab",
+      "depthInterval": "2.5-3 ft",
+      "collectionTime": "2026-09-22T21:10:00.000Z",
+      "collector": "Logan Gallman",
+      "gpsAccuracyMeters": 3,
+      "latitude": 30.5733,
+      "longitude": -97.4095,
+      "containerSummary": "2 amber jars, 3 VOA vials",
+      "preservation": "Cooled to 4 °C",
+      "requestedAnalyses": [
+        "TPH (TX1005)",
+        "BTEX"
+      ],
+      "fieldNotes": "Tan clay, no odor, PID 2 ppm.",
+      "chainOfCustody": "COC-2026-0922",
+      "labName": "DHL Analytical — Round Rock",
+      "labStatus": "Pending",
+      "labResults": "",
+      "photos": [],
+      "labReceivedAt": "",
+      "reviewedBy": "",
+      "labReportUri": "",
+      "createdAt": "2026-09-22T21:10:00.000Z",
+      "updatedAt": "2026-09-22T21:10:00.000Z",
       "version": 1
     },
     {
@@ -21666,7 +24279,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 6 ppm",
@@ -21679,7 +24292,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-10T14:40:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-10T14:40:00.000Z",
       "version": 1
     },
     {
@@ -21689,7 +24302,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-2",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-1 — UST pad, north corner",
@@ -21705,7 +24318,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 2 ppm",
@@ -21718,7 +24331,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-10T15:05:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-10T15:05:00.000Z",
       "version": 1
     },
     {
@@ -21728,7 +24341,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-3",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-2 — UST pad, center",
@@ -21744,7 +24357,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 48 ppm, hydrocarbon odor",
@@ -21757,7 +24370,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-10T16:20:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-10T16:20:00.000Z",
       "version": 1
     },
     {
@@ -21767,7 +24380,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-4",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-2 — UST pad, center",
@@ -21783,7 +24396,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 11 ppm",
@@ -21796,7 +24409,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-10T16:45:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-10T16:45:00.000Z",
       "version": 1
     },
     {
@@ -21806,7 +24419,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-5",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-3 — UST pad, south corner",
@@ -21822,7 +24435,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 3 ppm",
@@ -21835,7 +24448,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-10T19:10:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-10T19:10:00.000Z",
       "version": 1
     },
     {
@@ -21845,7 +24458,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-6",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-3 — UST pad, south corner",
@@ -21861,7 +24474,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 1 ppm",
@@ -21874,7 +24487,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-10T19:35:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-10T19:35:00.000Z",
       "version": 1
     },
     {
@@ -21884,7 +24497,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-7",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-4 — grease line, 20 ft east of cleanout",
@@ -21900,7 +24513,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 22 ppm",
@@ -21913,7 +24526,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-11T14:30:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-11T14:30:00.000Z",
       "version": 1
     },
     {
@@ -21923,7 +24536,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-8",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-4 — grease line, 20 ft east of cleanout",
@@ -21939,7 +24552,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 4 ppm",
@@ -21952,7 +24565,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-11T14:55:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-11T14:55:00.000Z",
       "version": 1
     },
     {
@@ -21962,7 +24575,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-9",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-5 — grease line, tree line",
@@ -21978,7 +24591,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 9 ppm",
@@ -21991,7 +24604,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-11T16:15:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-11T16:15:00.000Z",
       "version": 1
     },
     {
@@ -22001,7 +24614,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-10",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-5 — grease line, tree line",
@@ -22017,7 +24630,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 1 ppm",
@@ -22030,7 +24643,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-11T16:40:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-11T16:40:00.000Z",
       "version": 1
     },
     {
@@ -22040,7 +24653,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-11",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-6 — background, east property line",
@@ -22056,7 +24669,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 0 ppm",
@@ -22069,7 +24682,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-11T18:50:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-11T18:50:00.000Z",
       "version": 1
     },
     {
@@ -22079,7 +24692,7 @@
       "samplingSessionName": "Pflugerville Inn — six soil borings — sampling",
       "projectId": "proj-hch-borings",
       "dispatchJobId": "dispatch-job-hch-borings",
-      "actionId": "action-hch-borings-samples",
+      "actionId": "action-hch-borings-adhoc-12",
       "accountId": "acct-hill-country-hospitality",
       "facilityId": "fac-hch-pflugerville",
       "sampleLocation": "B-6 — background, east property line",
@@ -22095,7 +24708,7 @@
       "containerSummary": "2 amber jars, 3 VOA vials, 1 sleeve",
       "preservation": "Cooled to 4 °C",
       "requestedAnalyses": [
-        "TPH-DRO/GRO",
+        "TPH (TX1005)",
         "BTEX"
       ],
       "fieldNotes": "PID 0 ppm",
@@ -22108,7 +24721,7 @@
       "reviewedBy": "",
       "labReportUri": "",
       "createdAt": "2026-09-11T19:15:00.000Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
+      "updatedAt": "2026-09-11T19:15:00.000Z",
       "version": 1
     }
   ],
@@ -37911,11 +40524,15 @@
       "facilityId": "fac-lsf-yard",
       "equipmentNeeds": [
         {
-          "name": "HazMat Recovery Truck",
+          "name": "Truck",
           "note": ""
         },
         {
-          "name": "Vactron",
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
           "note": ""
         },
         {
@@ -37923,15 +40540,32 @@
           "note": ""
         }
       ],
-      "vendorNeeds": [],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
       "resourceNeeds": [
         {
-          "name": "Absorbent boom and pads",
+          "name": "PPE",
           "note": ""
         },
         {
-          "name": "Micro-Bac-S",
-          "note": "swale treatment"
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
         }
       ],
       "siteWalkStatus": "Complete",
@@ -38006,14 +40640,44 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-brazos-hutto",
-      "equipmentNeeds": [],
-      "vendorNeeds": [
+      "equipmentNeeds": [
         {
-          "name": "Venditti Trucking",
-          "note": "30-yd roll-off"
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
         }
       ],
-      "resourceNeeds": [],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": "Venditti 30-yd roll-off"
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Degreaser",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
@@ -38088,39 +40752,59 @@
       "facilityId": "fac-pmp-valve-site",
       "equipmentNeeds": [
         {
+          "name": "Truck",
+          "note": ""
+        },
+        {
           "name": "Skid steer",
           "note": ""
         },
         {
-          "name": "Mini-excavator",
+          "name": "Excavator",
           "note": ""
         },
         {
-          "name": "Vactron",
+          "name": "Vac truck",
           "note": ""
         },
         {
-          "name": "Microbial spray trailer",
+          "name": "Spray trailer",
           "note": ""
         }
       ],
       "vendorNeeds": [
         {
-          "name": "Venditti Trucking",
-          "note": "roll-offs"
+          "name": "Roll-off vendor",
+          "note": "Venditti"
         },
         {
-          "name": "Eurofins",
-          "note": "confirmation samples"
+          "name": "Lab",
+          "note": "Eurofins — confirmation samples"
+        },
+        {
+          "name": "Excavation subcontractor",
+          "note": "Balfour if EXC-402 is down"
         }
       ],
       "resourceNeeds": [
         {
-          "name": "Mega-Bac X",
+          "name": "PPE",
           "note": ""
         },
         {
-          "name": "Level D PPE",
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "Sampling supplies",
+          "note": ""
+        },
+        {
+          "name": "Poly sheeting",
+          "note": ""
+        },
+        {
+          "name": "3-person crew",
           "note": ""
         }
       ],
@@ -38196,14 +40880,44 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-hch-pflugerville",
-      "equipmentNeeds": [],
-      "vendorNeeds": [
+      "equipmentNeeds": [
         {
-          "name": "Eurofins",
-          "note": "TPH/BTEX"
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Direct-push rig (rental)",
+          "note": ""
+        },
+        {
+          "name": "PID",
+          "note": ""
         }
       ],
-      "resourceNeeds": [],
+      "vendorNeeds": [
+        {
+          "name": "Lab",
+          "note": "Eurofins — TPH/BTEX, 10-day"
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Sampling supplies",
+          "note": ""
+        },
+        {
+          "name": "Drums for cuttings",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
@@ -38276,9 +40990,44 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-domain-garage-b",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Degreaser",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
@@ -38351,9 +41100,52 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-lakeway-bldg-2",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "",
@@ -38426,9 +41218,44 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-wolf-pond",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Degreaser",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
@@ -38501,9 +41328,52 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-gt-service-center",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
@@ -38576,9 +41446,52 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-gt-service-center",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Not needed",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "",
@@ -38651,9 +41564,52 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-gt-austin-ave",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Not needed",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "",
@@ -38728,25 +41684,62 @@
       "facilityId": "fac-bbd-lagoon",
       "equipmentNeeds": [
         {
-          "name": "Vactron",
+          "name": "Truck",
           "note": ""
         },
         {
-          "name": "Dump trailer",
+          "name": "Skid steer",
+          "note": ""
+        },
+        {
+          "name": "Excavator",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Spray trailer",
           "note": ""
         }
       ],
       "vendorNeeds": [
         {
-          "name": "Balfour Services",
-          "note": "excavator + operator"
+          "name": "Roll-off vendor",
+          "note": "Republic — sludge haul-off"
         },
         {
-          "name": "Republic Services",
-          "note": "sludge haul-off"
+          "name": "Lab",
+          "note": ""
+        },
+        {
+          "name": "Excavation subcontractor",
+          "note": "Balfour — excavator + operator"
         }
       ],
-      "resourceNeeds": [],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "Sampling supplies",
+          "note": ""
+        },
+        {
+          "name": "Poly sheeting",
+          "note": ""
+        },
+        {
+          "name": "3-person crew",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "Signed",
       "quoteSignedStatus": "Signed",
@@ -38969,17 +41962,42 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-wilco-fuel-island",
-      "equipmentNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Direct-push rig (rental)",
+          "note": ""
+        },
+        {
+          "name": "PID",
+          "note": ""
+        }
+      ],
       "vendorNeeds": [
         {
-          "name": "Eurofins",
-          "note": ""
+          "name": "Lab",
+          "note": "Eurofins"
         }
       ],
       "resourceNeeds": [
         {
-          "name": "Direct-push rig",
-          "note": "rental"
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Sampling supplies",
+          "note": ""
+        },
+        {
+          "name": "Drums for cuttings",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
         }
       ],
       "siteWalkStatus": "Scheduled",
@@ -39056,7 +42074,11 @@
       "facilityId": "fac-gisd-bus-barn",
       "equipmentNeeds": [
         {
-          "name": "Vactron",
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
           "note": ""
         },
         {
@@ -39064,8 +42086,30 @@
           "note": ""
         }
       ],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Degreaser",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "2 technicians",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "",
       "quoteSignedStatus": "",
@@ -39138,9 +42182,52 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "fac-rcd-warehouse",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Trailer",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Pressure washer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Waste hauler / disposal",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Absorbents",
+          "note": ""
+        },
+        {
+          "name": "Drums",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "2 technicians + lead",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Complete",
       "accountPaperworkStatus": "Sent",
       "quoteSignedStatus": "",
@@ -39213,9 +42300,64 @@
       "recordSource": "Local CRM",
       "description": "",
       "facilityId": "",
-      "equipmentNeeds": [],
-      "vendorNeeds": [],
-      "resourceNeeds": [],
+      "equipmentNeeds": [
+        {
+          "name": "Truck",
+          "note": ""
+        },
+        {
+          "name": "Skid steer",
+          "note": ""
+        },
+        {
+          "name": "Excavator",
+          "note": ""
+        },
+        {
+          "name": "Vac truck",
+          "note": ""
+        },
+        {
+          "name": "Spray trailer",
+          "note": ""
+        }
+      ],
+      "vendorNeeds": [
+        {
+          "name": "Roll-off vendor",
+          "note": ""
+        },
+        {
+          "name": "Lab",
+          "note": ""
+        },
+        {
+          "name": "Excavation subcontractor",
+          "note": ""
+        }
+      ],
+      "resourceNeeds": [
+        {
+          "name": "PPE",
+          "note": ""
+        },
+        {
+          "name": "Bacteria",
+          "note": ""
+        },
+        {
+          "name": "Sampling supplies",
+          "note": ""
+        },
+        {
+          "name": "Poly sheeting",
+          "note": ""
+        },
+        {
+          "name": "3-person crew",
+          "note": ""
+        }
+      ],
       "siteWalkStatus": "Incomplete",
       "accountPaperworkStatus": "",
       "quoteSignedStatus": "",

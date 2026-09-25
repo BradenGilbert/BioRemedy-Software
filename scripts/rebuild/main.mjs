@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { out, backend, referenceCollections, dataDir, photosDir, uploadsDir, dryRun, pythonExe, USER } from "./core.mjs";
 import "./equipment.mjs";
 import "./accounts.mjs";
-import { photoManifest } from "./jobs.mjs";
+import { photoManifest, fileManifest } from "./jobs.mjs";
 import "./projects.mjs";
 
 const projectRoot = join(dataDir, "..");
@@ -64,7 +64,11 @@ if (result.status !== 0) {
   process.exit(1);
 }
 console.log(`Converted ${result.stdout.trim()} photos.`);
-const fileRows = [...out.documents, ...out.jobTaskAttachments];
+for (const item of fileManifest) {
+  if (!existsSync(item.src)) { console.error(`File not found: ${item.src}`); process.exit(1); }
+  copyFileSync(item.src, join(staging, item.dest));
+}
+const fileRows = [...out.documents, ...out.jobTaskAttachments, ...out.sampleLabReports];
 for (const row of fileRows) {
   const file = join(staging, row.storageName);
   if (!existsSync(file)) continue;
@@ -93,7 +97,7 @@ if (existsSync(uploadsDir)) {
   mkdirSync(uploadsDir, { recursive: true });
 }
 for (const name of readdirSync(staging)) {
-  if (name.endsWith(".jpg")) renameSync(join(staging, name), join(uploadsDir, name));
+  if (name !== "manifest.json" && name !== "convert.py") renameSync(join(staging, name), join(uploadsDir, name));
 }
 console.log(`Previous data backed up to ${backupDir}`);
 
