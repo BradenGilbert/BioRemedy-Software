@@ -8,6 +8,7 @@ import "./equipment.mjs";
 import "./accounts.mjs";
 import { photoManifest, fileManifest } from "./jobs.mjs";
 import "./projects.mjs";
+import "./extras.mjs";
 
 const projectRoot = join(dataDir, "..");
 const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15);
@@ -68,7 +69,7 @@ for (const item of fileManifest) {
   if (!existsSync(item.src)) { console.error(`File not found: ${item.src}`); process.exit(1); }
   copyFileSync(item.src, join(staging, item.dest));
 }
-const fileRows = [...out.documents, ...out.jobTaskAttachments, ...out.sampleLabReports];
+const fileRows = [...out.documents, ...out.jobTaskAttachments, ...out.sampleLabReports, ...out.jobRequestDocuments];
 for (const row of fileRows) {
   const file = join(staging, row.storageName);
   if (!existsSync(file)) continue;
