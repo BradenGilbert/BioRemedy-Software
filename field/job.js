@@ -67,7 +67,7 @@ function renderJob() {
         <button class="field-icon-button" type="button" data-field-action="field-quick-note">Note</button>
         <button class="field-icon-button" type="button" data-action="frontline-messaging-open-thread" data-thread="${crm.escapeAttribute(job.id)}">Message${unread ? ` (${unread})` : ""}</button>
       </div>
-      <input type="file" id="fieldQuickPhotoInput" accept="image/png,image/jpeg" capture="environment" style="display:none" data-job-id="${crm.escapeAttribute(job.id)}" />
+      <input type="file" id="fieldQuickPhotoInput" accept="image/png,image/jpeg" capture="environment" style="display:none" data-camera-ready="1" data-job-id="${crm.escapeAttribute(job.id)}" />
 
       <nav class="field-tabs" role="tablist">
         ${TABS.filter((t) => t.key !== "close" || lead)

@@ -71,7 +71,7 @@ function renderLibrary() {
       <div class="field-card-list">${required.map((item) => renderLibraryCard(item, employee, true)).join("")}</div>
     ` : ""}
     <h2 class="field-section-title">Shelves</h2>
-    <div class="field-tabs" role="tablist">
+    <div class="field-tabs field-tabs--dense" role="tablist">
       ${SHELVES.map((entry) => `<button class="field-tab ${entry.key === shelf ? "is-active" : ""}" type="button" role="tab" aria-selected="${entry.key === shelf}" data-field-action="library-shelf" data-shelf="${crm.escapeAttribute(entry.key)}">${crm.escapeHtml(entry.label)}</button>`).join("")}
     </div>
     ${shelf === "sds" ? `
