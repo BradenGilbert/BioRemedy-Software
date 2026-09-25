@@ -335,10 +335,19 @@ export async function uploadFieldFile(url, file, headers = {}) {
 // Package refresh + offline startup
 // ---------------------------------------------------------------------------------------------
 
+// Roles whose sessions may preview a field package as a chosen employee (the desktop simulator).
+const PACKAGE_PREVIEW_ROLES = ["Admin", "Office Manager", "Operations Manager", "Scheduler", "Field Lead", "Crew"];
+
 export async function refreshFieldPackage() {
-  if (isOnline()) {
+  const employeeId = crm.state.frontlineSession?.employeeId || "";
+  const isLinkSession = crm.state.session?.kind === "dispatch-link";
+  const canFetchPackage = isLinkSession || crm.currentRoles().some((role) => PACKAGE_PREVIEW_ROLES.includes(role));
+  if (isOnline() && canFetchPackage) {
     try {
-      const pkg = await crm.apiRequest("/api/field/package", { method: "GET" });
+      // An office session previewing the simulator passes the picked employee; a real field
+      // session is projected as itself and the server ignores the parameter.
+      const query = employeeId ? `?employeeId=${encodeURIComponent(employeeId)}` : "";
+      const pkg = await crm.apiRequest(`/api/field/package${query}`, { method: "GET" });
       await fieldTransaction("fieldPackages", "readwrite", (store) => requestToPromise(store.put({ ...pkg, fetchedAt: Date.now() }, "package")));
       if (pkg?.backend) Object.assign(crm.state.backend, pkg.backend);
       return pkg;
@@ -346,6 +355,8 @@ export async function refreshFieldPackage() {
       if (error?.status !== 404) console.warn("field package fetch failed, falling back", error);
       // 404 (server not ready yet) or any other failure: fall back to the general refresh below.
     }
+  }
+  if (isOnline()) {
     try {
       await crm.refreshBackendState();
       await fieldTransaction("fieldPackages", "readwrite", (store) =>

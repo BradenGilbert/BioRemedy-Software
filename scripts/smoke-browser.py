@@ -41,16 +41,6 @@ summary = {"views": 0, "tabs": 0, "dialogs": 0, "resaved": 0, "consoleErrors": [
 where = {"at": "start"}
 
 
-def is_expected_field_api_404(text):
-    """Phase 21 W2's field/package.js probes W1's /api/field/* routes first and falls back
-    gracefully on a 404 — but Chrome logs "Failed to load resource: 404" for any fetch() that gets a
-    4xx response, regardless of how the app handles it, and that log is a console "error" event
-    Playwright can't tell apart from a genuine bug. Until W1's server.mjs routes are merged into
-    whichever worktree runs this script, every field-app screen trips that log at least once on load
-    (refreshFieldPackage), so this narrowly excludes 404s under /api/field/ rather than every console
-    error. Remove this once W1's routes are merged for good."""
-    return "404" in text and "/api/field/" in text
-
 
 def note_bad_text(page, label):
     text = page.evaluate("() => document.body.innerText")
@@ -68,10 +58,27 @@ def first_id(page, collection):
     return rows[0]["id"] if rows else None
 
 
+def pick_field_lead(page):
+    """Select, in the Front Line picker, an employee who leads an open dispatch job (so the job
+    page and the offline-capture check have something real to open); falls back to the first option."""
+    try:
+        jobs = {j["id"] for j in api(page, "dispatchJobs") if not j.get("deletedAt") and j.get("status") not in ("closed", "cancelled")}
+        leads = [a.get("employeeId") for a in api(page, "jobAssignments") if a.get("isFieldLead") and a.get("jobId") in jobs and not a.get("deletedAt")]
+    except Exception:
+        leads = []
+    values = page.eval_on_selector_all("#frontlineFieldLeadSelect option", "els => els.map(o => o.value)")
+    choice = next((e for e in leads if e in values), None)
+    if choice:
+        page.select_option("#frontlineFieldLeadSelect", value=choice)
+    else:
+        page.select_option("#frontlineFieldLeadSelect", index=1)
+    return page.eval_on_selector("#frontlineFieldLeadSelect", "el => el.value")
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_context(viewport={"width": 1440, "height": 1000}).new_page()
-    page.on("console", lambda m: summary["consoleErrors"].append(f"[{where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text and not is_expected_field_api_404(m.text) else None)
+    page.on("console", lambda m: summary["consoleErrors"].append(f"[{where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text else None)
     page.on("pageerror", lambda e: summary["consoleErrors"].append(f"[{where['at']}] pageerror: {str(e)[:160]}"))
     page.on("dialog", lambda d: d.accept())
     # Phase 12a: sign in with the scratch server's break-glass account before the first page load, so
@@ -182,7 +189,7 @@ with sync_playwright() as p:
     page.goto(BASE + "#view=frontline-login")
     page.wait_for_timeout(700)
     if page.locator("#frontlineFieldLeadSelect option").count() > 1:
-        page.select_option("#frontlineFieldLeadSelect", index=1)
+        pick_field_lead(page)
         page.click('button[data-action="frontline-login"]')
         page.wait_for_timeout(600)
         for view in [v for v in views if v.startswith("frontline-") and v not in ("frontline-login", "frontline-job-detail")]:
@@ -212,7 +219,7 @@ with sync_playwright() as p:
     # repeated because a new context has no in-memory session.
     phone = browser.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
     phone_page = phone.new_page()
-    phone_page.on("console", lambda m: summary["consoleErrors"].append(f"[phone {where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text and not is_expected_field_api_404(m.text) else None)
+    phone_page.on("console", lambda m: summary["consoleErrors"].append(f"[phone {where['at']}] {m.text[:160]}") if m.type == "error" and "409" not in m.text else None)
     phone_page.on("pageerror", lambda e: summary["consoleErrors"].append(f"[phone {where['at']}] pageerror: {str(e)[:160]}"))
     phone_page.on("dialog", lambda d: d.accept())
     phone_login = phone.request.post(BASE + "api/auth/break-glass", data={"password": SMOKE_PASSWORD})
@@ -222,7 +229,7 @@ with sync_playwright() as p:
     phone_page.goto(BASE + "?surface=phone#view=frontline-login")
     phone_page.wait_for_timeout(900)
     if phone_page.locator("#frontlineFieldLeadSelect option").count() > 1:
-        phone_page.select_option("#frontlineFieldLeadSelect", index=1)
+        phone_lead_id = pick_field_lead(phone_page)
         phone_page.click('button[data-action="frontline-login"]')
         phone_page.wait_for_timeout(600)
         for view in field_views:
@@ -242,7 +249,7 @@ with sync_playwright() as p:
         # outbox instead of failing outright), come back online, wait for the drain, and check the
         # outbox emptied with exactly one new jobFormSubmissions row (no duplicate replay).
         where["at"] = "field-job offline capture"
-        employee_id = phone_page.eval_on_selector("#frontlineFieldLeadSelect", "el => el.value") if phone_page.locator("#frontlineFieldLeadSelect").count() else None
+        employee_id = phone_lead_id
         jobs = api(phone_page, "dispatchJobs")
         assignments = api(phone_page, "jobAssignments")
         led_job = None

@@ -276,12 +276,18 @@
 
 .field-tab {
   min-height: var(--field-tap);
+  min-width: 0;
+  padding: 0 6px;
   border: 0;
   border-radius: 10px;
   background: transparent;
   color: inherit;
   font: inherit;
+  font-size: 0.9rem;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .field-tab.is-active {
