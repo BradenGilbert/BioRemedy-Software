@@ -196,60 +196,15 @@ const defaultFrontlineNotificationPrefs = {
   endOfDayReminder: false,
 };
 
+// Placeholder until the session loads; replaced by sessionToUser() or anonymousUser on every load.
 const demoUser = {
-  name: "Olivia Grant",
-  email: "olivia.grant@example.com",
-  role: "Office Manager",
-  source: "Demo session",
-  signedInAt: new Date().toISOString(),
+  name: "Not signed in",
+  email: "",
+  role: "Anonymous",
+  source: "No session",
+  signedInAt: "",
 };
 
-const demoUsers = {
-  office: demoUser,
-  sales: {
-    name: "Maya Chen",
-    email: "maya.chen@example.com",
-    role: "Sales Manager",
-    source: "Demo session",
-    signedInAt: new Date().toISOString(),
-  },
-  operations: {
-    name: "Priya Patel",
-    email: "priya.patel@example.com",
-    role: "Operations Manager",
-    source: "Demo session",
-    signedInAt: new Date().toISOString(),
-  },
-  inventory: {
-    name: "Renee Carter",
-    email: "renee.carter@example.com",
-    role: "Inventory Manager",
-    source: "Demo session",
-    signedInAt: new Date().toISOString(),
-  },
-  finance: {
-    name: "Gina Walsh",
-    email: "gina.walsh@example.com",
-    role: "Finance Manager",
-    source: "Demo session",
-    signedInAt: new Date().toISOString(),
-  },
-  admin: {
-    name: "Admin User",
-    email: "admin@example.com",
-    role: "Admin",
-    source: "Demo session",
-    signedInAt: new Date().toISOString(),
-  },
-  client: {
-    name: "Jordan Lee",
-    email: "jordan.lee@northriver.example.com",
-    role: "Client",
-    source: "Client portal demo",
-    clientAccountId: "acct-north-river",
-    signedInAt: new Date().toISOString(),
-  },
-};
 
 const workspaces = [
   {
@@ -1324,10 +1279,6 @@ async function ensureSeedData() {
     await putSetting("currentUser", demoUser);
     await putSetting("authError", "");
     await putSetting("seeded", true);
-  }
-
-  if (seedSchemaVersion < 4) {
-    await putSetting("currentUser", demoUsers.office);
   }
 
   if (seedSchemaVersion < 5) {

@@ -55,6 +55,7 @@ $env:PORT = 4180; $env:CRM_DATA_DIR = "C:\path\to\scratch\data"; & "<node.exe>" 
 | `node scripts/clean-orphans.mjs` | Referential-integrity report; `--apply` fixes it through the running server. |
 | `node scripts/reset-demo-data.mjs` | Puts the demo data set back through the API. |
 | `node scripts/import-rate-sheet.mjs` | Imports the 2026 rate sheet into the product catalog. |
+| `node scripts/rebuild-sample-data.mjs` | Rebuilds the sample data set (2026-09-25): keeps the reference catalog, replaces every transactional collection with the sample set in `scripts/rebuild/`, converts the chosen field photos from OneDrive into `data/uploads`, regenerates `data/demo-seed.json`, and backs the previous data folder up first. `--dry-run` to check without writing. See `docs/sample-data.md`. |
 
 ## Data
 
