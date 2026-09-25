@@ -58,13 +58,6 @@ export function registerFieldForm(name, handler) {
   (fieldForms || (fieldForms = new Map())).set(name, handler);
 }
 
-// W3 (sales-side My Day content, site-walk-led leads) sets this once. If unset, My Day shows nothing
-// extra for a sales-only session.
-let salesHomeSection = null;
-export function registerSalesHomeSection(renderFn) {
-  salesHomeSection = renderFn;
-}
-
 let eventsWired = false;
 function wireFieldEvents() {
   if (eventsWired) return;
@@ -242,7 +235,6 @@ function renderMyDay() {
     .sort((a, b) => String(a.scheduledStart || "").localeCompare(String(b.scheduledStart || "")));
   const todaysJobs = myJobs.filter((job) => jobDayKey(job) === today || ["dispatched", "acknowledged", "en_route", "on_site", "in_progress"].includes(job.status));
   const laterJobs = myJobs.filter((job) => !todaysJobs.includes(job));
-  const walks = myWalksToday(employee.id);
   const standby = myStandbyToday(employee.id);
   const open = openTimeEntry(employee.id);
   const unread = crm.frontlineUnreadTotal(employee.id);
@@ -275,16 +267,13 @@ function renderMyDay() {
 
     <h2 class="field-section-title">Today</h2>
     ${
-      todaysJobs.length || walks.length || standby.length
+      todaysJobs.length || standby.length
         ? `<div class="field-card-list">
             ${standby.map(renderStandbyCard).join("")}
-            ${walks.map(renderWalkCard).join("")}
             ${todaysJobs.map(renderJobCard).join("")}
           </div>`
         : `<section class="field-card field-card--empty"><p>Nothing scheduled for you today.</p></section>`
     }
-
-    ${salesHomeSection ? salesHomeSection(employee) : ""}
 
     ${
       laterJobs.length

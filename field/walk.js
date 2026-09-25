@@ -1299,8 +1299,17 @@ window.fieldWalk = {
 // My Day (sales section)
 // ---------------------------------------------------------------------------------------------
 
+// The employee's sales role, resolved through the linked system user (employees carry no role).
+function employeeHasSalesRole(employee) {
+  const user = (crm.state.backend.systemUsers || []).find((row) => row.employeeId === employee.id && !row.deletedAt);
+  const roles = [...(user?.roles || []), user?.role].filter(Boolean);
+  return roles.some((role) => /sales|account manager/i.test(String(role)));
+}
+
 registerSalesHomeSection((employee) => {
   const walks = myWalks(employee.id);
+  // Crew with no walks and no sales role get no sales section at all.
+  if (!walks.length && !employeeHasSalesRole(employee)) return "";
   const today = walks.filter((item) => item.isToday || item.isPast);
   const upcoming = walks.filter((item) => !item.isToday && !item.isPast).slice(0, 6);
   const card = ({ event, isPast }) => {
