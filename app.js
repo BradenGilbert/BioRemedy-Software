@@ -10310,6 +10310,7 @@ function renderEmployeeDetail() {
               ${devices.map(renderFrontlineDeviceCard).join("") || `<div class="empty-state compact">No registered device.</div>`}
             </div>
           </article>
+          ${renderEmployeeConsentsPanel(employee)}
         </aside>
       </section>
     </section>
@@ -10946,6 +10947,7 @@ function renderFrontlineDeviceDetail() {
                 <div><dt>Last seen</dt><dd>${formatDateTime(device.lastSeenAt)}</dd></div>
                 <div><dt>Pending commands</dt><dd>${Number(device.pendingCommands || 0)}</dd></div>
               </dl>
+              <p class="help-text">Sessions are refused while every device belonging to the assigned employee is Suspended or Retired. Enforced by the server at sign-in.</p>
             </div>
           </article>
         </div>
@@ -11518,8 +11520,19 @@ function renderDispatchConflictCard(conflict) {
   `;
 }
 
-const TEMPLATE_TASK_TYPES = ["Status transition", "Form", "Checklist", "Timer", "Material", "Photo", "Sample", "Signature"];
+const TEMPLATE_TASK_TYPES = ["Status transition", "Form", "Checklist", "Timer", "Material", "Photo", "Sample", "Signature", "Odometer", "Equipment usage", "Waste"];
 const TEMPLATE_ASSIGNEE_SCOPES = ["All assigned workers", "Each worker", "Field Lead", "Any assigned worker"];
+// Shown under the "Who does it" picker in the template editor (build item 3): what each scope
+// actually means for the crew on Front Line, since the label alone doesn't say who sees the task.
+const TEMPLATE_ASSIGNEE_SCOPE_HELP = {
+  "All assigned workers": "Every crew member on the job sees and must complete this task separately.",
+  "Each worker": "Every crew member completes their own copy of this task.",
+  "Field Lead": "Only the field lead sees this task; the rest of the crew never sees it.",
+  "Any assigned worker": "Available to the whole crew as a quick action; any one worker completing it satisfies the task.",
+};
+// Container type choices reuse WASTE_CONTAINER_TYPES (defined later in this file, with the office
+// waste-tracking constants); safe to reference here because it's only read inside functions called
+// at render time, by which point the whole module has finished loading.
 const SIGNATURE_SIGNER_ROLES = ["Customer", "Site Contact", "Field Lead"];
 const TIMER_ANCHORS = [
   { value: "en_route", label: "When the crew went en route" },
@@ -11706,6 +11719,7 @@ function renderTemplateTaskEditor(task, stageIndex, taskIndex, taskCount) {
           <span>Required</span>
         </label>
       </div>
+      <p class="help-text">${escapeHtml(TEMPLATE_ASSIGNEE_SCOPE_HELP[task.assigneeScope] || TEMPLATE_ASSIGNEE_SCOPE_HELP["Any assigned worker"])}</p>
       ${renderTemplateTaskConfigEditor(task, stageIndex, taskIndex)}
       <div class="inline-actions">
         <button class="mini-button" type="button" data-action="remove-template-task" data-stage-index="${stageIndex}" data-task-index="${taskIndex}" ${taskCount <= 1 ? "disabled" : ""}>Remove sub-task</button>
@@ -11800,6 +11814,51 @@ function renderTemplateTaskConfigEditor(task, stageIndex, taskIndex) {
     `;
   }
 
+  if (task.type === "Odometer") {
+    return `
+      <label class="template-task-config">
+        Site label hint
+        <input ${scope} data-task-site-label-hint="${taskIndex}" maxlength="60" placeholder="e.g. Secondary site" value="${escapeAttribute(config.siteLabelHint)}" />
+        <span class="help-text">Shown as a prompt on the odometer leg (optional); leave blank for a plain "Site" label.</span>
+      </label>
+    `;
+  }
+
+  if (task.type === "Equipment usage") {
+    return `
+      <label class="template-task-config">
+        Logged as
+        <select ${scope} data-task-equipment-unit="${taskIndex}">
+          <option value="hours" ${config.unit === "hours" ? "selected" : ""}>Hours</option>
+          <option value="days" ${config.unit === "days" ? "selected" : ""}>Days</option>
+        </select>
+        <span class="help-text">The crew picks an asset already assigned to the job and logs its usage; feeds the per-day equipment billables on the report and invoice.</span>
+      </label>
+    `;
+  }
+
+  if (task.type === "Waste") {
+    return `
+      <div class="form-grid template-task-config">
+        <label>
+          Allowed container types
+          <select ${scope} data-task-waste-container-types="${taskIndex}" multiple size="${Math.min(WASTE_CONTAINER_TYPES.length, 5)}">
+            ${WASTE_CONTAINER_TYPES.map((item) => `<option value="${escapeAttribute(item)}" ${config.containerTypes.includes(item) ? "selected" : ""}>${escapeHtml(item)}</option>`).join("")}
+          </select>
+          <span class="help-text">Leave none selected to allow any container type.</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" ${scope} data-task-waste-require-photo="${taskIndex}" ${config.requirePhoto !== false ? "checked" : ""} />
+          <span>Require a container photo</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" ${scope} data-task-waste-require-manifest="${taskIndex}" ${config.requireManifest ? "checked" : ""} />
+          <span>Require a manifest number when shipped</span>
+        </label>
+      </div>
+    `;
+  }
+
   return "";
 }
 
@@ -11875,6 +11934,21 @@ function readTaskConfigFromDom(root, type, stageIndex, taskIndex) {
       defaultMatrix: field("sample-matrix")?.value || "",
       defaultContainer: field("sample-container")?.value || "",
       defaultAnalyses: field("sample-analyses") ? field("sample-analyses").value.split("\n") : [],
+    });
+  }
+  if (type === "Odometer") {
+    return normalizeTaskConfig(type, { siteLabelHint: field("site-label-hint")?.value || "" });
+  }
+  if (type === "Equipment usage") {
+    const el = field("equipment-unit");
+    return normalizeTaskConfig(type, { unit: el ? el.value : "hours" });
+  }
+  if (type === "Waste") {
+    const typesEl = field("waste-container-types");
+    return normalizeTaskConfig(type, {
+      containerTypes: typesEl ? [...typesEl.selectedOptions].map((option) => option.value) : [],
+      requirePhoto: field("waste-require-photo")?.checked !== false,
+      requireManifest: Boolean(field("waste-require-manifest")?.checked),
     });
   }
   return {};
@@ -12429,7 +12503,92 @@ function renderDispatchJobAssignmentTab(job) {
             </article>`
           : ""
       }
+
+      ${renderJobSafetyBriefingsPanel(job)}
+      ${renderJobEquipmentUsagePanel(job)}
+      ${renderJobWasteContainersPanel(job)}
     </section>
+  `;
+}
+
+// Plan tab, build item 4: read-only per-day panels for the field-written safety briefing, equipment
+// usage and waste containers. The field app (jobSafetyBriefings / jobEquipmentUsage / wasteRecords)
+// owns writing these; the office only reads them here.
+function renderJobSafetyBriefingsPanel(job) {
+  const briefings = jobSafetyBriefingsForJob(job.id);
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Safety briefing</h3><span>${briefings.length} recorded, one per operational day</span></div></div>
+      <div class="panel-body record-list">
+        ${
+          briefings
+            .map(
+              (briefing) => `
+          <details class="closeout-day">
+            <summary>${escapeHtml(formatLongDate(briefing.operationalDate))}${briefing.ppeLevel ? ` <span class="tag">PPE ${escapeHtml(briefing.ppeLevel)}</span>` : ""}</summary>
+            <dl class="detail-list">
+              <div><dt>Muster point</dt><dd>${escapeHtml(briefing.musterPoint || "Not recorded")}</dd></div>
+              <div><dt>Emergency contact</dt><dd>${escapeHtml(briefing.emergencyContact || "Not recorded")}</dd></div>
+              <div><dt>Nearest hospital</dt><dd>${escapeHtml(briefing.nearestHospital || "Not recorded")}</dd></div>
+              <div><dt>Hazards listed</dt><dd>${(briefing.hazards || []).length}</dd></div>
+              <div><dt>Roll call</dt><dd>${(briefing.rollCall || []).length} crew, ${(briefing.rollCall || []).filter((row) => row.acknowledgedAt).length} acknowledged</dd></div>
+            </dl>
+          </details>
+        `,
+            )
+            .join("") || `<div class="empty-state compact">No safety briefing recorded yet.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderJobEquipmentUsagePanel(job) {
+  const rows = jobEquipmentUsageForJob(job.id).sort((a, b) => String(a.operationalDate || "").localeCompare(String(b.operationalDate || "")));
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Equipment usage</h3><span>${rows.length} logged from the field</span></div></div>
+      <div class="panel-body resource-list">
+        ${
+          rows
+            .map((row) => {
+              const asset = row.assetTag ? findEquipmentAssetByTag(row.assetTag) : null;
+              return `
+            <article class="job-resource-row">
+              <span class="resource-type-mark">${escapeHtml(getInitials(asset?.equipment || row.assetTag, "E"))}</span>
+              <div><strong>${escapeHtml(asset?.equipment || row.assetTag || "Equipment")}</strong><span>${escapeHtml(row.operationalDate ? formatDate(row.operationalDate) : "")} &middot; ${row.hours ? `${escapeHtml(String(row.hours))} hrs` : row.days ? `${escapeHtml(String(row.days))} day${Number(row.days) === 1 ? "" : "s"}` : "logged"}${row.condition ? ` &middot; ${escapeHtml(row.condition)}` : ""}</span></div>
+            </article>
+          `;
+            })
+            .join("") || `<div class="empty-state compact">No equipment usage logged yet.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderJobWasteContainersPanel(job) {
+  const rows = (state.backend.wasteRecords || []).filter((record) => record.dispatchJobId === job.id && !record.deletedAt);
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Waste containers</h3><span>${rows.length} logged from the field</span></div></div>
+      <div class="panel-body resource-list">
+        ${
+          rows
+            .map(
+              (record) => `
+          <article class="job-resource-row">
+            <span class="resource-type-mark">${escapeHtml(getInitials(record.description || "Waste", "W"))}</span>
+            <div><strong>${escapeHtml(record.description || "Container")}</strong><span>${escapeHtml(formatWasteQuantity(record))}${record.manifestNumber ? ` &middot; Manifest ${escapeHtml(record.manifestNumber)}` : ""}</span></div>
+            ${record.containerPhotoAttachmentId ? `<img class="signature-preview" src="/api/job-task-attachments/${encodeURIComponent(record.containerPhotoAttachmentId)}/view" alt="" style="height:36px;width:36px;object-fit:cover;border-radius:4px;" />` : ""}
+            <span class="source-badge">${escapeHtml(record.status || "")}</span>
+          </article>
+        `,
+            )
+            .join("") || `<div class="empty-state compact">No waste containers logged yet.</div>`
+        }
+      </div>
+    </article>
   `;
 }
 
@@ -12533,6 +12692,22 @@ function renderSubmissionPayload(submission) {
 
   if (payload.signedBy) {
     parts.push(`<p class="submission-fact">Signed by ${escapeHtml(payload.signedBy)}${payload.signerRole ? ` (${escapeHtml(payload.signerRole)})` : ""}</p>`);
+  }
+
+  // Equipment usage (jobEquipmentUsage-shaped payload: assetTag, hours, days, condition).
+  if (payload.assetTag && (payload.hours != null || payload.days != null || payload.condition)) {
+    parts.push(
+      `<p class="submission-fact"><strong>${escapeHtml(payload.assetTag)}</strong>${payload.hours ? ` · ${escapeHtml(String(payload.hours))} hrs` : ""}${payload.days ? ` · ${escapeHtml(String(payload.days))} day${Number(payload.days) === 1 ? "" : "s"}` : ""}${payload.condition ? ` · ${escapeHtml(payload.condition)}` : ""}</p>`,
+    );
+  }
+
+  // Waste container (wasteRecords-shaped payload: containerType, count, contents, quantity, unit, manifestNumber).
+  if (payload.containerType) {
+    parts.push(`
+      <p class="submission-fact">
+        <strong>${escapeHtml(payload.containerType)}</strong>${payload.count ? ` x${escapeHtml(String(payload.count))}` : ""}${payload.contents ? ` &middot; ${escapeHtml(payload.contents)}` : ""}${payload.quantity ? ` &middot; ${escapeHtml(String(payload.quantity))} ${escapeHtml(payload.unit || "")}` : ""}${payload.manifestNumber ? ` &middot; Manifest ${escapeHtml(payload.manifestNumber)}` : ""}
+      </p>
+    `);
   }
 
   const attachments = attachmentsForAction(submission.actionId);
@@ -16928,6 +17103,8 @@ function describeTaskPayload(type, payload) {
   if (type === "Photo") return `${payload.photoCount} photo${payload.photoCount === 1 ? "" : "s"} attached.`;
   if (type === "Signature") return `Signed by ${payload.signedBy}.`;
   if (type === "Odometer") return `${payload.siteLabel || "Leg"}: ${payload.calculatedDistance} mi (${payload.startOdometer} to ${payload.arrivalOdometer}).`;
+  if (type === "Equipment usage") return `${payload.assetTag || "Equipment"}: ${payload.hours ? `${payload.hours} hrs` : payload.days ? `${payload.days} day${payload.days === 1 ? "" : "s"}` : "logged"}${payload.condition ? ` · ${payload.condition}` : ""}.`;
+  if (type === "Waste") return `${payload.containerType || "Container"}${payload.count ? ` x${payload.count}` : ""}${payload.contents ? `: ${payload.contents}` : ""}${payload.manifestNumber ? ` · manifest ${payload.manifestNumber}` : ""}.`;
   return "Completed in Front Line.";
 }
 
@@ -19653,6 +19830,113 @@ function dispatchRecordDay(job, timestamp, workDays = dispatchJobWorkDays(job)) 
   return dispatchJobOperationalDate(job) || calendar;
 }
 
+function jobSafetyBriefingsForJob(jobId) {
+  return (state.backend.jobSafetyBriefings || [])
+    .filter((row) => row.jobId === jobId && !row.deletedAt)
+    .sort((a, b) => String(a.operationalDate || "").localeCompare(String(b.operationalDate || "")));
+}
+
+function jobEquipmentUsageForJob(jobId) {
+  return (state.backend.jobEquipmentUsage || []).filter((row) => row.jobId === jobId && !row.deletedAt);
+}
+
+// Shared per-job billables computation (build item 4): the post-work report, the invoice draft and
+// the Closeout tab's preview all call this so the three agree on what a job billed, and equipment
+// is never counted twice between jobEquipmentUsage and the older jobResources-assignment inference.
+//  - Manpower: timeEntries for this job if any exist (Work vs Travel, noting when the lead entered it
+//    for the person), else Front Line Timer submissions (the pre-Phase-21 source).
+//  - Equipment: jobEquipmentUsage rows for the day first (hours or days, whichever the row carries);
+//    an asset with no usage row logged for a day then falls back to the jobResources-assignment
+//    inference, so an asset never bills from both sources on the same day.
+//  - Materials: jobResources Consumed for the day. Office-wide materialUsage/equipmentLogs are
+//    project-level, not job-level, and stay in the caller's own project-wide pass.
+function computeJobBillables(job) {
+  const workDays = dispatchJobWorkDays(job);
+  const dayOf = (value) => (value ? dispatchRecordDay(job, value, workDays) : "");
+  const days = new Map();
+  const ensureDay = (date) => {
+    if (!days.has(date)) days.set(date, { date, manpower: new Map(), equipment: new Map(), materials: new Map() });
+    return days.get(date);
+  };
+  const addQuantity = (map, key, fields, quantity) => {
+    const row = map.get(key) || { ...fields, quantity: 0 };
+    row.quantity += quantity;
+    map.set(key, row);
+  };
+  workDays.forEach((date) => ensureDay(date));
+
+  const timeEntries = (state.backend.timeEntries || []).filter((entry) => entry.dispatchJobId === job.id && !entry.deletedAt);
+  if (timeEntries.length) {
+    timeEntries.forEach((entry) => {
+      const date = dayOf(entry.startedAt || entry.endedAt);
+      if (!date) return;
+      const minutes = Number(entry.durationMinutes) || (entry.startedAt && entry.endedAt ? (parseDate(entry.endedAt) - parseDate(entry.startedAt)) / 60000 : 0);
+      const hours = minutes / 60;
+      if (!(hours > 0)) return;
+      const employee = findEmployee(entry.employeeId);
+      const enteredBy = entry.enteredByEmployeeId && entry.enteredByEmployeeId !== entry.employeeId ? findEmployee(entry.enteredByEmployeeId) : null;
+      const entryType = entry.entryType || "work";
+      addQuantity(
+        ensureDay(date).manpower,
+        `${entry.employeeId}|${entryType.toLowerCase()}`,
+        { name: employee?.displayName || "Unknown", role: employee?.jobTitle || "", entryType, enteredByLead: enteredBy?.displayName || "" },
+        hours,
+      );
+    });
+  } else {
+    submissionsForDispatchJob(job.id).forEach((submission) => {
+      const action = findJobAction(submission.actionId);
+      if (action?.type !== "Timer") return;
+      const hours = Number(submission.payload?.hours || 0);
+      if (!(hours > 0)) return;
+      const date = dayOf(submission.submittedAt);
+      if (!date) return;
+      const employee = (state.backend.employees || []).find((person) => person.displayName === submission.submittedBy);
+      addQuantity(
+        ensureDay(date).manpower,
+        `${submission.submittedBy}|work`,
+        { name: submission.submittedBy || "Unknown", role: employee?.jobTitle || "", entryType: "work", enteredByLead: "" },
+        hours,
+      );
+    });
+  }
+
+  const coveredAssetDays = new Set();
+  jobEquipmentUsageForJob(job.id).forEach((row) => {
+    const date = row.operationalDate || dayOf(row.createdAt);
+    if (!date) return;
+    coveredAssetDays.add(`${row.assetTag}|${date}`);
+    const asset = row.assetTag ? findEquipmentAssetByTag(row.assetTag) : null;
+    addQuantity(
+      ensureDay(date).equipment,
+      row.assetTag || row.id,
+      { name: asset?.equipment || row.assetTag || "Equipment", assetTag: row.assetTag || "", unit: row.hours ? "hrs" : "days", condition: row.condition || "" },
+      Number(row.hours || row.days || 0),
+    );
+  });
+  resourcesForDispatchJob(job.id)
+    .filter((resource) => resource.type === "Equipment")
+    .forEach((resource) => {
+      const tag = resource.assetTag || resource.name;
+      workDays.forEach((date) => {
+        if (coveredAssetDays.has(`${tag}|${date}`)) return; // already logged via jobEquipmentUsage
+        addQuantity(ensureDay(date).equipment, tag, { name: resource.name, assetTag: resource.assetTag || "", unit: "", condition: "" }, Number(resource.quantity || 1));
+      });
+    });
+
+  resourcesForDispatchJob(job.id)
+    .filter((resource) => resource.type === "Material" && resource.status === "Consumed")
+    .forEach((resource) => {
+      const date = dayOf(resource.consumedAt);
+      if (!date) return;
+      addQuantity(ensureDay(date).materials, `${resource.name}|${resource.unit}`, { name: resource.name, unit: resource.unit || "" }, Number(resource.quantity || 0));
+    });
+
+  return [...days.values()]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((day) => ({ ...day, manpower: [...day.manpower.values()], equipment: [...day.equipment.values()], materials: [...day.materials.values()] }));
+}
+
 function narrativeForDay(job, date) {
   return (job.dailyNarratives || []).find((entry) => entry.date === date) || null;
 }
@@ -19682,6 +19966,12 @@ function postJobReviewAvailable(job) {
   return ["field_complete", "office_review", "closed"].includes(job.status);
 }
 
+// Whether the customer's close-out signature is on file (build item 4: red dot on the Closeout tab,
+// tab + list row + panel outline, per the standing red-dot rule).
+function dispatchJobMissingCustomerSignature(job) {
+  return job.status === "field_complete" && !job.customerAcknowledgement?.signatureAttachmentId;
+}
+
 function dispatchCloseoutGaps(job) {
   const gaps = [];
   const project = job.projectId ? findProject(job.projectId) : null;
@@ -19691,6 +19981,7 @@ function dispatchCloseoutGaps(job) {
     if (missing) gaps.push(`${missing} work day${missing === 1 ? "" : "s"} without a case narrative`);
     if (!postJobReviewComplete(job)) gaps.push("Post-job review not answered");
   }
+  if (dispatchJobMissingCustomerSignature(job)) gaps.push("Customer acknowledgement not on file");
   return gaps;
 }
 
@@ -19759,6 +20050,88 @@ function renderPostJobReviewForm(job) {
   `;
 }
 
+// Small standalone billables table (build item 4), used by the Closeout tab's preview. Not the
+// print-shell version renderPostWorkReportHtml builds internally, but drives from the same
+// computeJobBillables() so the numbers always agree.
+function renderJobBillablesPreviewTable(rows, columns, empty) {
+  if (!rows.length) return `<div class="empty-state compact">${escapeHtml(empty)}</div>`;
+  return `
+    <table class="data-table compact-table">
+      <thead><tr>${columns.map((col) => `<th>${escapeHtml(col.label)}</th>`).join("")}</tr></thead>
+      <tbody>${rows.map((row) => `<tr>${columns.map((col) => `<td>${escapeHtml(col.value(row))}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table>
+  `;
+}
+
+function renderJobBillablesPreview(job) {
+  const days = computeJobBillables(job);
+  const manpower = days.flatMap((day) => day.manpower.map((row) => ({ ...row, date: day.date })));
+  const equipment = days.flatMap((day) => day.equipment.map((row) => ({ ...row, date: day.date })));
+  const materials = days.flatMap((day) => day.materials.map((row) => ({ ...row, date: day.date })));
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Billables preview</h3><span>The same computation the post-work report and invoice draft use, so all three agree.</span></div></div>
+      <div class="panel-body">
+        <h4>Manpower</h4>
+        ${renderJobBillablesPreviewTable(
+          manpower,
+          [
+            { label: "Day", value: (row) => formatDate(row.date) },
+            { label: "Name", value: (row) => row.name },
+            { label: "Type", value: (row) => formatDispatchStatus(row.entryType || "work") },
+            { label: "Hours", value: (row) => String(Math.round(row.quantity * 100) / 100) },
+          ],
+          "No field hours logged.",
+        )}
+        <h4>Equipment</h4>
+        ${renderJobBillablesPreviewTable(
+          equipment,
+          [
+            { label: "Day", value: (row) => formatDate(row.date) },
+            { label: "Item", value: (row) => row.name },
+            { label: "Asset", value: (row) => row.assetTag || "" },
+            { label: "Qty", value: (row) => String(Math.round(row.quantity * 100) / 100) },
+          ],
+          "No equipment logged.",
+        )}
+        <h4>Material</h4>
+        ${renderJobBillablesPreviewTable(
+          materials,
+          [
+            { label: "Day", value: (row) => formatDate(row.date) },
+            { label: "Item", value: (row) => row.name },
+            { label: "Qty", value: (row) => `${Math.round(row.quantity * 100) / 100} ${row.unit || ""}`.trim() },
+          ],
+          "No material logged.",
+        )}
+      </div>
+    </article>
+  `;
+}
+
+function renderJobCustomerAcknowledgementPanel(job) {
+  const ack = job.customerAcknowledgement;
+  const missing = dispatchJobMissingCustomerSignature(job);
+  return `
+    <article class="panel${missing ? " panel-needs-attention" : ""}">
+      <div class="panel-header"><div><h3>Customer acknowledgement${missing ? renderAlertDot("Customer acknowledgement not on file") : ""}</h3><span>Captured on Front Line at close.</span></div></div>
+      <div class="panel-body">
+        ${
+          ack
+            ? `
+          <dl class="detail-list">
+            <div><dt>Signed by</dt><dd>${escapeHtml(ack.name || "")}${ack.title ? ` (${escapeHtml(ack.title)})` : ""}</dd></div>
+            <div><dt>Signed at</dt><dd>${ack.signedAt ? formatDateTime(ack.signedAt) : "Not recorded"}</dd></div>
+          </dl>
+          ${ack.signatureAttachmentId ? `<img class="signature-preview" src="/api/job-task-attachments/${encodeURIComponent(ack.signatureAttachmentId)}/view" alt="Customer signature" style="max-height:64px;border-bottom:1px solid #1a1f26;" />` : ""}
+        `
+            : `<div class="empty-state compact">No customer acknowledgement captured yet.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function renderDispatchJobCloseoutTab(job) {
   const days = dispatchJobWorkDays(job);
   const owed = closeoutOwed(job);
@@ -19786,6 +20159,8 @@ function renderDispatchJobCloseoutTab(job) {
             </form>
           </div>
         </article>
+        ${renderJobCustomerAcknowledgementPanel(job)}
+        ${renderJobBillablesPreview(job)}
       </div>
       <aside class="job-detail-sidebar">
         <article class="panel${reviewMissing ? " panel-needs-attention" : ""}">
@@ -19981,6 +20356,24 @@ function projectReportReadiness(project) {
   const waste = wasteRecordsForProject(project.id);
   const open = waste.filter((record) => record.status !== "Disposed").length;
   checks.push({ label: "Waste and disposal", status: open ? "Warning" : "Pass", detail: waste.length ? `${waste.length - open} of ${waste.length} records disposed` : "No waste records. The report says so." });
+  const briefingDays = dispatchJobs.flatMap((dispatchJob) => dispatchJobWorkDays(dispatchJob).map((date) => ({ dispatchJob, date })));
+  const missingBriefings = briefingDays.filter(({ dispatchJob, date }) => !jobSafetyBriefingsForJob(dispatchJob.id).some((row) => row.operationalDate === date)).length;
+  checks.push({
+    label: "Safety briefing",
+    status: missingBriefings ? "Warning" : "Pass",
+    detail: briefingDays.length ? `${briefingDays.length - missingBriefings} of ${briefingDays.length} work days briefed` : "No work days recorded yet.",
+  });
+  const signOffOwed = dispatchJobs.filter((dispatchJob) => closeoutOwed(dispatchJob) || isTerminalDispatchStatus(dispatchJob.status));
+  const missingCustomerSig = signOffOwed.filter((dispatchJob) => !dispatchJob.customerAcknowledgement?.signatureAttachmentId).length;
+  checks.push({
+    label: "Customer acknowledgement",
+    status: missingCustomerSig ? "Warning" : "Pass",
+    detail: signOffOwed.length ? `${signOffOwed.length - missingCustomerSig} of ${signOffOwed.length} finished jobs signed` : "No finished dispatch jobs yet.",
+  });
+  if (project.jobClass === "Emergency Response") {
+    const measurementCount = dispatchJobs.reduce((sum, dispatchJob) => sum + (dispatchJob.measurements || []).length, 0);
+    checks.push({ label: "Measurements", status: measurementCount ? "Pass" : "Warning", detail: measurementCount ? `${measurementCount} recorded` : "No measurements recorded yet." });
+  }
   return checks;
 }
 
@@ -20056,11 +20449,9 @@ async function saveReportPhotoCaption(attachmentId, caption) {
 
 function buildPostWorkReport(project) {
   const dispatchJobs = dispatchJobsForProject(project.id).slice().reverse();
-  const jobIds = new Set(dispatchJobs.map((dispatchJob) => dispatchJob.id));
   const dayOf = (value) => (value ? localIsoDate(parseDate(value)) : "");
   const gpsPoints = (state.backend.locations || []).filter((point) => point.projectId === project.id);
   const gpsPoint = gpsPoints.find((point) => /spill origin/i.test(point.locationType || "")) || gpsPoints[0] || null;
-  const resources = (state.backend.jobResources || []).filter((resource) => jobIds.has(resource.jobId));
 
   const dayMap = new Map();
   const ensureDay = (date) => {
@@ -20081,37 +20472,27 @@ function buildPostWorkReport(project) {
     return dispatchJob ? dispatchRecordDay(dispatchJob, timestamp, workDaysByJob.get(jobId) || dispatchJobWorkDays(dispatchJob)) : dayOf(timestamp);
   };
 
-  // Manpower is Front Line timer hours (the same source as the cost report). Hours aren't split into
-  // regular/overtime here: that split is a pricing decision the invoice makes through Phase 08's
-  // rate tiers, and guessing it from clock times would put two answers in circulation.
-  laborHoursForProject(project.id).entries.forEach((entry) => {
-    const date = fieldDay(entry.dispatchJobId, entry.submittedAt);
-    if (!date) return;
-    const employee = (state.backend.employees || []).find((person) => person.displayName === entry.employee);
-    addQuantity(ensureDay(date).manpower, entry.employee, { name: entry.employee, role: employee?.jobTitle || "" }, entry.hours);
+  // Manpower/equipment/consumed-material per job come from computeJobBillables (build item 4), the
+  // same computation the invoice draft and the Closeout billables preview use, so all three agree.
+  // It already resolves timeEntries vs. Timer-submission manpower and jobEquipmentUsage vs.
+  // jobResources-inferred equipment without double counting.
+  dispatchJobs.forEach((dispatchJob) => {
+    computeJobBillables(dispatchJob).forEach((day) => {
+      const target = ensureDay(day.date);
+      day.manpower.forEach((row) => addQuantity(target.manpower, `${row.name}|${row.entryType || "work"}`, row, row.quantity));
+      day.equipment.forEach((row) => addQuantity(target.equipment, row.assetTag || row.name, row, row.quantity));
+      day.materials.forEach((row) => addQuantity(target.materials, `${row.name}|${row.unit}`, row, row.quantity));
+    });
   });
-  // Equipment: office logs count on their checkout day; equipment assigned on dispatch counts once
-  // for each work day of its job (it has no dates of its own), so a job that never reached the field
-  // bills none.
+  // Office-side logs have no dispatch job and no work-day association, so they keep their own date.
   equipmentLogsForJob(project.id).forEach((log) => {
     const date = dayOf(log.checkedOut);
     if (date) addQuantity(ensureDay(date).equipment, log.assetTag || log.equipment, { name: log.equipment, assetTag: log.assetTag || "" }, 1);
   });
-  resources
-    .filter((resource) => resource.type === "Equipment" && resource.status !== "Removed")
-    .forEach((resource) => {
-      (workDaysByJob.get(resource.jobId) || []).forEach((date) => addQuantity(ensureDay(date).equipment, resource.assetTag || resource.name, { name: resource.name, assetTag: resource.assetTag || "" }, Number(resource.quantity || 1)));
-    });
   materialUsageForJob(project.id).forEach((usage) => {
     const date = dayOf(usage.timestamp);
     if (date) addQuantity(ensureDay(date).materials, `${usage.materialType}|${usage.unit}`, { name: usage.materialType, unit: usage.unit || "" }, Number(usage.quantity || 0));
   });
-  resources
-    .filter((resource) => resource.type === "Material" && resource.status === "Consumed")
-    .forEach((resource) => {
-      const date = fieldDay(resource.jobId, resource.consumedAt);
-      if (date) addQuantity(ensureDay(date).materials, `${resource.name}|${resource.unit}`, { name: resource.name, unit: resource.unit || "" }, Number(resource.quantity || 0));
-    });
 
   const days = [...dayMap.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -20122,7 +20503,7 @@ function buildPostWorkReport(project) {
     return [...map.values()];
   };
   const summary = {
-    manpower: rollUp(days.flatMap((day) => day.manpower), (row) => row.name),
+    manpower: rollUp(days.flatMap((day) => day.manpower), (row) => `${row.name}|${row.entryType || "work"}`),
     equipment: rollUp(days.flatMap((day) => day.equipment), (row) => row.assetTag || row.name),
     materials: rollUp(days.flatMap((day) => day.materials), (row) => `${row.name}|${row.unit}`),
   };
@@ -20130,7 +20511,50 @@ function buildPostWorkReport(project) {
   const submissions = dispatchJobs
     .flatMap((dispatchJob) => submissionsForDispatchJob(dispatchJob.id).map((submission) => ({ ...submission, dispatchJob })))
     .sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)));
-  const safety = submissions.filter((submission) => submission.payload?.options?.length || /safety|jsa|jha|ppe|tailgate|hazard/i.test(submission.formName || ""));
+  // Safety / JSA (build item 1, replaces the old formName regex entirely):
+  // jobSafetyBriefings is the real source. A job with no briefing on a
+  // given day falls back to a Checklist submission matched against a formTemplates row whose category
+  // is "safety" -- no more name-guessing regex. If neither exists for a day, the report shows a red
+  // "No safety briefing recorded" line for that job/day instead of silently having nothing to print.
+  const safetyFormNames = new Set((state.backend.formTemplates || []).filter((form) => !form.deletedAt && form.category === "safety").map((form) => form.name));
+  const safetyDays = days.map((day) => ({
+    date: day.date,
+    jobs: day.narratives.map(({ dispatchJob }) => {
+      const briefing = jobSafetyBriefingsForJob(dispatchJob.id).find((row) => row.operationalDate === day.date) || null;
+      const fallback = briefing
+        ? null
+        : submissions.find(
+            (submission) =>
+              submission.dispatchJob.id === dispatchJob.id &&
+              submission.formName &&
+              safetyFormNames.has(submission.formName) &&
+              dispatchRecordDay(dispatchJob, submission.submittedAt, workDaysByJob.get(dispatchJob.id)) === day.date,
+          ) || null;
+      return { dispatchJob, briefing, fallback };
+    }),
+  }));
+
+  // Customer acknowledgement (build item 1): the signature captured at close on each dispatch job.
+  const customerAcknowledgements = dispatchJobs.map((dispatchJob) => ({ dispatchJob, acknowledgement: dispatchJob.customerAcknowledgement || null }));
+
+  // Measurements (build item 1): field-captured measurements stored on each dispatch job.
+  const measurements = dispatchJobs.flatMap((dispatchJob) => (dispatchJob.measurements || []).map((measurement) => ({ dispatchJob, measurement })));
+
+  // Site map (build item 1): a numbered list of site-walk observations, not a rendered map -- the
+  // integrator wires the actual map image (see phase doc "Corrections found during implementation").
+  // Linked defensively since siteWalkReports can carry either an opportunityId or a projectId.
+  const siteWalkReportIds = new Set(
+    (state.backend.siteWalkReports || [])
+      .filter((report) => !report.deletedAt && (report.projectId === project.id || (project.opportunityId && report.opportunityId === project.opportunityId)))
+      .map((report) => report.id),
+  );
+  const siteMapObservations = (state.backend.siteWalkObservations || [])
+    .filter((observation) => !observation.deletedAt && siteWalkReportIds.has(observation.reportId))
+    .sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
+
+  // ERG (build item 1): what the guidebook said for this incident, from whichever dispatch job has it set.
+  const ergJob = dispatchJobs.find((dispatchJob) => dispatchJob.ergGuideNumber);
+
   const signatures = projectReportAttachments(project.id, "signature").map((attachment) => {
     const submission = submissions.find((item) => item.actionId === attachment.actionId);
     return {
@@ -20152,7 +20576,11 @@ function buildPostWorkReport(project) {
     gpsPoint,
     days,
     summary,
-    safety,
+    safetyDays,
+    customerAcknowledgements,
+    measurements,
+    siteMapObservations,
+    ergJob,
     signatures,
     photos: projectReportAttachments(project.id, "photo").filter((photo) => photo.includeInReport),
     samples,
@@ -20183,7 +20611,14 @@ function renderPostWorkReportHtml(report) {
       : `<p class="gap-line">${escapeHtml(empty)}</p>`;
   const billables = (group, equipmentLabel) => `
     <h4>Manpower</h4>
-    ${table([["Name"], ["Role"], ["Hours", true]], group.manpower.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.role)}</td><td class="num">${hours(row.quantity)}</td></tr>`), "No field hours logged.")}
+    ${table(
+      [["Name"], ["Role"], ["Type"], ["Hours", true]],
+      group.manpower.map(
+        (row) =>
+          `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.role)}</td><td>${escapeHtml(formatDispatchStatus(row.entryType || "work"))}${row.enteredByLead ? `<br /><small>entered by lead ${escapeHtml(row.enteredByLead)}</small>` : ""}</td><td class="num">${hours(row.quantity)}</td></tr>`,
+      ),
+      "No field hours logged.",
+    )}
     <h4>Equipment</h4>
     ${table([["Item"], ["Asset"], [equipmentLabel, true]], group.equipment.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.assetTag)}</td><td class="num">${hours(row.quantity)}</td></tr>`), "No equipment logged.")}
     <h4>Material</h4>
@@ -20233,7 +20668,31 @@ function renderPostWorkReportHtml(report) {
       ${field("Reported location", `${gps ? `${escapeHtml(gps)}<br />` : ""}${value(address, "No street address")}`)}
       ${field("Government agency", agencies.length ? escapeHtml(agencies.join("; ")) : `<small>None recorded</small>`)}
       ${field("Reported incident description", description ? escapeHtml(description) : value(project.serviceProfile || generator.serviceProfile))}
+      ${
+        report.ergJob
+          ? field(
+              "ERG guide",
+              `Guide ${escapeHtml(report.ergJob.ergGuideNumber)}${report.ergJob.ergSpillSize ? ` &middot; ${escapeHtml(report.ergJob.ergSpillSize)} spill` : ""}${report.ergJob.ergDayNight ? ` &middot; ${escapeHtml(report.ergJob.ergDayNight)}` : ""}${report.ergJob.ergIsolationMeters ? `<br />Isolation ${escapeHtml(String(report.ergJob.ergIsolationMeters))} m` : ""}${report.ergJob.ergProtectiveMeters ? ` &middot; Protective ${escapeHtml(String(report.ergJob.ergProtectiveMeters))} m` : ""}`,
+            )
+          : ""
+      }
     </dl>
+
+    ${
+      project.jobClass === "Emergency Response" || report.measurements.length
+        ? `
+      <h2>Measurements</h2>
+      ${table(
+        [["Job"], ["Label"], ["Area"], ["Length"], ["Depth"], ["Volume"], ["Method"], ["Taken"]],
+        report.measurements.map(
+          ({ dispatchJob, measurement }) =>
+            `<tr><td>${escapeHtml(dispatchJob.jobNumber)}</td><td>${escapeHtml(measurement.label || "")}</td><td>${measurement.area != null ? escapeHtml(`${measurement.area} ${measurement.areaUnit || ""}`.trim()) : ""}</td><td>${measurement.length != null ? escapeHtml(String(measurement.length)) : ""}</td><td>${measurement.depth != null ? escapeHtml(String(measurement.depth)) : ""}</td><td>${measurement.volume != null ? escapeHtml(String(measurement.volume)) : ""}</td><td>${escapeHtml(measurement.method || "")}</td><td>${measurement.at ? formatDateTime(measurement.at) : ""}${measurement.by ? `<br /><small>${escapeHtml(measurement.by)}</small>` : ""}</td></tr>`,
+        ),
+        "No measurements recorded.",
+      )}
+    `
+        : ""
+    }
 
     <h2>Timeline</h2>
     ${
@@ -20317,18 +20776,97 @@ function renderPostWorkReportHtml(report) {
 
     <h2>Safety / JSA acknowledgements</h2>
     ${
-      report.safety
-        .map(
-          (submission) => `
-        <div class="safety-block">
-          <strong>${escapeHtml(submission.formName)}</strong> <small>${escapeHtml(submission.submittedBy || "")} &middot; ${escapeHtml(formatDateTime(submission.submittedAt))}${multipleJobs ? ` &middot; ${escapeHtml(submission.dispatchJob.jobNumber)}` : ""}</small>
-          ${submission.payload?.options?.length ? `<ul class="checklist">${submission.payload.options.map((option) => `<li>${(submission.payload.checked || []).includes(option) ? "Yes" : "<em class=\"gap\">No</em>"} &mdash; ${escapeHtml(option)}</li>`).join("")}</ul>` : ""}
-          ${submission.summary ? `<p class="prose">${escapeHtml(submission.summary)}</p>` : ""}
-        </div>
-      `,
+      report.safetyDays
+        .flatMap((day) =>
+          day.jobs.map(({ dispatchJob, briefing, fallback }) => {
+            if (briefing) {
+              const reminders = [
+                ["ppeInspected", "PPE inspected"],
+                ["sdsReviewed", "SDS reviewed"],
+                ["deconPlan", "Decon plan set"],
+                ["spillKitStaged", "Spill kit staged"],
+                ["commsCheck", "Comms check"],
+              ];
+              return `
+                <div class="safety-block">
+                  <strong>Safety briefing &mdash; ${escapeHtml(formatLongDate(day.date))}</strong> <small>${multipleJobs ? `${escapeHtml(dispatchJob.jobNumber)} &middot; ` : ""}${briefing.createdBy ? `by ${escapeHtml(briefing.createdBy)}` : ""}</small>
+                  <dl class="report-header-grid">
+                    ${field("PPE level", `${value(briefing.ppeLevel)}${briefing.ppeRationale ? `<br /><small>${escapeHtml(briefing.ppeRationale)}</small>` : ""}`)}
+                    ${field("Muster point", value(briefing.musterPoint))}
+                    ${field("Emergency contact", value(briefing.emergencyContact))}
+                    ${field("Nearest hospital", value(briefing.nearestHospital))}
+                  </dl>
+                  ${table(
+                    [["Major job step"], ["Potential hazard"], ["Control"]],
+                    (briefing.hazards || []).map((row) => `<tr><td>${escapeHtml(row.step || "")}</td><td>${escapeHtml(row.hazard || "")}</td><td>${escapeHtml(row.control || "")}</td></tr>`),
+                    "No hazards listed.",
+                  )}
+                  <ul class="checklist">
+                    ${reminders.map(([key, label]) => `<li>${briefing.reminders?.[key] ? "Yes" : "<em class=\"gap\">No</em>"} &mdash; ${escapeHtml(label)}</li>`).join("")}
+                  </ul>
+                  ${
+                    (briefing.airReadings || []).length
+                      ? table(
+                          [["Time"], ["Instrument"], ["Reading"], ["Location"]],
+                          briefing.airReadings.map((row) => `<tr><td>${row.at ? formatDateTime(row.at) : ""}</td><td>${escapeHtml(row.instrument || "")}</td><td>${escapeHtml(`${row.reading ?? ""} ${row.unit || ""}`.trim())}</td><td>${escapeHtml(row.location || "")}</td></tr>`),
+                          "",
+                        )
+                      : ""
+                  }
+                  ${table(
+                    [["Crew"], ["Arrived"], ["Left"], ["Acknowledged"]],
+                    (briefing.rollCall || []).map((row) => {
+                      const person = findEmployee(row.employeeId);
+                      return `<tr><td>${escapeHtml(person?.displayName || row.employeeId || "")}</td><td>${row.arrivedAt ? formatDateTime(row.arrivedAt) : ""}</td><td>${row.leftAt ? formatDateTime(row.leftAt) : ""}</td><td>${row.acknowledgedAt ? formatDateTime(row.acknowledgedAt) : gap("Not acknowledged")}</td></tr>`;
+                    }),
+                    "No roll call recorded.",
+                  )}
+                </div>
+              `;
+            }
+            if (fallback) {
+              return `
+                <div class="safety-block">
+                  <strong>${escapeHtml(fallback.formName)} &mdash; ${escapeHtml(formatLongDate(day.date))}</strong> <small>${escapeHtml(fallback.submittedBy || "")} &middot; ${escapeHtml(formatDateTime(fallback.submittedAt))}${multipleJobs ? ` &middot; ${escapeHtml(dispatchJob.jobNumber)}` : ""}</small>
+                  ${fallback.payload?.options?.length ? `<ul class="checklist">${fallback.payload.options.map((option) => `<li>${(fallback.payload.checked || []).includes(option) ? "Yes" : "<em class=\"gap\">No</em>"} &mdash; ${escapeHtml(option)}</li>`).join("")}</ul>` : ""}
+                  ${fallback.summary ? `<p class="prose">${escapeHtml(fallback.summary)}</p>` : ""}
+                </div>
+              `;
+            }
+            return `<p class="gap-line">No safety briefing recorded${multipleJobs ? ` for ${escapeHtml(dispatchJob.jobNumber)}` : ""} on ${escapeHtml(formatLongDate(day.date))}.</p>`;
+          }),
         )
-        .join("") || `<p class="gap-line">No safety checklists were submitted on Front Line.</p>`
+        .join("") || `<p class="gap-line">No work days recorded yet.</p>`
     }
+
+    <h2>Customer acknowledgement</h2>
+    ${
+      report.customerAcknowledgements
+        .map(({ dispatchJob, acknowledgement }) =>
+          acknowledgement
+            ? `
+        <div class="signature-block">
+          ${acknowledgement.signatureAttachmentId ? `<img src="${attachmentViewUrl({ id: acknowledgement.signatureAttachmentId }, true)}" alt="Signature of ${escapeAttribute(acknowledgement.name || "customer")}" />` : ""}
+          <div>Signed by <strong>${escapeHtml(acknowledgement.name || "")}</strong>${acknowledgement.title ? ` (${escapeHtml(acknowledgement.title)})` : ""}${acknowledgement.signedAt ? ` on ${escapeHtml(formatDateTime(acknowledgement.signedAt))}` : ""}${multipleJobs ? ` &middot; ${escapeHtml(dispatchJob.jobNumber)}` : ""}</div>
+        </div>
+      `
+            : dispatchJob.status === "field_complete" || isTerminalDispatchStatus(dispatchJob.status)
+              ? `<p class="gap-line">No customer acknowledgement on file${multipleJobs ? ` for ${escapeHtml(dispatchJob.jobNumber)}` : ""}.</p>`
+              : "",
+        )
+        .join("") || `<p class="gap-line">No customer acknowledgement on file.</p>`
+    }
+
+    <h2>Site map</h2>
+    <div data-report-map></div>
+    ${table(
+      [["#"], ["Kind"], ["Label"], ["Note"], ["Latitude"], ["Longitude"]],
+      report.siteMapObservations.map(
+        (observation) =>
+          `<tr><td>${escapeHtml(String(observation.number ?? ""))}</td><td>${escapeHtml(observation.kind || "")}</td><td>${escapeHtml(observation.label || "")}</td><td>${escapeHtml(observation.note || "")}</td><td>${observation.latitude != null ? escapeHtml(String(observation.latitude)) : ""}</td><td>${observation.longitude != null ? escapeHtml(String(observation.longitude)) : ""}</td></tr>`,
+      ),
+      "No site-walk observations on file.",
+    )}
 
     <h2>Post-job review</h2>
     ${table(
@@ -24652,39 +25190,102 @@ function draftInvoiceLinesForProject(project, priceLevelId, defaultTier) {
 
   // Labor: one line per person per day, so the emergency minimum applies per person, as a call-out
   // does. The labor role is the employee's linked rate line (Rate Card → Catalog alignment).
+  // Build item 2: a job with real timeEntries bills from those (Work vs Travel split into separate
+  // lines; travel prices from a "travel" rate-sheet product if one exists, else standard labor); a
+  // job with none falls back to the old Front Line Timer-submission source, so nothing regresses.
   const shiftHours = new Map();
-  laborHoursForProject(project.id).entries.forEach((entry) => {
-    const day = fieldDay(entry.dispatchJobId, entry.submittedAt);
-    const key = `${entry.dispatchJobId}|${day}|${entry.employee}`;
-    shiftHours.set(`${entry.dispatchJobId}|${day}`, Math.max(shiftHours.get(`${entry.dispatchJobId}|${day}`) || 0, entry.hours));
-    const existing = lines.find((line) => line.groupKey === key);
-    if (existing) {
-      existing.quantity = roundCents(existing.quantity + entry.hours);
-      return;
-    }
-    const employee = (state.backend.employees || []).find((person) => person.displayName === entry.employee);
-    const product = productFor(employee?.laborProductId) || productFor("prod-field-labor-standard");
-    add({
-      groupKey: key,
-      sourceType: "labor",
-      operationalDate: day,
-      dispatchJobId: entry.dispatchJobId,
-      productId: product?.id || "",
-      productName: product?.name || "Field labor",
-      productDescription: `${entry.employee}${employee?.jobTitle ? ` · ${employee.jobTitle}` : ""}${employee?.laborProductId ? "" : " (no labor role linked; set it under Rate Card → Catalog alignment)"}`,
-      uomId: uomFor(product),
-      quantity: entry.hours,
+  const travelProduct = getProducts().find((product) => /travel/i.test(product.name || ""));
+  const jobsWithTimeEntries = new Set((state.backend.timeEntries || []).filter((entry) => jobIds.has(entry.dispatchJobId) && !entry.deletedAt).map((entry) => entry.dispatchJobId));
+  (state.backend.timeEntries || [])
+    .filter((entry) => jobsWithTimeEntries.has(entry.dispatchJobId) && !entry.deletedAt)
+    .forEach((entry) => {
+      const day = fieldDay(entry.dispatchJobId, entry.startedAt || entry.endedAt);
+      const minutes = Number(entry.durationMinutes) || (entry.startedAt && entry.endedAt ? (parseDate(entry.endedAt) - parseDate(entry.startedAt)) / 60000 : 0);
+      const entryHours = minutes / 60;
+      if (!(entryHours > 0)) return;
+      const isTravel = String(entry.entryType || "").toLowerCase() === "travel";
+      shiftHours.set(`${entry.dispatchJobId}|${day}`, Math.max(shiftHours.get(`${entry.dispatchJobId}|${day}`) || 0, entryHours));
+      const key = `${entry.dispatchJobId}|${day}|${entry.employeeId}|${isTravel ? "travel" : "work"}`;
+      const existing = lines.find((line) => line.groupKey === key);
+      if (existing) {
+        existing.quantity = roundCents(existing.quantity + entryHours);
+        return;
+      }
+      const employee = findEmployee(entry.employeeId);
+      const product = isTravel ? travelProduct || productFor(employee?.laborProductId) || productFor("prod-field-labor-standard") : productFor(employee?.laborProductId) || productFor("prod-field-labor-standard");
+      const enteredBy = entry.enteredByEmployeeId && entry.enteredByEmployeeId !== entry.employeeId ? findEmployee(entry.enteredByEmployeeId) : null;
+      add({
+        groupKey: key,
+        sourceType: "labor",
+        sourceId: entry.id,
+        operationalDate: day,
+        dispatchJobId: entry.dispatchJobId,
+        productId: product?.id || "",
+        productName: product?.name || (isTravel ? "Travel" : "Field labor"),
+        productDescription: `${employee?.displayName || entry.employeeId}${isTravel ? " · Travel" : ""}${employee?.jobTitle ? ` · ${employee.jobTitle}` : ""}${enteredBy ? ` (entered by lead ${enteredBy.displayName})` : ""}${employee?.laborProductId && !isTravel ? "" : isTravel ? "" : " (no labor role linked; set it under Rate Card → Catalog alignment)"}`,
+        uomId: uomFor(product),
+        quantity: entryHours,
+      });
     });
-  });
+  laborHoursForProject(project.id)
+    .entries.filter((entry) => !jobsWithTimeEntries.has(entry.dispatchJobId))
+    .forEach((entry) => {
+      const day = fieldDay(entry.dispatchJobId, entry.submittedAt);
+      const key = `${entry.dispatchJobId}|${day}|${entry.employee}`;
+      shiftHours.set(`${entry.dispatchJobId}|${day}`, Math.max(shiftHours.get(`${entry.dispatchJobId}|${day}`) || 0, entry.hours));
+      const existing = lines.find((line) => line.groupKey === key);
+      if (existing) {
+        existing.quantity = roundCents(existing.quantity + entry.hours);
+        return;
+      }
+      const employee = (state.backend.employees || []).find((person) => person.displayName === entry.employee);
+      const product = productFor(employee?.laborProductId) || productFor("prod-field-labor-standard");
+      add({
+        groupKey: key,
+        sourceType: "labor",
+        operationalDate: day,
+        dispatchJobId: entry.dispatchJobId,
+        productId: product?.id || "",
+        productName: product?.name || "Field labor",
+        productDescription: `${entry.employee}${employee?.jobTitle ? ` · ${employee.jobTitle}` : ""}${employee?.laborProductId ? "" : " (no labor role linked; set it under Rate Card → Catalog alignment)"}`,
+        uomId: uomFor(product),
+        quantity: entry.hours,
+      });
+    });
 
-  // Equipment assigned on dispatch counts once per work day of its job. Hourly items take the day's
-  // longest logged shift as their hours (equipment has no hours of its own), and say so.
+  // Equipment (build item 2): jobEquipmentUsage rows bill first (real hours/days logged by the
+  // field), then the older jobResources-assignment inference fills in only for asset/day pairs with
+  // no usage row, so nothing is ever billed twice.
+  const coveredEquipmentDays = new Set();
+  (state.backend.jobEquipmentUsage || [])
+    .filter((row) => jobIds.has(row.jobId) && !row.deletedAt)
+    .forEach((row) => {
+      const day = row.operationalDate || fieldDay(row.jobId, row.createdAt);
+      if (!day) return;
+      coveredEquipmentDays.add(`${row.assetTag}|${day}`);
+      const asset = row.assetTag ? findEquipmentAssetByTag(row.assetTag) : null;
+      const product = productFor(asset?.productId) || productFor("prod-equipment-standard-daily");
+      const usesDays = !row.hours && row.days;
+      add({
+        sourceType: "equipment",
+        sourceId: row.id,
+        operationalDate: day,
+        dispatchJobId: row.jobId,
+        productId: product?.id || "",
+        productName: product?.name || asset?.equipment || row.assetTag,
+        productDescription: `${asset?.equipment || row.assetTag}${row.assetTag ? ` (${row.assetTag})` : ""}${row.condition ? ` · ${row.condition}` : ""}${asset?.productId ? "" : "; not linked to a rate line"}`,
+        uomId: uomFor(product),
+        quantity: usesDays ? Number(row.days || 0) : Number(row.hours || 0) || 1,
+      });
+    });
   (state.backend.jobResources || [])
     .filter((resource) => jobIds.has(resource.jobId) && resource.type === "Equipment" && resource.status !== "Removed")
     .forEach((resource) => {
       const asset = resource.assetTag ? findEquipmentAssetByTag(resource.assetTag) : null;
       const product = productFor(asset?.productId) || productFor("prod-equipment-standard-daily");
       (workDaysByJob.get(resource.jobId) || []).forEach((day) => {
+        const tag = resource.assetTag || resource.name;
+        if (coveredEquipmentDays.has(`${tag}|${day}`)) return; // already billed via jobEquipmentUsage
         const hours = shiftHours.get(`${resource.jobId}|${day}`) || 0;
         const hourly = isHourly(product);
         add({
@@ -28785,6 +29386,35 @@ function consentsForJob(jobId) {
   return (state.backend.gpsConsents || []).filter((consent) => consent.dispatchJobId === jobId).sort((a, b) => String(b.acceptedAt).localeCompare(String(a.acceptedAt)));
 }
 
+// Workforce build item 5: every location-terms acceptance this employee has on file, across jobs.
+function consentsForEmployee(employeeId) {
+  return (state.backend.gpsConsents || []).filter((consent) => consent.employeeId === employeeId).sort((a, b) => String(b.acceptedAt).localeCompare(String(a.acceptedAt)));
+}
+
+function renderEmployeeConsentsPanel(employee) {
+  const consents = consentsForEmployee(employee.id);
+  return `
+    <article class="panel">
+      <div class="panel-header"><h3>Consents</h3></div>
+      <div class="panel-body record-list">
+        ${
+          consents
+            .map((consent) => {
+              const job = consent.dispatchJobId ? findDispatchJob(consent.dispatchJobId) : null;
+              return `
+            <article class="compact-record">
+              <strong>${job ? escapeHtml(job.jobNumber) : "Location terms"}</strong>
+              <span>Accepted ${formatDateTime(consent.acceptedAt)} &middot; terms v${escapeHtml(consent.termsVersion || "")}</span>
+            </article>
+          `;
+            })
+            .join("") || `<div class="empty-state compact">No location-terms consents on file.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function renderSignOnLinksPanel(job) {
   const assignments = dispatchAssignmentsForJob(job.id);
   ensureDispatchLinks(job.id);
@@ -32007,6 +32637,22 @@ function normalizeTaskConfig(type, config = {}) {
   // slot -- a sampling job may relocate several times in one visit.
   if (type === "Odometer") {
     return { siteLabelHint: String(source.siteLabelHint || "").trim() };
+  }
+  // Equipment usage (build item 1/3): logs hours or days against an asset from jobResources into
+  // jobEquipmentUsage. assetSuggestions isn't stored on the config -- it's resolved at runtime from
+  // the job's own jobResources so it always reflects what's actually assigned, not a stale list from
+  // when the template was written.
+  if (type === "Equipment usage") {
+    return { unit: source.unit === "days" ? "days" : "hours" };
+  }
+  // Waste/containers (build item 1/3): logs a container into wasteRecords.
+  if (type === "Waste") {
+    const containerTypes = Array.isArray(source.containerTypes) ? source.containerTypes : [];
+    return {
+      containerTypes: containerTypes.map((item) => String(item).trim()).filter(Boolean),
+      requirePhoto: source.requirePhoto !== false,
+      requireManifest: Boolean(source.requireManifest),
+    };
   }
   return {};
 }
