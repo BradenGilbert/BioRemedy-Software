@@ -322,3 +322,155 @@ body[data-theme="dark"] .field-card,
 body[data-theme="dark"] .field-more-tile {
   background: var(--surface);
 }
+
+/* =================================================================================================
+   W2 job — My Day extras, the job page, safety, capture, forms, and the outbox (Phase 21, 2026-09-25)
+   ================================================================================================= */
+
+.field-clock-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.field-emergency-bar {
+  display: block;
+  min-height: var(--field-tap);
+  padding: 0 14px;
+  border-radius: var(--field-radius);
+  background: var(--field-bad);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  line-height: var(--field-tap);
+  text-decoration: none;
+}
+
+.field-emergency-bar.is-disabled {
+  background: var(--surface-alt);
+  color: var(--text-muted, #5b6b62);
+}
+
+.field-card--job {
+  padding: 0;
+  overflow: hidden;
+}
+
+.field-card-tap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+
+.field-card-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+
+.field-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--field-accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.field-card--standby {
+  border-left: 4px solid var(--field-accent);
+}
+
+.field-ack-tag {
+  color: var(--field-ok);
+  font-weight: 600;
+}
+
+.field-gap {
+  color: var(--field-bad);
+  font-weight: 600;
+}
+
+/* Job page */
+
+.field-job-header {
+  gap: 4px;
+}
+
+.field-quick-bar {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+}
+
+.field-quick-bar .field-icon-button {
+  min-height: var(--field-tap);
+}
+
+.field-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap);
+  padding-bottom: 72px; /* clears the sticky primary bar */
+}
+
+.field-quick-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.field-jsa-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.field-jsa-row input {
+  min-height: var(--field-tap);
+}
+
+.field-reminders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-narrative-day {
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+  padding: 4px 10px;
+}
+
+.field-outbox-item--rejected,
+.field-outbox-item--failed {
+  border-color: var(--field-bad);
+}
+
+.field-outbox-thumb img {
+  max-width: 120px;
+  max-height: 120px;
+  border-radius: 8px;
+  display: block;
+  margin-top: 6px;
+}
+
+@media (max-width: 480px) {
+  .field-jsa-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,400 @@
+// Front Line 2 — the job page (Phase 21, W2, 2026-09-25).
+//
+// field-job: four tabs (Brief / Safety / Work / Close) over crm.state.fieldJobTab, a status ladder
+// button pinned at the bottom, and a quick-capture bar. Safety and Work are built in safety.js /
+// capture.js; Brief and Close live here since they're mostly read-only wiring over data other
+// workstreams and app.js already expose.
+import * as crm from "../app.js";
+import { registerFieldRoute, registerFieldAction, registerFieldForm, currentFieldEmployee } from "./index.js";
+import * as fieldPackage from "./package.js";
+import { renderSafetyTab, afterSafetyRender } from "./safety.js";
+import { renderWorkTab, afterCaptureRender } from "./capture.js";
+
+function currentJob() {
+  return crm.findDispatchJob(crm.state.frontlineSelectedJobId);
+}
+
+function isFieldLead(job, employee) {
+  if (!job || !employee) return false;
+  if (job.fieldLeadEmployeeId === employee.id) return true;
+  return crm.dispatchAssignmentsForJob(job.id).some((a) => a.employeeId === employee.id && a.isFieldLead);
+}
+
+function isOnJob(job, employee) {
+  if (!job || !employee) return false;
+  return job.fieldLeadEmployeeId === employee.id || crm.dispatchAssignmentsForJob(job.id).some((a) => a.employeeId === employee.id);
+}
+
+const TABS = [
+  { key: "brief", label: "Brief" },
+  { key: "safety", label: "Safety" },
+  { key: "work", label: "Work" },
+  { key: "close", label: "Close" },
+];
+
+function renderJob() {
+  const job = currentJob();
+  const employee = currentFieldEmployee();
+  if (!job) return `<section class="field-card"><p>Job not found.</p><button class="field-button field-button--secondary" type="button" data-view="frontline-jobbook">Job Book</button></section>`;
+  if (!isOnJob(job, employee)) {
+    return `<section class="field-card"><p>You're not assigned to this job.</p><button class="field-button field-button--secondary" type="button" data-view="field-home">My Day</button></section>`;
+  }
+  const lead = isFieldLead(job, employee);
+  const tab = TABS.some((t) => t.key === crm.state.fieldJobTab) ? crm.state.fieldJobTab : "brief";
+  if (tab === "close" && !lead) crm.state.fieldJobTab = "brief"; // Close is lead-only; guard a stale link.
+  const activeTab = tab === "close" && !lead ? "brief" : tab;
+  const nextTransition = crm.getNextDispatchTransition(job.status);
+  const gate = lead ? crm.getWorkPlanGate(job) : { blocked: true, reason: "Only the field lead can advance the job." };
+  const project = job.projectId ? crm.findProject(job.projectId) : null;
+  const account = project?.accountId ? crm.findAccount(project.accountId) : null;
+  const unread = crm.frontlineUnreadTotal ? crm.getMessages().filter((m) => m.threadKey === job.id && m.senderRole === "office" && !m.readAt).length : 0;
+
+  return `
+    <div class="field-job">
+      <section class="field-card field-job-header">
+        <div class="field-card-row">
+          <strong>${crm.escapeHtml(job.jobNumber || "")}</strong>
+          ${crm.renderDispatchStatusBadge(job.status)}
+          ${crm.renderReadinessBadge(crm.getJobReadiness(job).status)}
+        </div>
+        <span>${crm.escapeHtml(account?.name || job.customerName || "")}</span>
+        <small class="field-card-sub">${crm.escapeHtml(job.addressText || job.locationName || "")}</small>
+      </section>
+
+      <div class="field-quick-bar">
+        <button class="field-icon-button" type="button" data-field-action="field-quick-photo">Photo</button>
+        <button class="field-icon-button" type="button" data-field-action="field-quick-video">Video</button>
+        <button class="field-icon-button" type="button" data-field-action="field-quick-note">Note</button>
+        <button class="field-icon-button" type="button" data-action="frontline-messaging-open-thread" data-thread="${crm.escapeAttribute(job.id)}">Message${unread ? ` (${unread})` : ""}</button>
+      </div>
+      <input type="file" id="fieldQuickPhotoInput" accept="image/png,image/jpeg" capture="environment" style="display:none" data-job-id="${crm.escapeAttribute(job.id)}" />
+
+      <nav class="field-tabs" role="tablist">
+        ${TABS.filter((t) => t.key !== "close" || lead)
+          .map((t) => `<button class="field-tab ${activeTab === t.key ? "is-active" : ""}" type="button" data-field-action="field-job-tab" data-tab="${t.key}">${crm.escapeHtml(t.label)}</button>`)
+          .join("")}
+      </nav>
+
+      <div class="field-tab-panel">
+        ${activeTab === "brief" ? renderBriefTab(job, project, account) : ""}
+        ${activeTab === "safety" ? renderSafetyTab(job, employee, lead) : ""}
+        ${activeTab === "work" ? renderWorkTab(job, employee, lead) : ""}
+        ${activeTab === "close" && lead ? renderCloseTab(job, employee) : ""}
+      </div>
+
+      ${
+        nextTransition
+          ? `<button class="field-button field-button--primary-bar" type="button" data-field-action="field-advance-job" data-id="${crm.escapeAttribute(job.id)}" data-to="${crm.escapeAttribute(nextTransition.status)}" ${gate.blocked ? "disabled" : ""}>${crm.escapeHtml(nextTransition.label)}</button>
+           ${gate.blocked ? `<p class="help-text field-gap">${crm.escapeHtml(gate.reason || "")}</p>` : ""}`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function afterJob() {
+  afterSafetyRender();
+  afterCaptureRender();
+}
+
+registerFieldRoute("field-job", { title: "Job", render: renderJob, after: afterJob });
+
+registerFieldAction("field-job-tab", (button) => {
+  crm.state.fieldJobTab = button.dataset.tab;
+  crm.render();
+});
+
+registerFieldAction("field-advance-job", async (button) => {
+  const jobId = button.dataset.id;
+  const toStatus = button.dataset.to;
+  try {
+    await fieldPackage.fieldRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/advance`, {
+      method: "POST",
+      kind: "advance",
+      label: `Advance job → ${toStatus}`,
+      body: { toStatus },
+    });
+    await crm.refreshBackendState().catch(() => {});
+    crm.render();
+  } catch (error) {
+    if (/does not have advance yet/.test(error.message || "")) {
+      await crm.advanceDispatchJob(jobId);
+    } else if (error?.payload?.blocked) {
+      crm.showToast(error.payload.reason || "That job can't advance yet.");
+    } else {
+      crm.showToast(error.message || "Could not advance the job.");
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Quick bar
+// ---------------------------------------------------------------------------------------------
+
+registerFieldAction("field-quick-photo", () => document.getElementById("fieldQuickPhotoInput")?.click());
+registerFieldAction("field-quick-video", () => {
+  if (window.fieldMedia?.openVideoCapture) window.fieldMedia.openVideoCapture(currentJob());
+  else crm.showToast("Video capture is not available yet.");
+});
+registerFieldAction("field-quick-note", () => {
+  crm.state.frontlineAdHocType = "Note";
+  crm.state.fieldJobTab = "work";
+  crm.render();
+});
+
+document.addEventListener("change", async (event) => {
+  const input = event.target.closest("#fieldQuickPhotoInput");
+  if (!input || !input.files?.[0]) return;
+  const jobId = input.dataset.jobId;
+  const file = input.files[0];
+  try {
+    await fieldPackage.uploadFieldFile(`/api/documents`, file, { "X-Entity-Type": "dispatchJob", "X-Entity-Id": jobId, "X-Visibility": "internal" });
+    crm.showToast("Photo attached to the job.");
+  } catch (error) {
+    crm.showToast(error.message || "Photo could not be uploaded.");
+  }
+  input.value = "";
+});
+
+// ---------------------------------------------------------------------------------------------
+// Brief tab
+// ---------------------------------------------------------------------------------------------
+
+function renderBriefTab(job, project, account) {
+  const crew = crm.dispatchAssignmentsForJob(job.id).map((a) => ({ assignment: a, employee: crm.findEmployee(a.employeeId) }));
+  const resources = crm.resourcesForDispatchJob(job.id);
+  const equipment = resources.filter((r) => r.type === "Equipment");
+  const materials = resources.filter((r) => r.type === "Material");
+  const documents = job.id ? crm.latestDocumentsForEntity("dispatchJob", job.id) : [];
+  const projectDocuments = project ? crm.latestDocumentsForEntity("project", project.id) : [];
+  const responseWeather = project ? crm.weatherSlot(project, "response", job) : null;
+  const incidentWeather = project ? crm.weatherSlot(project, "incident") : null;
+
+  return `
+    <section class="field-card">
+      <div class="field-card-row"><strong>Schedule</strong></div>
+      <span>${crm.formatDateTime(job.scheduledStart)}${job.scheduledEnd ? ` – ${crm.formatShortTime(job.scheduledEnd)}` : ""}</span>
+      <div class="field-card-row"><strong>Site</strong></div>
+      <span>${crm.escapeHtml(job.addressText || job.locationName || "No address")}</span>
+      ${job.addressText ? `<a class="field-icon-button" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.addressText)}" target="_blank" rel="noopener">Navigate</a>` : ""}
+      ${job.onsiteContactName || job.onsiteContactPhone ? `<div class="field-card-row"><span>${crm.escapeHtml(job.onsiteContactName || "Site contact")}</span>${job.onsiteContactPhone ? `<a class="field-icon-button" href="tel:${crm.escapeAttribute(job.onsiteContactPhone.replace(/[^0-9+]/g, ""))}">Call</a>` : ""}</div>` : ""}
+      <div class="field-card-row"><strong>Class</strong><span>${crm.escapeHtml(project?.serviceType || project?.projectClass || "—")}</span></div>
+    </section>
+
+    ${project ? renderIntakeCard(project) : ""}
+
+    <section class="field-card">
+      <div class="field-card-row"><strong>Assigned crew</strong></div>
+      ${
+        crew
+          .map(
+            ({ assignment, employee }) => `
+        <div class="field-card-row">
+          <span>${crm.escapeHtml(employee?.displayName || "Unknown")}${assignment.isFieldLead ? " (Field Lead)" : ""}</span>
+          ${employee?.mobilePhone ? `<a class="field-icon-button" href="tel:${crm.escapeAttribute(employee.mobilePhone.replace(/[^0-9+]/g, ""))}">Call</a>` : ""}
+        </div>
+      `,
+          )
+          .join("") || `<div class="empty-state compact">No crew assigned.</div>`
+      }
+      <button class="mini-button" type="button" data-field-action="field-crew-clock-all" data-job-id="${crm.escapeAttribute(job.id)}">Clock crew in/out</button>
+    </section>
+
+    <section class="field-card">
+      <div class="field-card-row"><strong>Equipment &amp; materials</strong></div>
+      ${equipment.map((item) => `<div class="field-card-row"><span>${crm.escapeHtml(item.name)}${item.assetTag ? ` (${crm.escapeHtml(item.assetTag)})` : ""}</span></div>`).join("")}
+      ${materials.map((item) => `<div class="field-card-row"><span>${crm.escapeHtml(item.name)}</span><small>${crm.escapeHtml(String(item.quantity || ""))} ${crm.escapeHtml(item.unit || "")}</small></div>`).join("")}
+      ${!equipment.length && !materials.length ? `<div class="empty-state compact">Nothing reserved.</div>` : ""}
+    </section>
+
+    <section class="field-card">
+      <div class="field-card-row"><strong>Documents</strong></div>
+      ${[...projectDocuments, ...documents]
+        .slice(0, 10)
+        .map((doc) => `<a class="field-icon-button" href="${crm.attachmentViewUrl ? crm.attachmentViewUrl(doc) : "#"}" target="_blank" rel="noopener">${crm.escapeHtml(doc.fileName || doc.documentTypeId || "Document")}</a>`)
+        .join("") || `<div class="empty-state compact">No documents on file.</div>`}
+    </section>
+
+    ${
+      responseWeather || incidentWeather
+        ? `<section class="field-card">
+        <div class="field-card-row"><strong>Weather</strong></div>
+        ${incidentWeather?.state === "captured" ? `<span>At incident: ${crm.escapeHtml(incidentWeather.snapshot?.conditions || "")}</span>` : ""}
+        ${responseWeather?.state === "captured" ? `<span>When work started: ${crm.escapeHtml(responseWeather.snapshot?.conditions || "")}</span>` : ""}
+        ${responseWeather?.state === "failed" ? `<span class="field-gap">Start-of-work weather not captured</span>` : ""}
+      </section>`
+        : ""
+    }
+  `;
+}
+
+function renderIntakeCard(project) {
+  const rows = [
+    ["Material", project.spillMaterial],
+    ["Quantity", project.spillQuantity],
+    ["Surface", project.spillSurface],
+    ["Storm drain involved", project.stormDrainInvolved != null ? (project.stormDrainInvolved ? "Yes" : "No") : ""],
+    ["Off-road discharge", project.offRoadDischarge != null ? (project.offRoadDischarge ? "Yes" : "No") : ""],
+    ["Absorbent deployed", project.absorbentDeployed != null ? (project.absorbentDeployed ? "Yes" : "No") : ""],
+    ["Agencies", Array.isArray(project.agencies) ? project.agencies.join(", ") : project.agencies],
+    ["Mobilization status", project.mobilizationStatus],
+  ].filter(([, value]) => value);
+  if (!rows.length) return "";
+  return `
+    <section class="field-card">
+      <div class="field-card-row"><strong>ER intake</strong>${project.ergGuideNumber ? `<span>ERG Guide ${crm.escapeHtml(project.ergGuideNumber)}</span>` : ""}</div>
+      ${rows.map(([label, value]) => `<div class="field-card-row"><span>${crm.escapeHtml(label)}</span><span>${crm.escapeHtml(String(value))}</span></div>`).join("")}
+    </section>
+  `;
+}
+
+registerFieldAction("field-crew-clock-all", async (button) => {
+  const jobId = button.dataset.jobId;
+  const job = crm.findDispatchJob(jobId);
+  const employee = currentFieldEmployee();
+  const assignments = crm.dispatchAssignmentsForJob(jobId);
+  const openEntries = crm.getTimeEntries().filter((e) => !e.endedAt && assignments.some((a) => a.employeeId === e.employeeId) && e.dispatchJobId === jobId);
+  const toClockIn = assignments.filter((a) => !openEntries.some((e) => e.employeeId === a.employeeId));
+  for (const assignment of toClockIn) {
+    const record = { id: crm.makeId("time-entry"), employeeId: assignment.employeeId, dispatchJobId: jobId, entryType: "work", startedAt: new Date().toISOString(), endedAt: null, durationMinutes: null, notes: "", source: "field-crew-clock" };
+    await fieldPackage
+      .fieldRequest("/api/field/clock", {
+        method: "POST",
+        kind: "clock",
+        label: `Clock in — ${crm.findEmployee(assignment.employeeId)?.displayName || "crew"}`,
+        body: { employeeId: assignment.employeeId, dispatchJobId: jobId, entryType: "work", action: "in", enteredByEmployeeId: employee?.id },
+        apply: () => (crm.state.backend.timeEntries = [...(crm.state.backend.timeEntries || []), record]),
+      })
+      .catch(async (error) => {
+        if (/does not have clock yet/.test(error.message || "")) await fieldPackage.saveFieldRecord("timeEntries", record, { kind: "clock" });
+      });
+  }
+  for (const entry of openEntries) {
+    const endedAt = new Date().toISOString();
+    const durationMinutes = Math.max(0, Math.round((new Date(endedAt) - new Date(entry.startedAt)) / 60000));
+    const updated = { ...entry, endedAt, durationMinutes };
+    await fieldPackage
+      .fieldRequest("/api/field/clock", {
+        method: "POST",
+        kind: "clock",
+        label: `Clock out — ${crm.findEmployee(entry.employeeId)?.displayName || "crew"}`,
+        body: { employeeId: entry.employeeId, dispatchJobId: jobId, entryType: entry.entryType, action: "out", enteredByEmployeeId: employee?.id },
+        apply: () => (crm.state.backend.timeEntries = (crm.state.backend.timeEntries || []).map((item) => (item.id === entry.id ? updated : item))),
+      })
+      .catch(async (error) => {
+        if (/does not have clock yet/.test(error.message || "")) await fieldPackage.saveFieldRecord("timeEntries", updated, { kind: "clock" });
+      });
+  }
+  crm.showToast(toClockIn.length ? "Crew clocked in." : "Crew clocked out.");
+  crm.render();
+});
+
+// ---------------------------------------------------------------------------------------------
+// Close tab
+// ---------------------------------------------------------------------------------------------
+
+function renderCloseTab(job, employee) {
+  const days = crm.dispatchJobWorkDays(job);
+  if (!days.length) days.push(crm.todayIso());
+  const ack = job.customerAcknowledgement;
+  const billables = computeBillables(job);
+
+  return `
+    <div class="field-close-tab">
+      <h3 class="field-section-title">Case narrative</h3>
+      ${days
+        .map((date, index) => `
+          <div class="field-narrative-day">
+            ${crm.renderNarrativeDayForm(job, date, index, { open: index === days.length - 1 })}
+          </div>
+        `)
+        .join("")}
+
+      ${
+        crm.postJobReviewAvailable(job)
+          ? `<h3 class="field-section-title">Post-job review</h3>${crm.renderPostJobReviewForm(job)}`
+          : `<p class="help-text">The post-job review appears once the job is Field complete.</p>`
+      }
+
+      <h3 class="field-section-title">Customer acknowledgement</h3>
+      ${
+        ack?.signatureAttachmentId
+          ? `<p>Signed by ${crm.escapeHtml(ack.name)}${ack.title ? `, ${crm.escapeHtml(ack.title)}` : ""} — ${crm.escapeHtml(crm.formatDateTime(ack.signedAt))}</p>`
+          : `<form class="frontline-action-form" data-field-form="field-customer-ack">
+              <input type="hidden" name="jobId" value="${crm.escapeAttribute(job.id)}" />
+              <label>Customer name <input name="name" required /></label>
+              <label>Title <input name="title" /></label>
+              <label>Signature
+                <canvas id="frontlineSignaturePad" class="frontline-signature-pad" width="360" height="150"></canvas>
+              </label>
+              <div class="inline-actions"><button class="mini-button" type="button" data-action="frontline-clear-signature">Clear</button></div>
+              <button class="primary-button" type="submit">Save signature</button>
+            </form>`
+      }
+
+      <h3 class="field-section-title">Billables preview</h3>
+      ${renderBillablesPreview(billables)}
+    </div>
+  `;
+}
+
+function computeBillables(job) {
+  const employeeHours = {};
+  crm.getTimeEntries().filter((e) => e.dispatchJobId === job.id && e.durationMinutes != null).forEach((e) => {
+    employeeHours[e.employeeId] = (employeeHours[e.employeeId] || 0) + e.durationMinutes / 60;
+  });
+  // Timer-task submissions (payload.hours) aren't attributed to a specific crew member in the
+  // submission payload today, so labor hours are drawn from timeEntries only — a known gap noted in
+  // the phase doc's corrections section.
+  const equipmentUsage = (crm.state.backend.jobEquipmentUsage || []).filter((row) => row.jobId === job.id);
+  const materials = crm.resourcesForDispatchJob(job.id).filter((r) => r.type === "Material" && r.status === "Consumed");
+  const waste = crm.wasteRecordsForProject(job.id);
+  const expenses = crm.getJobExpenses().filter((e) => e.dispatchJobId === job.id);
+  return { employeeHours, equipmentUsage, materials, waste, expenses };
+}
+
+function renderBillablesPreview(billables) {
+  const hoursRows = Object.entries(billables.employeeHours).map(([employeeId, hours]) => `<div class="field-card-row"><span>${crm.escapeHtml(crm.findEmployee(employeeId)?.displayName || "Unknown")}</span><span>${hours.toFixed(2)} hrs</span></div>`).join("");
+  return `
+    <section class="field-card">
+      <div class="field-card-row"><strong>Labor hours</strong></div>
+      ${hoursRows || `<div class="field-gap">No time entries logged for this job yet.</div>`}
+      <div class="field-card-row"><strong>Equipment usage</strong></div>
+      ${billables.equipmentUsage.map((row) => `<div class="field-card-row"><span>${crm.escapeHtml(row.assetTag)}</span><span>${row.hours ? `${row.hours}h` : ""}${row.days ? ` ${row.days}d` : ""}</span></div>`).join("") || `<div class="field-gap">None logged.</div>`}
+      <div class="field-card-row"><strong>Materials consumed</strong></div>
+      ${billables.materials.map((row) => `<div class="field-card-row"><span>${crm.escapeHtml(row.name)}</span><span>${crm.escapeHtml(String(row.quantity || ""))} ${crm.escapeHtml(row.unit || "")}</span></div>`).join("") || `<div class="field-gap">None logged.</div>`}
+      <div class="field-card-row"><strong>Waste</strong></div>
+      ${billables.waste.map((row) => `<div class="field-card-row"><span>${crm.escapeHtml(row.description || row.containerType || "Waste")}</span><span>${crm.escapeHtml(crm.formatWasteQuantity(row))}</span></div>`).join("") || `<div class="field-gap">None logged.</div>`}
+      <div class="field-card-row"><strong>Expenses</strong></div>
+      ${billables.expenses.map((row) => `<div class="field-card-row"><span>${crm.escapeHtml(row.category || "Expense")}</span><span>${crm.money ? crm.money(row.amount) : row.amount}</span></div>`).join("") || `<div class="field-gap">None logged.</div>`}
+    </section>
+  `;
+}
+
+registerFieldForm("field-customer-ack", async (form) => {
+  const data = new FormData(form);
+  const jobId = data.get("jobId").toString();
+  const job = crm.findDispatchJob(jobId);
+  if (!job) return;
+  if (!crm.state.frontlineSignatureStrokes?.length) {
+    crm.showToast("Capture a signature first.");
+    return;
+  }
+  let signatureAttachmentId = "";
+  try {
+    const blob = await crm.signatureToBlob();
+    if (blob) {
+      const file = new File([blob], `customer-ack-${jobId}.png`, { type: "image/png" });
+      const uploaded = await fieldPackage.uploadFieldFile(`/api/documents`, file, { "X-Entity-Type": "dispatchJob", "X-Entity-Id": jobId, "X-Visibility": "internal", "X-Caption": encodeURIComponent(data.get("name")?.toString() || "") });
+      signatureAttachmentId = uploaded?.id || "";
+    }
+  } catch (error) {
+    crm.showToast("Signature could not be uploaded; try again once you're back online.");
+    return;
+  }
+  const customerAcknowledgement = { name: (data.get("name") || "").toString().trim(), title: (data.get("title") || "").toString().trim(), signatureAttachmentId, signedAt: new Date().toISOString() };
+  await fieldPackage.saveFieldRecord("dispatchJobs", { ...job, customerAcknowledgement }, { kind: "customer-ack", label: "Customer acknowledgement" });
+  crm.state.frontlineSignatureStrokes = [];
+  crm.showToast("Customer signature saved.");
+  crm.render();
+});
