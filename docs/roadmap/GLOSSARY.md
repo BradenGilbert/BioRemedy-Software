@@ -27,9 +27,13 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 - **Prototype today:** the JSON `addresses` collection, now with real UI and real rows (Phase 02, 2026-09-16 — every address type renders on the account page, not just Bill To). A facility's own address is still captured as inline fields on the facility record, not a link to an `addresses` row — the two are parallel, not connected. See "Corrections found during implementation" in `phase-02-places-model.md`.
 - The `address_type` enum already exists and is correct: `Bill To`, `Ship To`, `Primary`, `Tax`, `Remit-To`, `Vendor Dispatch`, `Vendor Billing`, `Other`
 
-### LOCATION — *a GPS point*
+### LOCATION — *an identified spot: a GPS point, an address, or both*
 
 **Not tied to a postal box.** Given to crews to identify an exact spot. Where a sample was taken, where a spill is, where waste was picked up or dropped, where a truck is parked, a destination.
+
+- **GPS or an address, at least one (owner, 2026-09-25).** A spill call often arrives as "I-35 NB mile marker 261" with no coordinates; the crew pins it on arrival. `addressText` holds the address (or cross streets / a mile marker); `latitude`/`longitude` may be blank, never 0. The server refuses a location with neither, or with half a coordinate pair. Client code tests coordinates with `hasGpsCoordinates()`, because `Number("")` is `0`.
+- **A location can sit inside a facility** (`facilityId`, optional) and belongs to an account (`accountId`). A spill in a customer's yard is a location *at* their facility, not the facility itself.
+- **A location is never turned into a facility automatically.** "Promote to facility" (on the location card and on a location-only project's Intake tab) opens the facility dialog prefilled; saving it links the location and the projects at it to the new facility. A person decides — owner, 2026-09-25.
 
 - **Target table:** `job_sites` (`crm-schema/005_job_sites.sql` — already exists, already has `latitude`/`longitude`, `linear_reference` for highway mile markers, and `is_temporary`)
 - **Prototype today:** ✅ the JSON collection `locations` — renamed from `mapLocations` in Phase 02 (2026-09-16), 4 records. Gained `locationType`, `linearReference`, `isTemporary`, `retainUntil`, `retentionReason` in the same pass.

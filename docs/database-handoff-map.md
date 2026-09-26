@@ -436,6 +436,18 @@ intake — flagged for office cleanup per Q16, no cleanup workflow built yet) an
 per intake with `locationType: "Spill origin"`, written only when a GPS pin was captured. No new
 collections.
 
+**Sites, 2026-09-25 (owner).** The emergency intake no longer creates a facility; it always writes
+one `locations` row, with or without a GPS pin. `locations` gained **`addressText`** (street
+address, cross streets or a mile marker), **`accountId`** and **`facilityId`** (optional — the
+facility the spot is inside), and `latitude`/`longitude` may now be **blank** (`""`, never `0`): a
+location needs GPS or an address, and the server's `/api/backend/locations` write refuses neither
+or half a pair. `projects` gained **`siteLocationId`** (the location the work is at; set by the
+intake and by opportunity-to-project from the opportunity's first linked location). The opportunity
+Qualify gate and the project Plan gate both ask for a site — a facility *or* a location — under
+the existing `facilityId` key. SQL: `job_sites` (005) already has nullable `latitude`/`longitude`,
+`name`, `description` and `facility_id`; it needs `account_id` (present), an `address_text`
+column, and `projects.site_location_id`.
+
 **Phase 15 (2026-09-23)** added the sales-to-operations handover to `projects` -- no new top-level
 collections, six new fields on the existing `projects` record, all copied once at creation from the
 won opportunity and never re-synced afterward (owner decision: "we just need the data, where it came
@@ -1006,7 +1018,7 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `scheduledWork` | **fold into** schedule_events | Legacy; 3 rows |
 | `spatialData` | project_spatial_files (016) | Phase 21 (2026-09-25, W4 "Add scan"): gained `documentId` (→ `documents`, the uploaded scan file), `format`, and `measurements[]` |
 | `scheduleEvents` | **new** schedule_events + schedule_event_participants (029+) | Site walks: kind, opportunity, facility, participants |
-| `locations` | **new** gps_points (029+) | GPS points with retention; job_locations (022) is a different thing (a job's addresses) |
+| `locations` | **new** gps_points (029+) | GPS points with retention; job_locations (022) is a different thing (a job's addresses). Since 2026-09-25 a row may have an `addressText` and no GPS, plus `accountId`/`facilityId` — the shape of `job_sites` (005), which may be the better target |
 | `inventoryItems` | **new** inventory_items (029+) | Priority 1 gap |
 | `purchaseOrders` | **new** purchase_orders (029+) |  |
 | `inventoryMovements` | **new** inventory_movements (029+) | Append-only ledger |

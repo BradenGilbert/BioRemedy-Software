@@ -2842,7 +2842,7 @@
         <input name="id" type="hidden" />
         <input name="source" type="hidden" />
         <div class="modal-header">
-          <h2>GPS point</h2>
+          <h2>Location</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
         <label>
@@ -2859,16 +2859,21 @@
             <select name="scheduleEventId"></select>
           </label>
         </div>
+        <label>
+          Address
+          <input name="addressText" maxlength="160" placeholder="Street address or cross streets" />
+        </label>
         <div class="form-grid">
           <label>
             Latitude
-            <input name="latitude" required type="number" step="any" placeholder="38.627000" />
+            <input name="latitude" type="number" step="any" placeholder="38.627000" />
           </label>
           <label>
             Longitude
-            <input name="longitude" required type="number" step="any" placeholder="-90.199400" />
+            <input name="longitude" type="number" step="any" placeholder="-90.199400" />
           </label>
         </div>
+        <p class="help-text">A location needs an address or a GPS point (both is best).</p>
         <label>
           Equipment asset tags
           <input name="assetTags" maxlength="160" placeholder="TRK-18, VAC-204" />
@@ -2920,7 +2925,7 @@
         </div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
-          <button class="primary-button" type="submit">Save GPS point</button>
+          <button class="primary-button" type="submit">Save location</button>
         </menu>
       </form>
     </dialog>
@@ -4068,14 +4073,29 @@
               <input name="newAccountName" maxlength="120" placeholder="Use the caller's company/carrier name if known" />
             </label>
           </div>
+        </fieldset>
+
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Site location</legend>
+          <p class="help-text">Where the spill is. It needs an address or a GPS pin. It's saved as a location on this response, not as a facility on the account.</p>
           <div class="form-grid">
             <label>
-              Site address
-              <input name="addressText" required maxlength="160" />
+              Address
+              <input name="addressText" maxlength="160" placeholder="Street address, cross streets, or &quot;I-35 NB mile marker 261&quot;" />
             </label>
             <label>
               GPS pin (paste coordinates, e.g. "30.59, -97.59")
               <input name="gpsPin" maxlength="120" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Location name (optional)
+              <input name="siteLocationName" maxlength="90" placeholder="Defaults to the address" />
+            </label>
+            <label data-role="intake-facility-field" hidden>
+              At one of this account's facilities? (optional)
+              <select name="facilityId"></select>
             </label>
           </div>
         </fieldset>
@@ -4262,8 +4282,8 @@
         <label>
           Type
           <select name="type">
-            <option value="Facility">Facility (a place work happens)</option>
-            <option value="Location">GPS location (a point, e.g. a sample site)</option>
+            <option value="Facility">Facility (a place the customer owns and we return to)</option>
+            <option value="Location">Location (a spot: an address or a GPS point)</option>
           </select>
         </label>
         <label data-role="opportunity-location-facility-field">
@@ -4271,10 +4291,29 @@
           <select name="facilityId"></select>
         </label>
         <button class="mini-button" type="button" data-action="open-facility" data-account-id="" data-role="opportunity-location-add-facility">+ Add new facility</button>
-        <label data-role="opportunity-location-gps-field" hidden>
-          GPS location
-          <select name="locationId"></select>
-        </label>
+        <div data-role="opportunity-location-gps-field" hidden>
+          <label>
+            Location
+            <select name="locationId"></select>
+          </label>
+          <div data-role="opportunity-location-new-fields" hidden>
+            <label>
+              Location name
+              <input name="newLocationLabel" maxlength="90" placeholder="e.g. CR 401 right-of-way" />
+            </label>
+            <div class="form-grid">
+              <label>
+                Address
+                <input name="newLocationAddress" maxlength="160" placeholder="Street address or cross streets" />
+              </label>
+              <label>
+                GPS (e.g. "30.59, -97.59")
+                <input name="newLocationGps" maxlength="120" />
+              </label>
+            </div>
+            <p class="help-text">A location needs an address or a GPS point.</p>
+          </div>
+        </div>
         <div class="form-grid">
           <label>
             Role
@@ -5641,6 +5680,7 @@
       <form method="dialog" class="modal-panel" data-form="account-facility">
         <input name="id" type="hidden" />
         <input name="accountId" type="hidden" />
+        <input name="promoteLocationId" type="hidden" />
         <div class="modal-header">
           <h2>Facility</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>

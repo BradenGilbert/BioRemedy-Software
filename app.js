@@ -41,7 +41,9 @@ const STAGE_REQUIRED_FIELDS = {
   Qualify: [
     { key: "opportunityName", label: "Opportunity name" },
     { key: "accountId", label: "Account" },
-    { key: "facilityId", label: "Facility" },
+    // Owner, 2026-09-25: a site, not specifically a facility — a linked location (a roadside, a
+    // right-of-way) qualifies the deal too. Applies to every opportunity, not only field work.
+    { key: "facilityId", label: "Site (facility or location)", validate: (opportunity) => opportunitySiteNames(opportunity).length > 0 },
     { key: "contaminationNotes", label: "Contamination" },
     { key: "serviceType", label: "Opportunity type" },
     // Phase 03/06 (2026-09-23): an opportunity inherits its account's industry, so a blank own
@@ -161,7 +163,9 @@ const PROJECT_STAGES = ["Intake", "Plan", "Mobilize", "Field Work", "Closeout"];
 const PROJECT_STAGE_REQUIRED_FIELDS = {
   Plan: [
     { key: "generatorName", label: "Generator", validate: (job) => Boolean(job.generatorName || projectIntakeFallbacks(job).generatorName) },
-    { key: "facilityId", label: "Facility" },
+    // Owner, 2026-09-25: the project's site is a facility or a location — a spill on a road
+    // shoulder has no facility and must still be able to leave Intake.
+    { key: "facilityId", label: "Site (facility or location)", validate: (job) => Boolean(projectSite(job).name) },
     { key: "insuranceCarrier", label: "Insurance", validate: (job) => Boolean(job.insuranceCarrier || projectIntakeFallbacks(job).insuranceCarrier) },
     { key: "epaId", label: "EPA ID", validate: (job) => Boolean(job.epaId || projectIntakeFallbacks(job).epaId) },
     { key: "tceqId", label: "TCEQ ID", validate: (job) => Boolean(job.tceqId || projectIntakeFallbacks(job).tceqId) },
@@ -1971,6 +1975,7 @@ async function dispatchClick(event) {
   if (action === "view-consumable") viewConsumable(id);
   if (action === "view-equipment-asset") viewEquipmentAsset(actionButton.dataset.assetTag);
   if (action === "open-map-location") openLocationDialog(actionButton.dataset.id);
+  if (action === "promote-location-to-facility") openPromoteLocationDialog(actionButton.dataset.id);
   if (action === "open-invoice") openInvoiceDialog(actionButton.dataset.jobId);
   if (action === "close-project") await closeProject(actionButton.dataset.id);
   if (action === "toggle-show-closed-projects") { state.showClosedProjects = !state.showClosedProjects; render(); }
@@ -2663,12 +2668,20 @@ function handleInputInner(event) {
     toggleFacilityConcernField(category, event.target.checked);
   }
 
+  if (event.target.matches("#emergencyIntakeDialog select[name='accountId']")) {
+    syncEmergencyIntakeFacilityField(event.target.form);
+  }
+
   if (event.target.matches("#mapLocationDialog input[name='isTemporary']")) {
     toggleLocationRetentionFields(event.target.checked);
     const retainUntilField = document.querySelector("#mapLocationDialog input[name='retainUntil']");
     if (event.target.checked && retainUntilField && !retainUntilField.value) {
       retainUntilField.value = addDays(730);
     }
+  }
+
+  if (event.target.matches("#opportunityLocationDialog select[name='locationId']")) {
+    toggleOpportunityLocationTypeFields(event.target.form.elements.type.value);
   }
 
   if (event.target.matches("#opportunityLocationDialog select[name='type']")) {
@@ -3990,7 +4003,7 @@ function renderOpportunityLeadQualificationTab(opportunity, missingFields = []) 
         <div class="panel-body">
           <dl class="detail-list">
             <div><dt>Contact</dt><dd>${escapeHtml(contactsForOpportunity(opportunity.id)[0]?.name || "Not linked")}</dd></div>
-            <div><dt>Facility</dt><dd>${escapeHtml(findFacility(opportunity.facilityId)?.name || "Not captured")}</dd></div>
+            <div><dt>Site</dt><dd>${escapeHtml(opportunitySiteNames(opportunity).join(", ") || "Not captured — pick a facility here, or attach a location under Associated Locations")}</dd></div>
             <div><dt>Industry</dt><dd>${industryValue}</dd></div>
             <div><dt>Contamination</dt><dd>${escapeHtml(opportunity.contaminationNotes || "Not captured")}</dd></div>
             <div><dt>Originating lead</dt><dd>${escapeHtml(formatOpportunityFieldValue(opportunity, "originatingLeadId") || "Not captured")}</dd></div>
@@ -6835,7 +6848,7 @@ function initializeFacilityMap(facilityId) {
   if (!mapElement) return;
 
   const leaflet = window.L;
-  const points = locationsForFacility(facilityId).filter((location) => Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude)));
+  const points = locationsForFacility(facilityId).filter(hasGpsCoordinates);
   if (!leaflet) {
     mapElement.innerHTML = `<div class="map-loading">Map library did not load.</div>`;
     return;
@@ -6939,20 +6952,56 @@ function renderAddressCard(address) {
 }
 
 function renderGpsLocationCard(location) {
+  const facility = findFacility(location.facilityId);
   return `
     <article class="detail-card">
-      <strong>${escapeHtml(location.label)}</strong>
+      <strong>${escapeHtml(location.label || location.addressText || "Location")}</strong>
       <div class="row-meta">
         <span>${escapeHtml(location.locationType || "Location type not set")}</span>
-        <span>${location.latitude}, ${location.longitude}</span>
+        ${location.addressText ? `<span>${escapeHtml(location.addressText)}</span>` : ""}
+        <span>${hasGpsCoordinates(location) ? escapeHtml(formatGpsCoordinates(location, 6)) : "No GPS yet"}</span>
+        ${facility ? `<span>At ${escapeHtml(facility.name)}</span>` : ""}
       </div>
       <div class="inline-actions">
-        <span class="tag">${escapeHtml(location.status)}</span>
+        ${location.status ? `<span class="tag">${escapeHtml(location.status)}</span>` : ""}
         ${location.isTemporary ? `<span class="tag">Temporary${location.retainUntil ? ` until ${formatDate(location.retainUntil)}` : ""}</span>` : ""}
         <button class="mini-button" type="button" data-action="open-map-location" data-id="${escapeAttribute(location.id)}">Edit</button>
+        ${renderPromoteLocationButton(location)}
       </div>
     </article>
   `;
+}
+
+// Owner, 2026-09-25: a location becomes a facility only when someone decides it is one (a spill
+// spot that turns out to be the customer's yard we keep going back to). Never automatic.
+function locationAccountId(location) {
+  return location?.accountId || findProject(location?.projectId)?.accountId || "";
+}
+
+function renderPromoteLocationButton(location) {
+  if (!location || location.facilityId || !locationAccountId(location)) return "";
+  return `<button class="mini-button" type="button" data-action="promote-location-to-facility" data-id="${escapeAttribute(location.id)}">Promote to facility</button>`;
+}
+
+function openPromoteLocationDialog(locationId) {
+  const location = findGpsLocation(locationId);
+  const accountId = locationAccountId(location);
+  if (!location || !accountId) return;
+  openFacilityDialog(accountId);
+  const form = document.querySelector("#accountFacilityDialog form");
+  form.elements.promoteLocationId.value = location.id;
+  form.elements.name.value = location.label || "";
+  form.elements.street1.value = location.addressText || "";
+}
+
+// After the facility is saved: the location now sits inside it, and every project at that location
+// that had no facility gets this one.
+async function linkPromotedLocation(locationId, facility) {
+  const location = findGpsLocation(locationId);
+  if (!location) return;
+  await saveBackendRecord("locations", { ...location, facilityId: facility.id, accountId: location.accountId || facility.accountId }, { refresh: false });
+  const projects = state.projects.filter((project) => !project.facilityId && (project.siteLocationId === location.id || (project.id === location.projectId && projectSiteLocation(project)?.id === location.id)));
+  for (const project of projects) await saveBackendRecord("projects", { ...project, facilityId: facility.id }, { refresh: false });
 }
 
 function renderProjectCard(project) {
@@ -8158,7 +8207,7 @@ function renderProjectDetail() {
   }
 
   const account = findAccount(job.accountId);
-  const location = findFacility(job.facilityId);
+  const location = projectSite(job);
   const opportunity = findOpportunity(job.opportunityId);
   const progress = getJobProgress(job);
   const generator = getProjectGenerator(job);
@@ -8208,7 +8257,7 @@ function renderProjectDetail() {
           <button class="text-button" type="button" data-action="back-to-projects">Back to all projects</button>
           <p class="eyebrow">Operations project</p>
           <h2>${escapeHtml(job.name)}</h2>
-          <p>${escapeHtml(job.jobClass)} for ${escapeHtml(account?.name ?? "Unknown account")}${location ? ` at ${escapeHtml(location.name)}` : ""}.</p>
+          <p>${escapeHtml(job.jobClass)} for ${escapeHtml(account?.name ?? "Unknown account")}${location.name ? ` at ${escapeHtml(location.name)}` : ""}.</p>
           <div class="inline-actions">
             <span class="risk-badge ${progress.tone}">${progress.percent}% complete</span>
             <span class="stage-badge">${escapeHtml(job.status)}</span>
@@ -8350,7 +8399,7 @@ function renderProjectIntakeTab(job, ctx) {
           <div class="panel-body">
             <dl class="detail-list">
               <div><dt>Generator</dt><dd>${escapeHtml(generator.name)}</dd></div>
-              <div><dt>Site</dt><dd>${escapeHtml(generator.siteName)}</dd></div>
+              <div><dt>Site</dt><dd>${renderProjectSiteValue(job, generator)}</dd></div>
               <div><dt>Contact</dt><dd>${escapeHtml(generator.contactName)}${generator.contactPhone ? ` - ${escapeHtml(formatPhoneNumber(generator.contactPhone))}` : ""}</dd></div>
               <div><dt>EPA ID</dt><dd>${escapeHtml(generator.epaId)}</dd></div>
               <div><dt>TCEQ ID</dt><dd>${escapeHtml(generator.tceqId)}</dd></div>
@@ -14596,7 +14645,7 @@ function renderClientSpillDetail() {
   }
 
   const account = findAccount(job.accountId);
-  const location = findFacility(job.facilityId);
+  const location = projectSite(job);
   const progress = getJobProgress(job);
   const generator = getProjectGenerator(job);
   const alerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved");
@@ -14613,7 +14662,7 @@ function renderClientSpillDetail() {
           <button class="text-button" type="button" data-action="back-to-client-spills">Back to spills</button>
           <p class="eyebrow">Client spill record</p>
           <h2>${escapeHtml(job.name)}</h2>
-          <p>${escapeHtml(job.jobClass)} for ${escapeHtml(account?.name ?? "Unknown account")}${location ? ` at ${escapeHtml(location.name)}` : ""}.</p>
+          <p>${escapeHtml(job.jobClass)} for ${escapeHtml(account?.name ?? "Unknown account")}${location.name ? ` at ${escapeHtml(location.name)}` : ""}.</p>
           <div class="inline-actions">
             <span class="risk-badge ${progress.tone}">${progress.percent}% complete</span>
             <span class="stage-badge">${escapeHtml(job.status)}</span>
@@ -16772,7 +16821,7 @@ function initializeFrontlineLocationMap(points) {
   const mapElement = document.querySelector("#frontlineLocationMap");
   if (!mapElement) return;
   const leaflet = window.L;
-  const plottable = points.filter((location) => Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude)));
+  const plottable = points.filter(hasGpsCoordinates);
   if (!leaflet) {
     mapElement.innerHTML = `<div class="map-loading">Map library did not load.</div>`;
     return;
@@ -18354,13 +18403,22 @@ async function saveEquipmentRestockItem(form) {
 
 async function saveLocation(form) {
   const data = new FormData(form);
-  const latitude = Number(data.get("latitude"));
-  const longitude = Number(data.get("longitude"));
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    showToast("Latitude and longitude must be valid numbers.");
+  // GPS or an address (owner, 2026-09-25). Half a coordinate pair is a typo, not "no GPS".
+  const latitudeText = (data.get("latitude") || "").toString().trim();
+  const longitudeText = (data.get("longitude") || "").toString().trim();
+  const addressText = (data.get("addressText") || "").toString().trim();
+  if (Boolean(latitudeText) !== Boolean(longitudeText) || (latitudeText && (!Number.isFinite(Number(latitudeText)) || !Number.isFinite(Number(longitudeText))))) {
+    showToast("Enter both latitude and longitude as numbers, or leave both blank.");
     return;
   }
+  if (!latitudeText && !addressText) {
+    showToast("A location needs an address or a GPS point.");
+    return;
+  }
+  const latitude = latitudeText ? Number(latitudeText) : "";
+  const longitude = longitudeText ? Number(longitudeText) : "";
 
+  const existing = findGpsLocation((data.get("id") || "").toString());
   const scheduleEventId = (data.get("scheduleEventId") || "").toString();
   const scheduleEvent = getScheduleEvents().find((event) => event.id === scheduleEventId);
   const projectId = (data.get("projectId") || "").toString() || scheduleEvent?.projectId || "";
@@ -18374,10 +18432,14 @@ async function saveLocation(form) {
 
   try {
     await saveBackendRecord("locations", {
+      // Keep what this dialog doesn't edit (accountId, facilityId, reportedByEmployeeId, consentId).
+      ...(existing || {}),
       id: data.get("id").toString() || "",
+      accountId: findProject(projectId)?.accountId || existing?.accountId || "",
       projectId,
       scheduleEventId,
       label: data.get("label").toString().trim(),
+      addressText,
       latitude,
       longitude,
       assetTags,
@@ -18392,9 +18454,9 @@ async function saveLocation(form) {
     });
     closeDialogs();
     render();
-    showToast("GPS point saved on the map.");
+    showToast(latitudeText ? "Location saved on the map." : "Location saved. It goes on the map once it has GPS.");
   } catch (error) {
-    showToast(error.message || "GPS point could not be saved.");
+    showToast(error.message || "Location could not be saved.");
   }
 }
 
@@ -19051,7 +19113,21 @@ function openEmergencyIntakeDialog() {
     `<option value="">No template — generic four-step plan</option>`,
   ].join("");
   form.elements.jobTypeTemplateId.value = templates.find((template) => template.serviceCategory === "ER")?.id || "";
+  syncEmergencyIntakeFacilityField(form);
   dialog.showModal();
+}
+
+// The spill is a location, not a facility (owner, 2026-09-25). The facility picker only appears
+// when the caller's account is known and has facilities — "the spill is at their yard".
+function syncEmergencyIntakeFacilityField(form) {
+  const accountId = (form.elements.accountId.value || "").toString();
+  const facilities = accountId ? facilitiesForAccount(accountId) : [];
+  const field = form.querySelector('[data-role="intake-facility-field"]');
+  form.elements.facilityId.innerHTML = [
+    `<option value="">No — not at a facility</option>`,
+    ...facilities.map((facility) => `<option value="${escapeAttribute(facility.id)}">${escapeHtml(facility.name)}</option>`),
+  ].join("");
+  if (field) field.hidden = !facilities.length;
 }
 
 // Q18 — pin drop is just GPS coordinates, not a link-issuing system. Accept the common formats a
@@ -19126,6 +19202,18 @@ async function submitEmergencyIntake(form) {
     showToast(intakePauseBlock);
     return;
   }
+  // The site location needs an address or a GPS pin (owner, 2026-09-25). A pin that was typed but
+  // can't be read is an error, not a silent drop — the crew would be sent to an address-less nowhere.
+  const siteCheck = new FormData(form);
+  const pinText = (siteCheck.get("gpsPin") || "").toString().trim();
+  if (pinText && !parseGpsPin(pinText)) {
+    showToast('That GPS pin could not be read. Paste it as "30.59, -97.59" or a Google Maps link.');
+    return;
+  }
+  if (!(siteCheck.get("addressText") || "").toString().trim() && !pinText) {
+    showToast("Give the site location an address or a GPS pin.");
+    return;
+  }
   emergencyIntakeSubmissionInFlight.active = true;
 
   try {
@@ -19149,27 +19237,24 @@ async function submitEmergencyIntake(form) {
       await saveBackendRecord("accounts", account, { refresh: false });
     }
 
-    const addressText = data.get("addressText").toString().trim();
-    const newFacility = {
-      id: makeId("loc"),
-      accountId: account.id,
-      name: `Spill site — ${addressText}`,
-      street1: addressText,
-      city: "",
-      category: "Job Site / Field Location",
-      badge: "Emergency",
-    };
-    await saveBackendRecord("facilities", newFacility, { refresh: false });
-
-    const gpsPin = parseGpsPin(data.get("gpsPin").toString());
+    // Owner, 2026-09-25: a spill site is a location (a spot), not a facility (a place the customer
+    // owns and we return to). The intake used to add "Spill site — <address>" to the account's
+    // facilities on every call. It now saves a location; a facility is linked only when the caller
+    // picked one, and a location can be promoted to a facility by hand later.
+    const addressText = (data.get("addressText") || "").toString().trim();
+    const gpsPin = parseGpsPin((data.get("gpsPin") || "").toString());
+    const facilityId = hasExistingAccount && facilitiesForAccount(account.id).some((facility) => facility.id === (data.get("facilityId") || "").toString()) ? (data.get("facilityId") || "").toString() : "";
+    const siteName = (data.get("siteLocationName") || "").toString().trim() || addressText || `GPS ${formatGpsCoordinates(gpsPin)}`;
 
     const mobilization = computeEmergencyMobilization(data, hasExistingAccount);
+    const siteLocationId = makeId("loc-gps");
 
     const project = buildCoreProjectRecord({
       id: makeId("proj"),
       accountId: account.id,
-      facilityId: newFacility.id,
-      name: `Spill response — ${addressText}`,
+      facilityId,
+      siteLocationId,
+      name: `Spill response — ${siteName}`,
       jobClass: "Emergency Response",
       status: "Pre-mobilization",
       activePhase: "Intake",
@@ -19219,27 +19304,28 @@ async function submitEmergencyIntake(form) {
     });
     await saveBackendRecord("projects", project, { refresh: false });
 
-    if (gpsPin) {
-      await saveBackendRecord(
-        "locations",
-        {
-          id: makeId("loc-gps"),
-          projectId: project.id,
-          label: `Spill origin — ${addressText}`,
-          latitude: gpsPin.latitude,
-          longitude: gpsPin.longitude,
-          assetTags: [],
-          status: "Active",
-          source: "Emergency intake",
-          lastPingAt: new Date().toISOString(),
-          locationType: "Spill origin",
-          isTemporary: true,
-          retainUntil: addDays(730),
-          retentionReason: "Emergency response record retention",
-        },
-        { refresh: false },
-      );
-    }
+    await saveBackendRecord(
+      "locations",
+      {
+        id: siteLocationId,
+        accountId: account.id,
+        facilityId,
+        projectId: project.id,
+        label: siteName,
+        addressText,
+        latitude: gpsPin?.latitude ?? "",
+        longitude: gpsPin?.longitude ?? "",
+        assetTags: [],
+        status: "Active",
+        source: "Emergency intake",
+        lastPingAt: new Date().toISOString(),
+        locationType: "Spill origin",
+        isTemporary: true,
+        retainUntil: addDays(730),
+        retentionReason: "Emergency response record retention",
+      },
+      { refresh: false },
+    );
     // Phase 11, Q39: the incident weather snapshot is pulled now, while the time is fresh. It anchors
     // to the spill-origin point just saved (or the intake pin); with neither it records "not captured".
     captureWeatherInBackground({ projectId: project.id, kind: "incident" });
@@ -19255,7 +19341,7 @@ async function submitEmergencyIntake(form) {
       projectId: project.id,
       projectName: project.name,
       customerName: account.name,
-      jobName: `Emergency spill response — ${addressText}`,
+      jobName: `Emergency spill response — ${siteName}`,
       jobType: template?.name || "Emergency Response",
       jobTypeCode: "ER",
       jobTypeVersion: 1,
@@ -19265,8 +19351,10 @@ async function submitEmergencyIntake(form) {
       priority: "Emergency",
       scheduledStart: now.toISOString(),
       timezone: "America/Chicago",
-      locationName: addressText,
+      locationName: siteName,
       addressText,
+      latitude: gpsPin?.latitude ?? "",
+      longitude: gpsPin?.longitude ?? "",
       onsiteContactName: data.get("callerName").toString().trim(),
       onsiteContactPhone: data.get("callerPhone").toString().trim(),
       description: `Emergency spill response. ${data.get("spillMaterial").toString().trim() || "Material not specified"} — ${(data.get("spillSurface") || "").toString()}.`,
@@ -20617,8 +20705,8 @@ async function saveReportPhotoCaption(attachmentId, caption) {
 function buildPostWorkReport(project) {
   const dispatchJobs = dispatchJobsForProject(project.id).slice().reverse();
   const dayOf = (value) => (value ? localIsoDate(parseDate(value)) : "");
-  const gpsPoints = (state.backend.locations || []).filter((point) => point.projectId === project.id);
-  const gpsPoint = gpsPoints.find((point) => /spill origin/i.test(point.locationType || "")) || gpsPoints[0] || null;
+  const gpsPoints = (state.backend.locations || []).filter((point) => point.projectId === project.id && hasGpsCoordinates(point));
+  const gpsPoint = [projectSiteLocation(project)].find(hasGpsCoordinates) || gpsPoints.find((point) => /spill origin/i.test(point.locationType || "")) || gpsPoints[0] || null;
 
   const dayMap = new Map();
   const ensureDay = (date) => {
@@ -20791,7 +20879,7 @@ function renderPostWorkReportHtml(report) {
     <h4>Material</h4>
     ${table([["Item"], ["Quantity", true]], group.materials.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td class="num">${hours(row.quantity)} ${escapeHtml(row.unit)}</td></tr>`), "No material logged.")}
   `;
-  const address = [facility?.address, facility?.city].filter(Boolean).join(", ") || report.dispatchJobs.find((dispatchJob) => dispatchJob.addressText)?.addressText || "";
+  const address = projectSite(project).address || report.dispatchJobs.find((dispatchJob) => dispatchJob.addressText)?.addressText || "";
   const gps = report.gpsPoint ? `GPS: ${Number(report.gpsPoint.latitude).toFixed(7)}, ${Number(report.gpsPoint.longitude).toFixed(7)}` : project.incidentLatitude ? `GPS: ${project.incidentLatitude}, ${project.incidentLongitude}` : "";
   const agencies = [
     project.lawEnforcementStatus && project.lawEnforcementStatus !== "Not involved" ? `Law enforcement: ${project.lawEnforcementStatus}` : "",
@@ -22113,11 +22201,11 @@ function quantityStepForLine(line) {
 // generator" check) were blank. The dialog and the check now use the same fallbacks.
 function projectIntakeFallbacks(job) {
   const account = findAccount(job.accountId);
-  const facility = findFacility(job.facilityId);
+  const facility = projectSite(job);
   const contact = (job.contactIds || []).map(findContact).find(Boolean) || contactsForAccount(job.accountId)[0];
   return {
     generatorName: account?.name || "",
-    generatorSiteName: facility?.name || account?.siteName || "",
+    generatorSiteName: facility.name || account?.siteName || "",
     generatorContactName: contact?.name || account?.contact || "",
     generatorContactPhone: contact?.phone || account?.phone || "",
     epaId: account?.epaId || "",
@@ -23199,7 +23287,10 @@ async function saveProjectFromOpportunity(form) {
     // Default the intake "Site" to whichever facility was already selected during the sales process
     // (the opportunity's own facilityId), not an arbitrary "first facility on the account" — the two
     // can differ for accounts with multiple sites, which was the reported bug (item 13).
-    facilityId: opportunity?.facilityId || facilitiesForAccount(account.id)[0]?.id || "",
+    // Owner, 2026-09-25: an opportunity sited at a location (no facility) hands that location to the
+    // project; the "first facility on the account" guess is only for an opportunity with no site.
+    facilityId: opportunity?.facilityId || opportunitySiteLinks(opportunity).facilityId || (opportunitySiteLinks(opportunity).locationId ? "" : facilitiesForAccount(account.id)[0]?.id || ""),
+    siteLocationId: opportunitySiteLinks(opportunity).locationId,
     opportunityId,
     contactIds: contactsForAccount(account.id).map((contact) => contact.id),
     name: data.get("name").toString().trim(),
@@ -25569,10 +25660,9 @@ function openInvoiceDialog(jobId = "") {
 
 function defaultInvoiceLocation(project) {
   if (!project) return "";
-  const facility = findFacility(project.facilityId);
-  const address = [facility?.address, facility?.city].filter(Boolean).join(", ");
-  const gps = (state.backend.locations || []).find((point) => point.projectId === project.id && /spill origin/i.test(point.locationType || ""));
-  return [address || dispatchJobsForProject(project.id).find((dispatchJob) => dispatchJob.addressText)?.addressText || "", gps ? `GPS ${Number(gps.latitude).toFixed(5)}, ${Number(gps.longitude).toFixed(5)}` : ""].filter(Boolean).join(" · ");
+  const site = projectSite(project);
+  const gps = formatGpsCoordinates(site.location);
+  return [site.address || dispatchJobsForProject(project.id).find((dispatchJob) => dispatchJob.addressText)?.addressText || "", gps ? `GPS ${gps}` : ""].filter(Boolean).join(" · ");
 }
 
 async function saveInvoice(form) {
@@ -27263,6 +27353,7 @@ function openFacilityDialog(accountId = "", facilityId = "") {
   const form = dialog.querySelector("form");
   form.reset();
   form.elements.accountId.value = accountId;
+  form.elements.promoteLocationId.value = "";
   const facility = facilityId ? findFacility(facilityId) : null;
   if (facility) {
     const category = facility.category || (facility.type ? "Other" : "");
@@ -27327,11 +27418,13 @@ async function saveFacility(form) {
   delete facility.status;
   delete facility.latitude;
   delete facility.longitude;
-  await saveBackendRecord("facilities", facility);
+  const saved = await saveBackendRecord("facilities", facility);
+  const promoteLocationId = (data.get("promoteLocationId") || "").toString();
+  if (promoteLocationId && !existing) await linkPromotedLocation(promoteLocationId, saved || facility);
   closeDialogs();
   await refreshState();
   render();
-  showToast(existing ? "Facility updated." : "Facility added.");
+  showToast(promoteLocationId && !existing ? "Location promoted to a facility on the account." : existing ? "Facility updated." : "Facility added.");
 }
 
 function openFacilityContactDialog(facilityId = "", accountId = "", linkId = "") {
@@ -28162,6 +28255,7 @@ function openLocationDialog(locationId = "") {
     form.elements.label.value = location.label || "";
     form.elements.projectId.value = location.projectId || "";
     form.elements.scheduleEventId.value = location.scheduleEventId || "";
+    form.elements.addressText.value = location.addressText || "";
     form.elements.latitude.value = location.latitude ?? "";
     form.elements.longitude.value = location.longitude ?? "";
     form.elements.assetTags.value = (location.assetTags || []).join(", ");
@@ -28477,13 +28571,13 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
 
   if (project) {
     const account = findAccount(project.accountId);
-    const location = findFacility(project.facilityId);
+    const site = projectSite(project);
     form.elements.accountId.value = project.accountId;
     form.elements.serviceCategory.value = mapJobClassToServiceCategory(project.jobClass);
     form.elements.priority.value = project.jobClass === "Emergency Response" ? "Emergency" : "Normal";
     form.elements.generatorResponsibleParty.value = project.generatorName || account?.name || "";
     form.elements.calledInByName.value = state.currentUser?.name || "";
-    form.elements.addressText.value = formatFacilityAddressLine(location) || project.generatorSiteName || [account?.siteName, account?.city].filter(Boolean).join(", ");
+    form.elements.addressText.value = site.address || formatGpsCoordinates(site.location) || project.generatorSiteName || [account?.siteName, account?.city].filter(Boolean).join(", ");
     // Live bug report follow-up (2026-09-17): "reuses opportunity priced amount" — this field was
     // unconditionally pre-filled with the ORIGINAL opportunity's quoted total (or the project budget)
     // on every job request, including a 2nd/3rd dispatch request against a project already in the
@@ -30897,7 +30991,7 @@ function getClientSpillMarkers(jobs = getClientVisibleJobs()) {
 function getJobMapCoordinates(job) {
   const mappedLocation = (state.backend.locations || []).find((location) => {
     if (location.projectId !== job.id) return false;
-    return Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude));
+    return hasGpsCoordinates(location);
   });
   if (mappedLocation) {
     return {
@@ -31003,12 +31097,49 @@ function findGpsLocation(locationId) {
 
 function locationsForAccount(accountId) {
   const projectIds = new Set(projectsForAccount(accountId).map((project) => project.id));
-  return (state.backend.locations || []).filter((location) => projectIds.has(location.projectId));
+  return (state.backend.locations || []).filter((location) => location.accountId === accountId || projectIds.has(location.projectId));
 }
 
 function locationsForFacility(facilityId) {
   const projectIds = new Set(projectsForFacility(facilityId).map((project) => project.id));
-  return (state.backend.locations || []).filter((location) => projectIds.has(location.projectId));
+  return (state.backend.locations || []).filter((location) => location.facilityId === facilityId || projectIds.has(location.projectId));
+}
+
+// A location needs GPS or an address (owner, 2026-09-25) — so latitude can be blank, and
+// Number("") is 0: test for a real coordinate pair, never Number.isFinite(Number(x)) alone.
+function hasGpsCoordinates(point) {
+  const real = (value) => value !== "" && value != null && Number.isFinite(Number(value));
+  return Boolean(point) && real(point.latitude) && real(point.longitude);
+}
+
+function formatGpsCoordinates(point, digits = 5) {
+  return hasGpsCoordinates(point) ? `${Number(point.latitude).toFixed(digits)}, ${Number(point.longitude).toFixed(digits)}` : "";
+}
+
+// What a crew or an invoice reads to find the spot: the address, else the mile marker, else GPS.
+function locationPlaceLine(location) {
+  if (!location) return "";
+  return location.addressText || location.linearReference || formatGpsCoordinates(location);
+}
+
+// The location a project's work is at: the one the project names, else its spill-origin point
+// (projects created before siteLocationId existed).
+function projectSiteLocation(project) {
+  if (!project) return null;
+  return findGpsLocation(project.siteLocationId) || (state.backend.locations || []).find((point) => point.projectId === project.id && /spill origin/i.test(point.locationType || "")) || null;
+}
+
+// A project's site is a facility, a location, or both (a spill inside a customer's yard). Every
+// "where is this job" read goes through here so a location-only project never shows "no site".
+function projectSite(project) {
+  const facility = findFacility(project?.facilityId) || null;
+  const location = projectSiteLocation(project);
+  return {
+    facility,
+    location,
+    name: facility?.name || location?.label || "",
+    address: formatFacilityAddressLine(facility) || location?.addressText || location?.linearReference || "",
+  };
 }
 
 function findFacilityContact(id) {
@@ -31491,6 +31622,27 @@ function opportunityLocationsForOpportunity(opportunityId) {
   return (state.backend.opportunityLocations || []).filter((entry) => entry.opportunityId === opportunityId && !entry.deletedAt);
 }
 
+// The first linked facility and the first linked location, for handing the site to a project.
+function opportunitySiteLinks(opportunity) {
+  const entries = opportunity ? opportunityLocationsForOpportunity(opportunity.id) : [];
+  return {
+    facilityId: entries.find((entry) => entry.facilityId && findFacility(entry.facilityId))?.facilityId || "",
+    locationId: entries.find((entry) => entry.locationId && findGpsLocation(entry.locationId))?.locationId || "",
+  };
+}
+
+// The opportunity's sites by name: its own facility, then every linked facility or location that
+// still exists. Drives the Qualify "Site" gate, so a dangling link doesn't count.
+function opportunitySiteNames(opportunity) {
+  if (!opportunity) return [];
+  const names = [findFacility(opportunity.facilityId)?.name || ""];
+  opportunityLocationsForOpportunity(opportunity.id).forEach((entry) => {
+    const location = entry.locationId ? findGpsLocation(entry.locationId) : null;
+    names.push(entry.facilityId ? findFacility(entry.facilityId)?.name || "" : location ? location.label || location.addressText || "Location" : "");
+  });
+  return [...new Set(names.filter(Boolean))];
+}
+
 async function linkOpportunityLocation({ opportunityId, type, facilityId = "", locationId = "", role = "", note = "" }) {
   await saveBackendRecord("opportunityLocations", {
     id: makeId("opp-location"),
@@ -31512,10 +31664,14 @@ function openOpportunityLocationDialog(opportunityId) {
   form.reset();
   form.elements.opportunityId.value = opportunityId;
   populateFacilitySelect(dialog, opportunity.accountId);
-  const locationSelect = form.elements.locationId;
-  locationSelect.innerHTML = (state.backend.locations || [])
-    .map((location) => `<option value="${escapeAttribute(location.id)}">${escapeHtml(location.label || location.id)}${location.locationType ? ` — ${escapeHtml(location.locationType)}` : ""}</option>`)
-    .join("");
+  // This account's locations only (it used to list every location in the system), plus "new" —
+  // a roadside or right-of-way usually doesn't exist yet when sales first hears about it.
+  const accountLocations = locationsForAccount(opportunity.accountId);
+  form.elements.locationId.innerHTML = [
+    ...accountLocations.map((location) => `<option value="${escapeAttribute(location.id)}">${escapeHtml(location.label || location.addressText || location.id)}${location.locationType ? ` — ${escapeHtml(location.locationType)}` : ""}</option>`),
+    `<option value="new">+ New location</option>`,
+  ].join("");
+  form.elements.locationId.value = accountLocations.length ? accountLocations[0].id : "new";
   const addFacilityButton = dialog.querySelector('[data-role="opportunity-location-add-facility"]');
   if (addFacilityButton) addFacilityButton.dataset.accountId = opportunity.accountId;
   toggleOpportunityLocationTypeFields("Facility");
@@ -31530,18 +31686,58 @@ function toggleOpportunityLocationTypeFields(type) {
   if (facilityField) facilityField.hidden = type !== "Facility";
   if (gpsField) gpsField.hidden = type !== "Location";
   if (addFacilityButton) addFacilityButton.hidden = type !== "Facility";
+  const newFields = dialog.querySelector('[data-role="opportunity-location-new-fields"]');
+  if (newFields) newFields.hidden = type !== "Location" || dialog.querySelector("select[name='locationId']")?.value !== "new";
 }
 
 async function saveOpportunityLocation(form) {
   const data = new FormData(form);
   const opportunityId = data.get("opportunityId").toString();
+  const opportunity = findOpportunity(opportunityId);
   const type = (data.get("type") || "").toString();
+  const facilityId = type === "Facility" ? (data.get("facilityId") || "").toString() : "";
+  let locationId = type === "Location" ? (data.get("locationId") || "").toString() : "";
+  // An empty link would pass the Qualify "Site" gate with no site behind it.
+  if (type === "Facility" && !facilityId) {
+    showToast("Pick a facility, or add one first.");
+    return;
+  }
   try {
+    if (locationId === "new") {
+      const addressText = (data.get("newLocationAddress") || "").toString().trim();
+      const gpsText = (data.get("newLocationGps") || "").toString().trim();
+      const gps = parseGpsPin(gpsText);
+      if (gpsText && !gps) {
+        showToast('That GPS could not be read. Use "30.59, -97.59" or a Google Maps link.');
+        return;
+      }
+      if (!addressText && !gps) {
+        showToast("A location needs an address or a GPS point.");
+        return;
+      }
+      const saved = await saveBackendRecord("locations", {
+        id: makeId("loc-gps"),
+        accountId: opportunity?.accountId || "",
+        label: (data.get("newLocationLabel") || "").toString().trim() || addressText || `GPS ${formatGpsCoordinates(gps)}`,
+        addressText,
+        latitude: gps?.latitude ?? "",
+        longitude: gps?.longitude ?? "",
+        assetTags: [],
+        status: "",
+        source: "Opportunity",
+        lastPingAt: new Date().toISOString(),
+      }, { refresh: false });
+      locationId = saved?.id || "";
+    }
+    if (type === "Location" && !locationId) {
+      showToast("Pick a location, or choose + New location.");
+      return;
+    }
     await linkOpportunityLocation({
       opportunityId,
       type,
-      facilityId: type === "Facility" ? (data.get("facilityId") || "").toString() : "",
-      locationId: type === "Location" ? (data.get("locationId") || "").toString() : "",
+      facilityId,
+      locationId,
       role: data.get("role").toString().trim(),
       note: data.get("note").toString().trim(),
     });
@@ -31745,13 +31941,22 @@ function getAccountHealth(account, openTasks, openOpportunities, activeAlerts) {
   return { label: "On track", tone: "low" };
 }
 
+// The Intake tab's "Site": the facility and/or the location, the address or GPS under it, and the
+// manual promote button when the work is at a location that isn't a facility yet.
+function renderProjectSiteValue(job, generator) {
+  const site = projectSite(job);
+  const lines = [site.address !== generator.siteName ? site.address : "", formatGpsCoordinates(site.location)].filter(Boolean);
+  const locationLine = site.facility && site.location && site.location.label !== site.facility.name ? `Location: ${site.location.label}` : "";
+  return `${escapeHtml(generator.siteName)}${[locationLine, ...lines].map((line) => `<br /><small>${escapeHtml(line)}</small>`).join("")}${site.location && !site.facility ? `<br />${renderPromoteLocationButton(site.location)}` : ""}`;
+}
+
 function getProjectGenerator(job) {
   const account = findAccount(job.accountId);
-  const location = findFacility(job.facilityId);
+  const location = projectSite(job);
   const contact = (job.contactIds || []).map(findContact).find(Boolean) || contactsForAccount(job.accountId)[0];
   return {
     name: job.generatorName || account?.name || "Generator not captured",
-    siteName: job.generatorSiteName || location?.name || account?.siteName || "Site not captured",
+    siteName: job.generatorSiteName || location.name || account?.siteName || "Site not captured",
     contactName: job.generatorContactName || contact?.name || account?.contact || "Contact not captured",
     contactPhone: job.generatorContactPhone || contact?.phone || account?.phone || "",
     epaId: job.epaId || account?.epaId || "EPA ID not captured",
@@ -32072,9 +32277,9 @@ function getLocationMapMarkers() {
   const backendLocations = state.backend.locations || [];
   if (backendLocations.length) {
     return backendLocations.flatMap((location) => {
+      if (!hasGpsCoordinates(location)) return [];
       const latitude = Number(location.latitude);
       const longitude = Number(location.longitude);
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
 
       const job = findProject(location.projectId);
       const ownTracksPing = location.source === "OwnTracks";
@@ -33696,7 +33901,7 @@ function facilityCoordinates(facility) {
   if (Number.isFinite(Number(facility.latitude)) && Number.isFinite(Number(facility.longitude)) && facility.latitude !== "" && facility.longitude !== "") {
     return { lat: Number(facility.latitude), lng: Number(facility.longitude) };
   }
-  const point = locationsForFacility(facility.id).find((location) => Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude)));
+  const point = locationsForFacility(facility.id).find(hasGpsCoordinates);
   return point ? { lat: Number(point.latitude), lng: Number(point.longitude) } : null;
 }
 

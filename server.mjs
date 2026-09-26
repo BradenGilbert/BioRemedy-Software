@@ -3148,13 +3148,19 @@ function normalizeRecord(collection, payload, data) {
   }
 
   if (collection === "locations") {
+    // Owner, 2026-09-25: a location needs GPS or an address. A blank coordinate stays blank --
+    // Number("") is 0 and would put the spot in the Gulf of Guinea.
+    const coordinate = (value) => (value === "" || value == null ? "" : Number(value));
     return {
       id,
+      accountId: payload.accountId || "",
+      facilityId: payload.facilityId || "",
       projectId: payload.projectId || "",
       scheduleEventId: payload.scheduleEventId || "",
-      label: payload.label || "GPS point",
-      latitude: Number(payload.latitude),
-      longitude: Number(payload.longitude),
+      label: payload.label || payload.addressText || "Location",
+      addressText: payload.addressText || "",
+      latitude: coordinate(payload.latitude),
+      longitude: coordinate(payload.longitude),
       assetTags: Array.isArray(payload.assetTags) ? payload.assetTags : [],
       status: payload.status || "Live GPS",
       lastPingAt: payload.lastPingAt || now,
@@ -5512,8 +5518,14 @@ async function handleApi(request, response, pathname) {
       const block = validateScheduleEvent(data, record);
       if (block) return json(response, 409, { error: block, blocked: true });
     }
-    if (collection === "locations" && (!Number.isFinite(record.latitude) || !Number.isFinite(record.longitude))) {
-      return json(response, 400, { error: "Map location requires valid latitude and longitude." });
+    if (collection === "locations") {
+      const hasLatitude = record.latitude !== "", hasLongitude = record.longitude !== "";
+      if (hasLatitude !== hasLongitude || (hasLatitude && (!Number.isFinite(record.latitude) || !Number.isFinite(record.longitude)))) {
+        return json(response, 400, { error: "A location's latitude and longitude must both be valid numbers, or both blank." });
+      }
+      if (!hasLatitude && !String(record.addressText || "").trim()) {
+        return json(response, 400, { error: "A location needs an address or a GPS point." });
+      }
     }
     if (collection === "vendorProfiles") {
       const conflict = data.vendorProfiles.find(
