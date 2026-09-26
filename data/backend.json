@@ -1739,7 +1739,8 @@
       "preferredContactMethod": "Phone",
       "opportunityIds": [
         "opp-georgetown-contract",
-        "opp-georgetown-storm-drain"
+        "opp-georgetown-storm-drain",
+        "opp-muhg9wcv-gxw571"
       ],
       "notes": "",
       "divisionId": "account-division-city-georgetown-fire-department",
@@ -1788,8 +1789,8 @@
       "lastModifiedDate": "2026-09-15T20:29:17.604Z",
       "recordSource": "Local CRM",
       "createdAt": "2026-09-15T20:29:17.604Z",
-      "updatedAt": "2026-09-25T15:00:00.000Z",
-      "version": 1
+      "updatedAt": "2026-09-25T21:06:13.469Z",
+      "version": 2
     },
     {
       "id": "cont-lsf-safety",
@@ -4942,6 +4943,77 @@
       "estimateId": "",
       "createdAt": "2026-09-18T15:30:00.000Z",
       "updatedAt": "2026-09-23T16:30:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "proj-muhgcjx4-55ov68",
+      "accountId": "acct-city-georgetown",
+      "facilityId": "loc-muhgcjtx-9g5wy6",
+      "name": "Spill response — 205 golden oaks dr",
+      "jobClass": "Emergency Response",
+      "status": "Pre-mobilization",
+      "activePhase": "Intake",
+      "projectStage": "Intake",
+      "startDate": "2026-09-25",
+      "targetDate": "2026-09-28",
+      "marginWatch": "Created from emergency intake.",
+      "callerName": "tim",
+      "callerPhone": "555-555-5555",
+      "callerRelationship": "Driver",
+      "spillMaterial": "diesel",
+      "spillQuantity": "20 gallons",
+      "spillSurface": "Road",
+      "stormDrainInvolved": "Unknown",
+      "offRoadDischarge": "Unknown",
+      "absorbentDeployed": "No",
+      "absorbentDeployedBy": "your mom",
+      "lawEnforcementStatus": "Not involved",
+      "fireDepartmentStatus": "Not involved",
+      "otherEmergencyServicesStatus": "Not involved",
+      "agencyIncidentNumber": "",
+      "hasInsurance": "Yes",
+      "isInsuranceClaim": "Yes",
+      "insuranceCarrier": "sgsg",
+      "insurancePolicyNumber": "sgsg",
+      "insuranceClaimNumber": "sgsgs",
+      "policyCopyOnFile": false,
+      "downPaymentAmount": 0,
+      "downPaymentBy": "",
+      "downPaymentReference": "",
+      "mobilizationStatus": "Cleared to mobilize",
+      "mobilizationNote": "Existing account in good standing.",
+      "mobilizationClearedAt": "2026-09-25T21:07:44.728Z",
+      "mobilizationOverrideBy": "",
+      "mobilizationOverrideReason": "",
+      "incidentReportedAt": "2026-09-25T21:07:44.728Z",
+      "incidentLatitude": "",
+      "incidentLongitude": "",
+      "opportunityId": "",
+      "contactIds": [],
+      "projectManager": "",
+      "salesLead": "",
+      "completedDate": "",
+      "budget": 0,
+      "value": 0,
+      "notToExceed": "",
+      "outcome": "",
+      "serviceType": "",
+      "generatorName": "",
+      "generatorSiteName": "",
+      "epaId": "",
+      "tceqId": "",
+      "insuranceContact": "",
+      "claimNumber": "",
+      "serviceProfile": "",
+      "equipmentNeeds": [],
+      "vendorNeeds": [],
+      "resourceNeeds": [],
+      "siteWalkStatus": "Incomplete",
+      "sitePhotoRefs": [],
+      "quoteId": "",
+      "estimateId": "",
+      "createdAt": "2026-09-25T21:07:44.790Z",
+      "updatedAt": "2026-09-25T21:07:44.790Z",
       "version": 1
     }
   ],
@@ -10929,7 +11001,7 @@
     {
       "employmentStatus": "Active",
       "employmentType": "Full time",
-      "businessUnit": "BioRemedy — Georgetown",
+      "businessUnit": "",
       "homeBase": "Georgetown",
       "availabilitySummary": "Available",
       "hoursWorked": 0,
@@ -10953,13 +11025,14 @@
       "skills": [
         "Emergency response",
         "Vactron operation",
-        "CDL Class B",
+        "CDL Class A",
+        "HAZMAT Endorsement",
         "Confined space"
       ],
       "laborProductId": "prod-rs-supervisor",
       "createdAt": "2026-09-25T14:00:00.000Z",
-      "updatedAt": "2026-09-25T14:00:00.000Z",
-      "version": 1
+      "updatedAt": "2026-09-25T20:20:31.628Z",
+      "version": 2
     },
     {
       "employmentStatus": "Active",
@@ -12395,6 +12468,34 @@
       "createdAt": "2026-09-11T21:30:00.000Z",
       "updatedAt": "2026-09-11T21:30:00.000Z",
       "version": 1
+    },
+    {
+      "id": "time-entry-muhexk26-4o48tn",
+      "employeeId": "emp-logan",
+      "dispatchJobId": null,
+      "entryType": "travel",
+      "startedAt": "2026-09-25T20:28:05.454Z",
+      "endedAt": "2026-09-25T20:28:06.397Z",
+      "durationMinutes": 0,
+      "notes": "",
+      "source": "field-app",
+      "createdAt": "2026-09-25T20:28:05.629Z",
+      "updatedAt": "2026-09-25T20:28:06.559Z",
+      "version": 2
+    },
+    {
+      "id": "time-entry-muhexmb7-euz0qw",
+      "employeeId": "emp-logan",
+      "dispatchJobId": null,
+      "entryType": "travel",
+      "startedAt": "2026-09-25T20:28:08.371Z",
+      "endedAt": "2026-09-25T20:28:13.827Z",
+      "durationMinutes": 0,
+      "notes": "",
+      "source": "field-app",
+      "createdAt": "2026-09-25T20:28:08.517Z",
+      "updatedAt": "2026-09-25T20:28:13.985Z",
+      "version": 2
     }
   ],
   "jobMileageEntries": [
@@ -12665,10 +12766,10 @@
       "recipientName": "Logan Gallman",
       "body": "EXC-402 is on hold after the hydraulic leak — Balfour's excavator is on the way for today.",
       "sentAt": "2026-09-22T11:30:00.000Z",
-      "readAt": null,
+      "readAt": "2026-09-25T20:27:07.930Z",
       "createdAt": "2026-09-22T11:30:00.000Z",
-      "updatedAt": "2026-09-22T11:30:00.000Z",
-      "version": 1
+      "updatedAt": "2026-09-25T20:27:08.018Z",
+      "version": 2
     },
     {
       "id": "message-permian-stage2-2",
@@ -12681,10 +12782,10 @@
       "recipientName": "Dispatch",
       "body": "Windrows 1–3 turned. PID on the east sidewall 12–40 ppm; west half tomorrow.",
       "sentAt": "2026-09-22T12:10:00.000Z",
-      "readAt": null,
+      "readAt": "2026-09-25T20:18:45.215Z",
       "createdAt": "2026-09-22T12:10:00.000Z",
-      "updatedAt": "2026-09-22T12:10:00.000Z",
-      "version": 1
+      "updatedAt": "2026-09-25T20:18:45.366Z",
+      "version": 2
     },
     {
       "id": "message-permian-stage2-3",
@@ -12697,10 +12798,10 @@
       "recipientName": "Dispatch",
       "body": "Mega-Bac X is down to 15 gal on the trailer — will need the order Monday.",
       "sentAt": "2026-09-22T12:45:00.000Z",
-      "readAt": null,
+      "readAt": "2026-09-25T20:18:45.215Z",
       "createdAt": "2026-09-22T12:45:00.000Z",
-      "updatedAt": "2026-09-22T12:45:00.000Z",
-      "version": 1
+      "updatedAt": "2026-09-25T20:18:45.490Z",
+      "version": 2
     },
     {
       "id": "message-georgetown-hydraulic-1",
@@ -12713,10 +12814,10 @@
       "recipientName": "Logan Gallman",
       "body": "Job for Friday 8am is on your board. Marcus will open the wash bay gate at 7:45.",
       "sentAt": "2026-09-25T20:20:00.000Z",
-      "readAt": null,
+      "readAt": "2026-09-25T20:26:54.571Z",
       "createdAt": "2026-09-25T20:20:00.000Z",
-      "updatedAt": "2026-09-25T20:20:00.000Z",
-      "version": 1
+      "updatedAt": "2026-09-25T20:26:54.661Z",
+      "version": 2
     },
     {
       "id": "message-georgetown-hydraulic-2",
@@ -12745,10 +12846,10 @@
       "recipientName": "All crews",
       "body": "Reminder: Joe's HAZWOPER refresher is 10/14 — he is off the board that day.",
       "sentAt": "2026-09-24T13:05:00.000Z",
-      "readAt": null,
+      "readAt": "2026-09-25T20:26:37.453Z",
       "createdAt": "2026-09-24T13:05:00.000Z",
-      "updatedAt": "2026-09-24T13:05:00.000Z",
-      "version": 1
+      "updatedAt": "2026-09-25T20:26:37.554Z",
+      "version": 2
     },
     {
       "id": "message-general-2",
@@ -12761,9 +12862,41 @@
       "recipientName": "All crews",
       "body": "EXC-402 stays on hold until the hydraulic line comes in. Use Balfour's unit at the Permian site.",
       "sentAt": "2026-09-23T12:10:00.000Z",
-      "readAt": null,
+      "readAt": "2026-09-25T20:18:29.619Z",
       "createdAt": "2026-09-23T12:10:00.000Z",
-      "updatedAt": "2026-09-23T12:10:00.000Z",
+      "updatedAt": "2026-09-25T20:18:29.683Z",
+      "version": 2
+    },
+    {
+      "id": "message-muhel7im-ksik3j",
+      "threadKey": "general",
+      "dispatchJobId": "",
+      "senderId": "office",
+      "senderName": "Logan Gallman",
+      "senderRole": "office",
+      "recipientId": "field",
+      "recipientName": "All crews",
+      "body": "Sounds like an episode of land man!",
+      "sentAt": "2026-09-25T20:18:29.326Z",
+      "readAt": "2026-09-25T20:26:37.453Z",
+      "createdAt": "2026-09-25T20:18:29.602Z",
+      "updatedAt": "2026-09-25T20:26:37.659Z",
+      "version": 2
+    },
+    {
+      "id": "message-muhevuru-lbggdz",
+      "threadKey": "general",
+      "dispatchJobId": "",
+      "senderId": "emp-logan",
+      "senderName": "Logan Gallman",
+      "senderRole": "field",
+      "recipientId": "office",
+      "recipientName": "Dispatch",
+      "body": "yer gei",
+      "sentAt": "2026-09-25T20:26:46.026Z",
+      "readAt": null,
+      "createdAt": "2026-09-25T20:26:46.130Z",
+      "updatedAt": "2026-09-25T20:26:46.130Z",
       "version": 1
     }
   ],
@@ -14479,6 +14612,37 @@
       "createdAt": "2026-09-16T18:20:00.000Z",
       "updatedAt": "2026-09-16T18:20:00.000Z",
       "version": 1
+    },
+    {
+      "id": "requirement-muhgckx5-wkm8z7",
+      "documentTypeId": "doctype-waste-authorization",
+      "entityType": "project",
+      "entityId": "proj-muhgcjx4-55ov68",
+      "accountId": "acct-city-georgetown",
+      "status": "Not started",
+      "source": "emergency-intake",
+      "counterparty": "customer",
+      "documentIds": [],
+      "currentDocumentId": "",
+      "createdAt": "2026-09-25T21:07:46.092Z",
+      "createdBy": "Braden Gilbert",
+      "sentAt": "",
+      "reviewedAt": "",
+      "reviewedBy": "",
+      "version": 2,
+      "updatedAt": "2026-09-25T21:48:17.799Z",
+      "formData": {
+        "generatorName": "City of Georgetown",
+        "generatorMailingAddress": "510 W 9th St, Georgetown, TX, 78626",
+        "generatorContactName": "Dana Whitfield",
+        "generatorContactTitle": "mayor",
+        "generatorContactPhone": "512-930-3652",
+        "profileNumber": "",
+        "agentCompany": "BioRemedy",
+        "agentAddress": "320 north ln dr",
+        "agentIndividual": "moo moo",
+        "agentIndividualTitle": "owner"
+      }
     }
   ],
   "jobRequests": [
@@ -15483,6 +15647,35 @@
       "postJobReview": null,
       "createdAt": "2026-09-25T12:48:00.000Z",
       "updatedAt": "2026-09-25T12:56:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "dispatch-job-muhgcjzh-zqa8ge",
+      "jobNumber": "JOB-2026-0925-13",
+      "jobTypeTemplateId": "jobtype-emergency-response",
+      "accountId": "acct-city-georgetown",
+      "projectId": "proj-muhgcjx4-55ov68",
+      "projectName": "Spill response — 205 golden oaks dr",
+      "customerName": "City of Georgetown",
+      "jobName": "Emergency spill response — 205 golden oaks dr",
+      "jobType": "Emergency Spill Response",
+      "jobTypeCode": "ER",
+      "jobTypeVersion": 1,
+      "status": "ready",
+      "dispatchStatus": "Unassigned",
+      "officeReviewStatus": "Ready",
+      "priority": "Emergency",
+      "scheduledStart": "2026-09-25T21:07:44.813Z",
+      "timezone": "America/Chicago",
+      "locationName": "205 golden oaks dr",
+      "addressText": "205 golden oaks dr",
+      "onsiteContactName": "tim",
+      "onsiteContactPhone": "555-555-5555",
+      "description": "Emergency spill response. diesel — Road.",
+      "readinessStatus": "Ready",
+      "completionPercent": 0,
+      "updatedAt": "2026-09-25T21:07:44.881Z",
+      "createdAt": "2026-09-25T21:07:44.881Z",
       "version": 1
     }
   ],
@@ -18222,6 +18415,54 @@
       "createdAt": "2026-09-25T12:48:00.000Z",
       "updatedAt": "2026-09-25T12:48:00.000Z",
       "version": 1
+    },
+    {
+      "id": "step-muhgck1y-4pumwd",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "key": "mobilize",
+      "name": "Mobilize",
+      "sequence": 1,
+      "status": "Available",
+      "required": true,
+      "createdAt": "2026-09-25T21:07:44.965Z",
+      "updatedAt": "2026-09-25T21:07:44.965Z",
+      "version": 1
+    },
+    {
+      "id": "step-muhgckb2-cldcw6",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "key": "stabilize",
+      "name": "Stabilize Site",
+      "sequence": 2,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-25T21:07:45.290Z",
+      "updatedAt": "2026-09-25T21:07:45.290Z",
+      "version": 1
+    },
+    {
+      "id": "step-muhgckjh-4sj9q9",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "key": "document",
+      "name": "Document Work",
+      "sequence": 3,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-25T21:07:45.614Z",
+      "updatedAt": "2026-09-25T21:07:45.614Z",
+      "version": 1
+    },
+    {
+      "id": "step-muhgckqe-59o60h",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "key": "closeout",
+      "name": "Field Closeout",
+      "sequence": 4,
+      "status": "Not started",
+      "required": true,
+      "createdAt": "2026-09-25T21:07:45.844Z",
+      "updatedAt": "2026-09-25T21:07:45.844Z",
+      "version": 1
     }
   ],
   "jobActions": [
@@ -20373,6 +20614,192 @@
       },
       "createdAt": "2026-09-25T12:48:00.000Z",
       "updatedAt": "2026-09-25T12:48:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgck43-ar54o5",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgck1y-4pumwd",
+      "key": "accept_dispatch",
+      "name": "Acknowledge dispatch",
+      "sequence": 1,
+      "type": "Status transition",
+      "status": "Available",
+      "required": true,
+      "assigneeScope": "All assigned workers",
+      "formName": "",
+      "config": {},
+      "createdAt": "2026-09-25T21:07:45.057Z",
+      "updatedAt": "2026-09-25T21:07:45.057Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgck6p-rya1hl",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgck1y-4pumwd",
+      "key": "travel",
+      "name": "Capture travel and truck time",
+      "sequence": 2,
+      "type": "Timer",
+      "status": "Blocked",
+      "required": true,
+      "assigneeScope": "Each worker",
+      "formName": "Capture travel and truck time",
+      "config": {
+        "anchor": "on_site"
+      },
+      "createdAt": "2026-09-25T21:07:45.137Z",
+      "updatedAt": "2026-09-25T21:07:45.137Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgck8y-cfphoh",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgck1y-4pumwd",
+      "key": "arrival",
+      "name": "Arrive and verify site contact",
+      "sequence": 3,
+      "type": "Form",
+      "status": "Blocked",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Arrive and verify site contact",
+      "config": {},
+      "createdAt": "2026-09-25T21:07:45.218Z",
+      "updatedAt": "2026-09-25T21:07:45.218Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgckd7-qjrru7",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgckb2-cldcw6",
+      "key": "site_safety",
+      "name": "Complete site safety assessment",
+      "sequence": 1,
+      "type": "Checklist",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Complete site safety assessment",
+      "config": {
+        "options": [
+          "Drains protected",
+          "Booms deployed",
+          "Spill contained"
+        ]
+      },
+      "createdAt": "2026-09-25T21:07:45.367Z",
+      "updatedAt": "2026-09-25T21:07:45.367Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgckf8-g1bk2k",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgckb2-cldcw6",
+      "key": "containment",
+      "name": "Deploy containment and protect drains",
+      "sequence": 2,
+      "type": "Checklist",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "Deploy containment and protect drains",
+      "config": {
+        "options": []
+      },
+      "createdAt": "2026-09-25T21:07:45.445Z",
+      "updatedAt": "2026-09-25T21:07:45.445Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgckhc-j0aku6",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgckb2-cldcw6",
+      "key": "material_use",
+      "name": "Log bacteria and absorbent use",
+      "sequence": 3,
+      "type": "Material",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "Log bacteria and absorbent use",
+      "config": {
+        "suggestedItemIds": []
+      },
+      "createdAt": "2026-09-25T21:07:45.521Z",
+      "updatedAt": "2026-09-25T21:07:45.521Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgckm2-nooyix",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgckjh-4sj9q9",
+      "key": "photos",
+      "name": "Capture before, progress, and after photos",
+      "sequence": 1,
+      "type": "Photo",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Any assigned worker",
+      "formName": "Capture before, progress, and after photos",
+      "config": {
+        "minPhotos": 1
+      },
+      "createdAt": "2026-09-25T21:07:45.694Z",
+      "updatedAt": "2026-09-25T21:07:45.694Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgckob-6a2n3g",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgckjh-4sj9q9",
+      "key": "drain_check",
+      "name": "Document drain or soil impact",
+      "sequence": 2,
+      "type": "Form",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Document drain or soil impact",
+      "config": {},
+      "createdAt": "2026-09-25T21:07:45.764Z",
+      "updatedAt": "2026-09-25T21:07:45.764Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgcksi-73werv",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgckqe-59o60h",
+      "key": "recap",
+      "name": "Complete job recap",
+      "sequence": 1,
+      "type": "Form",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Complete job recap",
+      "config": {},
+      "createdAt": "2026-09-25T21:07:45.928Z",
+      "updatedAt": "2026-09-25T21:07:45.928Z",
+      "version": 1
+    },
+    {
+      "id": "action-muhgckut-ovq3a7",
+      "jobId": "dispatch-job-muhgcjzh-zqa8ge",
+      "stepId": "step-muhgckqe-59o60h",
+      "key": "signature",
+      "name": "Capture customer completion signature",
+      "sequence": 2,
+      "type": "Signature",
+      "status": "Not started",
+      "required": true,
+      "assigneeScope": "Field Lead",
+      "formName": "Capture customer completion signature",
+      "config": {
+        "signerRole": "Customer"
+      },
+      "createdAt": "2026-09-25T21:07:46.011Z",
+      "updatedAt": "2026-09-25T21:07:46.011Z",
       "version": 1
     }
   ],
@@ -26235,6 +26662,22 @@
       "createdAt": "2026-09-25T12:49:00.000Z",
       "updatedAt": "2026-09-25T12:49:00.000Z",
       "version": 1
+    },
+    {
+      "id": "weather-muhgck2c-bewpei",
+      "projectId": "proj-muhgcjx4-55ov68",
+      "dispatchJobId": "",
+      "kind": "incident",
+      "observedFor": "2026-09-25T21:07:44.728Z",
+      "latitude": null,
+      "longitude": null,
+      "anchorSource": "",
+      "anchorLocationId": "",
+      "anchorLabel": "",
+      "requestedBy": "Braden Gilbert",
+      "fetchedAt": "2026-09-25T21:07:44.916Z",
+      "status": "not_captured",
+      "error": "No GPS location on this project to anchor the weather to."
     }
   ],
   "permits": [
@@ -26411,6 +26854,24 @@
       "readBy": [],
       "createdAt": "2026-09-22T11:00:00.000Z",
       "updatedAt": "2026-09-22T11:00:00.000Z",
+      "version": 1
+    },
+    {
+      "id": "notif-weather-weather-muhgck2c-bewpei",
+      "dedupeKey": "weather-weather-muhgck2c-bewpei",
+      "title": "Weather not captured: Spill response — 205 golden oaks dr",
+      "body": "Incident weather: No GPS location on this project to anchor the weather to.",
+      "severity": "warning",
+      "audienceRoles": [
+        "Admin",
+        "Office Manager",
+        "Operations Manager"
+      ],
+      "recipientUserId": "",
+      "link": "#view=project-detail&selectedProjectId=proj-muhgcjx4-55ov68",
+      "createdAt": "2026-09-25T21:07:44.941Z",
+      "readBy": [],
+      "updatedAt": "2026-09-25T21:07:45.006Z",
       "version": 1
     }
   ],
@@ -45170,6 +45631,77 @@
       "createdAt": "2026-07-15T15:05:00.000Z",
       "updatedAt": "2026-09-02T15:00:00.000Z",
       "version": 1
+    },
+    {
+      "id": "opp-muhg9wcv-gxw571",
+      "accountId": "acct-city-georgetown",
+      "name": "trash truck spill in neighborhood",
+      "opportunityName": "trash truck spill in neighborhood",
+      "value": 85000,
+      "amount": 85000,
+      "closeBand": "0-30",
+      "closeBandSetAt": "2026-09-25T21:05:40.879Z",
+      "stage": "Lead",
+      "dealStage": "Lead",
+      "probability": 15,
+      "closeProbability": 15,
+      "serviceType": "Emergency Spill Response",
+      "status": "Open",
+      "nextStep": "site walk then deploy",
+      "customerNeed": "us to go clean up",
+      "weightedAmount": 12750,
+      "forecastAmount": 12750,
+      "rating": "0–30 days (set 0d ago)",
+      "updatedAt": "2026-09-26T01:29:38.207Z",
+      "opportunityId": "opp-muhg9wcv-gxw571",
+      "opportunityUniqueIdentifier": "opp-muhg9wcv-gxw571",
+      "accountName": "City of Georgetown",
+      "primaryContact": "Dana Whitfield",
+      "owner": "Braden Gilbert",
+      "hubspotOwnerId": "",
+      "dealType": "New Business",
+      "sourceCampaign": "space mail",
+      "originatingLeadId": "joe cain",
+      "pipeline": "Sales Pipeline",
+      "forecastCategory": "Pipeline",
+      "priority": "Normal",
+      "initialCommunication": "Contacted",
+      "currentSituation": "ldskrnghb",
+      "industry": "",
+      "proposedSolution": "",
+      "amountInCompanyCurrency": 85000,
+      "estimatedValue": 85000,
+      "annualRecurringRevenue": 0,
+      "totalContractValue": 85000,
+      "budgetAmount": 0,
+      "notToExceed": "",
+      "currency": "USD",
+      "exchangeRate": "1.00",
+      "isRevenueSystemCalculated": false,
+      "actualCloseDate": "",
+      "createdOn": "2026-09-25T21:05:40.879Z",
+      "createdBy": "Braden Gilbert",
+      "lastModifiedDate": "2026-09-25T21:05:40.879Z",
+      "lastContacted": "2026-09-24",
+      "nextActivityDate": "2026-09-26",
+      "numberOfSalesActivities": 0,
+      "numberOfAssociatedContacts": 1,
+      "stageAgeDays": 0,
+      "competitor": "",
+      "decisionMaker": "",
+      "purchaseProcess": "Individual",
+      "purchaseTimeframe": "Immediate",
+      "quoteId": "",
+      "estimateId": "",
+      "priceList": "",
+      "recordSource": "Local CRM",
+      "description": "oijsbg",
+      "createdAt": "2026-09-25T21:05:41.226Z",
+      "version": 6,
+      "facilityId": "",
+      "contaminationNotes": "diesel",
+      "decisionMakerFound": "Complete",
+      "captureSummary": ""
     }
   ],
   "opportunityAssignments": [
@@ -56422,6 +56954,18 @@
       "createdAt": "2026-09-05T15:30:00.000Z",
       "updatedAt": "2026-09-25T15:00:00.000Z",
       "version": 1
+    },
+    {
+      "id": "loc-muhgcjtx-9g5wy6",
+      "accountId": "acct-city-georgetown",
+      "name": "Spill site — 205 golden oaks dr",
+      "street1": "205 golden oaks dr",
+      "city": "",
+      "category": "Job Site / Field Location",
+      "badge": "Emergency",
+      "createdAt": "2026-09-25T21:07:44.712Z",
+      "updatedAt": "2026-09-25T21:07:44.712Z",
+      "version": 1
     }
   ],
   "salesTasks": [
@@ -57667,12 +58211,866 @@
   ],
   "jobSafetyBriefings": [],
   "jobEquipmentUsage": [],
-  "formTemplates": [],
-  "siteWalkReports": [],
-  "siteWalkObservations": [],
+  "formTemplates": [
+    {
+      "id": "form-daily-safety-checklist",
+      "key": "daily-safety-checklist",
+      "name": "Daily Safety Checklist",
+      "category": "Safety",
+      "requiresJob": true,
+      "isActive": true,
+      "fields": [
+        {
+          "key": "ppe",
+          "label": "PPE inspected and worn",
+          "type": "yesno",
+          "required": true
+        },
+        {
+          "key": "vehicle",
+          "label": "Vehicle pre-trip inspection complete",
+          "type": "yesno",
+          "required": true
+        },
+        {
+          "key": "hazards",
+          "label": "Site hazards reviewed with crew",
+          "type": "yesno",
+          "required": true
+        },
+        {
+          "key": "contacts",
+          "label": "Emergency contacts confirmed",
+          "type": "yesno",
+          "required": true
+        }
+      ],
+      "version": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "form-incident-report",
+      "key": "incident-report",
+      "name": "Incident Report",
+      "category": "Safety",
+      "requiresJob": true,
+      "isActive": true,
+      "fields": [
+        {
+          "key": "notes",
+          "label": "What happened",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "version": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "form-vehicle-inspection",
+      "key": "vehicle-inspection",
+      "name": "Vehicle Inspection",
+      "category": "Safety",
+      "requiresJob": false,
+      "isActive": true,
+      "fields": [
+        {
+          "key": "tires",
+          "label": "Tires and brakes checked",
+          "type": "yesno",
+          "required": true
+        },
+        {
+          "key": "fluids",
+          "label": "Fluids checked",
+          "type": "yesno",
+          "required": true
+        },
+        {
+          "key": "lights",
+          "label": "Lights and signals working",
+          "type": "yesno",
+          "required": true
+        },
+        {
+          "key": "damage",
+          "label": "No visible damage",
+          "type": "yesno",
+          "required": true
+        }
+      ],
+      "version": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "form-near-miss-report",
+      "key": "near-miss-report",
+      "name": "Near-Miss Report",
+      "category": "Safety",
+      "requiresJob": true,
+      "isActive": true,
+      "fields": [
+        {
+          "key": "notes",
+          "label": "What almost happened",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "version": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "form-vehicle-pretrip",
+      "key": "vehicle-pretrip",
+      "name": "Vehicle pre-trip inspection",
+      "category": "Safety",
+      "requiresJob": false,
+      "isActive": true,
+      "fields": [
+        {
+          "key": "odometer",
+          "label": "Odometer reading",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "tires",
+          "label": "Tires and brakes",
+          "type": "checklist",
+          "options": [
+            "Tread and pressure OK",
+            "Brakes respond normally"
+          ],
+          "required": true
+        },
+        {
+          "key": "fluids",
+          "label": "Fluids",
+          "type": "checklist",
+          "options": [
+            "Oil level OK",
+            "Coolant level OK",
+            "No visible leaks"
+          ],
+          "required": true
+        },
+        {
+          "key": "lights",
+          "label": "Lights and signals",
+          "type": "checklist",
+          "options": [
+            "Headlights",
+            "Brake lights",
+            "Turn signals",
+            "Hazards"
+          ],
+          "required": true
+        },
+        {
+          "key": "equipment",
+          "label": "Safety equipment on board",
+          "type": "checklist",
+          "options": [
+            "Fire extinguisher",
+            "First aid kit",
+            "Spill kit",
+            "Warning triangles"
+          ],
+          "required": true
+        },
+        {
+          "key": "damage",
+          "label": "Body/glass damage noted",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "photo",
+          "label": "Photo of any damage",
+          "type": "photo",
+          "required": false
+        },
+        {
+          "key": "signature",
+          "label": "Driver signature",
+          "type": "signature",
+          "required": true
+        }
+      ],
+      "version": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "form-spill-incident-report",
+      "key": "spill-incident-report",
+      "name": "Spill / incident report",
+      "category": "Safety",
+      "requiresJob": true,
+      "isActive": true,
+      "fields": [
+        {
+          "key": "timeDiscovered",
+          "label": "Time discovered",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "timeContained",
+          "label": "Time contained",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "material",
+          "label": "Material",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "quantityReleased",
+          "label": "Quantity released",
+          "type": "number",
+          "required": false
+        },
+        {
+          "key": "quantityRecovered",
+          "label": "Quantity recovered",
+          "type": "number",
+          "required": false
+        },
+        {
+          "key": "surface",
+          "label": "Surface",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "drainsWaterways",
+          "label": "Drains or waterways affected",
+          "type": "yesno",
+          "required": true
+        },
+        {
+          "key": "weather",
+          "label": "Weather at the time",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "injuries",
+          "label": "Injuries",
+          "type": "yesno",
+          "required": true
+        },
+        {
+          "key": "agenciesNotified",
+          "label": "Agencies notified",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "containmentEquipment",
+          "label": "Containment equipment used",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "photos",
+          "label": "Photos",
+          "type": "photo",
+          "required": false
+        }
+      ],
+      "version": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    }
+  ],
+  "siteWalkReports": [
+    {
+      "id": "walk-report-muhf0tm4-dwt1a2",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "status": "In progress",
+      "checkIn": null,
+      "sections": {
+        "access": {
+          "done": true,
+          "fields": {
+            "accessNotes": "no access code needed",
+            "stagingNotes": "park in parking lot",
+            "truckAccess": "Yes"
+          },
+          "photoDocumentIds": [],
+          "shots": {}
+        }
+      },
+      "needs": {
+        "samplingNeeded": false
+      },
+      "contactsMet": [],
+      "measurements": [],
+      "backgrounds": [],
+      "referenceSnapshot": null,
+      "shares": [],
+      "summary": "",
+      "completedAt": "",
+      "completedBy": "",
+      "startedAt": "2026-09-25T20:30:37.804Z",
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T20:30:37.804Z",
+      "updatedAt": "2026-09-25T20:30:47.636Z",
+      "version": 4
+    }
+  ],
+  "siteWalkObservations": [
+    {
+      "id": "obs-muhf01mu-a6htgy",
+      "seq": 1,
+      "kind": "custom",
+      "label": "test area ",
+      "note": "moooo",
+      "backgroundId": "aerial",
+      "lat": null,
+      "lng": null,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.6535305,
+              30.6207852
+            ],
+            [
+              -97.6533696,
+              30.6203835
+            ],
+            [
+              -97.6527473,
+              30.6205636
+            ],
+            [
+              -97.6529244,
+              30.620956
+            ],
+            [
+              -97.6535305,
+              30.6207852
+            ]
+          ]
+        ]
+      },
+      "shapeKind": "area",
+      "areaSqFt": 31394,
+      "lengthFt": null,
+      "color": "red",
+      "photoDocumentIds": [],
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T20:30:01.542Z",
+      "updatedAt": "2026-09-25T20:30:09.566Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "",
+      "version": 3
+    },
+    {
+      "id": "obs-muhf0cp4-kpd0zq",
+      "seq": 2,
+      "kind": "custom",
+      "label": "big daddy line",
+      "note": "no click",
+      "backgroundId": "aerial",
+      "lat": null,
+      "lng": null,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -97.653611,
+            30.6206836
+          ],
+          [
+            -97.653906,
+            30.6200835
+          ]
+        ]
+      },
+      "shapeKind": "line",
+      "areaSqFt": null,
+      "lengthFt": 238,
+      "color": "yellow",
+      "photoDocumentIds": [],
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T20:30:15.880Z",
+      "updatedAt": "2026-09-25T20:30:23.805Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "",
+      "version": 3
+    },
+    {
+      "id": "obs-muhfhsve-f4khi7",
+      "seq": 3,
+      "kind": "hazard",
+      "label": "your mom",
+      "note": "ttest",
+      "backgroundId": "aerial",
+      "lat": 30.6201035,
+      "lng": -97.6526005,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": null,
+      "shapeKind": "",
+      "areaSqFt": null,
+      "lengthFt": null,
+      "color": "",
+      "photoDocumentIds": [],
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T20:43:49.994Z",
+      "updatedAt": "2026-09-25T20:43:57.218Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "",
+      "version": 6
+    },
+    {
+      "id": "obs-muhfi7np-2nxdum",
+      "seq": 4,
+      "kind": "custom",
+      "label": "that big mud wrestling pit",
+      "note": "oof",
+      "backgroundId": "aerial",
+      "lat": null,
+      "lng": null,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.654081,
+              30.6190535
+            ],
+            [
+              -97.6535826,
+              30.6190166
+            ],
+            [
+              -97.6536362,
+              30.618795
+            ],
+            [
+              -97.6541239,
+              30.6188504
+            ],
+            [
+              -97.654081,
+              30.6190535
+            ]
+          ]
+        ]
+      },
+      "shapeKind": "area",
+      "areaSqFt": 12274,
+      "lengthFt": null,
+      "color": "blue",
+      "photoDocumentIds": [],
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T20:44:09.157Z",
+      "updatedAt": "2026-09-25T20:44:20.304Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "",
+      "version": 6
+    },
+    {
+      "id": "obs-muhfu5a0-8x7lhb",
+      "seq": 5,
+      "kind": "sample",
+      "label": "logan is gay",
+      "note": "yo mama",
+      "backgroundId": "aerial",
+      "lat": 30.6199442,
+      "lng": -97.6527872,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": null,
+      "shapeKind": "",
+      "areaSqFt": null,
+      "lengthFt": null,
+      "color": "",
+      "photoDocumentIds": [],
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T20:53:25.944Z",
+      "updatedAt": "2026-09-25T20:53:32.656Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "",
+      "version": 3
+    },
+    {
+      "id": "obs-muhfux8o-imdynq",
+      "seq": 6,
+      "kind": "staging",
+      "label": "moo moo",
+      "note": "test",
+      "backgroundId": "aerial",
+      "lat": 30.6194041,
+      "lng": -97.6532274,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": null,
+      "shapeKind": "",
+      "areaSqFt": null,
+      "lengthFt": null,
+      "color": "",
+      "photoDocumentIds": [],
+      "createdBy": "Logan Gallman",
+      "createdAt": "2026-09-25T20:54:02.184Z",
+      "updatedAt": "2026-09-25T20:54:07.246Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "",
+      "version": 3
+    },
+    {
+      "id": "obs-muhg2pmi-g9epno",
+      "seq": 7,
+      "kind": "sample",
+      "label": "Logan is still gay",
+      "note": "gocha bish",
+      "backgroundId": "aerial",
+      "lat": 30.620422,
+      "lng": -97.6520556,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": null,
+      "shapeKind": "",
+      "areaSqFt": null,
+      "lengthFt": null,
+      "color": "",
+      "photoDocumentIds": [],
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T21:00:05.562Z",
+      "updatedAt": "2026-09-25T21:00:16.854Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "",
+      "version": 5
+    },
+    {
+      "id": "obs-muhg4c89-zci9z3",
+      "seq": 8,
+      "kind": "sample",
+      "label": "no im not daddy",
+      "note": "big daddy said we can go dancing",
+      "backgroundId": "aerial",
+      "lat": 30.6217562,
+      "lng": -97.6522726,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": null,
+      "shapeKind": "",
+      "areaSqFt": null,
+      "lengthFt": null,
+      "color": "",
+      "photoDocumentIds": [],
+      "createdBy": "Logan Gallman",
+      "createdAt": "2026-09-25T21:01:21.513Z",
+      "updatedAt": "2026-09-25T21:01:38.022Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "",
+      "version": 6
+    },
+    {
+      "id": "obs-muhg6n97-6i6xqp",
+      "seq": 9,
+      "kind": "custom",
+      "label": "",
+      "note": "",
+      "backgroundId": "aerial",
+      "lat": null,
+      "lng": null,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -97.6757102,
+            30.6352698
+          ],
+          [
+            -97.6749599,
+            30.634859
+          ]
+        ]
+      },
+      "shapeKind": "line",
+      "areaSqFt": null,
+      "lengthFt": 279,
+      "color": "blue",
+      "photoDocumentIds": [],
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T21:03:09.114Z",
+      "updatedAt": "2026-09-25T21:04:05.342Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "2026-09-25T21:04:05.341Z",
+      "version": 2,
+      "deletedBy": "Braden Gilbert",
+      "deletedVia": "siteWalkObservations:obs-muhg6n97-6i6xqp"
+    },
+    {
+      "id": "obs-muhg84po-1ics7w",
+      "seq": 9,
+      "kind": "custom",
+      "label": "",
+      "note": "",
+      "backgroundId": "aerial",
+      "lat": null,
+      "lng": null,
+      "accuracyM": null,
+      "x": null,
+      "y": null,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -97.680332,
+              30.6369386
+            ],
+            [
+              -97.6791888,
+              30.6359509
+            ],
+            [
+              -97.6784492,
+              30.6368001
+            ],
+            [
+              -97.6793496,
+              30.6377879
+            ],
+            [
+              -97.680332,
+              30.6369386
+            ]
+          ]
+        ]
+      },
+      "shapeKind": "area",
+      "areaSqFt": 197194,
+      "lengthFt": null,
+      "color": "yellow",
+      "photoDocumentIds": [],
+      "createdBy": "Trey Franklin",
+      "createdAt": "2026-09-25T21:04:18.396Z",
+      "updatedAt": "2026-09-25T21:04:40.518Z",
+      "walkEventId": "site-walk-wilco-fuel-island",
+      "opportunityId": "opp-wilco-fuel-island",
+      "facilityId": "fac-wilco-fuel-island",
+      "deletedAt": "2026-09-25T21:04:40.518Z",
+      "version": 2,
+      "deletedBy": "Braden Gilbert",
+      "deletedVia": "siteWalkObservations:obs-muhg84po-1ics7w"
+    }
+  ],
   "siteReferenceLayers": [],
-  "jurisdictions": [],
-  "libraryItems": [],
+  "jurisdictions": [
+    {
+      "id": "jurisdiction-georgetown-tx",
+      "name": "Georgetown, TX",
+      "kind": "city",
+      "portalUrl": "https://opendata-georgetowntx.opendata.arcgis.com/",
+      "layers": [
+        {
+          "key": "parcels",
+          "label": "Parcels",
+          "kind": "parcel",
+          "serviceUrl": "https://opendata-georgetowntx.opendata.arcgis.com/",
+          "layerId": "",
+          "mode": "snapshot"
+        },
+        {
+          "key": "wastewater-pressurized",
+          "label": "Pressurized mains",
+          "kind": "utility",
+          "serviceUrl": "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer",
+          "layerId": "5",
+          "mode": "live"
+        },
+        {
+          "key": "wastewater-gravity",
+          "label": "Gravity mains",
+          "kind": "utility",
+          "serviceUrl": "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer",
+          "layerId": "6",
+          "mode": "live"
+        },
+        {
+          "key": "manholes",
+          "label": "Manholes",
+          "kind": "utility",
+          "serviceUrl": "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer",
+          "layerId": "4",
+          "mode": "live"
+        },
+        {
+          "key": "water-mains",
+          "label": "Water mains",
+          "kind": "utility",
+          "serviceUrl": "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer",
+          "layerId": "750",
+          "mode": "live"
+        },
+        {
+          "key": "city-parcels",
+          "label": "Parcels (city GIS)",
+          "kind": "parcel",
+          "serviceUrl": "https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer",
+          "layerId": "755",
+          "mode": "live"
+        }
+      ],
+      "lastImportedAt": "",
+      "version": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    }
+  ],
+  "libraryItems": [
+    {
+      "id": "library-manuals-hasp-template",
+      "shelf": "manuals",
+      "title": "HASP template",
+      "category": "Manuals & procedures",
+      "audienceRoles": [
+        "Field Lead",
+        "Crew"
+      ],
+      "requiredForRoles": [],
+      "renewalMonths": 0,
+      "pinnedOffline": true,
+      "documentId": "",
+      "url": "",
+      "version": 2,
+      "sortOrder": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "library-safety-erg",
+      "shelf": "safety",
+      "title": "Emergency Response Guidebook (ERG 2024)",
+      "category": "Safety references",
+      "audienceRoles": [
+        "Field Lead",
+        "Crew"
+      ],
+      "requiredForRoles": [],
+      "renewalMonths": 0,
+      "pinnedOffline": true,
+      "documentId": "",
+      "url": "https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg",
+      "version": 2,
+      "sortOrder": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "library-sds-index",
+      "shelf": "sds",
+      "title": "Safety Data Sheet index",
+      "category": "SDS",
+      "audienceRoles": [
+        "Field Lead",
+        "Crew"
+      ],
+      "requiredForRoles": [],
+      "renewalMonths": 0,
+      "pinnedOffline": false,
+      "documentId": "",
+      "url": "",
+      "version": 2,
+      "sortOrder": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "library-tutorials-app-basics",
+      "shelf": "tutorials",
+      "title": "How to run a job in Front Line",
+      "category": "Tutorials & training",
+      "audienceRoles": [
+        "Field Lead",
+        "Crew"
+      ],
+      "requiredForRoles": [
+        "Crew",
+        "Field Lead"
+      ],
+      "renewalMonths": 0,
+      "pinnedOffline": true,
+      "documentId": "",
+      "url": "",
+      "version": 2,
+      "sortOrder": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    },
+    {
+      "id": "library-resources-disposal-hours",
+      "shelf": "resources",
+      "title": "Disposal facility hours",
+      "category": "Helpful resources",
+      "audienceRoles": [
+        "Field Lead",
+        "Crew"
+      ],
+      "requiredForRoles": [],
+      "renewalMonths": 0,
+      "pinnedOffline": false,
+      "documentId": "",
+      "url": "",
+      "version": 2,
+      "sortOrder": 1,
+      "updatedAt": "2026-09-25T20:40:09.330Z",
+      "createdAt": "2026-09-25T20:40:09.330Z"
+    }
+  ],
   "libraryAcknowledgements": [],
   "ergMaterials": [],
   "ergGuides": [],
