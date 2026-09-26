@@ -182,6 +182,8 @@ This is really a Contact-page item (Phase 05 owns the Contact detail page) but i
 
 ### 16. Site walk — sales-side field capture app (new capability)
 
+**✅ Closed 2026-09-25 — delivered by Phase 21 (Front Line 2).** The guided site-walk page (`field-walk`: Brief / Walk / Map / Finish), required-shot photo trays, needs written straight onto the opportunity, the annotated site map and Complete → `siteWalkStatus: Complete` are all in `phase-21-frontline-2.md` and `phase-21-site-walk-mapping.md`. Nothing remains here.
+
 > *"If a site walk is needed and scheduled, we may want to have a field app for sales persons as well... If they click the site walk is complete, and no timeline activity for a site walk exists it could ask if the user would like to upload photos, videos, notes, lidar scans, pdfs, drawings, to a retroactively created site walk..."*
 
 This is a genuinely new capability, distinct from Front Line (which is for field *operations* crews, not sales reps). Scope it explicitly as **sales-side site-walk capture**, separate from the Front Line simulator (Phase 10):

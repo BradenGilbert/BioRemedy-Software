@@ -39,6 +39,8 @@ Five overlapping concepts are currently doing the job of three:
 - Exists for a **reason** (its type). Billing, shipping, and tax *require* this structure.
 
 ### LOCATION — a GPS point
+
+> **Changed 2026-09-25 (owner, built the same day):** a location is *an identified spot: a GPS point, an address, or both* — a spill call often arrives as a mile marker with no coordinates. It may sit inside a facility (`facilityId`, optional) and belongs to an account; it is promoted to a facility only by hand ("Promote to facility" on the location card and on a location-only project's Intake tab), never automatically; and a location counts as the *site* that qualifies an opportunity or lets a project leave Intake. The emergency intake no longer creates a facility per call. `GLOSSARY.md` is the current definition; the text below is the 2026-09-16 model.
 > *"Locations can be GPS coordinates, they are not tied to postal boxes. They are given to crews to identify the exact location a sample was taken, a spill is located, waste was picked up or left, a truck is parked, a destination, etc."*
 
 - Target table: **`job_sites`** (`crm-schema/005`) — already has `latitude`/`longitude`, `linear_reference` (highway mile markers), and `is_temporary`
