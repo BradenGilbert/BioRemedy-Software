@@ -9,6 +9,13 @@
     <link rel="stylesheet" href="/public/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/field/styles.css" />
     <style>
+      .share-gallery { padding: 8px 16px 0; }
+      .share-gallery h2 { margin: 12px 0 4px; font-size: 1rem; }
+      .share-gallery h3 { margin: 12px 0 4px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #5b6b62; }
+      .share-gallery-grid.sitemap-popup-photos { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .share-gallery .share-photo { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; background: none; text-align: left; font: inherit; }
+      .share-gallery .share-photo img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+      .share-gallery .share-photo small { font-size: 0.75rem; color: #5b6b62; }
       /* The recipient page has no app shell: it is the map, a header and the numbered list. */
       :root {
         --surface: #ffffff;

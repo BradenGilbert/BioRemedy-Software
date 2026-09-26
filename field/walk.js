@@ -1297,8 +1297,9 @@ function extensionFor(document) {
 // Office bridge (app.js reaches these without importing the module)
 // ---------------------------------------------------------------------------------------------
 
-export async function mintShareLink(reportId, { expiresInDays = 14 } = {}) {
-  return fieldRequest(`/api/field/walks/${encodeURIComponent(reportId)}/share`, { body: { expiresInDays }, kind: "walk-share" });
+// audience: "staff" (every photo and plan on the walk) or "customer" (customer-visible photos only).
+export async function mintShareLink(reportId, { expiresInDays = 14, audience = "staff" } = {}) {
+  return fieldRequest(`/api/field/walks/${encodeURIComponent(reportId)}/share`, { body: { expiresInDays, audience }, kind: "walk-share" });
 }
 
 export async function revokeShareLink(reportId, shareId) {

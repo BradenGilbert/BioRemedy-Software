@@ -6079,13 +6079,19 @@ async function fieldCreateWalkShare(request, reportId) {
   }
   const token = newToken();
   const days = Number(body.expiresInDays) > 0 ? Number(body.expiresInDays) : 14;
-  const share = { id: makeId("walk-share"), tokenHash: hashToken(token), createdBy: attribution(request), createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + days * 86400000).toISOString(), revokedAt: "", opens: 0 };
+  // Audience (2026-09-25, owner report "the images don't load"): every walk photo is uploaded as
+  // visibility "internal" (the only other value, "customer", means the client portal), so a link that
+  // hid internal photos showed none. A "staff" link -- the default, and what links minted before this
+  // field existed count as -- shows every photo on the walk; a "customer" link shows only photos the
+  // office has marked customer-visible.
+  const audience = body.audience === "customer" ? "customer" : "staff";
+  const share = { id: makeId("walk-share"), tokenHash: hashToken(token), audience, createdBy: attribution(request), createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + days * 86400000).toISOString(), revokedAt: "", opens: 0 };
   const record = { ...report, shares: [...(report.shares || []), share] };
   touchRecord(record, report);
   data.siteWalkReports[data.siteWalkReports.findIndex((item) => item.id === report.id)] = record;
   await saveBackend(data);
   await audit(request, { action: "walk-share-created", collection: "siteWalkReports", recordId: report.id, summary: share.id, expiresAt: share.expiresAt });
-  return { status: 201, body: { id: share.id, url: `${requestOrigin(request)}/walk/${token}`, expiresAt: share.expiresAt } };
+  return { status: 201, body: { id: share.id, url: `${requestOrigin(request)}/walk/${token}`, expiresAt: share.expiresAt, audience } };
 }
 
 async function fieldRevokeWalkShare(request, reportId, shareId) {
@@ -6147,9 +6153,30 @@ async function handleWalkShare(request, response, token) {
   response.end(body);
 }
 
-// GET /api/walk/<token>/data: no session. `visibility:"internal"` photos are excluded; everything
-// else on the walk (observations, sections, needs, measurements) is meant to be shown to the customer
-// who was handed the link.
+// Which documents a share link may show: every photo and plan the walk references for a staff link,
+// only customer-visible ones for a customer link. Links minted before `audience` existed are staff.
+function walkShareDocumentIds(data, report) {
+  const ids = new Set();
+  const observations = (data.siteWalkObservations || []).filter((item) => item.walkEventId === report.walkEventId && !item.deletedAt);
+  for (const observation of observations) for (const documentId of observation.photoDocumentIds || []) ids.add(documentId);
+  for (const background of report.backgrounds || []) if (background.documentId) ids.add(background.documentId);
+  // The Walk tab's section photo trays and required shots (2026-09-25: these were never shared).
+  for (const section of Object.values(report.sections || {})) {
+    for (const documentId of section?.photoDocumentIds || []) ids.add(documentId);
+    for (const shot of Object.values(section?.shots || {})) {
+      const documentId = typeof shot === "string" ? shot : shot?.documentId;
+      if (documentId) ids.add(documentId);
+    }
+  }
+  return { ids, observations };
+}
+function walkShareAllows(share, document) {
+  if (!document || document.deletedAt) return false;
+  return share.audience === "customer" ? document.visibility === "customer" : true;
+}
+
+// GET /api/walk/<token>/data: no session. Photos follow the share's audience (see walkShareAllows);
+// everything else on the walk (observations, sections, needs, measurements) is shown as-is.
 async function handleWalkShareData(request, response, token) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   const data = await loadBackend();
@@ -6160,15 +6187,13 @@ async function handleWalkShareData(request, response, token) {
   if (new Date(share.expiresAt).getTime() < Date.now()) return json(response, 410, { error: "Link expired." });
   const opportunity = (data.opportunities || []).find((item) => item.id === report.opportunityId);
   const facility = (data.facilities || []).find((item) => item.id === report.facilityId);
-  const observations = (data.siteWalkObservations || []).filter((item) => item.walkEventId === report.walkEventId && !item.deletedAt);
-  const photoIds = new Set();
-  for (const observation of observations) for (const documentId of observation.photoDocumentIds || []) photoIds.add(documentId);
-  const documents = (data.documents || []).filter((item) => photoIds.has(item.id) && !item.deletedAt && item.visibility !== "internal").map(documentSummary);
-  return json(response, 200, { report, observations, documents, opportunityName: opportunity?.name || "", facilityName: facility?.name || "", updatedAt: report.updatedAt });
+  const { ids: photoIds, observations } = walkShareDocumentIds(data, report);
+  const documents = (data.documents || []).filter((item) => photoIds.has(item.id) && walkShareAllows(share, item)).map(documentSummary);
+  return json(response, 200, { report, observations, documents, audience: share.audience || "staff", opportunityName: opportunity?.name || "", facilityName: facility?.name || "", updatedAt: report.updatedAt });
 }
 
-// GET /api/walk/<token>/documents/:id/view: no session; only serves a photo this walk's own
-// observations reference, and never one flagged visibility:"internal".
+// GET /api/walk/<token>/documents/:id/view: no session; only serves a photo or plan this walk's own
+// observations and backgrounds reference, within the share's audience.
 async function handleWalkShareDocument(request, response, token, documentId) {
   if (request.method !== "GET") return json(response, 405, { error: "Method not allowed." });
   const data = await loadBackend();
@@ -6176,11 +6201,9 @@ async function handleWalkShareDocument(request, response, token, documentId) {
   if (!found) return json(response, 404, { error: "Link not found." });
   const { report, share } = found;
   if (share.revokedAt || new Date(share.expiresAt).getTime() < Date.now()) return json(response, 410, { error: "Link expired." });
-  const observations = (data.siteWalkObservations || []).filter((item) => item.walkEventId === report.walkEventId);
-  const belongs = observations.some((item) => (item.photoDocumentIds || []).includes(documentId));
-  if (!belongs) return json(response, 403, { error: "That photo is not part of this walk." });
+  if (!walkShareDocumentIds(data, report).ids.has(documentId)) return json(response, 403, { error: "That photo is not part of this walk." });
   const document = (data.documents || []).find((item) => item.id === documentId && !item.deletedAt);
-  if (!document || document.visibility === "internal") return json(response, 404, { error: "Not found." });
+  if (!walkShareAllows(share, document)) return json(response, 404, { error: "Not found." });
   const filePath = path.resolve(uploadsDir, document.storageName);
   if (path.dirname(filePath) !== path.resolve(uploadsDir) || !existsSync(filePath)) return json(response, 404, { error: "Stored file unavailable." });
   return sendFileWithRange(request, response, filePath, { mimeType: document.mimeType || "application/octet-stream", fileName: document.fileName, inline: true, cacheControl: "private, max-age=300" });

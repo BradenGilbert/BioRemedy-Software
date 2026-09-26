@@ -1838,7 +1838,7 @@ async function dispatchClick(event) {
   if (action === "quick-schedule-site-walk") openSiteWalkDialog(actionButton.dataset.opportunityId);
   // Phase 21 W3 — site walk report panel, share links, exports, facility reference layers.
   if (action === "walk-open-share") openWalkShareDialog(actionButton.dataset.reportId);
-  if (action === "walk-share-mint") await mintWalkShare(actionButton.dataset.reportId);
+  if (action === "walk-share-mint") await mintWalkShare(actionButton.dataset.reportId, actionButton.dataset.audience || "staff");
   if (action === "walk-share-revoke") await revokeWalkShare(actionButton.dataset.reportId, actionButton.dataset.shareId);
   if (action === "walk-export-pdf") window.fieldWalk?.exportWalkPdf(actionButton.dataset.walkEventId);
   if (action === "walk-export-zip") await window.fieldWalk?.exportWalkZip(actionButton.dataset.walkEventId);
@@ -34058,21 +34058,21 @@ function openWalkShareDialog(reportId) {
         (share) => `
         <article class="detail-card">
           <div class="row-meta">
-            <div><strong>${share.revokedAt ? "Revoked" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`}</strong><span>Created ${escapeHtml(formatDateTime(share.createdAt))}${share.createdBy ? ` by ${escapeHtml(share.createdBy)}` : ""} · ${Number(share.opens || 0)} open${Number(share.opens || 0) === 1 ? "" : "s"}</span></div>
+            <div><strong>${share.audience === "customer" ? "Customer link" : "Staff link"} · ${share.revokedAt ? "Revoked" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`}</strong><span>Created ${escapeHtml(formatDateTime(share.createdAt))}${share.createdBy ? ` by ${escapeHtml(share.createdBy)}` : ""} · ${Number(share.opens || 0)} open${Number(share.opens || 0) === 1 ? "" : "s"}</span></div>
             ${share.revokedAt ? "" : `<button class="mini-button" type="button" data-action="walk-share-revoke" data-report-id="${escapeAttribute(report.id)}" data-share-id="${escapeAttribute(share.id)}">Revoke</button>`}
           </div>
           ${share.url ? `<code class="file-ref">${escapeHtml(share.url)}</code>` : `<p class="help-text">The link itself is only shown once, when it is created.</p>`}
         </article>`,
       )
       .join("") || `<div class="empty-state compact">No share links yet.</div>`;
-  dialog.querySelector('[data-action="walk-share-mint"]').dataset.reportId = report.id;
+  dialog.querySelectorAll('[data-action="walk-share-mint"]').forEach((button) => (button.dataset.reportId = report.id));
   dialog.showModal();
 }
 
-async function mintWalkShare(reportId) {
+async function mintWalkShare(reportId, audience = "staff") {
   if (!reportId || !window.fieldWalk?.mintShareLink) return;
   try {
-    const result = await window.fieldWalk.mintShareLink(reportId, { expiresInDays: 14 });
+    const result = await window.fieldWalk.mintShareLink(reportId, { expiresInDays: 14, audience });
     const url = result?.url?.startsWith("http") ? result.url : `${location.origin}${result?.url || ""}`;
     try {
       await navigator.clipboard?.writeText(url);

@@ -61,6 +61,40 @@ function centerFrom(payload) {
   return pin ? { lat: Number(pin.lat), lng: Number(pin.lng) } : null;
 }
 
+
+// The Walk tab's photo trays and required shots, grouped by section (2026-09-25: the share page only
+// showed pin photos before, and a walk's photos mostly live here).
+const WALK_SECTION_TITLES = { access: "Access & staging", hazards: "Hazards & PPE", area: "Area of concern", waste: "Waste streams expected", needs: "Needs", contacts: "Contacts met", notes: "Notes", measurements: "Measurements" };
+
+function renderWalkPhotos(payload, documents) {
+  const sections = payload.report?.sections || {};
+  const groups = [];
+  for (const [key, section] of Object.entries(sections)) {
+    const shotByDocument = new Map();
+    for (const [label, shot] of Object.entries(section?.shots || {})) {
+      const id = typeof shot === "string" ? shot : shot?.documentId;
+      if (id) shotByDocument.set(id, label);
+    }
+    const ids = [...new Set([...(section?.photoDocumentIds || []), ...shotByDocument.keys()])];
+    const photos = ids
+      .map((id) => ({ id, url: viewUrlFor(documents, id), caption: shotByDocument.get(id) || documents.find((item) => item.id === id)?.caption || "" }))
+      .filter((photo) => photo.url && documents.some((item) => item.id === photo.id));
+    if (photos.length) groups.push({ title: WALK_SECTION_TITLES[key] || key, photos });
+  }
+  if (!groups.length) return "";
+  return `<section class="share-gallery">
+    <h2>Walk photos</h2>
+    ${groups
+      .map(
+        (group) => `<h3>${esc(group.title)}</h3>
+      <div class="sitemap-popup-photos share-gallery-grid">${group.photos
+        .map((photo) => `<button type="button" class="share-photo" data-photo="${esc(photo.url)}" data-caption="${esc(photo.caption)}"><img src="${esc(photo.url)}" alt="${esc(photo.caption)}" loading="lazy" />${photo.caption ? `<small>${esc(photo.caption)}</small>` : ""}</button>`)
+        .join("")}</div>`,
+      )
+      .join("")}
+  </section>`;
+}
+
 function render(payload) {
   const report = payload.report || {};
   const observations = [...(payload.observations || [])].sort((a, b) => Number(a.seq) - Number(b.seq));
@@ -107,6 +141,7 @@ function render(payload) {
             .join("")}</ol>`
         : `<div class="share-empty">No pins yet. ${completed ? "" : "This page updates as the walk goes on."}</div>`
     }
+    ${renderWalkPhotos(payload, documents)}
     <p class="share-fineprint">Imagery may be months to years old. GPS is ±3–10 m outdoors and none indoors; pins without a GPS reading were placed by hand. Reference layers (dashed grey) show their source and date; parcel lines are tax-map accuracy, not a survey. ${completed ? "" : "This link shows the walk as it is being recorded and stops working when it expires or is revoked."}</p>`;
   elements.body.querySelectorAll("[data-focus]").forEach((item) => {
     item.addEventListener("click", (event) => {

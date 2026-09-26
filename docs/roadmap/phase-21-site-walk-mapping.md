@@ -187,6 +187,9 @@ Be plain about this in the UI:
 
 ## Corrections found during implementation
 
+**Found live, 2026-09-25 evening (owner: "when I share the site walk map link the images don't load"):** two causes. (1) Every walk photo is uploaded as `visibility: "internal"` (the only other value, `customer`, means the client portal), and the share routes excluded internal photos, so a shared walk never had any. Share links now carry an **audience**: a *staff* link (the default, and what links minted before the field existed count as) shows every photo and plan on the walk; a *customer* link shows only photos marked "Shared with customer". The office Share links dialog offers both; the phone's Share button mints a staff link. (2) The share page only ever listed **pin** photos; the Walk tab's section trays and required shots, where most walk photos live, were not shared at all. The share routes now include them and the page has a "Walk photos" gallery grouped by section with the shot name as the caption. Uploaded floor plans were also refused by the photo route; they are allowed now. `scripts/field-api-check.mjs` check 7 asserts a staff link serves every referenced photo and a customer link only customer-visible ones.
+
+
 **W3 build, 2026-09-25 (field/walk.js, map.js, map-core.js, layers.js, walk-share.*).**
 
 1. **Observations are their own collection.** §4.3 folds `observations[]` into `siteWalkReports`; the

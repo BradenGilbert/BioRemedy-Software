@@ -6416,11 +6416,12 @@
           </div>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
-        <p class="help-text">A read-only link to this walk's map, pins and photos. Anyone with the link can view it until it expires or is revoked; every open is audited.</p>
+        <p class="help-text">A read-only link to this walk's map, pins and photos. A <strong>staff link</strong> shows every photo and plan on the walk; a <strong>customer link</strong> shows only photos marked "Shared with customer" on the opportunity's Files tab. Anyone with the link can view it until it expires or is revoked; every open is audited.</p>
         <div class="record-list" data-walk-share-list></div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Close</button>
-          <button class="primary-button" type="button" data-action="walk-share-mint" data-report-id="">New link (14 days)</button>
+          <button class="secondary-button" type="button" data-action="walk-share-mint" data-audience="customer" data-report-id="">New customer link (14 days)</button>
+          <button class="primary-button" type="button" data-action="walk-share-mint" data-audience="staff" data-report-id="">New staff link (14 days)</button>
         </menu>
       </div>
     </dialog>

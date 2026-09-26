@@ -219,6 +219,22 @@ await step("walk share link: works with no session, 410s after revoke", async ()
   const token = shareBody.url.split("/walk/")[1];
   const dataResponse = await fetch(`${baseUrl}/api/walk/${token}/data`);
   assert(dataResponse.ok, `GET /api/walk/<token>/data with no session -> ${dataResponse.status}`);
+  // 2026-09-25 (owner: "the images don't load"): a staff link must carry every photo the walk's
+  // observations reference, internal ones included; a customer link only customer-visible ones.
+  const dataBody = await j(dataResponse);
+  assert(dataBody.audience === "staff", `default share audience -> ${dataBody.audience} (want staff)`);
+  const referenced = new Set((dataBody.observations || []).flatMap((row) => row.photoDocumentIds || []));
+  const allDocuments = await adminGet("documents");
+  const expected = allDocuments.filter((doc) => referenced.has(doc.id) && !doc.deletedAt).map((doc) => doc.id);
+  const served = new Set((dataBody.documents || []).map((doc) => doc.id));
+  assert(expected.every((id) => served.has(id)), `staff link serves all ${expected.length} referenced photos (got ${served.size})`);
+  if (expected.length) {
+    const photoResponse = await fetch(`${baseUrl}/api/walk/${token}/documents/${expected[0]}/view`);
+    assert(photoResponse.ok, `photo view through the staff link -> ${photoResponse.status}`);
+  }
+  const customerShare = await j(await fetch(`${baseUrl}/api/field/walks/${completeBody.id}/share`, { method: "POST", headers: { ...adminHeaders, "X-Client-Command-Id": `share-cust-${Date.now()}` }, body: JSON.stringify({ audience: "customer" }) }));
+  const customerData = await j(await fetch(`${baseUrl}/api/walk/${customerShare.url.split("/walk/")[1]}/data`));
+  assert((customerData.documents || []).every((doc) => allDocuments.find((item) => item.id === doc.id)?.visibility === "customer"), "customer link serves only customer-visible photos");
   const revokeResponse = await fetch(`${baseUrl}/api/field/walks/${completeBody.id}/share/${shareBody.id}`, { method: "DELETE", headers: adminHeaders });
   assert(revokeResponse.ok, `revoke -> ${revokeResponse.status}`);
   const afterRevoke = await fetch(`${baseUrl}/api/walk/${token}/data`);
