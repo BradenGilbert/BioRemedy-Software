@@ -15245,33 +15245,31 @@ function renderTimelineItem(activity, contextKey) {
   `;
 }
 
-function renderSync() {
-  ensureIdentityAdminData();
-  const canSignIn = Boolean(state.identityConfig.tenantId && state.identityConfig.clientId);
-  const redirectUri = getRedirectUri();
 
-  app.innerHTML = `
-    <section class="view">
-      <div class="view-header">
-        <div>
-          <p class="eyebrow">Identity and offline sync</p>
-          <h2>Microsoft users, local work, and server handoff</h2>
-          <p>This foundation lets the team work when connectivity is poor, then queues changes for the future CRM API.</p>
-        </div>
-        <div class="toolbar">
-          <button class="secondary-button" type="button" data-action="sync-now">Simulate sync</button>
-        </div>
-      </div>
-      <section class="split-grid">
-        <div class="identity-stack">
-          ${renderCurrentUser()}
+// Microsoft Entra configuration on Identity & Sync. Owner, 2026-09-25: only an Admin may change it.
+// The real configuration is the server's .env (CRM_ENTRA_TENANT_ID / CRM_ENTRA_CLIENT_ID); the fields
+// are a browser-only override for testing another registration, and they are Admin-only too.
+function renderEntraConfigPanel(canSignIn, redirectUri) {
+  const isAdmin = userHasRole("Admin");
+  const serverConfigured = Boolean(state.authProviders?.entra);
+  const summary = serverConfigured
+    ? `<p class="help-text">Configured on the server (<code>.env</code>): tenant <code>${escapeHtml(state.authProviders.entra.tenantId)}</code>, client <code>${escapeHtml(state.authProviders.entra.clientId)}</code>. Everyone gets "Sign in with Microsoft" on the sign-in screen.${isAdmin ? " The fields below are a browser-only override for testing another registration." : ""}</p>`
+    : `<p class="help-text">Not configured on the server yet.${isAdmin ? ` Put <code>CRM_ENTRA_TENANT_ID</code> and <code>CRM_ENTRA_CLIENT_ID</code> in <code>.env</code> and restart, or enter them here for this browser only.` : " Ask an administrator."}</p>`;
+  if (!isAdmin) {
+    return `
+          <section class="identity-panel">
+            <h3>Microsoft Entra ID configuration</h3>
+            ${summary}
+            <p class="help-text">Only an administrator can change the Microsoft sign-in configuration.</p>
+            <div class="inline-actions">
+              <button class="secondary-button" type="button" data-action="start-microsoft-signin" ${canSignIn ? "" : "disabled"}>Sign in with Microsoft</button>
+            </div>
+          </section>`;
+  }
+  return `
           <form class="identity-panel" data-form="identity">
             <h3>Microsoft Entra ID configuration</h3>
-            ${
-              state.authProviders?.entra
-                ? `<p class="help-text">Configured on the server (<code>.env</code>): tenant <code>${escapeHtml(state.authProviders.entra.tenantId)}</code>, client <code>${escapeHtml(state.authProviders.entra.clientId)}</code>. Everyone gets "Sign in with Microsoft" on the sign-in screen. The fields below are a browser-only override for testing another registration.</p>`
-                : `<p class="help-text">Not configured on the server yet. Put <code>CRM_ENTRA_TENANT_ID</code> and <code>CRM_ENTRA_CLIENT_ID</code> in <code>.env</code> and restart, or enter them here for this browser only.</p>`
-            }
+            ${summary}
             <div class="identity-grid">
               <label>
                 Tenant ID
@@ -15295,7 +15293,30 @@ function renderSync() {
               <button class="primary-button" type="submit">Save identity config</button>
               <button class="secondary-button" type="button" data-action="start-microsoft-signin" ${canSignIn ? "" : "disabled"}>Sign in with Microsoft</button>
             </div>
-          </form>
+          </form>`;
+}
+
+function renderSync() {
+  ensureIdentityAdminData();
+  const canSignIn = Boolean(state.identityConfig.tenantId && state.identityConfig.clientId);
+  const redirectUri = getRedirectUri();
+
+  app.innerHTML = `
+    <section class="view">
+      <div class="view-header">
+        <div>
+          <p class="eyebrow">Identity and offline sync</p>
+          <h2>Microsoft users, local work, and server handoff</h2>
+          <p>This foundation lets the team work when connectivity is poor, then queues changes for the future CRM API.</p>
+        </div>
+        <div class="toolbar">
+          <button class="secondary-button" type="button" data-action="sync-now">Simulate sync</button>
+        </div>
+      </div>
+      <section class="split-grid">
+        <div class="identity-stack">
+          ${renderCurrentUser()}
+          ${renderEntraConfigPanel(canSignIn, redirectUri)}
         </div>
         <article class="panel">
           <div class="panel-header">
@@ -23120,6 +23141,10 @@ async function linkContactToOpportunity(contactId, opportunityId) {
 }
 
 async function saveIdentityConfig(form) {
+  if (!userHasRole("Admin")) {
+    showToast("Only an administrator can change the Microsoft sign-in configuration.");
+    return;
+  }
   const data = new FormData(form);
   const config = {
     tenantId: data.get("tenantId").toString().trim(),
