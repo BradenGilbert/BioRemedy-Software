@@ -752,8 +752,11 @@ registerFieldAction("walk-scan", async () => {
 registerFieldAction("walk-sketch", async () => {
   const walk = currentWalk();
   if (!walk) return;
-  if (window.fieldMedia?.openImageMarkup) {
-    return window.fieldMedia.openImageMarkup({ entityType: "opportunity", entityId: walk.opportunityId || "", typeCode: "site-sketch", title: "Site sketch", walkEventId: walk.id });
+  // The markup tool needs an image to draw on; openSiteSketch renders the facility's satellite
+  // snapshot (or a blank grid offline) and opens the tool over it, saving a site-sketch document.
+  // (2026-09-28: this used to call openImageMarkup with no image and toasted "Unrecognized image source".)
+  if (window.fieldMedia?.openSiteSketch) {
+    return window.fieldMedia.openSiteSketch({ opportunityId: walk.opportunityId || "", facilityId: walk.facilityId || "" });
   }
   openSimpleSketch(walk);
 });

@@ -6199,6 +6199,9 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-field-action="markup-cancel">Cancel</button>
           <button class="primary-button" type="button" data-field-action="markup-save">Save</button>
+        </menu>
+      </div>
+    </dialog>
 
     <!-- Phase 21 W3 (2026-09-25): site walk dialogs. The sketch pad is the fallback when the media
          module's openImageMarkup is not loaded; the share dialog lists and revokes a walk's links. -->
@@ -6238,7 +6241,7 @@
           </div>
           <button type="button" class="icon-button" data-field-action="video-cancel" aria-label="Close">x</button>
         </div>
-        <label class="mini-button it-file-button">Choose or record a video<input name="videoFile" type="file" accept="video/*" capture="environment" hidden /></label>
+        <label class="mini-button it-file-button">Choose or record a video<input name="videoFile" type="file" accept="video/*" capture="environment" hidden data-camera-ready="1" /></label>
         <p class="help-text" data-video-status>Choose or record a clip (up to 500 MB).</p>
         <progress data-video-progress max="100" value="0" hidden></progress>
         <menu class="modal-actions">
@@ -6256,7 +6259,7 @@
           </div>
           <button type="button" class="icon-button" data-field-action="scan-cancel" aria-label="Close">x</button>
         </div>
-        <label class="mini-button it-file-button">Choose a scan file<input name="scanFile" type="file" accept=".glb,.usdz,.ply,.obj,.e57,.zip,.pdf,.csv" hidden /></label>
+        <label class="mini-button it-file-button">Choose a scan file<input name="scanFile" type="file" accept=".glb,.usdz,.ply,.obj,.e57,.zip,.pdf,.csv" hidden data-camera-ready="1" /></label>
         <p class="help-text" data-scan-status>Share a .glb, .usdz, .ply, .obj, .e57, .zip, .pdf or .csv from your scanning app.</p>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-field-action="scan-cancel">Close</button>
@@ -6406,6 +6409,7 @@
           <button class="primary-button" type="submit">Save</button>
         </menu>
       </form>
+    </dialog>
 
     <dialog id="walkShareDialog" class="modal">
       <div class="modal-panel">
