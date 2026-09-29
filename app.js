@@ -1383,9 +1383,43 @@ async function refreshBackendState() {
     };
     projectBackendState();
     state.authError = state.authError === "Backend API unavailable." ? "" : state.authError;
+    state.lastBackendRefreshAt = Date.now();
   } catch (error) {
     state.authError = "Backend API unavailable.";
   }
+}
+
+// Item 3 (owner, 2026-09-28): the office app never re-fetched in the background — only at init and
+// after the user's own saves — so a second browser tab could sit stale for hours. Refresh quietly on
+// focus/visibility and on a slow poll, but only while the office app is showing (not a field/frontline
+// view, which has its own outbox/package flow) and only when nobody is mid-edit (no open dialog, no
+// focused input/textarea inside #app) so a refresh never yanks the field out from under someone typing.
+const BACKEND_REFRESH_STALE_MS = 30 * 1000;
+function isOfficeAppShowing() {
+  return !String(state.view || "").startsWith("field-") && !String(state.view || "").startsWith("frontline-");
+}
+function isUserMidEdit() {
+  if (document.querySelector("dialog[open]")) return true;
+  const active = document.activeElement;
+  const app = document.querySelector("#app");
+  if (!active || !app) return false;
+  if (!app.contains(active)) return false;
+  return active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT" || active.isContentEditable;
+}
+async function maybeRefreshBackendInBackground() {
+  if (document.visibilityState !== "visible") return;
+  if (!isOfficeAppShowing()) return;
+  if (isUserMidEdit()) return;
+  if (state.lastBackendRefreshAt && Date.now() - state.lastBackendRefreshAt < BACKEND_REFRESH_STALE_MS) return;
+  await refreshBackendState();
+  if (!isUserMidEdit()) render();
+}
+function wireBackgroundBackendRefresh() {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") maybeRefreshBackendInBackground();
+  });
+  window.addEventListener("focus", () => maybeRefreshBackendInBackground());
+  setInterval(() => maybeRefreshBackendInBackground(), 60 * 1000);
 }
 
 // The derived lists (state.accounts, state.projects, ...) are recomputed from state.backend here.
@@ -1541,6 +1575,7 @@ async function init() {
   bindEvents();
   installCameraCapture();
   registerServiceWorker();
+  wireBackgroundBackendRefresh();
   render();
   sweepDeadlineNotifications();
 }
@@ -2071,7 +2106,7 @@ async function dispatchClick(event) {
       }
     }
   }
-  if (action === "toggle-report-photo") await toggleReportPhoto(actionButton.dataset.id, actionButton.checked);
+  if (action === "toggle-report-photo") await toggleReportPhoto(actionButton.dataset.id, actionButton.checked, actionButton.dataset.kind || "attachment");
   if (action === "print-post-work-report") printPostWorkReport(actionButton.dataset.id);
   if (action === "open-permit") openPermitDialog(actionButton.dataset.id || "");
   if (action === "open-waste-record") openWasteRecordDialog(actionButton.dataset.projectId, actionButton.dataset.id || "");
@@ -2451,7 +2486,7 @@ function handleInputInner(event) {
     return;
   }
   if (event.type === "change" && event.target.matches?.("[data-report-caption-id]")) {
-    saveReportPhotoCaption(event.target.dataset.reportCaptionId, event.target.value.trim());
+    saveReportPhotoCaption(event.target.dataset.reportCaptionId, event.target.value.trim(), event.target.dataset.reportCaptionKind || "attachment");
     return;
   }
   if (event.type === "input" && event.target.matches?.(".record-lookup-input")) {
@@ -2999,6 +3034,8 @@ function handlePopState() {
 function renderConnection() {
   connectionStatus.textContent = state.online ? "Online" : "Offline";
   connectionStatus.classList.toggle("offline", !state.online);
+  const hint = document.querySelector("#backendRefreshHint");
+  if (hint) hint.textContent = state.lastBackendRefreshAt ? `Updated ${new Date(state.lastBackendRefreshAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
 }
 
 function renderNav() {
@@ -5188,6 +5225,11 @@ function renderAccounts() {
   const searchedAccounts = state.accounts
     .filter((account) => {
       if (!search) return true;
+      // Item 3 (owner, 2026-09-28): an account search for "Dell" found nothing because "Dell" is only
+      // the project and site name, not the account name (provisional accounts get a generic name).
+      // Fold in every project's name and site location name so the search finds the work, not just
+      // the billing entity.
+      const projects = projectsForAccount(account.id);
       return [
         ...accountCoreFields.map((field) => getAccountFieldValue(account, field.key)),
         account.contact,
@@ -5195,6 +5237,8 @@ function renderAccounts() {
         account.nextAction,
         account.siteName,
         account.concern,
+        ...projects.map((project) => project.name),
+        ...projects.map((project) => projectSite(project).name),
       ]
         .join(" ")
         .toLowerCase()
@@ -8058,7 +8102,7 @@ function renderAllProjectsTable(jobs) {
     tableId: "all-projects",
     searchPlaceholder: "Search projects...",
     emptyText: "No projects match.",
-    searchFields: [(job) => job.name, (job) => findAccount(job.accountId)?.name, (job) => job.jobClass],
+    searchFields: [(job) => job.name, (job) => findAccount(job.accountId)?.name, (job) => job.jobClass, (job) => projectSite(job).name],
     columns: [
       { key: "name", label: "Project" },
       { key: "account", label: "Account", sortValue: (job) => findAccount(job.accountId)?.name || "" },
@@ -20098,12 +20142,16 @@ function dispatchJobWorkDays(job) {
   return [...days].sort();
 }
 
-// Which work day a record counts on. Q5 rolls it to the operational day (the overnight case); a record
-// keeps its own calendar day only when that day was added to the job as a work day of its own.
+// Which work day a record counts on. Q5 rolls a record with no timestamp of its own to the job's
+// operational day (the overnight-start case); a record with a real timestamp keeps its own local
+// calendar day instead of being collapsed onto Day 1 (item 9, owner 2026-09-28: a second real day of
+// work was merging into the first because only dailyNarratives + the operational date counted as
+// "work days"). Callers that group records by day (buildPostWorkReport, computeJobBillables) create
+// the day the first time a record lands on it, so no separate "add the day" step is needed.
 function dispatchRecordDay(job, timestamp, workDays = dispatchJobWorkDays(job)) {
   const calendar = timestamp ? localIsoDate(parseDate(timestamp)) : "";
-  if (calendar && workDays.includes(calendar)) return calendar;
-  return dispatchJobOperationalDate(job) || calendar;
+  if (calendar) return calendar;
+  return dispatchJobOperationalDate(job) || "";
 }
 
 function jobSafetyBriefingsForJob(jobId) {
@@ -20399,7 +20447,7 @@ function renderJobCustomerAcknowledgementPanel(job) {
             <div><dt>Signed by</dt><dd>${escapeHtml(ack.name || "")}${ack.title ? ` (${escapeHtml(ack.title)})` : ""}</dd></div>
             <div><dt>Signed at</dt><dd>${ack.signedAt ? formatDateTime(ack.signedAt) : "Not recorded"}</dd></div>
           </dl>
-          ${ack.signatureAttachmentId ? `<img class="signature-preview" src="/api/job-task-attachments/${encodeURIComponent(ack.signatureAttachmentId)}/view" alt="Customer signature" style="max-height:64px;border-bottom:1px solid #1a1f26;" />` : ""}
+          ${ack.signatureAttachmentId ? `<img class="signature-preview" src="${reportMediaUrl(ack.signatureAttachmentId)}" alt="Customer signature" style="max-height:64px;border-bottom:1px solid #1a1f26;" />` : ""}
         `
             : `<div class="empty-state compact">No customer acknowledgement captured yet.</div>`
         }
@@ -20477,15 +20525,17 @@ function draftNarrativeActivities(job, date) {
   const workDays = dispatchJobWorkDays(job);
   const sameDay = (value) => value && dispatchRecordDay(job, value, workDays) === date;
   const time = (value) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(parseDate(value));
-  const lines = [];
-  (state.backend.jobStatusEvents || [])
-    .filter((event) => event.jobId === job.id && sameDay(event.occurredAt))
-    .sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))
-    .forEach((event) => lines.push(endSentence(`${time(event.occurredAt)}: ${formatDispatchStatus(event.toStatus)}${event.by ? ` (${event.by})` : ""}`)));
-  submissionsForDispatchJob(job.id)
-    .filter((submission) => sameDay(submission.submittedAt))
-    .reverse()
-    .forEach((submission) => lines.push(endSentence(`${time(submission.submittedAt)}: ${submission.formName}${submission.summary ? `: ${submission.summary}` : ""}`)));
+  // Item 9: status events and form submissions interleave in time order instead of printing as two
+  // separate blocks (all events, then all submissions).
+  const timedEntries = [
+    ...(state.backend.jobStatusEvents || [])
+      .filter((event) => event.jobId === job.id && sameDay(event.occurredAt))
+      .map((event) => ({ at: event.occurredAt, text: `${formatDispatchStatus(event.toStatus)}${event.by ? ` (${event.by})` : ""}` })),
+    ...submissionsForDispatchJob(job.id)
+      .filter((submission) => sameDay(submission.submittedAt))
+      .map((submission) => ({ at: submission.submittedAt, text: `${submission.formName}${submission.summary ? `: ${submission.summary}` : ""}` })),
+  ].sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  const lines = timedEntries.map((entry) => endSentence(`${time(entry.at)}: ${entry.text}`));
   const resources = (state.backend.jobResources || []).filter((resource) => resource.jobId === job.id);
   const consumed = resources.filter((resource) => resource.type === "Material" && resource.status === "Consumed" && sameDay(resource.consumedAt));
   if (consumed.length) lines.push(`Materials used: ${consumed.map((resource) => `${resource.quantity} ${resource.unit || ""} ${resource.name}`.replace(/\s+/g, " ").trim()).join(", ")}.`);
@@ -20602,6 +20652,79 @@ function attachmentViewUrl(attachment, absolute = false) {
   return `${absolute ? window.location.origin : ""}/api/job-task-attachments/${encodeURIComponent(attachment.id)}/view`;
 }
 
+// Item 8c: one URL resolver for an id that could be a `jobTaskAttachments` row or a `documents` row —
+// the report, the job Files tab and the field Brief all need to show either kind without caring which
+// store it lives in. (Local to this worktree; the integrator reconciles with worker A's `mediaViewUrl`
+// if one lands in the shared export.)
+function reportMediaUrl(idOrRecord, absolute = false) {
+  const origin = absolute ? window.location.origin : "";
+  const record = idOrRecord && typeof idOrRecord === "object" ? idOrRecord : null;
+  const id = record ? record.id : idOrRecord;
+  const isAttachment = record ? "jobId" in record && "kind" in record : (state.backend.jobTaskAttachments || []).some((item) => item.id === id);
+  return isAttachment ? `${origin}/api/job-task-attachments/${encodeURIComponent(id)}/view` : `${origin}/api/documents/${encodeURIComponent(id)}/view`;
+}
+
+// Item 8a/8d (owner, 2026-09-28): the report only ever read jobTaskAttachments with includeInReport
+// set — which nothing in the field ever sets — so quick-bar photos, markup saves and walk section/pin
+// photos never showed up. This is every photo the report can print, from every store, each carrying
+// where it came from and whether it is included.
+const REPORT_PHOTO_DOCUMENT_TYPE_CODES = ["job-photo", "site-photo"];
+function projectReportPhotos(project) {
+  const dispatchJobs = dispatchJobsForProject(project.id);
+  const taskPhotos = projectReportAttachments(project.id, "photo").map((attachment) => ({
+    kind: "attachment",
+    id: attachment.id,
+    record: attachment,
+    url: attachmentViewUrl(attachment, true),
+    caption: attachment.reportCaption || attachment.caption || "",
+    takenAt: attachment.uploadedAt,
+    source: `Job · ${findDispatchJob(attachment.jobId)?.jobNumber || "quick photo"}`,
+    // Task attachments keep today's explicit, office-set flag (default excluded until someone opts in).
+    includeInReport: Boolean(attachment.includeInReport),
+  }));
+
+  const documentPhotos = new Map();
+  const addDocument = (document, source) => {
+    if (!document || document.deletedAt || documentPhotos.has(document.id)) return;
+    documentPhotos.set(document.id, {
+      kind: "document",
+      id: document.id,
+      record: document,
+      url: reportMediaUrl(document, true),
+      caption: document.caption || "",
+      takenAt: document.uploadedAt,
+      source,
+      // Documents default to included; the office can exclude one from the Report tab.
+      includeInReport: document.includeInReport !== false,
+    });
+  };
+  const isReportPhotoType = (document) => REPORT_PHOTO_DOCUMENT_TYPE_CODES.includes(findDocumentType(document.documentTypeId)?.code);
+  latestDocumentsForEntity("project", project.id).filter(isReportPhotoType).forEach((document) => addDocument(document, "Job · quick photo"));
+  dispatchJobs.forEach((job) => {
+    latestDocumentsForEntity("dispatchJob", job.id).filter(isReportPhotoType).forEach((document) => addDocument(document, `Job · ${job.jobNumber || "quick photo"}`));
+  });
+  if (project.opportunityId) {
+    latestDocumentsForEntity("opportunity", project.opportunityId).filter(isReportPhotoType).forEach((document) => addDocument(document, "Sales · opportunity photo"));
+  }
+
+  const walkReports = (state.backend.siteWalkReports || []).filter(
+    (report) => !report.deletedAt && (report.projectId === project.id || (project.opportunityId && report.opportunityId === project.opportunityId)),
+  );
+  walkReports.forEach((report) => {
+    Object.entries(report.sections || {}).forEach(([key, section]) => {
+      (section?.photoDocumentIds || []).forEach((id) => addDocument(findDocument(id), `Walk · ${walkSectionLabel(key)}`));
+    });
+  });
+  const walkReportIds = new Set(walkReports.map((report) => report.id));
+  (state.backend.siteWalkObservations || [])
+    .filter((observation) => !observation.deletedAt && walkReportIds.has(observation.reportId))
+    .forEach((observation) => {
+      (observation.photoDocumentIds || []).forEach((id) => addDocument(findDocument(id), `Walk · ${observation.label || "site pin"}`));
+    });
+
+  return [...taskPhotos, ...documentPhotos.values()].sort((a, b) => String(a.takenAt || "").localeCompare(String(b.takenAt || "")));
+}
+
 function projectReportReadiness(project) {
   const dispatchJobs = dispatchJobsForProject(project.id);
   const checks = [];
@@ -20624,7 +20747,7 @@ function projectReportReadiness(project) {
   const owedReviews = dispatchJobs.filter((dispatchJob) => ["field_complete", "office_review", "closed"].includes(dispatchJob.status));
   const unanswered = owedReviews.filter((dispatchJob) => !postJobReviewComplete(dispatchJob)).length;
   checks.push({ label: "Post-job review", status: unanswered ? "Warning" : "Pass", detail: owedReviews.length ? `${owedReviews.length - unanswered} of ${owedReviews.length} finished jobs answered` : "No finished dispatch jobs yet." });
-  const photos = projectReportAttachments(project.id, "photo");
+  const photos = projectReportPhotos(project);
   const selected = photos.filter((photo) => photo.includeInReport).length;
   checks.push({ label: "Site photos", status: photos.length && !selected ? "Warning" : "Pass", detail: photos.length ? `${selected} of ${photos.length} selected below` : "No field photos yet." });
   const signatures = projectReportAttachments(project.id, "signature").length;
@@ -20654,19 +20777,22 @@ function projectReportReadiness(project) {
 }
 
 function renderReportPhotoTile(photo) {
-  const dispatchJob = findDispatchJob(photo.jobId);
   return `
     <figure class="report-photo${photo.includeInReport ? " included" : ""}">
-      <a href="${attachmentViewUrl(photo)}" target="_blank" rel="noopener"><img src="${attachmentViewUrl(photo)}" alt="${escapeAttribute(photo.caption || photo.fileName)}" loading="lazy" /></a>
-      <label class="check-row"><input type="checkbox" data-action="toggle-report-photo" data-id="${escapeAttribute(photo.id)}" ${photo.includeInReport ? "checked" : ""} /> Include in report</label>
-      <input type="text" data-report-caption-id="${escapeAttribute(photo.id)}" value="${escapeAttribute(photo.reportCaption || "")}" placeholder="${escapeAttribute(photo.caption || "Caption for the report")}" maxlength="160" aria-label="Report caption" />
-      <figcaption>${escapeHtml(dispatchJob?.jobNumber || "")} · ${formatDateTime(photo.uploadedAt)}${photo.uploadedBy ? ` · ${escapeHtml(photo.uploadedBy)}` : ""}</figcaption>
+      <a href="${photo.url}" target="_blank" rel="noopener"><img src="${photo.url}" alt="${escapeAttribute(photo.caption || "")}" loading="lazy" /></a>
+      <label class="check-row"><input type="checkbox" data-action="toggle-report-photo" data-kind="${escapeAttribute(photo.kind)}" data-id="${escapeAttribute(photo.id)}" ${photo.includeInReport ? "checked" : ""} /> Include in report</label>
+      ${
+        photo.kind === "attachment"
+          ? `<input type="text" data-report-caption-id="${escapeAttribute(photo.id)}" value="${escapeAttribute(photo.record.reportCaption || "")}" placeholder="${escapeAttribute(photo.record.caption || "Caption for the report")}" maxlength="160" aria-label="Report caption" />`
+          : `<input type="text" data-report-caption-id="${escapeAttribute(photo.id)}" data-report-caption-kind="document" value="${escapeAttribute(photo.caption || "")}" placeholder="Caption for the report" maxlength="160" aria-label="Report caption" />`
+      }
+      <figcaption>${escapeHtml(photo.source)} · ${photo.takenAt ? formatDateTime(photo.takenAt) : "Undated"}</figcaption>
     </figure>
   `;
 }
 
 function renderProjectReportTab(job) {
-  const photos = projectReportAttachments(job.id, "photo");
+  const photos = projectReportPhotos(job);
   const selected = photos.filter((photo) => photo.includeInReport).length;
   return `
     <section class="detail-stack">
@@ -20681,21 +20807,24 @@ function renderProjectReportTab(job) {
         </div>
       </article>
       <article class="panel">
-        <div class="panel-header"><div><h3>Report photos</h3><span>${selected} of ${photos.length} selected. Tick the photos the report should carry and caption each one; they print in the order they were taken.</span></div></div>
+        <div class="panel-header"><div><h3>Report photos</h3><span>${selected} of ${photos.length} selected, from quick-bar photos, markup saves, walk sections and pins. Tick the photos the report should carry and caption each one; they print oldest first.</span></div></div>
         <div class="panel-body">
-          ${photos.length ? `<div class="report-photo-grid">${photos.map(renderReportPhotoTile).join("")}</div>` : `<div class="empty-state">No field photos on this project's dispatch jobs yet.</div>`}
+          ${photos.length ? `<div class="report-photo-grid">${photos.map(renderReportPhotoTile).join("")}</div>` : `<div class="empty-state">No field photos on this project or its dispatch jobs yet.</div>`}
         </div>
       </article>
     </section>
   `;
 }
 
-async function toggleReportPhoto(attachmentId, include) {
-  const attachment = (state.backend.jobTaskAttachments || []).find((item) => item.id === attachmentId);
-  if (!attachment) return;
+// Item 8d: generalised for both stores — task attachments keep their own includeInReport flag,
+// documents get the same flag now that the server (worker A) keeps it on the generic metadata route.
+async function toggleReportPhoto(id, include, kind = "attachment") {
+  const collection = kind === "document" ? "documents" : "jobTaskAttachments";
+  const record = (state.backend[collection] || []).find((item) => item.id === id);
+  if (!record) return;
   try {
-    await saveBackendRecord("jobTaskAttachments", { ...attachment, includeInReport: include }, { refresh: false });
-    attachment.includeInReport = include;
+    await saveBackendRecord(collection, { ...record, includeInReport: include }, { refresh: false });
+    record.includeInReport = include;
     render();
   } catch (error) {
     showToast(error.message || "Photo selection could not be saved.");
@@ -20704,12 +20833,14 @@ async function toggleReportPhoto(attachmentId, include) {
 }
 
 // No re-render: the person may tab straight into the next caption.
-async function saveReportPhotoCaption(attachmentId, caption) {
-  const attachment = (state.backend.jobTaskAttachments || []).find((item) => item.id === attachmentId);
-  if (!attachment || (attachment.reportCaption || "") === caption) return;
+async function saveReportPhotoCaption(id, caption, kind = "attachment") {
+  const collection = kind === "document" ? "documents" : "jobTaskAttachments";
+  const captionField = kind === "document" ? "caption" : "reportCaption";
+  const record = (state.backend[collection] || []).find((item) => item.id === id);
+  if (!record || (record[captionField] || "") === caption) return;
   try {
-    await saveBackendRecord("jobTaskAttachments", { ...attachment, reportCaption: caption }, { refresh: false });
-    attachment.reportCaption = caption;
+    await saveBackendRecord(collection, { ...record, [captionField]: caption }, { refresh: false });
+    record[captionField] = caption;
     showToast("Caption saved.");
   } catch (error) {
     showToast(error.message || "Caption could not be saved.");
@@ -20841,8 +20972,15 @@ function buildPostWorkReport(project) {
       dispatchJob: findDispatchJob(attachment.jobId),
     };
   });
-  const samples = samplesForJob(project.id);
+  // Item 9: samples print oldest-first in the report (state.sampleRecords is sorted newest-first for
+  // the Samples tab elsewhere in the app; the report wants the collection story in order).
+  const samples = samplesForJob(project.id)
+    .slice()
+    .sort((a, b) => new Date(a.collectionTime || 0) - new Date(b.collectionTime || 0));
   const sampleIds = new Set(samples.map((sample) => sample.id));
+  days.forEach((day) => {
+    day.chronology = dayChronologyEvents(project, dispatchJobs, day.date, { fieldDay, messages: fieldMessagesForProject(project.id) });
+  });
   return {
     project,
     account: findAccount(project.accountId),
@@ -20858,7 +20996,7 @@ function buildPostWorkReport(project) {
     siteMapObservations,
     ergJob,
     signatures,
-    photos: projectReportAttachments(project.id, "photo").filter((photo) => photo.includeInReport),
+    photos: projectReportPhotos(project).filter((photo) => photo.includeInReport),
     samples,
     sampleResults: (state.backend.sampleResults || []).filter((row) => !row.deletedAt && sampleIds.has(row.sampleId)),
     waste: wasteRecordsForProject(project.id),
@@ -20866,6 +21004,67 @@ function buildPostWorkReport(project) {
     weather: projectWeatherSlots(project),
     generatedAt: new Date().toISOString(),
   };
+}
+
+// Item 9 (owner, 2026-09-28): a per-day chronology — status changes, roll-call arrivals, photos, form
+// submissions, samples, waste, field messages and weather, interleaved by time — so the report tells
+// the day's story in order instead of a narrative plus aggregated billables with nothing placed in time.
+function fieldMessagesForProject(projectId) {
+  const jobIds = new Set(dispatchJobsForProject(projectId).map((job) => job.id));
+  return (state.backend.messages || []).filter((message) => !message.deletedAt && jobIds.has(message.dispatchJobId));
+}
+
+// jobId === "" (project-level records: samples, waste, messages, weather) keeps its own local date.
+function dayChronologyEvents(project, dispatchJobs, date, { fieldDay, messages = [] }) {
+  const events = [];
+  const push = (jobId, at, what, who = "") => {
+    if (!at) return;
+    const recordDate = jobId ? fieldDay(jobId, at) : localIsoDate(parseDate(at));
+    if (recordDate !== date) return;
+    events.push({ at, what, who });
+  };
+
+  (state.backend.jobStatusEvents || [])
+    .filter((event) => !event.deletedAt && dispatchJobs.some((job) => job.id === event.jobId))
+    .forEach((event) =>
+      push(event.jobId, event.occurredAt, `${event.fromStatus ? `${formatDispatchStatus(event.fromStatus)} → ` : ""}${formatDispatchStatus(event.toStatus || "")}`, event.by || ""),
+    );
+
+  dispatchJobs.forEach((job) => {
+    jobSafetyBriefingsForJob(job.id).forEach((briefing) => {
+      (briefing.rollCall || []).forEach((row) => {
+        if (row.arrivedAt) push(job.id, row.arrivedAt, `Arrived on site — ${findEmployee(row.employeeId)?.displayName || row.employeeId || "crew"}`, briefing.createdBy || "");
+      });
+    });
+  });
+
+  projectReportPhotos(project)
+    .filter((photo) => photo.includeInReport)
+    .forEach((photo) => {
+      const jobId = photo.record?.jobId || (photo.record?.entityType === "dispatchJob" ? photo.record.entityId : "");
+      push(jobId, photo.takenAt, `Photo — ${photo.caption || photo.source}`, photo.record?.uploadedBy || "");
+    });
+
+  dispatchJobs.forEach((job) => {
+    submissionsForDispatchJob(job.id).forEach((submission) => push(job.id, submission.submittedAt, `Form submitted — ${submission.formName || "form"}`, submission.submittedBy || ""));
+  });
+
+  samplesForJob(project.id).forEach((sample) => push(sample.dispatchJobId || "", sample.collectionTime, `Sample collected — ${sample.sampleId || sample.id}`, sample.collector || ""));
+
+  wasteRecordsForProject(project.id).forEach((record) => {
+    if (record.createdAt) push("", record.createdAt, `Waste logged — ${record.description || record.classification || "waste"}`, "");
+    if (record.disposedOn) push("", record.disposedOn, `Waste disposed — ${record.description || record.classification || "waste"}`, "");
+  });
+
+  messages.forEach((message) => push(message.dispatchJobId || "", message.sentAt, `Message — ${(message.body || "").slice(0, 80)}`, message.senderName || message.senderRole || ""));
+
+  projectWeatherSlots(project)
+    .filter((entry) => entry.slot.state === "captured")
+    .forEach((entry) =>
+      push(entry.dispatchJob?.id || "", entry.slot.snapshot?.observedFor || entry.slot.snapshot?.fetchedAt, `Weather snapshot — ${formatWeatherLine(entry.slot.snapshot)}`, ""),
+    );
+
+  return events.sort((a, b) => String(a.at).localeCompare(String(b.at)));
 }
 
 function renderPostWorkReportHtml(report) {
@@ -20993,6 +21192,12 @@ function renderPostWorkReportHtml(report) {
           }
           <h4 class="billables-title">Billables for the day</h4>
           ${billables(day, "Qty")}
+          <h4 class="chronology-title">Chronology</h4>
+          ${
+            (day.chronology || []).length
+              ? `<ul class="chronology-list">${day.chronology.map((item) => `<li><strong>${escapeHtml(formatTimeOnly(item.at))}</strong> — ${escapeHtml(item.what)}${item.who ? ` <small>(${escapeHtml(item.who)})</small>` : ""}</li>`).join("")}</ul>`
+              : `<p class="gap-line">No timestamped events recorded for this day.</p>`
+          }
         </section>
       `,
         )
@@ -21004,7 +21209,8 @@ function renderPostWorkReportHtml(report) {
       report.photos.length
         ? `<div class="photo-grid">${report.photos
             .map(
-              (photo) => `<figure><img src="${attachmentViewUrl(photo, true)}" alt="" /><figcaption>${escapeHtml(photo.reportCaption || photo.caption || "")}<br /><small>${escapeHtml(findDispatchJob(photo.jobId)?.jobNumber || "")} &middot; ${escapeHtml(formatDateTime(photo.uploadedAt))}</small></figcaption></figure>`,
+              (photo) =>
+                `<figure><img src="${photo.url}" alt="" /><figcaption>${escapeHtml((photo.kind === "attachment" ? photo.record.reportCaption : photo.caption) || photo.caption || "")}<br /><small>${escapeHtml(photo.source)} &middot; ${photo.takenAt ? escapeHtml(formatDateTime(photo.takenAt)) : "Undated"}</small></figcaption></figure>`,
             )
             .join("")}</div>`
         : `<p class="gap-line">No photos were selected for this report.</p>`
@@ -21122,7 +21328,7 @@ function renderPostWorkReportHtml(report) {
           acknowledgement
             ? `
         <div class="signature-block">
-          ${acknowledgement.signatureAttachmentId ? `<img src="${attachmentViewUrl({ id: acknowledgement.signatureAttachmentId }, true)}" alt="Signature of ${escapeAttribute(acknowledgement.name || "customer")}" />` : ""}
+          ${acknowledgement.signatureAttachmentId ? `<img src="${reportMediaUrl(acknowledgement.signatureAttachmentId, true)}" alt="Signature of ${escapeAttribute(acknowledgement.name || "customer")}" />` : ""}
           <div>Signed by <strong>${escapeHtml(acknowledgement.name || "")}</strong>${acknowledgement.title ? ` (${escapeHtml(acknowledgement.title)})` : ""}${acknowledgement.signedAt ? ` on ${escapeHtml(formatDateTime(acknowledgement.signedAt))}` : ""}${multipleJobs ? ` &middot; ${escapeHtml(dispatchJob.jobNumber)}` : ""}</div>
         </div>
       `
@@ -21182,6 +21388,9 @@ function renderPostWorkReportHtml(report) {
     .print-doc h5 { font-size: 0.85rem; margin: 12px 0 2px; }
     .report-day { border-left: 3px solid #d8dee6; padding-left: 12px; margin-bottom: 18px; }
     .report-label { font-size: 0.75rem; color: #666; margin: 0; }
+    .chronology-list { margin: 4px 0 0; padding-left: 0; list-style: none; font-size: 0.82rem; }
+    .chronology-list li { padding: 2px 0; border-bottom: 1px dotted #e3e7ec; }
+    .chronology-list li:last-child { border-bottom: none; }
     .prose { white-space: pre-wrap; font-size: 0.88rem; margin: 0 0 6px; }
     .gap, .gap-line { color: #9b2c22; font-style: italic; }
     .gap-line { font-size: 0.85rem; }
@@ -21627,6 +21836,8 @@ const IT_MESSAGES_HINT = "Enter Issues, Comments, Errors, or messages to IT here
 // markup tool (field/media.js openImageMarkup, via markupItScreenshot) and just keeps the resulting
 // PNG blob until the message is actually sent.
 let itShotBlob = null;
+let itShotCaption = "";
+let itShotStrokes = [];
 let itComposerWired = false;
 
 function getItMessages() {
@@ -21748,7 +21959,11 @@ function renderItMessagesDialog() {
           <article class="chat-bubble ${mine ? "mine" : "theirs office"}">
             <span class="chat-sender">${escapeHtml(sender)}</span>
             <p>${escapeHtml(message.body)}</p>
-            ${message.screenshotDocumentId ? `<a class="it-shot-link" href="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" target="_blank" rel="noopener"><img class="it-shot" src="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" alt="Screenshot" loading="lazy" /></a>` : ""}
+            ${
+              message.screenshotDocumentId
+                ? `<figure class="it-shot-figure"><img class="it-shot" src="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" alt="Screenshot" loading="lazy" /><figcaption><a class="it-shot-link" href="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" target="_blank" rel="noopener">Open full size</a></figcaption></figure>`
+                : ""
+            }
             <time datetime="${escapeAttribute(message.createdAt)}">${formatDateTime(message.createdAt)}${message.pageUrl && viewerIsIT ? ` · ${escapeHtml(message.pageUrl)}` : ""}</time>
           </article>
           ${renderItMessageTicket(message, { isAdmin, mine })}
@@ -21846,19 +22061,31 @@ async function sendItMessage(form) {
     return;
   }
   if (submitButton) submitButton.disabled = true;
+  const bodyText = text || itShotCaption || "Screenshot attached.";
   try {
-    const saved = await saveBackendRecord("itMessages", { body: text || "Screenshot attached.", threadKey: form.elements.threadKey.value || itOwnThreadKey(), pageUrl: `${location.pathname}${location.hash}` }, { refresh: false });
+    const saved = await saveBackendRecord("itMessages", { body: bodyText, threadKey: form.elements.threadKey.value || itOwnThreadKey(), pageUrl: `${location.pathname}${location.hash}` }, { refresh: false });
     if (hasShot) {
       const file = new File([itShotBlob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+      const captionForUpload = itShotCaption || bodyText;
       try {
-        const document = await uploadRawFile("/api/documents", file, { "X-Entity-Type": "itMessage", "X-Entity-Id": saved.id, "X-Visibility": "internal", "X-Caption": encodeURIComponent("Screenshot sent to IT") });
+        const document = await uploadRawFile("/api/documents", file, {
+          "X-Entity-Type": "itMessage",
+          "X-Entity-Id": saved.id,
+          "X-Visibility": "internal",
+          "X-Caption": encodeURIComponent(captionForUpload),
+        });
+        try {
+          await saveBackendRecord("documents", { ...document, markup: JSON.stringify(itShotStrokes || []) }, { refresh: false });
+        } catch {
+          // best effort — keeps the strokes so re-opening this shot loads them back
+        }
         await saveBackendRecord("itMessages", { ...saved, screenshotDocumentId: document.id }, { refresh: false });
       } catch (error) {
         showToast(`Message sent, but the screenshot did not upload: ${error.message || "upload failed"}.`);
       }
     }
     if (!saved.fromIT) {
-      await raiseNotification({ key: `it-message-${saved.id}`, title: `Message to IT from ${saved.authorName}`, body: (text || "Screenshot attached.").slice(0, 140), severity: "info", audienceRoles: ["Admin"], link: "" });
+      await raiseNotification({ key: `it-message-${saved.id}`, title: `Message to IT from ${saved.authorName}`, body: bodyText.slice(0, 140), severity: "info", audienceRoles: ["Admin"], link: "" });
     }
     form.elements.body.value = "";
     itSetShot(null);
@@ -21884,18 +22111,35 @@ function itWireComposer() {
     if (!file) return;
     try {
       const result = await markupItScreenshot(file);
-      if (result?.blob) itSetShot(result.blob);
+      if (result?.blob) {
+        itSetShot(result.blob, result.caption, result.strokes);
+        itApplyCaptionToComposer(result.caption);
+      }
     } catch {
       showToast("That file could not be read as an image.");
     }
   });
 }
 
-function itSetShot(blob) {
+function itSetShot(blob, caption, strokes) {
   itShotBlob = blob || null;
+  itShotCaption = itShotBlob ? caption || "" : "";
+  itShotStrokes = itShotBlob ? strokes || [] : [];
   const dialog = document.querySelector("#itMessagesDialog");
   const note = dialog?.querySelector("[data-it-attach-note]");
-  if (note) note.textContent = itShotBlob ? "Screenshot attached and marked up." : "No screenshot attached.";
+  if (note) note.textContent = itShotBlob ? (itShotStrokes.length ? "Screenshot attached and marked up." : "Screenshot attached.") : "No screenshot attached.";
+}
+
+// Puts a markup caption into the message textarea: prefilled if the textarea is empty, otherwise
+// appended on its own line (never silently discarded, never overwriting what the user already typed).
+function itApplyCaptionToComposer(caption) {
+  const text = (caption || "").trim();
+  if (!text) return;
+  const dialog = document.querySelector("#itMessagesDialog");
+  const field = dialog?.querySelector("form")?.elements?.body;
+  if (!field) return;
+  const current = field.value.trim();
+  field.value = current ? `${current}\n${text}` : text;
 }
 
 // Captures the screen through the browser's own picker (needs HTTPS or localhost), then opens it in
@@ -21913,7 +22157,10 @@ async function itHandleCaptureScreen() {
     const canvas = await captureScreenForMarkup();
     reopen();
     const result = await markupItScreenshot(canvas);
-    if (result?.blob) itSetShot(result.blob);
+    if (result?.blob) {
+      itSetShot(result.blob, result.caption, result.strokes);
+      itApplyCaptionToComposer(result.caption);
+    }
     scrollChatToBottom();
   } catch (error) {
     reopen();
@@ -32107,6 +32354,34 @@ function getProjectChronology(job) {
       });
     });
 
+  // Item 9 (owner, 2026-09-28): the Live tab's "Chronological site events" never showed dispatch
+  // status changes or field photos, so it under-told the site's story next to the report's own
+  // Chronology.
+  const dispatchJobs = dispatchJobsForProject(job.id);
+  const dispatchJobIds = new Set(dispatchJobs.map((dispatchJob) => dispatchJob.id));
+  (state.backend.jobStatusEvents || [])
+    .filter((event) => !event.deletedAt && dispatchJobIds.has(event.jobId))
+    .forEach((event) => {
+      const dispatchJob = findDispatchJob(event.jobId);
+      events.push({
+        kind: "Dispatch status",
+        title: `${event.fromStatus ? `${formatDispatchStatus(event.fromStatus)} → ` : ""}${formatDispatchStatus(event.toStatus || "")}`,
+        timestamp: event.occurredAt,
+        detail: dispatchJob ? `${dispatchJob.jobNumber} · ${dispatchJob.jobName || ""}` : "",
+        meta: [event.by].filter(Boolean),
+      });
+    });
+
+  projectReportPhotos(job).forEach((photo) => {
+    events.push({
+      kind: "Photo",
+      title: photo.caption || photo.source,
+      timestamp: photo.takenAt,
+      detail: photo.source,
+      meta: [photo.record?.uploadedBy].filter(Boolean),
+    });
+  });
+
   return events
     .filter((event) => event.timestamp)
     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -33587,6 +33862,12 @@ function formatDate(value) {
   }).format(parseDate(value));
 }
 
+// Item 9: the report's per-day Chronology wants just a local clock time ("h:mm — what — who").
+function formatTimeOnly(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(parseDate(value));
+}
+
 function formatDateTime(value) {
   if (!value) return "Not set";
   return new Intl.DateTimeFormat("en-US", {
@@ -34202,6 +34483,8 @@ export {
   uploadRawFile,
   uploadDocument,
   attachmentViewUrl,
+  reportMediaUrl,
+  projectReportPhotos,
   captureWeatherSnapshot,
   captureWeatherInBackground,
   renderPrintShell,
