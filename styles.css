@@ -7715,6 +7715,21 @@ body[data-theme="dark"] .it-status.done {
   overflow-y: auto;
 }
 
+.tour-card.is-sheet.is-top {
+  top: 16px !important;
+  bottom: auto;
+}
+
+/* Over a wide dialog with no room beside it: just the instruction and the buttons. */
+.tour-card.is-compact {
+  padding: 12px 14px 10px;
+}
+
+.tour-card.is-compact .tour-why,
+.tour-card.is-compact .tour-chain {
+  display: none;
+}
+
 .tour-card h3 {
   margin: 2px 0 8px;
   font-size: 1.05rem;
@@ -7771,9 +7786,20 @@ body[data-theme="dark"] .it-status.done {
 
 .tour-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-top: 6px;
+}
+
+.tour-actions button {
+  white-space: nowrap;
+}
+
+.tour-card.is-compact .tour-actions button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.85rem;
 }
 
 .tour-actions-spacer {
@@ -7829,4 +7855,125 @@ body.tour-running .update-banner {
   .tour-ring {
     transition: none;
   }
+}
+
+/* ---- Training copy ribbon (Phase 24, 2026-09-28) ----------------------------------------------
+   A server started with CRM_TRAINING=1 frames every screen in amber with a small label, so practice
+   is never mistaken for live. The frame never takes clicks. */
+.training-ribbon {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483001;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  box-shadow: inset 0 0 0 4px #d98a1c;
+  pointer-events: none;
+}
+
+.training-ribbon span {
+  padding: 3px 12px 4px;
+  border-radius: 0 0 8px 8px;
+  background: #d98a1c;
+  color: #1d1300;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Home "Learn the app" card (Phase 24): the person's hands-on tutorials and the screen tours. */
+.home-learn {
+  display: grid;
+  gap: 10px;
+  width: min(920px, 100%);
+  margin: 18px auto 0;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.home-learn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.home-learn-head .eyebrow {
+  margin: 0;
+}
+
+.home-learn-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-learn-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.home-learn-item > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-learn-item > div:first-child span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.home-learn-item.is-due {
+  border-color: var(--red);
+}
+
+.home-learn-item.is-finished {
+  border-color: var(--brand-green);
+  background: var(--surface-alt);
+}
+
+.home-learn-tours {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-learn-tours .help-text {
+  margin-right: 4px;
+}
+
+.tour-finish {
+  margin: 4px 0 8px;
+}
+
+.tour-finish a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  text-decoration: none;
+}
+
+/* "Open in training" is a link to the training copy dressed as a button (Home card, office library). */
+.home-learn a.secondary-button,
+.home-learn a.primary-button,
+a.mini-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
 }

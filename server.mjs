@@ -30,6 +30,16 @@ const basePort = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "0.0.0.0";
 // CRM_DATA_DIR points a test instance at a scratch copy so click-tests never write to the real data.
 const dataDir = process.env.CRM_DATA_DIR ? path.resolve(process.env.CRM_DATA_DIR) : path.join(root, "data");
+// Phase 24 (2026-09-28): CRM_TRAINING=1 runs this server as the training copy -- sample data reset
+// nightly by scripts/reset-training.mjs, a TRAINING ribbon on every screen, no Microsoft sign-in (the
+// .env in this folder holds the live tenant; the training copy is not a registered redirect URI yet),
+// and no backups (the .env's CRM_BACKUP_DIR is the live OneDrive folder). It refuses the live data
+// folder outright, so a mistyped command can never put trainees on real records.
+const trainingMode = process.env.CRM_TRAINING === "1";
+if (trainingMode && dataDir === path.join(root, "data")) {
+  console.error("CRM_TRAINING=1 needs its own CRM_DATA_DIR (e.g. data-training); refusing to run training on the live data folder.");
+  process.exit(1);
+}
 const dataFile = path.join(dataDir, "backend.json");
 const uploadsDir = path.join(dataDir, "uploads");
 const maxJobRequestDocumentBytes = 25 * 1024 * 1024;
@@ -38,8 +48,8 @@ const maxJobRequestDocumentBytes = 25 * 1024 * 1024;
 // newest one plus uploads/ to CRM_BACKUP_DIR when set (rolling 30; a OneDrive-synced folder is the
 // intended off-machine copy). CRM_BACKUP_INTERVAL_MINUTES=0 turns the schedule off (scratch servers).
 const backupDir = path.join(dataDir, "backups");
-const offMachineBackupDir = process.env.CRM_BACKUP_DIR ? path.resolve(process.env.CRM_BACKUP_DIR) : "";
-const backupIntervalMinutes = process.env.CRM_BACKUP_INTERVAL_MINUTES === undefined ? 240 : Number(process.env.CRM_BACKUP_INTERVAL_MINUTES);
+const offMachineBackupDir = process.env.CRM_BACKUP_DIR && !trainingMode ? path.resolve(process.env.CRM_BACKUP_DIR) : "";
+const backupIntervalMinutes = trainingMode ? 0 : process.env.CRM_BACKUP_INTERVAL_MINUTES === undefined ? 240 : Number(process.env.CRM_BACKUP_INTERVAL_MINUTES);
 // Phase 20 item 4 (2026-09-23): demo data is seeded only when asked for. With the flag off an empty
 // collection stays empty; scripts/reset-demo-data.mjs puts the demo set back on purpose.
 const seedDemoData = process.env.CRM_SEED_DEMO === "1";
@@ -2150,6 +2160,9 @@ const defaultBackend = {
   // written only through /api/tutorial/progress, one person's own rows at a time -- never through
   // the generic collection route, so it has no collectionAccess entry.
   tutorialProgress: [],
+  // Phase 24: live's pointer to the training copy (the address of its quick tunnel, which changes
+  // when cloudflared restarts). Admin-set in Identity & Sync; read through /api/training/settings.
+  trainingSettings: { trainingUrl: "", updatedAt: "", updatedBy: "" },
 };
 
 // formTemplates replaces app.js's hard-coded FRONTLINE_STANDALONE_FORMS with data the office can
@@ -2243,7 +2256,15 @@ const LIBRARY_ITEM_SEED = [
   { id: "library-manuals-hasp-template", shelf: "manuals", title: "HASP template", category: "Manuals & procedures", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1 },
   { id: "library-safety-erg", shelf: "safety", title: "Emergency Response Guidebook (ERG 2024)", category: "Safety references", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg", version: 1, sortOrder: 1 },
   { id: "library-sds-index", shelf: "sds", title: "Safety Data Sheet index", category: "SDS", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
-  { id: "library-tutorials-app-basics", shelf: "tutorials", title: "How to run a job in Front Line", category: "Tutorials & training", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: ["Crew", "Field Lead"], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1 },
+  // Phase 24 (2026-09-28): the Tutorials shelf is the six hands-on tutorials (tutorials/registry.js),
+  // each opened on the training copy through its `tourId`. The first row keeps its original id: it
+  // was the "How to run a job in Front Line" placeholder, and ensureFieldSeeds gives it the tourId.
+  { id: "library-tutorials-app-basics", shelf: "tutorials", title: "How to run a job in Front Line", category: "Tutorials & training", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: ["Crew", "Field Lead"], renewalMonths: 0, pinnedOffline: true, documentId: "", url: "", version: 1, sortOrder: 1, tourId: "process-field-job" },
+  { id: "library-tutorials-win-job", shelf: "tutorials", title: "Win a job: lead to project", category: "Tutorials & training", audienceRoles: ["Sales Manager", "Account Manager"], requiredForRoles: ["Sales Manager", "Account Manager"], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 2, tourId: "process-win-job" },
+  { id: "library-tutorials-spill-call", shelf: "tutorials", title: "Take a spill call", category: "Tutorials & training", audienceRoles: ["Operations Manager", "Office Manager", "Scheduler"], requiredForRoles: ["Operations Manager", "Office Manager"], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 3, tourId: "process-spill-call" },
+  { id: "library-tutorials-plan-dispatch", shelf: "tutorials", title: "Plan and dispatch a job", category: "Tutorials & training", audienceRoles: ["Operations Manager", "Scheduler"], requiredForRoles: ["Operations Manager", "Scheduler"], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 4, tourId: "process-plan-dispatch" },
+  { id: "library-tutorials-site-walk", shelf: "tutorials", title: "Do a site walk", category: "Tutorials & training", audienceRoles: ["Sales Manager", "Account Manager", "Field Lead"], requiredForRoles: ["Sales Manager"], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 5, tourId: "process-site-walk" },
+  { id: "library-tutorials-close-bill", shelf: "tutorials", title: "Close out and bill a project", category: "Tutorials & training", audienceRoles: ["Office Manager", "Finance Manager"], requiredForRoles: ["Office Manager", "Finance Manager"], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 6, tourId: "process-close-bill" },
   { id: "library-resources-disposal-hours", shelf: "resources", title: "Disposal facility hours", category: "Helpful resources", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
 ];
 
@@ -2263,6 +2284,15 @@ function ensureFieldSeeds(data) {
   seedInto("formTemplates", FORM_TEMPLATE_SEED);
   seedInto("jurisdictions", JURISDICTION_SEED);
   seedInto("libraryItems", LIBRARY_ITEM_SEED);
+  // Phase 24: a seeded row that already exists (the Tutorials placeholder) gains its tour link once.
+  for (const seed of LIBRARY_ITEM_SEED) {
+    const row = seed.tourId ? data.libraryItems.find((item) => item.id === seed.id) : null;
+    if (row && !row.tourId) {
+      row.tourId = seed.tourId;
+      touchRecord(row, { ...row });
+      added = true;
+    }
+  }
   return added;
 }
 
@@ -3996,7 +4026,10 @@ function buildQboInvoicePayload(invoice, data) {
 // session -- never a request header -- decides what the request may do. Providers are pluggable:
 // `local` (password) and `breakGlass` ship now; `entra` (Phase 12b) validates a token and calls the
 // same createSession().
-const SESSION_COOKIE = "crm_session";
+// Phase 24: the training copy's cookie has its own name. Browsers keep cookies per host, not per port,
+// so on one computer live (localhost:4173) and training (localhost:4174) would otherwise share
+// "crm_session" and signing in to one would sign you out of the other.
+const SESSION_COOKIE = trainingMode ? "crm_training_session" : "crm_session";
 const SESSION_HOURS = 12;
 const SESSION_TOUCH_MINUTES = 5;
 const LOGIN_MAX_FAILURES = 8;
@@ -4361,9 +4394,10 @@ async function respondWithSession(request, response, auth, session, token) {
 // everyone is on Entra); break-glass always works.
 const entraTenantId = process.env.CRM_ENTRA_TENANT_ID || "";
 const entraClientId = process.env.CRM_ENTRA_CLIENT_ID || "";
-const entraEnabled = Boolean(entraTenantId && entraClientId);
+const entraEnabled = Boolean(entraTenantId && entraClientId) && !trainingMode;
 const entraScopes = "openid profile email offline_access User.Read";
-const localLoginEnabled = (process.env.CRM_LOCAL_LOGIN || "on").toLowerCase() !== "off";
+// The training copy signs in with passwords only (Phase 24), whatever the shared .env says.
+const localLoginEnabled = trainingMode || (process.env.CRM_LOCAL_LOGIN || "on").toLowerCase() !== "off";
 // Test hooks for a scratch server only: a JWKS file and issuer stand in for Microsoft's discovery
 // endpoint so the validator can be exercised without a tenant. Never set these in production.
 const entraTestJwksFile = process.env.CRM_ENTRA_TEST_JWKS_FILE || "";
@@ -4536,6 +4570,8 @@ async function handleAuth(request, response, pathname) {
       entra: entraEnabled ? { tenantId: entraTenantId, clientId: entraClientId, scopes: entraScopes } : null,
       local: localLoginEnabled,
       breakGlass: true,
+      // Phase 24: the client shows the TRAINING ribbon from this, before anyone signs in.
+      training: trainingMode,
     });
   }
 
@@ -5361,6 +5397,7 @@ async function handleApi(request, response, pathname) {
   }
 
   if (pathname === "/api/tutorial/progress") return handleTutorialProgress(request, response);
+  if (pathname === "/api/training/settings") return handleTrainingSettings(request, response);
 
   if (pathname === "/api/backend" && request.method === "GET") {
     if (!canAccess(role, "identity")) return json(response, 403, { error: "Role is not allowed to read backend data." });
@@ -5663,6 +5700,36 @@ async function handleTutorialProgress(request, response) {
   else data.tutorialProgress.push(record);
   await saveBackend(data);
   return json(response, 200, record);
+}
+
+// Phase 24: GET (anyone signed in) says whether this server is the training copy and where live's
+// training copy lives; POST { trainingUrl } (Admin only) changes the address. An empty address turns
+// the "Open in training" links off.
+async function handleTrainingSettings(request, response) {
+  if (!request.session) return json(response, 401, { error: "Sign in required.", unauthenticated: true });
+  const data = await loadBackend();
+  const stored = data.trainingSettings && typeof data.trainingSettings === "object" ? data.trainingSettings : { trainingUrl: "" };
+  if (request.method === "GET") return json(response, 200, { training: trainingMode, trainingUrl: trainingMode ? "" : stored.trainingUrl || "" });
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  if (!getRoles(request).includes("Admin")) return json(response, 403, { error: "Only an administrator can change the training copy address." });
+  if (trainingMode) return json(response, 409, { error: "This is the training copy; set the address on the live server." });
+  const body = await readJsonBody(request);
+  const raw = String(body.trainingUrl || "").trim();
+  let trainingUrl = "";
+  if (raw) {
+    let parsed;
+    try {
+      parsed = new URL(raw);
+    } catch {
+      return json(response, 400, { error: "Enter the full address, e.g. https://example.trycloudflare.com" });
+    }
+    if (!["http:", "https:"].includes(parsed.protocol)) return json(response, 400, { error: "The address must start with https:// (or http:// for this computer)." });
+    trainingUrl = `${parsed.origin}/`;
+  }
+  data.trainingSettings = { trainingUrl, updatedAt: new Date().toISOString(), updatedBy: attribution(request) };
+  await saveBackend(data);
+  await audit(request, { action: "training-url", summary: trainingUrl || "(cleared)" });
+  return json(response, 200, { training: trainingMode, trainingUrl });
 }
 
 async function handleSoftDelete(request, response, collection, id, restore) {
@@ -6796,6 +6863,9 @@ function listen(port) {
     console.log(`Environmental Services CRM running at http://127.0.0.1:${port}`);
     if (host === "0.0.0.0") {
       console.log(`Network access enabled on port ${port}`);
+    }
+    if (trainingMode) {
+      console.log(`TRAINING COPY (CRM_TRAINING=1) on ${dataDir}: password sign-in only, no backups, TRAINING ribbon on every screen.`);
     }
     if (entraEnabled) {
       console.log(`Microsoft sign-in is on (tenant ${entraTenantId}). Redirect URIs to keep registered: http://localhost:${port}/ and the public HTTPS hostname.`);

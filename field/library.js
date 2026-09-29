@@ -93,7 +93,7 @@ function renderLibraryCard(item, employee, requiredCard) {
     <section class="field-card ${requiredCard && !current ? "field-card--alert" : ""}">
       <div class="field-card-row"><strong>${crm.escapeHtml(item.title)}</strong>${item.category ? `<small>${crm.escapeHtml(item.category)}</small>` : ""}</div>
       <div class="field-card-row">
-        <a class="field-button field-button--small" href="${crm.escapeAttribute(openHref)}" target="_blank" rel="noopener">Open</a>
+        ${item.tourId ? crm.renderTutorialLaunch(item.tourId, "field-button field-button--small") : `<a class="field-button field-button--small" href="${crm.escapeAttribute(openHref)}" target="_blank" rel="noopener">Open</a>`}
         ${employee && requiredCard ? `<button class="field-button field-button--small ${current ? "field-button--ghost" : ""}" type="button" data-field-action="library-ack" data-id="${crm.escapeAttribute(item.id)}">${current ? "Acknowledged" : "Acknowledge"}</button>` : ""}
         ${item.pinnedOffline ? `<small class="field-card-sub">Pinned offline</small>` : ""}
       </div>

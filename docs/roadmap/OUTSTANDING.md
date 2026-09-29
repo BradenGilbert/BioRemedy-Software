@@ -56,6 +56,8 @@ One row per area. **Gap** = what a user would notice is missing or wrong; **Miss
 
 **Data and config (6):** set `CRM_BACKUP_DIR` to a OneDrive folder; enter the two permits; confirm the fuel surcharge; decide the fate of the six Recovered accounts; clear the 18 July draft dispatch jobs (`scripts/clean-orphans.mjs --july-drafts`); Q54 account lifecycle status.
 
+**Tutorials (phase-24, 4):** start the training copy (`node scripts/reset-training.mjs --tunnel`) and paste its address into live's Identity & Sync › Training copy; set each trainee's training password; register the nightly reset task (`schtasks` line in `README.md`); later, with a permanent address, add the training address as an Entra SPA redirect URI.
+
 **Older, still open (5):** Phase 04 — does an expired customer approval block dispatch or warn; per-scope or blanket approval; who maintains the approved list. Phase 07 item 8 — template rebuild (Q34). Phase 20 — triage session for Part B (B1–B12).
 
 ---
@@ -81,6 +83,7 @@ Items a session could pick up without an owner decision. None blocks the pilot.
 - **Phase 14 — PostgreSQL migration.** Big bang at the alpha (owner reversal, 2026-09-22): rehearsal, cut-over day, tested path back to JSON. `docs/roadmap/cutover-runbook.md` and the cutover inventory in `docs/database-handoff-map.md` are ready; the eight Phase 21 collections (`jobSafetyBriefings`, `jobEquipmentUsage`, `formTemplates`, `siteWalkReports`, `siteWalkObservations`, `siteReferenceLayers`, `jurisdictions`, `libraryItems` + acknowledgements and the ERG tables) need tables designed. Hosting: managed cloud (Azure preferred).
 - **Phase 19 — Email & message tracking.** Stage 1 is scoped (send a quote with the PDF attached, tracked on the timeline); Stages 2–3 need their own scoping pass. Needs Graph permissions on the `bioremedy.com` app registration.
 - **Phase 22 — Site workspace.** Placeholder only. The four data rules Phase 21 follows keep a desktop editor cheap; plan it once real walks exist.
+- **Phase 24 — Tutorials.** Built 2026-09-29: 14 screen tours, 6 hands-on tutorials on the training copy, the Home Learn card, the printed guide (`scripts/build-user-guide.mjs`, also the smoke check). Left: the Office tour after Phase 23; the owner actions above.
 - **Phase 23 — Work Inbox & Capabilities.** Planned 2026-09-28 from the owner's "office manager applet is useless / cross work" conversation. Capabilities as data plus record-scoped assignment roles (the unbuilt Phase 12 item 3), the Office applet rebuilt as Inbox / Compliance / Readiness / Purchase Orders, sales leads requesting dispatch through the existing intake queue. Owner decisions D1–D4 are in the doc; three open decisions remain.
 - **Not on the roadmap:** the AI assistant idea (`docs/ai-assistant-idea.md`).
 

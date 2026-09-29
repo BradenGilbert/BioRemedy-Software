@@ -219,7 +219,10 @@ These are three independent axes. Collapsing them into one field will break the 
 - **Guided tour** — an overlay (`tutorials/engine.js`) that walks someone through the real screens, step by step, highlighting a control. A **section tour** only points and explains (the "?" on a page header); a **process tutorial** is hands-on and runs on the training copy. Tour content is code (`tutorials/registry.js`), not a collection.
 - **`tutorialProgress`** — per person, which tours they started, finished or waved off. A convenience only: it is **not** a training record. Training completion is a `libraryAcknowledgements` row on the matching Tutorials-shelf `libraryItems` entry.
 - **`data-tour`** — the markup attribute a tour step targets. Renaming or removing one breaks a tour; `scripts/smoke.mjs` walks every tour and fails on a missing target.
-- **Training copy** — a second instance of the same server (`CRM_TRAINING=1`, its own port, data folder and tunnel) loaded with the sample data and reset nightly, for hands-on tutorials. Never the live data. Not built yet (Phase 24 step 2).
+- **Training copy** — a second instance of the same server (`CRM_TRAINING=1`, port 4174, `data-training/`, its own quick tunnel and session cookie) holding the sample data dated today, rebuilt nightly by `scripts/reset-training.mjs`, password-only, with a TRAINING frame on every screen. Hands-on tutorials run there, never on live. Built 2026-09-29.
+- **`trainingSettings`** — live's pointer to the training copy (`{ trainingUrl }`, Admin-set in Identity & Sync › Training copy, read through `/api/training/settings`). An object like `qboSettings`, not a collection.
+- **`libraryItems.tourId`** — on a Tutorials-shelf item, the hands-on tutorial it opens (`tutorials/registry.js` id). The item shows *Open in training* (live) or *Start* (training copy) instead of *Open*.
+- **Section tour / hands-on tutorial** — `kind: "section"` tours only point and explain (the "?" on a workspace header or in the top bar on a record page); `kind: "process"` tutorials are hands-on and belong on the training copy.
 
 ## Deprecated
 

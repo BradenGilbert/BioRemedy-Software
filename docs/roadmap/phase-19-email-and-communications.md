@@ -88,6 +88,10 @@ Everything the platform has done so far is internal. Sending mail changes that, 
 
 ---
 
+## Constraint from Phase 24 (2026-09-29)
+
+- **Nothing is ever sent from the training copy.** A server with `CRM_TRAINING=1` (`trainingMode` in `server.mjs`) holds sample data that trainees change freely; every send path this phase adds must refuse (or log only) when `trainingMode` is on, and the tutorials that touch sending should say so.
+
 ## Corrections found during implementation
 
 *(Record here anything that turned out to be different from the plan.)*

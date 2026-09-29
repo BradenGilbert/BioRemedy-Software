@@ -184,42 +184,6 @@ with sync_playwright() as p:
             press_openers(view)
         print(f"  {view}: {len(seen)} tabs")
 
-    # Phase 24: guided tours. Start every tour in tutorials/registry.js, press Next through it, and
-    # fail on any step whose highlight target is missing (the engine marks the layer
-    # data-tour-status="missing"). Importing the modules by the same URL app.js uses returns the
-    # same instances, so this drives the real engine with the app's host wired in.
-    with open(os.path.join(ROOT, "tutorials", "registry.js"), encoding="utf8") as handle:
-        tour_ids = re.findall(r'^    id: "([a-z0-9-]+)",$', handle.read(), re.M)
-    for tour_id in tour_ids:
-        where["at"] = f"tour {tour_id}"
-        page.goto(BASE + "#view=home")
-        page.reload()
-        page.wait_for_timeout(900)
-        page.evaluate(
-            "async (id) => { const e = await import('/tutorials/engine.js'); const r = await import('/tutorials/registry.js'); e.startTour(r.findTutorial(id)); }",
-            tour_id,
-        )
-        steps = 0
-        for _ in range(60):
-            page.wait_for_timeout(700)
-            layer = page.locator(".tour-layer")
-            if not layer.count() or layer.get_attribute("hidden") is not None:
-                break
-            steps += 1
-            status = layer.get_attribute("data-tour-status")
-            title = page.locator("#tourCardTitle").inner_text()
-            if status == "missing":
-                summary["badText"].append(f"tour {tour_id} step {steps} ({title}): highlight target missing")
-            note_bad_text(page, f"tour {tour_id} step {steps}")
-            next_button = page.locator('[data-tour-act="next"]')
-            if next_button.is_disabled():
-                # A hands-on step waits for the person; the sweep cannot act for them, so stop here.
-                page.keyboard.press("Escape")
-                break
-            next_button.click()
-        summary["tours"] = summary.get("tours", 0) + 1
-        print(f"  tour {tour_id}: {steps} steps")
-
     # Front Line: log in, then walk its screens
     where["at"] = "frontline"
     page.goto(BASE + "#view=frontline-login")
