@@ -2701,6 +2701,9 @@ function withWalkParticipantRows(view, data, session) {
   add("siteWalkReports", (row) => walk.walkIds.has(row.walkEventId));
   add("siteWalkObservations", (row) => walk.walkIds.has(row.walkEventId));
   add("locations", (row) => walk.walkIds.has(row.scheduleEventId));
+  // Phase 25 (2026-09-29): a sales-only walker (no workforce/dispatch domain) still needs their own
+  // employee row -- the phone's My Day and the walk screen resolve "who am I" through it.
+  add("employees", (row) => row.id === employeeId, ["id", "displayName", "firstName", "lastName", "title", "status"]);
   return view;
 }
 
@@ -5117,12 +5120,24 @@ async function handleDocumentUpload(request, response) {
   const body = await readRequestBody(request, maxJobRequestDocumentBytes);
   if (!body.length) return json(response, 400, { error: "The selected file is empty." });
   const sha256 = createHash("sha256").update(body).digest("hex");
+  // Phase 25 item 5 (2026-09-29): the field app may choose the document id itself (X-Document-Id) so
+  // a site walk can reference a photo taken offline before the upload happens. A replay of the same
+  // upload returns the stored row; an id already used by a different file is refused.
+  const proposedId = header("x-document-id");
+  if (proposedId && !/^document-[a-z0-9-]{4,60}$/i.test(proposedId)) return json(response, 400, { error: "Invalid document id." });
+  const existingWithId = proposedId ? (data.documents || []).find((item) => item.id === proposedId) : null;
+  if (existingWithId) {
+    if (existingWithId.sha256 === sha256 && existingWithId.entityType === entityType && existingWithId.entityId === entityId) return json(response, 200, documentSummary(existingWithId));
+    return json(response, 409, { error: "That document id is already in use." });
+  }
+  const queuedOffline = header("x-offline-queued") === "1" && Boolean(proposedId);
   const duplicate = (data.documents || []).find((item) => !item.deletedAt && item.sha256 === sha256 && item.entityType === entityType && item.entityId === entityId);
-  if (duplicate) return json(response, 409, { error: `That exact file is already attached (${duplicate.fileName}, uploaded ${duplicate.uploadedAt.slice(0, 10)}).`, duplicate: true, documentId: duplicate.id });
+  // An upload queued offline is already referenced by its id, so a duplicate is stored rather than refused.
+  if (duplicate && !queuedOffline) return json(response, 409, { error: `That exact file is already attached (${duplicate.fileName}, uploaded ${duplicate.uploadedAt.slice(0, 10)}).`, duplicate: true, documentId: duplicate.id });
 
   const previous = groupId ? (data.documents || []).filter((item) => item.groupId === groupId).sort((a, b) => b.versionNumber - a.versionNumber)[0] : null;
   const document = touchRecord({
-    id: makeId("document"),
+    id: proposedId || makeId("document"),
     entityType,
     entityId,
     accountId,
@@ -5556,6 +5571,15 @@ async function handleApi(request, response, pathname) {
     const stored = index >= 0 ? data[collection][index] : null;
     const conflict = versionConflict(stored, body);
     if (conflict) return json(response, 409, conflict);
+    if (collection === "siteWalkReports" && stored) {
+      // Phase 25 (2026-09-29): share links and completion are written by /api/field/* commands only; a
+      // report save (the phone's autosave, or an offline save replayed without a version) keeps them.
+      record.shares = stored.shares || [];
+      if (stored.completedAt) {
+        record.completedAt = stored.completedAt;
+        record.completedBy = stored.completedBy || "";
+      }
+    }
     if (request.walkParticipantWrite && fieldPartialWriteFields[collection]) {
       if (!stored) return json(response, 403, { error: "This record must exist before a walk participant can update it." });
       const merged = { ...stored };
@@ -6095,6 +6119,8 @@ async function fieldCompleteSiteWalk(request, eventId) {
     needs: body.needs ?? stored?.needs ?? {},
     contactsMet: body.contactsMet ?? stored?.contactsMet ?? [],
     measurements: body.measurements ?? stored?.measurements ?? [],
+    // Phase 25 item 9 (2026-09-29): the walk's sketches (site-sketch documents), kept through completion.
+    sketchDocumentIds: body.sketchDocumentIds ?? stored?.sketchDocumentIds ?? [],
     backgrounds: stored?.backgrounds ?? [],
     referenceSnapshot: stored?.referenceSnapshot ?? { layers: [] },
     shares: stored?.shares ?? [],
@@ -6140,12 +6166,39 @@ async function fieldCompleteSiteWalk(request, eventId) {
 }
 
 // ---- POST /api/field/measurements ----
+function walkMeasurementShape(row) {
+  const numberOrNull = (value) => (value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? null : Number(value));
+  const area = numberOrNull(row.area);
+  const length = numberOrNull(row.length);
+  const depth = numberOrNull(row.depth);
+  const volume = numberOrNull(row.volume);
+  const primary = area !== null ? ["area", area, row.areaUnit || "sq ft"] : length !== null ? ["length", length, "ft"] : depth !== null ? ["depth", depth, "ft"] : volume !== null ? ["volume", volume, "cu ft"] : [row.kind || "other", numberOrNull(row.value), row.unit || ""];
+  return {
+    kind: row.kind || primary[0],
+    label: String(row.label || "").slice(0, 80),
+    value: numberOrNull(row.value) ?? primary[1],
+    unit: row.unit || primary[2],
+    method: row.method || "estimate",
+    note: String(row.note || "").slice(0, 200),
+    area,
+    areaUnit: area !== null ? row.areaUnit || "sq ft" : "",
+    length,
+    depth,
+    volume,
+    geometry: row.geometry && typeof row.geometry === "object" ? row.geometry : null,
+  };
+}
+
 async function fieldAddMeasurement(request) {
   const body = await readJsonBody(request);
   const session = request.session;
   const data = await loadBackend();
   const measurement = { id: makeId("measurement"), at: new Date().toISOString(), by: attribution(request), ...body.measurement };
   if (body.target === "walk") {
+    // Phase 25 item 8 (2026-09-29): one shape for a walk's measurements -- the Walk tab's row
+    // { kind, label, value, unit, method, note } with the optional dimensions alongside. The phone now
+    // writes these through the report itself; this route stays as a bridge and normalizes to that shape.
+    Object.assign(measurement, walkMeasurementShape(measurement));
     const report = (data.siteWalkReports || []).find((item) => (item.id === body.id || item.walkEventId === body.id) && !item.deletedAt);
     if (!report) throw requestError("Site walk report not found.", 404);
     if (isFieldSession(session)) {
@@ -6270,6 +6323,8 @@ function walkShareDocumentIds(data, report) {
   const observations = (data.siteWalkObservations || []).filter((item) => item.walkEventId === report.walkEventId && !item.deletedAt);
   for (const observation of observations) for (const documentId of observation.photoDocumentIds || []) ids.add(documentId);
   for (const background of report.backgrounds || []) if (background.documentId) ids.add(background.documentId);
+  // Phase 25 item 9 (2026-09-29): the walk's sketches.
+  for (const documentId of report.sketchDocumentIds || []) if (documentId) ids.add(documentId);
   // The Walk tab's section photo trays and required shots (2026-09-25: these were never shared).
   for (const section of Object.values(report.sections || {})) {
     for (const documentId of section?.photoDocumentIds || []) ids.add(documentId);

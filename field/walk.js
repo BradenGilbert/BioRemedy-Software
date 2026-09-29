@@ -14,7 +14,7 @@
 import * as crm from "../app.js";
 import { registerFieldRoute, registerFieldAction, registerFieldForm, registerSalesHomeSection, currentFieldEmployee } from "./index.js";
 import { fieldRequest, saveFieldRecord } from "./package.js";
-import { createSiteMap, walkReportForEvent, observationsForWalk, photoUrl, uploadSiteDocument, backgroundsForReport, facilityCenter, renderObservationLine } from "./map.js";
+import { createSiteMap, walkReportForEvent, observationsForWalk, photoUrl, thumbUrl, uploadSiteDocument, backgroundsForReport, facilityCenter, renderObservationLine, choosePhotoSource, addWalkPhotos, runWalkPhotoAction, releaseWalkDocument, walkPhotoCandidates } from "./map.js";
 import { snapshotReferenceLayers, bboxAround } from "./layers.js";
 import { PIN_KINDS, SHAPE_KINDS, SHAPE_COLORS } from "./map-core.js";
 
@@ -60,6 +60,9 @@ export const WALK_SECTIONS = [
       { key: "description", label: "What is there", type: "textarea" },
     ],
   },
+  // Phase 25 item 8 (2026-09-29): a real section (Section complete, counted on Finish). Its rows live in
+  // report.measurements[], not in sections.measurements.fields.
+  { key: "measurements", title: "Measurements", shots: [], fields: [], custom: "measurements" },
   {
     key: "waste",
     title: "Waste streams expected",
@@ -116,6 +119,7 @@ function blankReport(walk) {
     needs: { samplingNeeded: false },
     contactsMet: [],
     measurements: [],
+    sketchDocumentIds: [],
     backgrounds: [],
     referenceSnapshot: null,
     shares: [],
@@ -170,17 +174,17 @@ function persistReport(report, { rerender = false } = {}) {
     if (stored && stored.version !== undefined) report.version = stored.version;
     let saved;
     try {
-      saved = await saveFieldRecord("siteWalkReports", report);
+      saved = await saveFieldRecord("siteWalkReports", report, { queuedLastWriteWins: true });
     } catch (error) {
       // A server command (share, complete) moved the row on while we held an older copy: take the
       // server's row, lay the walker's own fields over it and save once more.
       const current = error?.conflict ? error.payload?.current : null;
       if (!current) throw error;
-      const ours = ["sections", "needs", "contactsMet", "measurements", "summary", "checkIn", "backgrounds", "referenceSnapshot", "status"];
+      const ours = ["sections", "needs", "contactsMet", "measurements", "sketchDocumentIds", "summary", "checkIn", "backgrounds", "referenceSnapshot", "status"];
       const merged = { ...current };
       for (const key of ours) if (report[key] !== undefined) merged[key] = report[key];
       Object.assign(report, merged);
-      saved = await saveFieldRecord("siteWalkReports", report);
+      saved = await saveFieldRecord("siteWalkReports", report, { queuedLastWriteWins: true });
     }
     applyServerOwnedFields(report, saved);
     if (rerender) crm.render();
@@ -188,6 +192,20 @@ function persistReport(report, { rerender = false } = {}) {
   });
   persistChain = run.catch(() => {});
   return run;
+}
+
+// Where this walk's photos and sketches are filed: the opportunity, or -- a walk with no opportunity --
+// the walk report itself (entityType siteWalk), saved first so the upload has a record to land on.
+async function ensureReportSaved(walk) {
+  const report = reportFor(walk);
+  if (!walkReportForEvent(walk.id)) await persistReport(report);
+  return report;
+}
+
+async function walkUploadTarget(walk) {
+  if (walk.opportunityId) return { entityType: "opportunity", entityId: walk.opportunityId };
+  const report = await ensureReportSaved(walk);
+  return { entityType: "siteWalk", entityId: report.id };
 }
 
 function queuePersist(report) {
@@ -364,9 +382,9 @@ function renderWalkTab(walk, opportunity, facility, report) {
       <button class="field-tool" type="button" data-field-action="walk-measure">Measure</button>
     </div>
 
-    ${WALK_SECTIONS.map((section) => renderSection(section, walk, opportunity, report, defaultOpenSection(report))).join("")}
+    ${renderSketchStrip(report)}
 
-    ${renderMeasurementsSection(report)}
+    ${WALK_SECTIONS.map((section) => renderSection(section, walk, opportunity, report, defaultOpenSection(report))).join("")}
 
     <button class="field-button field-button--primary-bar" type="button" data-field-action="walk-tab" data-tab="map">Open the map</button>
   `;
@@ -383,16 +401,25 @@ function renderSection(section, walk, opportunity, report, openKey) {
   const photos = stateOf.photoDocumentIds || [];
   const open = openKey === section.key;
   const missingShots = section.shots.filter((shot) => !stateOf.shots?.[shot]);
+  const measurementCount = section.custom === "measurements" ? (report.measurements || []).length : 0;
+  const body =
+    section.custom === "needs"
+      ? renderNeedsSection(opportunity, report)
+      : section.custom === "contacts"
+        ? renderContactsSection(walk, opportunity, report)
+        : section.custom === "measurements"
+          ? renderMeasurementsBody(report)
+          : section.fields.map((field) => renderField(section.key, field, stateOf.fields?.[field.key])).join("");
   return `
-    <details class="field-walk-section ${stateOf.done ? "is-done" : ""}" data-section="${attr(section.key)}" ${open ? "open" : ""}>
+    <details class="field-walk-section ${stateOf.done ? "is-done" : ""}" data-section="${attr(section.key)}" ${section.custom === "measurements" ? `id="fieldWalkMeasurements"` : ""} ${open ? "open" : ""}>
       <summary>
         <span class="field-walk-section-check" aria-hidden="true">${stateOf.done ? "✓" : ""}</span>
         <span class="field-walk-section-title">${esc(section.title)}</span>
-        <small>${photos.length ? `${photos.length} photo${photos.length === 1 ? "" : "s"}` : ""}${missingShots.length ? `${photos.length ? " · " : ""}${missingShots.length} shot${missingShots.length === 1 ? "" : "s"} needed` : ""}</small>
+        <small>${measurementCount ? `${measurementCount} recorded` : ""}${photos.length ? `${photos.length} photo${photos.length === 1 ? "" : "s"}` : ""}${missingShots.length ? `${photos.length ? " · " : ""}${missingShots.length} shot${missingShots.length === 1 ? "" : "s"} needed` : ""}</small>
       </summary>
       <div class="field-walk-section-body">
-        ${section.custom === "needs" ? renderNeedsSection(opportunity, report) : section.custom === "contacts" ? renderContactsSection(walk, opportunity, report) : section.fields.map((field) => renderField(section.key, field, stateOf.fields?.[field.key])).join("")}
-        ${section.shots.length || section.custom !== "needs" ? renderPhotoTray(section, stateOf) : ""}
+        ${body}
+        ${section.shots.length || (section.custom !== "needs" && section.custom !== "measurements") ? renderPhotoTray(section, stateOf) : ""}
         <label class="field-check-row field-walk-done">
           <input type="checkbox" data-walk-done="${attr(section.key)}" ${stateOf.done ? "checked" : ""} />
           <span>Section complete</span>
@@ -416,6 +443,8 @@ function renderField(sectionKey, field, value) {
   return "";
 }
 
+// Phase 25 items 5-7 (2026-09-29): every tile is a button. An empty slot or "+ Add photo" opens
+// Upload new / Choose existing; a photo opens View / Mark up / Replace / Remove.
 function renderPhotoTray(section, stateOf) {
   const photos = stateOf.photoDocumentIds || [];
   return `
@@ -424,15 +453,28 @@ function renderPhotoTray(section, stateOf) {
         .map((shot) => {
           const id = stateOf.shots?.[shot];
           return id
-            ? `<a class="field-shot is-filled" href="${attr(photoUrl(id))}" target="_blank" rel="noopener"><img src="${attr(photoUrl(id))}" alt="${attr(shot)}" loading="lazy" /><span>${esc(shot)}</span></a>`
-            : `<label class="field-shot"><input type="file" accept="image/*" data-walk-photo="${attr(section.key)}" data-slot="${attr(shot)}" /><b>+</b><span>${esc(shot)}</span></label>`;
+            ? `<button type="button" class="field-shot is-filled" data-field-action="walk-photo-tap" data-section="${attr(section.key)}" data-slot="${attr(shot)}" data-id="${attr(id)}"><img src="${attr(thumbUrl(id))}" alt="${attr(shot)}" loading="lazy" /><span>${esc(shot)}</span></button>`
+            : `<button type="button" class="field-shot" data-field-action="walk-photo-add" data-section="${attr(section.key)}" data-slot="${attr(shot)}"><b>+</b><span>${esc(shot)}</span></button>`;
         })
         .join("")}
       ${photos
         .filter((id) => !Object.values(stateOf.shots || {}).includes(id))
-        .map((id) => `<a class="field-shot is-filled" href="${attr(photoUrl(id))}" target="_blank" rel="noopener"><img src="${attr(photoUrl(id))}" alt="" loading="lazy" /><span>Photo</span></a>`)
+        .map((id) => `<button type="button" class="field-shot is-filled" data-field-action="walk-photo-tap" data-section="${attr(section.key)}" data-slot="" data-id="${attr(id)}"><img src="${attr(thumbUrl(id))}" alt="" loading="lazy" /><span>Photo</span></button>`)
         .join("")}
-      <label class="field-shot field-shot--add"><input type="file" accept="image/*" multiple data-walk-photo="${attr(section.key)}" data-slot="" /><b>+</b><span>Add photo</span></label>
+      <button type="button" class="field-shot field-shot--add" data-field-action="walk-photo-add" data-section="${attr(section.key)}" data-slot=""><b>+</b><span>Add photo</span></button>
+    </div>`;
+}
+
+// Item 9: the walk's sketches, under the tool row. Tap one to view, edit (a new version) or remove it.
+function renderSketchStrip(report) {
+  const ids = report.sketchDocumentIds || [];
+  if (!ids.length) return "";
+  return `
+    <div class="field-sketch-strip">
+      <small class="field-card-sub">Site sketch${ids.length === 1 ? "" : `es (${ids.length})`}</small>
+      <div class="field-photo-tray">
+        ${ids.map((id, index) => `<button type="button" class="field-shot is-filled" data-field-action="walk-sketch-tap" data-id="${attr(id)}"><img src="${attr(thumbUrl(id))}" alt="Site sketch ${index + 1}" loading="lazy" /><span>Sketch ${index + 1}</span></button>`).join("")}
+      </div>
     </div>`;
 }
 
@@ -476,27 +518,71 @@ function renderContactsSection(walk, opportunity, report) {
     </form>`;
 }
 
-function renderMeasurementsSection(report) {
+// A measurement row's value, in either shape: the Walk tab's { value, unit } and the measurements
+// dialog's extra dimensions { area, length, depth, volume } (Phase 25 item 8 keeps both on one row).
+function measurementDimensions(item) {
+  const main = item.value !== undefined && item.value !== null && item.value !== "" ? `${item.value} ${item.unit || ""}`.trim() : "";
+  const extra = [
+    item.area && !(item.kind === "area" && Number(item.value) === Number(item.area)) ? `${item.area} ${item.areaUnit || "sq ft"}` : "",
+    item.length && !(item.kind === "length" && Number(item.value) === Number(item.length)) ? `${item.length} ft long` : "",
+    item.depth && !(item.kind === "depth" && Number(item.value) === Number(item.depth)) ? `${item.depth} ft deep` : "",
+    item.volume && !(item.kind === "volume" && Number(item.value) === Number(item.volume)) ? `${item.volume} cu ft` : "",
+  ].filter(Boolean);
+  return [main, ...extra].filter(Boolean).join(" · ");
+}
+
+function measurementMethodLabel(method) {
+  return MEASUREMENT_METHODS.find(([key]) => key === method)?.[1] || method || "";
+}
+
+function renderMeasurementsBody(report) {
   const measurements = report.measurements || [];
   return `
-    <details class="field-walk-section" id="fieldWalkMeasurements" ${crm.state.fieldWalkOpenSection === "measurements" ? "open" : ""}>
-      <summary><span class="field-walk-section-check" aria-hidden="true">${measurements.length ? "✓" : ""}</span><span class="field-walk-section-title">Measurements</span><small>${measurements.length ? `${measurements.length} recorded` : ""}</small></summary>
-      <div class="field-walk-section-body">
-        ${measurements.length ? `<ul class="field-list">${measurements.map((item, index) => `<li><span>${esc(item.label || item.kind)}: <strong>${esc(item.value)} ${esc(item.unit)}</strong> <small>${esc(MEASUREMENT_METHODS.find(([key]) => key === item.method)?.[1] || item.method || "")}</small>${item.note ? `<br><small>${esc(item.note)}</small>` : ""}</span><button type="button" class="field-mini" data-field-action="walk-measurement-remove" data-index="${index}" aria-label="Remove">×</button></li>`).join("")}</ul>` : ""}
-        <form class="field-inline-form field-inline-form--stack" data-field-form="walk-measurement">
-          <div class="field-inline-form">
-            <select name="kind" aria-label="What"><option value="area">Area</option><option value="length">Length</option><option value="depth">Depth</option><option value="volume">Volume</option><option value="other">Other</option></select>
-            <input name="value" type="number" inputmode="decimal" step="any" placeholder="value" required />
-            <select name="unit" aria-label="Unit"><option>sq ft</option><option>ft</option><option>in</option><option>cu yd</option><option>gal</option><option>m</option></select>
-          </div>
-          <div class="field-inline-form">
-            <select name="method" aria-label="Method">${MEASUREMENT_METHODS.map(([key, label]) => `<option value="${key}">${esc(label)}</option>`).join("")}</select>
-            <input name="note" placeholder="what was measured" maxlength="120" />
-            <button class="field-button field-button--secondary" type="submit">Add</button>
-          </div>
-        </form>
+    ${measurements.length ? `<ul class="field-list">${measurements.map((item, index) => `<li><span>${esc(item.label || item.kind)}: <strong>${esc(measurementDimensions(item))}</strong> <small>${esc(measurementMethodLabel(item.method))}${item.geometry ? ` · ${esc(String((item.geometry.coordinates?.[0] || []).length))} GPS points` : ""}</small>${item.note ? `<br><small>${esc(item.note)}</small>` : ""}</span><button type="button" class="field-mini" data-field-action="walk-measurement-remove" data-index="${index}" aria-label="Remove">×</button></li>`).join("")}</ul>` : `<p class="field-muted">Nothing measured yet.</p>`}
+    <div class="field-actions-row">
+      <button class="field-button field-button--secondary" type="button" data-field-action="walk-measure-gps">GPS walk the perimeter</button>
+      <button class="field-button field-button--secondary" type="button" data-field-action="walk-measure">Area, length, depth…</button>
+    </div>
+    <form class="field-inline-form field-inline-form--stack" data-field-form="walk-measurement">
+      <div class="field-inline-form">
+        <select name="kind" aria-label="What"><option value="area">Area</option><option value="length">Length</option><option value="depth">Depth</option><option value="volume">Volume</option><option value="other">Other</option></select>
+        <input name="value" type="number" inputmode="decimal" step="any" placeholder="value" required />
+        <select name="unit" aria-label="Unit"><option>sq ft</option><option>ft</option><option>in</option><option>cu yd</option><option>gal</option><option>m</option></select>
       </div>
-    </details>`;
+      <div class="field-inline-form">
+        <select name="method" aria-label="Method">${MEASUREMENT_METHODS.filter(([key]) => key !== "gps-walk").map(([key, label]) => `<option value="${key}">${esc(label)}</option>`).join("")}</select>
+        <input name="note" placeholder="what was measured" maxlength="120" />
+        <button class="field-button field-button--secondary" type="submit">Add</button>
+      </div>
+    </form>`;
+}
+
+// The measurements dialog (media.js) row → the walk's row shape. Same mapping as the server's
+// walkMeasurementShape (the /api/field/measurements bridge).
+function walkMeasurementRow(row) {
+  const numberOrNull = (value) => (value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? null : Number(value));
+  const area = numberOrNull(row.area);
+  const length = numberOrNull(row.length);
+  const depth = numberOrNull(row.depth);
+  const volume = numberOrNull(row.volume);
+  const [kind, value, unit] = area !== null ? ["area", area, row.areaUnit || "sq ft"] : length !== null ? ["length", length, "ft"] : depth !== null ? ["depth", depth, "ft"] : volume !== null ? ["volume", volume, "cu ft"] : ["other", null, ""];
+  return {
+    id: crm.makeId("measure"),
+    kind,
+    label: String(row.label || "").trim().slice(0, 80) || { area: "Area", length: "Length", depth: "Depth", volume: "Volume" }[kind] || "Measurement",
+    value,
+    unit,
+    method: row.method || "estimate",
+    note: String(row.note || "").slice(0, 200),
+    area,
+    areaUnit: area !== null ? row.areaUnit || "sq ft" : "",
+    length,
+    depth,
+    volume,
+    geometry: row.geometry && typeof row.geometry === "object" ? row.geometry : null,
+    at: row.at || new Date().toISOString(),
+    by: currentFieldEmployee()?.displayName || row.by || "",
+  };
 }
 
 // ---- Map ----
@@ -516,6 +602,8 @@ function mountWalkMap(element, walk, report) {
     mode: report.completedAt ? "view" : "edit",
     onChange: (change) => persistObservationChange(walk, change),
     onShare: () => shareWalk(walk),
+    getReport: () => reportFor(walk),
+    ensureReport: () => ensureReportSaved(walk),
     onPlanAdded: async (background) => {
       const current = reportFor(walk);
       current.backgrounds = [...(current.backgrounds || []), { id: background.id, kind: "plan", label: background.label, documentId: background.documentId, widthPx: background.widthPx, heightPx: background.heightPx }];
@@ -566,6 +654,7 @@ function renderFinishTab(walk, opportunity, facility, report) {
         <div><strong>${observations.length}</strong><small>pins &amp; shapes</small></div>
         <div><strong>${photoCount}</strong><small>photos</small></div>
         <div><strong>${(report.measurements || []).length}</strong><small>measurements</small></div>
+        <div><strong>${(report.sketchDocumentIds || []).length}</strong><small>sketches</small></div>
         <div><strong>${needsCount}</strong><small>needs written</small></div>
         <div><strong>${(report.contactsMet || []).length}</strong><small>contacts met</small></div>
       </div>
@@ -749,15 +838,140 @@ registerFieldAction("walk-measurement-remove", async (button) => {
   crm.render();
 });
 
-registerFieldAction("walk-measure", () => {
+// Phase 25 item 8 (2026-09-29): "Measure" and "GPS walk the perimeter" open the measurements dialog
+// (media.js). Its rows are written into this walk's report in the walk's own shape -- through the same
+// cached report object the autosave uses, so one save carries everything (no second writer).
+function openWalkMeasurements(walk, { startGps = false } = {}) {
   rememberSection("measurements");
-  const details = document.querySelector("#fieldWalkMeasurements");
-  if (details) {
-    details.open = true;
-    details.scrollIntoView({ behavior: "smooth", block: "start" });
-    details.querySelector("input[name='value']")?.focus();
+  if (!window.fieldMedia?.openMeasurementsForm) {
+    crm.showToast("The measurements tool is not loaded — use the Measurements section's form.");
+    return;
+  }
+  const report = reportFor(walk);
+  window.fieldMedia.openMeasurementsForm({
+    target: "walk",
+    id: report.id,
+    startGps,
+    getRows: () => reportFor(walk).measurements || [],
+    onSave: async (row) => {
+      const current = reportFor(walk);
+      current.measurements = [...(current.measurements || []), walkMeasurementRow(row)];
+      await persistReport(current);
+      if (crm.state.view === "field-walk") crm.render();
+    },
+  });
+}
+
+registerFieldAction("walk-measure", () => {
+  const walk = currentWalk();
+  if (walk) openWalkMeasurements(walk);
+});
+
+registerFieldAction("walk-measure-gps", () => {
+  const walk = currentWalk();
+  if (walk) openWalkMeasurements(walk, { startGps: true });
+});
+
+// ---- photos on the Walk tab (Phase 25 items 5-7) ----
+function removeSectionReference(stateOf, documentId, slot) {
+  stateOf.photoDocumentIds = (stateOf.photoDocumentIds || []).filter((id) => id !== documentId);
+  const shots = { ...(stateOf.shots || {}) };
+  for (const [label, id] of Object.entries(shots)) if (id === documentId && (!slot || label === slot)) delete shots[label];
+  // A photo that still fills another slot of this section stays in the section's list.
+  if (Object.values(shots).includes(documentId)) stateOf.photoDocumentIds = [...stateOf.photoDocumentIds, documentId];
+  stateOf.shots = shots;
+}
+
+function swapSectionReference(stateOf, documentId, nextId) {
+  stateOf.photoDocumentIds = [...new Set((stateOf.photoDocumentIds || []).map((id) => (id === documentId ? nextId : id)))];
+  stateOf.shots = Object.fromEntries(Object.entries(stateOf.shots || {}).map(([label, id]) => [label, id === documentId ? nextId : id]));
+}
+
+registerFieldAction("walk-photo-add", async (button) => {
+  const walk = currentWalk();
+  if (!walk) return;
+  const sectionKey = button.dataset.section || "";
+  const slot = button.dataset.slot || "";
+  const section = WALK_SECTIONS.find((item) => item.key === sectionKey);
+  const report = reportFor(walk);
+  const stateOf = sectionState(report, sectionKey);
+  const choice = await choosePhotoSource({
+    title: slot ? `${section?.title || sectionKey}: ${slot}` : `Photo for ${section?.title || sectionKey}`,
+    candidates: walkPhotoCandidates(walk, report),
+    excludeIds: slot ? [] : stateOf.photoDocumentIds || [],
+    multiple: !slot,
+  });
+  if (!choice) return;
+  try {
+    const target = await walkUploadTarget(walk);
+    const count = choice.files?.length || 0;
+    const ids = await addWalkPhotos(choice, { ...target, caption: (index) => (slot ? `${section?.title || sectionKey} — ${slot}` : `${section?.title || sectionKey}${count > 1 ? ` (${index + 1})` : ""}`) });
+    if (!ids.length) return;
+    stateOf.photoDocumentIds = [...new Set([...(stateOf.photoDocumentIds || []), ...ids])];
+    if (slot) stateOf.shots = { ...(stateOf.shots || {}), [slot]: ids[0] };
+    rememberSection(sectionKey);
+    await persistReport(report);
+    crm.render();
+  } catch (error) {
+    crm.showToast(error.message || "Photo upload failed.");
   }
 });
+
+registerFieldAction("walk-photo-tap", async (button) => {
+  const walk = currentWalk();
+  if (!walk) return;
+  const sectionKey = button.dataset.section || "";
+  const slot = button.dataset.slot || "";
+  const documentId = button.dataset.id || "";
+  const section = WALK_SECTIONS.find((item) => item.key === sectionKey);
+  const result = await runWalkPhotoAction(documentId, { title: slot ? `${section?.title || sectionKey}: ${slot}` : section?.title || "Photo", removeLabel: slot ? "Remove from this slot" : "Remove from this section" });
+  if (!result) return;
+  const report = reportFor(walk);
+  const stateOf = sectionState(report, sectionKey);
+  try {
+    if (result.type === "remove") removeSectionReference(stateOf, documentId, slot);
+    else swapSectionReference(stateOf, documentId, result.documentId);
+    rememberSection(sectionKey);
+    await persistReport(report);
+    if (result.type === "remove") {
+      const deleted = await releaseWalkDocument(documentId, { report });
+      crm.showToast(deleted ? "Photo removed." : "Photo removed from this section (it is still used elsewhere or was already on file).");
+    }
+    crm.render();
+  } catch (error) {
+    crm.showToast(error.message || "Could not change the photo.");
+  }
+});
+
+registerFieldAction("walk-sketch-tap", async (button) => {
+  const walk = currentWalk();
+  if (!walk) return;
+  const documentId = button.dataset.id || "";
+  const result = await runWalkPhotoAction(documentId, { title: "Site sketch", markupLabel: "Edit sketch", removeLabel: "Remove sketch", replace: false, typeCode: "site-sketch" });
+  if (!result) return;
+  const report = reportFor(walk);
+  try {
+    report.sketchDocumentIds = result.type === "remove" ? (report.sketchDocumentIds || []).filter((id) => id !== documentId) : [...new Set((report.sketchDocumentIds || []).map((id) => (id === documentId ? result.documentId : id)))];
+    await persistReport(report);
+    if (result.type === "remove") {
+      await releaseWalkDocument(documentId, { report });
+      crm.showToast("Sketch removed.");
+    }
+    crm.render();
+  } catch (error) {
+    crm.showToast(error.message || "Could not change the sketch.");
+  }
+});
+
+async function addSketchToWalk(walk, saved) {
+  if (!saved?.id) return false;
+  const report = reportFor(walk);
+  report.sketchDocumentIds = [...new Set([...(report.sketchDocumentIds || []), saved.id])];
+  await persistReport(report);
+  crm.render();
+  crm.showToast(saved.pendingUpload ? "Sketch saved on this phone — it uploads when you're back online." : `Sketch saved to the ${saved.entityType === "siteWalk" ? "walk" : "opportunity"}.`);
+  return true;
+}
 
 registerFieldAction("walk-video", async () => {
   const walk = currentWalk();
@@ -777,8 +991,18 @@ registerFieldAction("walk-sketch", async () => {
   // The markup tool needs an image to draw on; openSiteSketch renders the facility's satellite
   // snapshot (or a blank grid offline) and opens the tool over it, saving a site-sketch document.
   // (2026-09-28: this used to call openImageMarkup with no image and toasted "Unrecognized image source".)
+  // Phase 25 item 9 (2026-09-29): the saved sketch is referenced from the report (sketchDocumentIds), so
+  // the PDF, share page and zip carry it; with no opportunity it is filed on the walk report.
   if (window.fieldMedia?.openSiteSketch) {
-    return window.fieldMedia.openSiteSketch({ opportunityId: walk.opportunityId || "", facilityId: walk.facilityId || "" });
+    try {
+      const walkReportId = walk.opportunityId ? "" : (await ensureReportSaved(walk)).id;
+      const saved = await window.fieldMedia.openSiteSketch({ opportunityId: walk.opportunityId || "", facilityId: walk.facilityId || "", walkReportId });
+      if (saved && !saved.id) crm.showToast("The sketch could not be filed — this walk has no record to attach it to yet.");
+      await addSketchToWalk(walk, saved);
+    } catch (error) {
+      crm.showToast(error.message || "Sketch could not be saved.");
+    }
+    return;
   }
   openSimpleSketch(walk);
 });
@@ -843,14 +1067,10 @@ function openSimpleSketch(walk) {
     if (!blob) return;
     try {
       const file = new File([blob], `site-sketch-${Date.now()}.png`, { type: "image/png" });
-      const saved = await uploadSiteDocument({ entityType: "opportunity", entityId: walk.opportunityId, file, typeCode: "site-sketch", caption: dialog.querySelector("[data-sketch-caption]").value || "Site sketch" });
-      const report = reportFor(walk);
-      const notes = sectionState(report, "notes");
-      notes.photoDocumentIds = [...(notes.photoDocumentIds || []), saved.id];
-      await persistReport(report);
+      const target = await walkUploadTarget(walk);
+      const saved = await uploadSiteDocument({ ...target, file, typeCode: "site-sketch", caption: dialog.querySelector("[data-sketch-caption]").value || "Site sketch" });
       dialog.close();
-      crm.render();
-      crm.showToast("Sketch saved to the opportunity.");
+      await addSketchToWalk(walk, saved);
     } catch (error) {
       crm.showToast(error.message || "Sketch could not be saved.");
     }
@@ -882,7 +1102,7 @@ registerFieldAction("walk-complete", async (button) => {
       report.referenceSnapshot = report.referenceSnapshot || null;
     }
     const needs = opportunity ? Object.fromEntries(Object.values(crm.OPPORTUNITY_NEEDS_LIST_CONFIG).map((config) => [config.field, opportunity[config.field] || []])) : {};
-    const payload = { reportId: report.id, summary: report.summary, sections: report.sections, needs: { ...needs, samplingNeeded: Boolean(report.needs?.samplingNeeded) }, contactsMet: report.contactsMet || [], measurements: report.measurements || [], checkIn: report.checkIn, referenceSnapshot: report.referenceSnapshot, backgrounds: report.backgrounds || [], completedAt: now, completedBy: by };
+    const payload = { reportId: report.id, summary: report.summary, sections: report.sections, needs: { ...needs, samplingNeeded: Boolean(report.needs?.samplingNeeded) }, contactsMet: report.contactsMet || [], measurements: report.measurements || [], sketchDocumentIds: report.sketchDocumentIds || [], checkIn: report.checkIn, referenceSnapshot: report.referenceSnapshot, backgrounds: report.backgrounds || [], completedAt: now, completedBy: by };
     let serverDidIt = false;
     try {
       // reportFor now hands back one cached object for the life of the page (item 11), so the
@@ -989,7 +1209,6 @@ function wireWalkInputs() {
     const done = event.target.closest("[data-walk-done]");
     const contact = event.target.closest("[data-walk-contact]");
     const sampling = event.target.closest("[data-walk-sampling]");
-    const photo = event.target.closest("[data-walk-photo]");
     if (done) {
       sectionState(report, done.dataset.walkDone).done = done.checked;
       rememberSection(done.dataset.walkDone);
@@ -1019,31 +1238,8 @@ function wireWalkInputs() {
         await writeNeeds(opportunity, { resourceNeeds: items });
       }
       crm.render();
-      return;
     }
-    if (photo) {
-      const files = [...(photo.files || [])];
-      if (!files.length) return;
-      const sectionKey = photo.dataset.walkPhoto;
-      const slot = photo.dataset.slot || "";
-      const section = WALK_SECTIONS.find((item) => item.key === sectionKey);
-      const stateOf = sectionState(report, sectionKey);
-      crm.showToast(`Uploading ${files.length} photo${files.length === 1 ? "" : "s"}…`);
-      try {
-        for (const [index, file] of files.entries()) {
-          const caption = slot ? `${section?.title || sectionKey} — ${slot}` : `${section?.title || sectionKey}${files.length > 1 ? ` (${index + 1})` : ""}`;
-          const saved = await uploadSiteDocument({ entityType: "opportunity", entityId: walk.opportunityId, file, typeCode: "site-photo", caption });
-          stateOf.photoDocumentIds = [...(stateOf.photoDocumentIds || []), saved.id];
-          if (slot && index === 0) stateOf.shots = { ...(stateOf.shots || {}), [slot]: saved.id };
-        }
-        rememberSection(sectionKey);
-        await persistReport(report);
-        crm.render();
-        crm.showToast(`${files.length} photo${files.length === 1 ? "" : "s"} filed on the opportunity.`);
-      } catch (error) {
-        crm.showToast(error.message || "Photo upload failed.");
-      }
-    }
+    // (Photo uploads moved to the walk-photo-add action, Phase 25 item 6.)
   });
   document.addEventListener("click", async (event) => {
     const yesno = event.target.closest("[data-walk-yesno]");
@@ -1090,13 +1286,16 @@ function walkBundle(walkEventId) {
   const opportunity = crm.findOpportunity(walk.opportunityId);
   const facility = crm.findFacility(walk.facilityId);
   const account = crm.findAccount(walk.accountId || opportunity?.accountId || "");
-  const documentIds = new Set([...observations.flatMap((row) => row.photoDocumentIds || []), ...WALK_SECTIONS.flatMap((section) => report.sections?.[section.key]?.photoDocumentIds || [])]);
+  const sketchIds = report.sketchDocumentIds || [];
+  const documentIds = new Set([...observations.flatMap((row) => row.photoDocumentIds || []), ...WALK_SECTIONS.flatMap((section) => report.sections?.[section.key]?.photoDocumentIds || []), ...sketchIds]);
   const documents = (crm.state.backend.documents || []).filter((document) => documentIds.has(document.id) && !document.deletedAt);
-  return { walk, report, observations, opportunity, facility, account, documents };
+  // Phase 25 item 9 (2026-09-29): the walk's sketches, in the order they were drawn.
+  const sketches = sketchIds.map((id) => documents.find((document) => document.id === id)).filter(Boolean);
+  return { walk, report, observations, opportunity, facility, account, documents, sketches };
 }
 
 export function buildWalkExportHtml(bundle, { origin = location.origin } = {}) {
-  const { walk, report, observations, opportunity, facility, account, documents } = bundle;
+  const { walk, report, observations, opportunity, facility, account, documents, sketches = [] } = bundle;
   const center = facilityCenter(walk.facilityId);
   const docById = new Map(documents.map((document) => [document.id, document]));
   const data = {
@@ -1139,8 +1338,9 @@ export function buildWalkExportHtml(bundle, { origin = location.origin } = {}) {
         return `<article class="walk-observation"><div class="walk-observation-head"><span class="seq" style="background:${color}">${esc(row.seq)}</span><div><strong>${esc(title)}</strong><small>${esc(facts.join(" · "))}</small></div></div>${row.note ? `<p>${esc(row.note)}</p>` : ""}${(row.photoDocumentIds || []).length ? `<div class="photos">${row.photoDocumentIds.map((id) => `<figure><img src="${origin}${photoUrl(id)}" alt="" /><figcaption>${esc(docById.get(id)?.caption || "")}</figcaption></figure>`).join("")}</div>` : ""}</article>`;
       })
       .join("")}</section>` : ""}
+    ${sketches.length ? `<section class="walk-section walk-sketches"><h3>Site sketch${sketches.length === 1 ? "" : "es"}</h3>${sketches.map((document) => `<figure class="walk-sketch"><img src="${origin}${photoUrl(document.id)}" alt="${attr(document.caption || "Site sketch")}" /><figcaption>${esc(document.caption || "Site sketch")}${document.uploadedAt ? ` · ${esc(crm.formatDateTime(document.uploadedAt))}` : ""}</figcaption></figure>`).join("")}</section>` : ""}
     ${sectionBlocks.join("")}
-    ${(report.measurements || []).length ? `<section class="walk-section"><h3>Measurements</h3><table><thead><tr><th>What</th><th class="num">Value</th><th>Method</th><th>Note</th></tr></thead><tbody>${report.measurements.map((item) => `<tr><td>${esc(item.label || item.kind)}</td><td class="num">${esc(item.value)} ${esc(item.unit)}</td><td>${esc(MEASUREMENT_METHODS.find(([key]) => key === item.method)?.[1] || item.method || "")}</td><td>${esc(item.note || "")}</td></tr>`).join("")}</tbody></table></section>` : ""}
+    ${(report.measurements || []).length ? `<section class="walk-section walk-measurements"><h3>Measurements${report.sections?.measurements?.done ? " ✓" : ""}</h3><table><thead><tr><th>What</th><th class="num">Value</th><th>Method</th><th>Note</th></tr></thead><tbody>${report.measurements.map((item) => `<tr><td>${esc(item.label || item.kind)}</td><td class="num">${esc(measurementDimensions(item))}</td><td>${esc(measurementMethodLabel(item.method))}${item.geometry ? ` (${esc(String((item.geometry.coordinates?.[0] || []).length))} points)` : ""}</td><td>${esc(item.note || "")}</td></tr>`).join("")}</tbody></table></section>` : ""}
     ${needs.length ? `<section class="walk-section"><h3>Needs</h3>${needs.map((group) => `<p><strong>${esc(group.title)}:</strong> ${group.items.map((item) => esc(item.note ? `${item.name} (${item.note})` : item.name)).join(", ")}</p>`).join("")}</section>` : ""}
     ${(report.contactsMet || []).length ? `<section class="walk-section"><h3>Contacts met</h3><p>${report.contactsMet.map((id) => esc(crm.findContact(id)?.name || id)).join(", ")}</p></section>` : ""}
     <script src="${origin}/public/vendor/leaflet/leaflet.js"></script>
@@ -1168,6 +1368,9 @@ export function buildWalkExportHtml(bundle, { origin = location.origin } = {}) {
     .photos figure { margin: 0; }
     .photos img { width: 100%; height: 130px; object-fit: cover; border-radius: 4px; border: 1px solid #d8dee6; }
     .photos figcaption { font-size: 0.72rem; color: #666; }
+    .walk-sketch { margin: 8px 0; page-break-inside: avoid; }
+    .walk-sketch img { display: block; max-width: 100%; max-height: 640px; border: 1px solid #d8dee6; border-radius: 6px; }
+    .walk-sketch figcaption { font-size: 0.72rem; color: #666; margin-top: 4px; }
     dl { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin: 0; }
     dl div { display: flex; flex-direction: column; }
     dt { font-size: 0.72rem; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1272,27 +1475,34 @@ export async function exportWalkZip(walkEventId) {
   }
   try {
     const bundle = walkBundle(walkEventId);
-    const { walk, report, observations, opportunity, facility, documents } = bundle;
+    const { walk, report, observations, opportunity, facility, documents, sketches = [] } = bundle;
+    const sketchIds = new Set(sketches.map((document) => document.id));
     crm.showToast("Building the site package…");
     const geojson = {
       type: "FeatureCollection",
-      features: observations
-        .filter((row) => row.geometry || Number.isFinite(Number(row.lat)))
-        .map((row) => ({
-          type: "Feature",
-          geometry: row.geometry || { type: "Point", coordinates: [Number(row.lng), Number(row.lat)] },
-          properties: { id: row.id, seq: row.seq, kind: row.kind, shapeKind: row.shapeKind || "", label: row.label, note: row.note, backgroundId: row.backgroundId || "aerial", accuracyM: row.accuracyM, areaSqFt: row.areaSqFt, lengthFt: row.lengthFt, color: row.color, photos: (row.photoDocumentIds || []).map((id) => `photos/${id}${extensionFor(documents.find((document) => document.id === id))}`), createdAt: row.createdAt, createdBy: row.createdBy },
-        })),
+      features: [
+        ...observations
+          .filter((row) => row.geometry || Number.isFinite(Number(row.lat)))
+          .map((row) => ({
+            type: "Feature",
+            geometry: row.geometry || { type: "Point", coordinates: [Number(row.lng), Number(row.lat)] },
+            properties: { id: row.id, seq: row.seq, kind: row.kind, shapeKind: row.shapeKind || "", label: row.label, note: row.note, backgroundId: row.backgroundId || "aerial", accuracyM: row.accuracyM, areaSqFt: row.areaSqFt, lengthFt: row.lengthFt, color: row.color, photos: (row.photoDocumentIds || []).map((id) => `photos/${id}${extensionFor(documents.find((document) => document.id === id))}`), createdAt: row.createdAt, createdBy: row.createdBy },
+          })),
+        // Phase 25 item 8: a GPS-walked perimeter is a measurement with a polygon.
+        ...(report.measurements || [])
+          .filter((item) => item.geometry?.type && Array.isArray(item.geometry.coordinates))
+          .map((item) => ({ type: "Feature", geometry: item.geometry, properties: { id: item.id, kind: "measurement", label: item.label, method: item.method, value: item.value, unit: item.unit, area: item.area, areaUnit: item.areaUnit, at: item.at, by: item.by } })),
+      ],
     };
     const files = [
       { name: "observations.geojson", data: JSON.stringify(geojson, null, 2) },
       { name: "report.json", data: JSON.stringify({ walk, report, opportunity: opportunity ? { id: opportunity.id, name: opportunity.name, customerNeed: opportunity.customerNeed } : null, facility: facility ? { id: facility.id, name: facility.name, address: facilityAddress(facility), latitude: facility.latitude, longitude: facility.longitude } : null, observationsOnPlans: observations.filter((row) => row.backgroundId && row.backgroundId !== "aerial"), exportedAt: new Date().toISOString() }, null, 2) },
-      { name: "README.txt", data: `Site walk package\n\nobservations.geojson — pins and shapes with WGS84 coordinates (pins on uploaded plans are in report.json with pixel x/y).\nreport.json — the walk report: check-in, sections, needs, measurements, backgrounds, reference-layer snapshot.\nphotos/ — every photo referenced by a pin or section, named by document id.\n\nOpen observations.geojson in QGIS or any GIS; the photo paths in each feature's properties are relative to this package.\n` },
+      { name: "README.txt", data: `Site walk package\n\nobservations.geojson — pins and shapes with WGS84 coordinates (pins on uploaded plans are in report.json with pixel x/y).\nreport.json — the walk report: check-in, sections, needs, measurements, backgrounds, reference-layer snapshot.\nphotos/ — every photo referenced by a pin or section, named by document id.\nsketches/ — the walk's site sketches (report.sketchDocumentIds), named by document id.\n\nOpen observations.geojson in QGIS or any GIS; the photo paths in each feature's properties are relative to this package.\n` },
     ];
     for (const document of documents) {
       try {
         const response = await fetch(photoUrl(document.id), { credentials: "same-origin" });
-        if (response.ok) files.push({ name: `photos/${document.id}${extensionFor(document)}`, data: new Uint8Array(await response.arrayBuffer()) });
+        if (response.ok) files.push({ name: `${sketchIds.has(document.id) ? "sketches" : "photos"}/${document.id}${extensionFor(document)}`, data: new Uint8Array(await response.arrayBuffer()) });
       } catch {
         // skip a photo that cannot be fetched
       }

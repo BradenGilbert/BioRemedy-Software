@@ -293,8 +293,11 @@ export async function fieldRequest(url, { method = "POST", body, headers = {}, k
 
 // A plain record write from the field (goes through the outbox exactly like fieldRequest, applied
 // optimistically to crm.state.backend so the screen shows it immediately).
+// `queuedLastWriteWins` (Phase 25, 2026-09-29): a write queued offline is replayed without a version, so
+// a server-side bump made meanwhile (a share link opened, say) cannot reject it. Only for records whose
+// server-owned fields the server protects itself -- siteWalkReports (shares, completion) does.
 export async function saveFieldRecord(collection, record, options = {}) {
-  const { refresh = false, kind = "save", label } = options;
+  const { refresh = false, kind = "save", label, queuedLastWriteWins = false } = options;
   if (isOnline()) {
     try {
       return await crm.saveBackendRecord(collection, record, { refresh });
@@ -303,7 +306,11 @@ export async function saveFieldRecord(collection, record, options = {}) {
     }
   }
   const current = (crm.state.backend[collection] || []).find((row) => row.id === record.id);
-  const body = current && current.version !== undefined ? { ...record, version: current.version } : record;
+  let body = current && current.version !== undefined ? { ...record, version: current.version } : record;
+  if (queuedLastWriteWins) {
+    const { version, ...rest } = body;
+    body = rest;
+  }
   await enqueueFieldCommand({
     kind,
     url: `/api/backend/${encodeURIComponent(collection)}`,
@@ -342,11 +349,66 @@ export async function uploadFieldFile(url, file, headers = {}) {
       "Content-Type": file.type || "application/octet-stream",
       "X-File-Name": encodeURIComponent(file.name || "upload.png"),
       ...finalHeaders,
+      // Phase 25 item 5 (2026-09-29): tells the server this upload was queued offline, so a record may
+      // already reference the X-Document-Id it carries (see handleDocumentUpload).
+      "X-Offline-Queued": "1",
     },
     blob: file,
     label: `Upload ${file.name || "file"}`,
   });
-  return null;
+  const documentId = finalHeaders["X-Document-Id"];
+  if (!documentId) return null;
+  // With a client-chosen id the caller gets a stand-in `documents` row back (and so does the screen),
+  // shaped like the server's; the outbox sends the real upload once the phone is online.
+  rememberPendingUpload(documentId, file);
+  const placeholder = pendingDocumentRow(documentId, file, finalHeaders);
+  mergeRow("documents", placeholder);
+  return placeholder;
+}
+
+function pendingDocumentRow(id, file, headers) {
+  let caption = "";
+  try {
+    caption = decodeURIComponent(headers["X-Caption"] || "");
+  } catch {
+    caption = headers["X-Caption"] || "";
+  }
+  const groupId = headers["X-Group-Id"] || "";
+  const previous = groupId ? (crm.state.backend.documents || []).filter((row) => (row.groupId || row.id) === groupId).sort((a, b) => Number(b.versionNumber || 1) - Number(a.versionNumber || 1))[0] : null;
+  const now = new Date().toISOString();
+  return {
+    id,
+    entityType: headers["X-Entity-Type"] || "",
+    entityId: headers["X-Entity-Id"] || "",
+    documentTypeId: headers["X-Document-Type"] || previous?.documentTypeId || "",
+    fileName: file.name || "upload.png",
+    mimeType: file.type || "application/octet-stream",
+    sizeBytes: file.size || 0,
+    groupId: previous ? previous.groupId || previous.id : id,
+    versionNumber: previous ? Number(previous.versionNumber || 1) + 1 : 1,
+    visibility: headers["X-Visibility"] === "customer" ? "customer" : "internal",
+    caption: caption || previous?.caption || "",
+    uploadedAt: now,
+    uploadedBy: crm.currentActorName ? crm.currentActorName() : "",
+    deletedAt: "",
+    pendingUpload: true,
+  };
+}
+
+// Phase 25 item 5 (2026-09-29): a photo queued offline has a client-chosen document id (the
+// X-Document-Id header) so a walk can reference it straight away; until the outbox sends it, the
+// screens draw it from this in-memory object URL instead of /api/documents/<id>/view.
+const pendingUploads = new Map();
+export function rememberPendingUpload(documentId, blob) {
+  if (!documentId || !blob || pendingUploads.has(documentId)) return;
+  try {
+    pendingUploads.set(documentId, URL.createObjectURL(blob));
+  } catch {
+    // no object URLs in this environment: the thumbnail just waits for the upload
+  }
+}
+export function pendingUploadUrl(documentId) {
+  return pendingUploads.get(documentId) || "";
 }
 
 // ---------------------------------------------------------------------------------------------

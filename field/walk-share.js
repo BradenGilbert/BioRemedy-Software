@@ -95,6 +95,32 @@ function renderWalkPhotos(payload, documents) {
   </section>`;
 }
 
+// Phase 25 items 8-9 (2026-09-29): the walk's sketches and measurements.
+function renderSketches(payload, documents) {
+  const sketches = (payload.report?.sketchDocumentIds || []).filter((id) => documents.some((item) => item.id === id)).map((id) => ({ id, url: viewUrlFor(documents, id), caption: documents.find((item) => item.id === id)?.caption || "Site sketch" }));
+  if (!sketches.length) return "";
+  return `<section class="share-gallery share-sketches">
+    <h2>Site sketch${sketches.length === 1 ? "" : "es"}</h2>
+    <div class="share-gallery-grid">${sketches.map((sketch) => `<button type="button" class="share-photo" data-photo="${esc(sketch.url)}" data-caption="${esc(sketch.caption)}"><img src="${esc(sketch.url)}" alt="${esc(sketch.caption)}" loading="lazy" /><small>${esc(sketch.caption)}</small></button>`).join("")}</div>
+  </section>`;
+}
+
+const METHOD_LABELS = { scan: "Scan", tape: "Tape / wheel", "gps-walk": "GPS walk", estimate: "Estimate" };
+
+function renderMeasurements(payload) {
+  const rows = payload.report?.measurements || [];
+  if (!rows.length) return "";
+  const value = (item) => {
+    const main = item.value !== undefined && item.value !== null && item.value !== "" ? `${item.value} ${item.unit || ""}`.trim() : item.area ? `${item.area} ${item.areaUnit || "sq ft"}` : "";
+    const extra = [item.length && item.kind !== "length" ? `${item.length} ft long` : "", item.depth && item.kind !== "depth" ? `${item.depth} ft deep` : "", item.volume && item.kind !== "volume" ? `${item.volume} cu ft` : ""].filter(Boolean);
+    return [main, ...extra].filter(Boolean).join(" · ");
+  };
+  return `<section class="share-gallery share-measurements">
+    <h2>Measurements</h2>
+    <ul class="sitemap-summary-list">${rows.map((item) => `<li class="sitemap-summary-item"><div><strong>${esc(item.label || item.kind || "Measurement")}: ${esc(value(item))}</strong><small>${esc([METHOD_LABELS[item.method] || item.method || "", item.note || ""].filter(Boolean).join(" · "))}</small></div></li>`).join("")}</ul>
+  </section>`;
+}
+
 function render(payload) {
   const report = payload.report || {};
   const observations = [...(payload.observations || [])].sort((a, b) => Number(a.seq) - Number(b.seq));
@@ -141,6 +167,8 @@ function render(payload) {
             .join("")}</ol>`
         : `<div class="share-empty">No pins yet. ${completed ? "" : "This page updates as the walk goes on."}</div>`
     }
+    ${renderSketches(payload, documents)}
+    ${renderMeasurements(payload)}
     ${renderWalkPhotos(payload, documents)}
     <p class="share-fineprint">Imagery may be months to years old. GPS is ±3–10 m outdoors and none indoors; pins without a GPS reading were placed by hand. Reference layers (dashed grey) show their source and date; parcel lines are tax-map accuracy, not a survey. ${completed ? "" : "This link shows the walk as it is being recorded and stops working when it expires or is revoked."}</p>`;
   elements.body.querySelectorAll("[data-focus]").forEach((item) => {
