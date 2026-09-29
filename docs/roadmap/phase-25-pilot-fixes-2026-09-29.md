@@ -236,4 +236,8 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 - **Pins on uploaded floor plans were never printed** (only the aerial background's pins). The PDF now prints one figure per background that has pins.
 - **Mobilization gating already treated anything but "Yes" as No**, so the spill-call N/A option needed no gate change.
 - **Both Wave A and Phase 24 bumped the service worker to v66** on the same day; the merge took v67 so phones refetch.
+- **Licence decoder is zxing-wasm 3.1.4** (C++ engine, ~990 KB in the offline cache), not @zxing/library, whose PDF417 port is weak on real photos. It fails past ~3° of tilt, so a failed read is retried rotating ±3°…±15°. It must run with `textMode: "Plain"` or the AAMVA line breaks come back as literal `<LF>`.
+- **Only a lead or office links a licence to a person**, so a crew member's own scan works after the lead has scanned them once. An already-linked licence wins over the lead's pick unless an office user replaces the link.
+- **The plain `jobSafetyBriefings` save route now keeps the stored roll call** — a field lead could previously fake `acknowledgedAt` or a scan through it.
+- **The server does not require a manual-arrival reason** (the phone does), so arrivals already queued by older clients are not rejected.
 - **Not done in A:** the desktop walk panel does not show sketches yet (Wave B, with the walk page).
