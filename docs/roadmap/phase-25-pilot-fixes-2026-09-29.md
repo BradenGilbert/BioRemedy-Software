@@ -247,3 +247,8 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 - **The scheduled Meeting's body (scheduling notes) is kept**; the walk summary goes to `description` and the timeline shows it from the report.
 - **Documents and `tasks` rows have no Regarding field**, so "regarding a site walk" applies to activities (Task-type activities included), not to documents.
 - **"Site walk" is offered in the Schedule menu only where an opportunity is in context** — the walk dialog needs one.
+- **The walk's `scheduleEvents` row does not get `projectId`** (only the report does): the project delete cascade would otherwise soft-delete the opportunity's walk, and the walk would show as scheduled project work in the chronology and client portal.
+- **The post-work report's site-map table printed `number`/`latitude`/`longitude`**, none of which exist on pins — it now prints `seq`, kind and lat/lng (the first point for a drawn shape).
+- **Walks done before Wave A have no `sketchDocumentIds`**, so the project's Site walk panel also shows `site-sketch` documents on the opportunity.
+- **Quotes and estimates are records, not files**, so Files › Project documents lists them as rows with a Print button.
+- **The Dell R3 walk's check-in reads "Low GPS accuracy (±160 m)"** and the Georgetown trash-truck walk's "3.1 km from the facility" — the warning chip the owner asked for when desk GPS was used.
