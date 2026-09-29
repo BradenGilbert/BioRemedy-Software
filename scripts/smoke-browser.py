@@ -16,7 +16,9 @@ from playwright.sync_api import sync_playwright
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:4199").rstrip("/") + "/"
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 BAD_TEXT = re.compile(r"\bNaN\b|\bundefined\b|\[object Object\]|(?<![\w/.-])null(?![\w/.-])")
-SKIP_ACTIONS = {"sign-out", "frontline-exit", "frontline-login", "delete-record", "restore-record", "sync-now", "start-microsoft-signin", "retire-frontline-device", "suspend-frontline-device", "revoke-session", "toggle-system-user", "accept-consent", "create-dispatch-link"}
+# open-site-walk (Phase 25 B.4) navigates to another page rather than opening a dialog; the site walk
+# page gets its own visit in the view sweep.
+SKIP_ACTIONS = {"sign-out", "frontline-exit", "frontline-login", "delete-record", "restore-record", "sync-now", "start-microsoft-signin", "retire-frontline-device", "suspend-frontline-device", "revoke-session", "toggle-system-user", "accept-consent", "create-dispatch-link", "open-site-walk"}
 SMOKE_PASSWORD = os.environ.get("CRM_SMOKE_PASSWORD", "")
 
 with open(os.path.join(ROOT, "app.js"), encoding="utf8") as handle:
@@ -102,6 +104,8 @@ with sync_playwright() as p:
         "sample-detail": ("selectedSampleId", "sampleRecords"),
         "consumable-detail": ("selectedInventoryItemId", "inventoryItems"),
         "equipment-detail": ("selectedAssetTag", "equipmentAssets"),
+        # Phase 25 B.4: #view=site-walk&id=<walkEventId>, a scheduleEvents row of kind site_walk
+        "site-walk": ("id", "scheduleEvents"),
     }
 
     def open_view(view):
@@ -109,7 +113,14 @@ with sync_playwright() as p:
         route = f"#view={view}"
         if target:
             key, collection = target
-            record_id = first_id(page, collection)
+            if view == "site-walk":
+                walks = [r for r in api(page, collection) if r.get("kind") == "site_walk" and not r.get("deletedAt")]
+                # prefer a walk with a report, so the panels have something to draw
+                reports = {r.get("walkEventId") for r in api(page, "siteWalkReports") if not r.get("deletedAt")}
+                walks.sort(key=lambda r: r["id"] not in reports)
+                record_id = walks[0]["id"] if walks else None
+            else:
+                record_id = first_id(page, collection)
             if not record_id:
                 return False
             if key == "selectedAssetTag":

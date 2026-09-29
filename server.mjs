@@ -3757,7 +3757,7 @@ async function handleJobTaskAttachmentUpload(request, response, actionId) {
 // photo) can resume/seek instead of the whole file always coming back as one 200. A request with no
 // Range header falls back to the original whole-file 200. `Accept-Ranges: bytes` is sent either way
 // so a client knows it may ask for a range next time.
-async function sendFileWithRange(request, response, filePath, { mimeType, fileName, inline = true, cacheControl = "private, no-store" }) {
+async function sendFileWithRange(request, response, filePath, { mimeType, fileName, inline = true, cacheControl = "private, no-store", extraHeaders = {} }) {
   const stat = statSync(filePath);
   const total = stat.size;
   const disposition = `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(fileName)}`;
@@ -3779,6 +3779,7 @@ async function sendFileWithRange(request, response, filePath, { mimeType, fileNa
       "Accept-Ranges": "bytes",
       "Content-Disposition": disposition,
       "Cache-Control": cacheControl,
+      ...extraHeaders,
     });
     createReadStream(filePath, { start, end }).pipe(response);
     return;
@@ -3790,6 +3791,7 @@ async function sendFileWithRange(request, response, filePath, { mimeType, fileNa
     "Accept-Ranges": "bytes",
     "Content-Disposition": disposition,
     "Cache-Control": cacheControl,
+    ...extraHeaders,
   });
   response.end(body);
 }
@@ -4909,7 +4911,14 @@ const DOCUMENT_UPLOAD_MIME_TYPES = new Map([
   [".e57", "application/octet-stream"],
   [".geojson", "application/geo+json"],
   [".json", "application/json"],
+  // Phase 25 B.5: only as a site-walk-report (checked in handleDocumentUpload); served sandboxed.
+  [".html", "text/html; charset=utf-8"],
 ]);
+// Stored HTML (and SVG) is served with this policy: no scripts, no forms, no plugins, no framing by
+// other sites; styles, images and the same-origin photo URLs still load. allow-same-origin keeps the
+// session cookie on those photo requests and is safe without allow-scripts.
+const STORED_MARKUP_CSP = "sandbox allow-same-origin allow-popups allow-modals; default-src 'none'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; media-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'";
+const STORED_MARKUP_TYPES = /^(text\/html|image\/svg\+xml|application\/xhtml\+xml)/i;
 const DOCUMENT_ENTITY_TYPES = new Map([
   ["account", "accounts"],
   ["contact", "contacts"],
@@ -4963,6 +4972,10 @@ const documentTypeSeed = [
   { id: "doctype-site-sketch", code: "site-sketch", name: "Site sketch", kind: "upload", counterparty: "internal", appliesTo: ["opportunity", "project", "dispatchJob", "siteWalk"], stageGate: "", requiresReview: false, expiryDays: null, isImage: true, description: "Markup over a satellite snapshot or a blank grid: spill extent, drains, staging, sample points." },
   { id: "doctype-site-map", code: "site-map", name: "Site map export", kind: "upload", counterparty: "internal", appliesTo: ["opportunity", "project", "dispatchJob", "siteWalk"], stageGate: "", requiresReview: false, expiryDays: null, description: "The annotated site map exported from a walk or job as a PDF." },
   { id: "doctype-site-plan", code: "site-plan", name: "Site plan / floor plan", kind: "upload", counterparty: "internal", appliesTo: ["facility", "opportunity", "project", "siteWalk"], stageGate: "", requiresReview: false, expiryDays: null, isImage: true, description: "An uploaded floor plan, site drawing or photographed layout used as an indoor map background." },
+  // Phase 25 B.5 (2026-09-29): the site walk's print page, filed as a self-contained HTML snapshot on the
+  // opportunity (field/walk.js fileWalkReport); refiling adds a version to the same group. The only type
+  // an .html file may be uploaded as, and HTML is served with a script-blocking sandbox (handleDocumentFile).
+  { id: "doctype-site-walk-report", code: "site-walk-report", name: "Site walk report", kind: "upload", counterparty: "internal", appliesTo: ["opportunity", "project"], stageGate: "", requiresReview: false, expiryDays: null, description: "The site walk report (check-in, summary, map, photos, sketches, measurements, needs) filed when the walk is completed or from the walk page." },
   { id: "doctype-sds", code: "sds", name: "Safety data sheet (SDS)", kind: "upload", counterparty: "internal", appliesTo: ["libraryItem", "dispatchJob", "project"], stageGate: "", requiresReview: false, expiryDays: null, description: "A material's SDS, on the Safety shelf or attached to a job." },
 ];
 
@@ -5184,6 +5197,15 @@ async function handleDocumentUpload(request, response) {
   if (requirementId && !requirement) return json(response, 404, { error: "Requirement not found." });
   const type = documentTypeId ? (data.documentTypes || []).find((item) => item.id === documentTypeId) : requirement ? (data.documentTypes || []).find((item) => item.id === requirement.documentTypeId) : null;
 
+  // Phase 25 B.5 (2026-09-29): an .html file is only accepted as a site walk report, and it names the
+  // walk it was built from (X-Walk-Event-Id -> documents.walkEventId), so the walk page can find it.
+  const walkEventId = header("x-walk-event-id");
+  const walkEvent = walkEventId ? (data.scheduleEvents || []).find((item) => item.id === walkEventId && item.kind === "site_walk" && !item.deletedAt) : null;
+  if (walkEventId && !walkEvent) return json(response, 404, { error: "The site walk this report belongs to was not found." });
+  if (STORED_MARKUP_TYPES.test(mimeType) && (type?.code !== "site-walk-report" || !walkEvent || isPortalRole(role))) {
+    return json(response, 415, { error: "HTML files can only be filed as a site walk report." });
+  }
+
   if (isPortalRole(role)) {
     // A customer may only return paperwork on their own requirements; what they send is theirs to see.
     if (!requirement || requirement.accountId !== session.clientAccountId || requirement.counterparty !== "customer") {
@@ -5235,6 +5257,7 @@ async function handleDocumentUpload(request, response) {
     versionNumber: previous ? Number(previous.versionNumber || 1) + 1 : 1,
     visibility: previous ? previous.visibility : visibility,
     caption: caption || previous?.caption || "",
+    walkEventId: walkEvent?.id || previous?.walkEventId || "",
     tags: previous?.tags || [],
     uploadedAt: new Date().toISOString(),
     uploadedBy: attribution(request),
@@ -5291,7 +5314,9 @@ async function handleDocumentFile(request, response, documentId, inline) {
   const filePath = path.resolve(uploadsDir, document.storageName);
   if (path.dirname(filePath) !== path.resolve(uploadsDir) || !existsSync(filePath)) return json(response, 404, { error: "Stored file is unavailable." });
   // Phase 21 (2026-09-25): Range/206 so a 2-minute site video can seek instead of downloading whole.
-  return sendFileWithRange(request, response, filePath, { mimeType: document.mimeType || "application/octet-stream", fileName: document.fileName, inline, cacheControl: "private, no-store" });
+  // Phase 25 B.5: stored HTML/SVG (the filed walk report) renders, but can never run script.
+  const extraHeaders = STORED_MARKUP_TYPES.test(document.mimeType || "") ? { "Content-Security-Policy": STORED_MARKUP_CSP, "X-Content-Type-Options": "nosniff" } : { "X-Content-Type-Options": "nosniff" };
+  return sendFileWithRange(request, response, filePath, { mimeType: document.mimeType || "application/octet-stream", fileName: document.fileName, inline, cacheControl: "private, no-store", extraHeaders });
 }
 
 // A type's blank form: the supplied PDF in docs/uploaded files (never served by the static branch),
@@ -7023,6 +7048,8 @@ async function handleUploadSessionCreate(request) {
   const extension = path.extname(fileName).toLowerCase();
   const mimeType = DOCUMENT_UPLOAD_MIME_TYPES.get(extension) || (typeof body.mimeType === "string" ? body.mimeType : "");
   if (!fileName || !mimeType) throw requestError("Unsupported file type for a chunked upload.", 415);
+  // Phase 25 B.5: markup never arrives by the chunked route (the walk report is a small single upload).
+  if (STORED_MARKUP_TYPES.test(mimeType)) throw requestError("Unsupported file type for a chunked upload.", 415);
   if (!documentEntityCollection(body.entityType)) throw requestError("Unknown record type for this document.", 400);
   const data = await loadBackend();
   const entity = findEntityRecord(data, body.entityType, body.entityId);

@@ -1658,13 +1658,14 @@ export function renderPrintMaps(root, { center, observations = [], backgrounds =
     remaining -= 1;
     if (remaining <= 0 && typeof onAllTilesLoaded === "function") onAllTilesLoaded();
   };
-  targets.forEach((target, index) => {
+  // Returns one { title, element, api } per figure (Phase 25 B.5: the filed walk report rasterises them).
+  return targets.map((target, index) => {
     const figure = el(`<figure class="sitemap-print-figure"></figure>`);
     if (target.title) figure.appendChild(el(`<figcaption class="sitemap-print-figure-title">${escape(target.title)}</figcaption>`));
     const mapDiv = el(`<div class="sitemap-print-map" id="sitemapPrint-${index}"></div>`);
     figure.appendChild(mapDiv);
     root.appendChild(figure);
-    createSiteMap(mapDiv, {
+    const api = createSiteMap(mapDiv, {
       L: LGlobal,
       mode: "view",
       printing: true,
@@ -1677,5 +1678,179 @@ export function renderPrintMaps(root, { center, observations = [], backgrounds =
       newId,
       onTilesLoaded: done,
     });
+    return { title: target.title, backgroundId: target.backgroundId, element: mapDiv, api };
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Snapshot: a mounted map as one flat image (Phase 25 B.5, 2026-09-29). The filed walk report is a
+// stored HTML document served with scripts blocked, so it cannot run Leaflet; its map is this
+// picture instead. Tiles and plan images are drawn where Leaflet placed them, the vector panes
+// (shapes, leader lines, reference layers) are serialised and drawn over them, and the HTML markers
+// (pins, arrowheads, shape labels) are redrawn by hand in the same colours. Tiles are requested with
+// crossOrigin="anonymous", so the canvas stays readable; if anything taints it anyway the result is
+// null and the caller falls back to the observation table.
+// ---------------------------------------------------------------------------------------------
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("image failed"));
+    image.src = url;
+  });
+}
+
+function roundedRect(ctx, x, y, width, height, radius) {
+  const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+export async function rasterizeMapElement(element, { scale = 1.5, type = "image/jpeg", quality = 0.86 } = {}) {
+  if (!element || typeof document === "undefined") return null;
+  const box = element.getBoundingClientRect();
+  if (!box.width || !box.height) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(box.width * scale);
+  canvas.height = Math.round(box.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#dfe5e2";
+  ctx.fillRect(0, 0, box.width, box.height);
+  const place = (node) => {
+    const rect = node.getBoundingClientRect();
+    return { x: rect.left - box.left, y: rect.top - box.top, w: rect.width, h: rect.height };
+  };
+  // 1. imagery tiles and plan images
+  element.querySelectorAll(".leaflet-tile-pane img, .leaflet-overlay-pane img").forEach((image) => {
+    if (!image.complete || !image.naturalWidth) return;
+    const r = place(image);
+    try {
+      ctx.drawImage(image, r.x, r.y, r.w, r.h);
+    } catch {
+      // a broken tile leaves the background colour
+    }
+  });
+  // 2. vector shapes (Leaflet's SVG renderer)
+  for (const svg of element.querySelectorAll(".leaflet-pane svg")) {
+    const r = place(svg);
+    if (!r.w || !r.h) continue;
+    const clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("width", String(r.w));
+    clone.setAttribute("height", String(r.h));
+    clone.style.transform = "";
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" }));
+    try {
+      ctx.drawImage(await loadImage(url), r.x, r.y, r.w, r.h);
+    } catch {
+      // shapes are also listed in the report's observation table
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+  // 3. HTML markers, redrawn
+  const font = (size, weight = 800) => `${weight} ${size}px system-ui, -apple-system, "Segoe UI", Arial, sans-serif`;
+  element.querySelectorAll(".leaflet-marker-pane .sitemap-arrowhead").forEach((arrow) => {
+    const r = place(arrow.parentElement || arrow);
+    const angle = Number((String(arrow.style.transform || "").match(/rotate\((-?[\d.]+)deg\)/) || [])[1] || 0);
+    ctx.save();
+    ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+    ctx.rotate((angle * Math.PI) / 180);
+    ctx.beginPath();
+    ctx.moveTo(0, -12);
+    ctx.lineTo(11, 10);
+    ctx.lineTo(-11, 10);
+    ctx.closePath();
+    ctx.fillStyle = getComputedStyle(arrow).borderBottomColor || "#1c2520";
+    ctx.fill();
+    ctx.restore();
+  });
+  element.querySelectorAll(".leaflet-marker-pane .sitemap-shape-label").forEach((label) => {
+    const r = place(label);
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    roundedRect(ctx, r.x, r.y, r.w, r.h, r.h / 2);
+    ctx.fill();
+    const bubble = label.querySelector("b");
+    let textX = r.x + 8;
+    if (bubble) {
+      const b = place(bubble);
+      ctx.fillStyle = getComputedStyle(bubble).backgroundColor || "#1c2520";
+      ctx.beginPath();
+      ctx.arc(b.x + b.w / 2, b.y + b.h / 2, b.w / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.font = font(11);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(bubble.textContent || "", b.x + b.w / 2, b.y + b.h / 2 + 0.5);
+      textX = b.x + b.w + 6;
+    }
+    const rest = (label.textContent || "").slice((bubble?.textContent || "").length).trim();
+    ctx.fillStyle = "#1c2520";
+    ctx.font = font(12, 700);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(rest, textX, r.y + r.h / 2 + 0.5);
+  });
+  element.querySelectorAll(".leaflet-marker-pane .sitemap-pin").forEach((pin) => {
+    const r = place(pin);
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    const radius = r.w / 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.4)";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = getComputedStyle(pin).backgroundColor || "#1c2520";
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, radius - 3), 0, Math.PI * 2);
+    ctx.fill();
+    const glyph = pin.querySelector(".sitemap-pin-glyph")?.textContent || "";
+    ctx.fillStyle = "#fff";
+    ctx.font = font(16, 900);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(glyph, cx, cy + 1);
+    const seq = pin.querySelector(".sitemap-pin-seq");
+    if (seq) {
+      const s = place(seq);
+      ctx.fillStyle = "#fff";
+      roundedRect(ctx, s.x, s.y, s.w, s.h, s.h / 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = "#1c2520";
+      ctx.font = font(12);
+      ctx.fillText(seq.textContent || "", s.x + s.w / 2, s.y + s.h / 2 + 0.5);
+    }
+  });
+  // 4. imagery attribution (the imagery's terms want it on the picture)
+  const attribution = element.querySelector(".leaflet-control-attribution")?.textContent?.trim() || "";
+  if (attribution) {
+    ctx.font = font(10, 500);
+    const width = Math.min(box.width, ctx.measureText(attribution).width + 10);
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.fillRect(box.width - width, box.height - 15, width, 15);
+    ctx.fillStyle = "#333";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(attribution, box.width - 5, box.height - 7, box.width - 10);
+  }
+  try {
+    return canvas.toDataURL(type, quality);
+  } catch {
+    return null;
+  }
 }
