@@ -5680,6 +5680,9 @@ async function handleApi(request, response, pathname) {
       // Phase 25 (2026-09-29): share links and completion are written by /api/field/* commands only; a
       // report save (the phone's autosave, or an offline save replayed without a version) keeps them.
       record.shares = stored.shares || [];
+      // Wave B (2026-09-29): projectId is stamped by the office when the deal is won; a phone replaying
+      // an older copy of the report must not clear it.
+      if (stored.projectId && !record.projectId) record.projectId = stored.projectId;
       if (stored.completedAt) {
         record.completedAt = stored.completedAt;
         record.completedBy = stored.completedBy || "";
