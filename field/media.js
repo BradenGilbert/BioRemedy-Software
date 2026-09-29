@@ -173,13 +173,36 @@ function drawStroke(context, stroke, baseWidth) {
     const fontSize = Math.max(16, Math.round(context.canvas.width / 32));
     context.font = `${stroke.tool === "scale" ? "600" : "700"} ${fontSize}px sans-serif`;
     const label = stroke.tool === "scale" ? `≈ ${stroke.text}` : stroke.text;
-    const metrics = context.measureText(label);
+    const maxWidth = Math.max(120, context.canvas.width - stroke.x - 16);
+    const lines = wrapCanvasText(context, label, maxWidth);
+    const lineHeight = fontSize + 6;
+    const widest = Math.max(...lines.map((line) => context.measureText(line).width));
     context.fillStyle = "rgba(255,255,255,0.85)";
-    context.fillRect(stroke.x - 4, stroke.y - fontSize, metrics.width + 8, fontSize + 8);
+    context.fillRect(stroke.x - 4, stroke.y - fontSize, widest + 8, lineHeight * lines.length + 4);
     context.fillStyle = color;
     context.textBaseline = "alphabetic";
-    context.fillText(label, stroke.x, stroke.y);
+    lines.forEach((line, index) => context.fillText(line, stroke.x, stroke.y + index * lineHeight));
   }
+}
+
+// Breaks `text` into lines no wider than `maxWidth` at this canvas's current font, breaking on
+// spaces. A single word wider than maxWidth is kept whole rather than broken mid-word.
+function wrapCanvasText(context, text, maxWidth) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  if (!words.length) return [""];
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && context.measureText(candidate).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
 function wireMarkupDialog() {
@@ -200,7 +223,7 @@ function wireMarkupDialog() {
     if (markupState.tool === "text" || markupState.tool === "scale") {
       const text = window.prompt(markupState.tool === "scale" ? "Distance (e.g. 3 ft)" : "Label text");
       if (text && text.trim()) {
-        markupState.strokes.push({ tool: markupState.tool, color: markupState.color, x: p.x, y: p.y, text: text.trim().slice(0, 60) });
+        markupState.strokes.push({ tool: markupState.tool, color: markupState.color, x: p.x, y: p.y, text: text.trim().slice(0, 200) });
         redrawMarkup();
       }
       return;
