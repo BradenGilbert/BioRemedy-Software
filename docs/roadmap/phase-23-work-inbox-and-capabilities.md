@@ -128,7 +128,7 @@ Rules:
 Office does not need a second calendar. It needs to know what is going out that the office has not finished getting ready. A table of dispatch jobs and scheduled visits in the next N days (default 7, same window as Phase 07's intake feed) with a readiness column derived from existing checks:
 
 - subcontractor on the job without customer approval (Phase 04 item 5 block)
-- required paperwork missing (Phase 13 `documentRequirements`)
+- required paperwork missing (Phase 13 `documentRequirements`) — and documents awaiting office review. Phase 25 Wave E1 (2026-09-29) builds an interim "Awaiting review" list on the Office Manager page plus a reviewer notification; this Inbox absorbs it.
 - an open PO for a material reserved on the job not yet received
 - a permit the job's facility needs that is expiring before the job date
 - a crew member's certification expiring before the job date (Phase 11 credential expiry)
