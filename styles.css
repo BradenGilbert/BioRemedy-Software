@@ -6632,6 +6632,29 @@ body[data-theme="dark"] .frontline-device {
   border-left: 3px solid var(--blue);
 }
 
+/* Phase 25 Wave B: a site walk's one record on the timeline. */
+.timeline-item.timeline-item-site-walk {
+  border-left: 4px solid var(--blue);
+}
+
+.stage-badge.site-walk-badge {
+  font-weight: 700;
+}
+
+.tag.site-walk-state[data-walk-state="Completed"] {
+  color: var(--teal-dark);
+  border-color: rgba(21, 153, 71, 0.35);
+}
+
+.tag.site-walk-state[data-walk-state="In progress"] {
+  color: var(--amber);
+  border-color: rgba(167, 97, 22, 0.35);
+}
+
+.site-walk-timeline-summary {
+  margin: 0;
+}
+
 .site-walk-people {
   max-height: 240px;
   overflow: auto;
