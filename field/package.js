@@ -87,7 +87,7 @@ export function newCommandId() {
 
 let lastSummary = { online: true, queued: 0, failed: 0, items: [] };
 
-function isOnline() {
+export function isOnline() {
   return crm.state.online !== false && navigator.onLine !== false;
 }
 
@@ -142,7 +142,10 @@ export async function outboxItem(clientCommandId) {
 
 // `apply` (optional) is called once, synchronously, so a queued write can be reflected in
 // crm.state.backend immediately (optimistic UI) even though the network call hasn't happened yet.
-async function enqueueFieldCommand({ kind, url, method = "POST", headers = {}, body, blob, label, apply }) {
+// `redactOnDone` (Phase 25 A.3b): body keys wiped from the stored row once the server has answered --
+// the licence number of a queued ID scan sits in IndexedDB only until it replays, not for the 24 h a
+// done row is kept for the outbox screen.
+async function enqueueFieldCommand({ kind, url, method = "POST", headers = {}, body, blob, label, apply, redactOnDone }) {
   const clientCommandId = newCommandId();
   const row = {
     clientCommandId,
@@ -152,6 +155,7 @@ async function enqueueFieldCommand({ kind, url, method = "POST", headers = {}, b
     method,
     headers,
     body: body === undefined ? undefined : body,
+    redactOnDone: Array.isArray(redactOnDone) && redactOnDone.length ? redactOnDone : undefined,
     blob: blob || undefined,
     createdAt: Date.now(),
     attempts: 0,
@@ -215,6 +219,13 @@ export async function drainOutbox() {
         }
         await outboxPut(row);
       }
+      // A done or rejected row is never sent again as it stands: drop what it must not keep.
+      if (row.redactOnDone && (row.status === "done" || row.status === "rejected") && row.body && typeof row.body === "object") {
+        const body = { ...row.body };
+        row.redactOnDone.forEach((key) => delete body[key]);
+        row.body = body;
+        await outboxPut(row);
+      }
       await notifySync();
     }
     // Sweep done rows older than 24h.
@@ -267,7 +278,7 @@ export function mergeRow(collection, row) {
 // should not depend on the return value when offline; they should read from the optimistic apply.
 // `mergeInto`: a collection name — the response row (online) or the request body (queued, unless
 // `apply` is given explicitly) is upserted into crm.state.backend[mergeInto] by id.
-export async function fieldRequest(url, { method = "POST", body, headers = {}, kind = "request", label, apply, mergeInto } = {}) {
+export async function fieldRequest(url, { method = "POST", body, headers = {}, kind = "request", label, apply, mergeInto, redactOnDone } = {}) {
   const commandId = headers["X-Client-Command-Id"] || newCommandId();
   const finalHeaders = { "X-Client-Command-Id": commandId, ...headers };
   if (isOnline()) {
@@ -287,7 +298,7 @@ export async function fieldRequest(url, { method = "POST", body, headers = {}, k
     }
   }
   const finalApply = apply || (mergeInto && body && typeof body === "object" ? () => mergeRow(mergeInto, body) : undefined);
-  await enqueueFieldCommand({ kind, url, method, headers: finalHeaders, body, label, apply: finalApply });
+  await enqueueFieldCommand({ kind, url, method, headers: finalHeaders, body, label, apply: finalApply, redactOnDone });
   return null;
 }
 

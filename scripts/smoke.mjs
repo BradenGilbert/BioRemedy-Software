@@ -124,6 +124,12 @@ try {
     check(tours.status === 0, "scripts/build-user-guide.mjs --check");
   }
 
+  // ---- 3d. driver's-licence barcode parser (Phase 25 A.3b) --------------------------------------
+  console.log("\nAAMVA parser");
+  const aamvaCheck = spawnSync(process.execPath, ["scripts/aamva-parse-check.mjs"], { cwd: projectRoot, encoding: "utf8" });
+  if (aamvaCheck.status !== 0) console.log(aamvaCheck.stdout || aamvaCheck.stderr || "");
+  check(aamvaCheck.status === 0, "scripts/aamva-parse-check.mjs");
+
   // ---- 4. browser sweep -----------------------------------------------------------------------
   if (!noBrowser) {
     console.log("\nBrowser sweep");

@@ -394,6 +394,115 @@ if (guardReady) {
   await fetch(`${baseUrl}/api/backend/dispatchJobs/${guardJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
 }
 
+// ---- 13. Phase 25 A.3b (2026-09-29): driver's-licence check-in (POST .../roll-call/scan) ----------
+// Two throwaway employees (so no earlier run's linked licence gets in the way) on a throwaway job.
+// Licence numbers are unique per run; none of them may ever come back in any response, and neither
+// may the keyed hash (employees.licenceHash) the server matches on.
+await step("roll-call scan: match, suggestions, lead links, crew can't link, expired warns, licenceHash never sent", async () => {
+  const stamp = Date.now();
+  const scanLeadId = `field-api-check-scan-lead-${stamp}`;
+  const scanCrewId = `field-api-check-scan-crew-${stamp}`;
+  const scanJobId = `field-api-check-scan-job-${stamp}`;
+  for (const [id, first, last] of [[scanLeadId, "Scanlead", `Check${stamp}`], [scanCrewId, "Scancrew", `Crewcheck${stamp}`]]) {
+    const created = await adminPost("employees", { id, firstName: first, lastName: last, displayName: `${first} ${last}`, jobTitle: "Technician", employmentStatus: "Active" });
+    assert(created.response.ok, `create test employee -> ${created.response.status} ${created.payload.error || ""}`);
+  }
+  const start = new Date();
+  const job = await adminPost("dispatchJobs", {
+    id: scanJobId, jobNumber: "CHECK-SCAN", jobName: "field-api-check licence scan", status: "on_site", dispatchStatus: "On site",
+    scheduledStart: start.toISOString(), scheduledEnd: new Date(start.getTime() + 8 * 3600 * 1000).toISOString(), fieldLeadEmployeeId: scanLeadId,
+  });
+  assert(job.response.ok, `create test job -> ${job.response.status} ${job.payload.error || ""}`);
+  await adminPost("jobAssignments", { id: `${scanJobId}-lead`, jobId: scanJobId, employeeId: scanLeadId, isFieldLead: true, status: "Assigned" });
+  await adminPost("jobAssignments", { id: `${scanJobId}-crew`, jobId: scanJobId, employeeId: scanCrewId, isFieldLead: false, status: "Assigned" });
+  try {
+    const leadCookie = await linkSession(scanLeadId, scanJobId);
+    const crewCookie = await linkSession(scanCrewId, scanJobId);
+    const path = `/api/field/jobs/${scanJobId}/roll-call/scan`;
+    const digits = String(stamp).slice(-8);
+    const crewLicence = `C${digits}`;
+    const leadLicence = `L${digits}`;
+    const otherLicence = `X${digits}`;
+    const visitorLicence = `V${digits}`;
+    const allNumbers = [crewLicence, leadLicence, otherLicence, visitorLicence];
+    const seen = [];
+    const scan = async (cookie, body) => {
+      const result = await fieldPost(cookie, path, { idState: "TX", idExpiry: "2031-01-31", ...body });
+      seen.push(JSON.stringify(result.payload));
+      return result;
+    };
+    const crewCard = { licenceNumber: crewLicence, givenName: "Scancrew", familyName: `Crewcheck${stamp}`, displayName: `Scancrew Crewcheck${stamp}` };
+
+    const unknown = await scan(leadCookie, crewCard);
+    assert(unknown.response.ok && unknown.payload.match === null, `unknown licence -> ${unknown.response.status} match=${JSON.stringify(unknown.payload.match)} (want 200, null)`);
+    assert((unknown.payload.suggestions || [])[0]?.employeeId === scanCrewId, "the crew member whose name is on the licence is not the first suggestion");
+    assert(unknown.payload.licence?.idLast4 === crewLicence.slice(-4), "licence summary missing its last 4");
+
+    const crewSelfLink = await scan(crewCookie, { ...crewCard, employeeId: scanCrewId });
+    assert(crewSelfLink.response.status === 403, `crew links a licence -> ${crewSelfLink.response.status} (want 403)`);
+    const crewLinksLead = await scan(crewCookie, { ...crewCard, employeeId: scanLeadId });
+    assert(crewLinksLead.response.status === 403, `crew links someone else -> ${crewLinksLead.response.status} (want 403)`);
+
+    const linked = await scan(leadCookie, { ...crewCard, employeeId: scanCrewId, lat: 30.63, lng: -97.67, accuracyM: 12 });
+    assert(linked.response.ok && linked.payload.match?.employeeId === scanCrewId && linked.payload.linked === true, `lead confirms -> ${linked.response.status} ${linked.payload.error || ""}`);
+    const row = (linked.payload.briefing?.rollCall || []).find((item) => item.employeeId === scanCrewId);
+    assert(row?.arrivedAt && row.checkInMethod === "scan" && row.idLast4 === crewLicence.slice(-4) && row.idState === "TX" && row.idExpiry === "2031-01-31" && row.lat === 30.63, `scanned row -> ${JSON.stringify(row)}`);
+
+    const again = await scan(leadCookie, crewCard);
+    assert(again.payload.match?.employeeId === scanCrewId && !again.payload.linked, "a linked licence does not match on the next scan");
+    const own = await scan(crewCookie, crewCard);
+    assert(own.response.ok && own.payload.match?.employeeId === scanCrewId, `crew scans their own linked licence -> ${own.response.status} ${own.payload.error || ""}`);
+
+    const leadCard = { licenceNumber: leadLicence, displayName: `Scanlead Check${stamp}` };
+    const leadLinked = await scan(leadCookie, { ...leadCard, employeeId: scanLeadId });
+    assert(leadLinked.response.ok && leadLinked.payload.linked, `lead links own licence -> ${leadLinked.response.status}`);
+    const crewScansLead = await scan(crewCookie, leadCard);
+    assert(crewScansLead.response.status === 403, `crew scans the lead's licence -> ${crewScansLead.response.status} (want 403)`);
+
+    const second = await scan(leadCookie, { licenceNumber: otherLicence, displayName: "Other Card", employeeId: scanCrewId });
+    assert(second.response.status === 409, `lead links a second licence to someone already linked -> ${second.response.status} (want 409)`);
+    const officeReplace = await scan(adminCookie, { licenceNumber: otherLicence, displayName: "Other Card", employeeId: scanCrewId, replace: true });
+    assert(officeReplace.response.ok && officeReplace.payload.linked, `office replace -> ${officeReplace.response.status} ${officeReplace.payload.error || ""}`);
+    const oldCard = await scan(leadCookie, crewCard);
+    assert(oldCard.payload.match === null, "the replaced licence still matches");
+
+    const expired = await scan(leadCookie, { licenceNumber: visitorLicence, displayName: "Vera Visitor", idExpiry: "2020-01-01", asVisitor: true, personType: "subcontractor" });
+    assert(expired.response.ok && expired.payload.visitor && expired.payload.warning, `expired visitor licence -> ${expired.response.status} warning=${expired.payload.warning}`);
+    const visitorRow = (expired.payload.briefing?.rollCall || []).find((item) => item.id === expired.payload.visitor.rollCallId);
+    assert(visitorRow?.personType === "subcontractor" && visitorRow.displayName === "Vera Visitor" && visitorRow.arrivedAt && visitorRow.checkInMethod === "scan", `visitor row -> ${JSON.stringify(visitorRow)}`);
+
+    // A manual arrival keeps its reason.
+    await fieldPost(leadCookie, `/api/field/jobs/${scanJobId}/briefing`, { rollCall: [{ employeeId: scanLeadId, leftAt: new Date().toISOString() }] });
+    const manual = await fieldPost(leadCookie, `/api/field/jobs/${scanJobId}/briefing`, { rollCall: [{ employeeId: scanLeadId, arrivedAt: new Date().toISOString(), leftAt: "", checkInNote: "No licence on hand" }] });
+    const manualRow = (manual.payload.rollCall || []).find((item) => item.employeeId === scanLeadId);
+    assert(manualRow?.checkInMethod === "manual" && manualRow.checkInNote === "No licence on hand" && !manualRow.idLast4 && !manualRow.leftAt, `manual arrival -> ${JSON.stringify(manualRow)}`);
+
+    // The roll call can't be forged through the raw collection route.
+    const forged = await adminPost("jobSafetyBriefings", { ...manual.payload, rollCall: [{ id: "forged", employeeId: "", displayName: "Forged", checkInMethod: "scan", idLast4: "0000", arrivedAt: new Date().toISOString() }] });
+    assert(forged.response.ok && !(forged.payload.rollCall || []).some((item) => item.id === "forged"), "a raw jobSafetyBriefings save replaced the roll call");
+
+    // An office save of the employee (which never has licenceHash) keeps the link.
+    const employeesNow = await adminGet("employees");
+    const crewRecord = employeesNow.find((item) => item.id === scanCrewId);
+    const saved = await adminPost("employees", { ...crewRecord, jobTitle: "Senior Technician", licenceHash: "forged" });
+    seen.push(JSON.stringify(saved.payload));
+    assert(saved.response.ok, `office saves the employee -> ${saved.response.status}`);
+    const stillLinked = await scan(leadCookie, { licenceNumber: otherLicence, displayName: "Other Card" });
+    assert(stillLinked.payload.match?.employeeId === scanCrewId, "an office save of the employee dropped (or let the payload set) the licence link");
+
+    // Nothing that leaves the server carries a licence number or a licenceHash.
+    for (const [cookie, url] of [[adminCookie, "/api/backend"], [adminCookie, "/api/backend/employees"], [leadCookie, "/api/backend"], [leadCookie, "/api/field/package"], [crewCookie, "/api/field/package"]]) {
+      const response = await fetch(`${baseUrl}${url}`, { headers: { Cookie: cookie } });
+      seen.push(await response.text());
+    }
+    const leaked = seen.find((text) => text.includes("licenceHash") || allNumbers.some((number) => text.includes(number)));
+    assert(!leaked, `a response carried a licence number or licenceHash: ${String(leaked).slice(0, 160)}`);
+  } finally {
+    await fetch(`${baseUrl}/api/backend/dispatchJobs/${scanJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+    for (const id of [scanLeadId, scanCrewId]) await fetch(`${baseUrl}/api/backend/employees/${id}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+  }
+});
+
 await step("Travel clock-in sent in lower case is stored as Travel", async () => {
   const employeeId = guardCrewId || leadEmployeeId;
   if (!employeeId) return "skip";
