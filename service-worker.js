@@ -1,4 +1,4 @@
-const CACHE_NAME = "environmental-crm-shell-v66";
+const CACHE_NAME = "environmental-crm-shell-v67";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,6 +12,7 @@ const APP_SHELL = [
 
   "./field/job.js",
   "./field/safety.js",
+  "./field/aamva.js",
   "./field/capture.js",
   "./field/forms.js",
 
@@ -36,6 +37,9 @@ const APP_SHELL = [
   "./public/vendor/three/addons/loaders/GLTFLoader.js",
   "./public/vendor/three/addons/controls/OrbitControls.js",
   "./public/vendor/three/addons/utils/BufferGeometryUtils.js",
+  // Phase 25 A.3b: the licence-barcode decoder, loaded only when Scan ID falls back to a photo.
+  "./public/vendor/zxing/zxing-reader.js",
+  "./public/vendor/zxing/zxing_reader.wasm",
 ];
 
 self.addEventListener("install", (event) => {

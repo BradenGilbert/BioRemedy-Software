@@ -28,6 +28,8 @@ data/auth.json
 data/auth.json.tmp
 data/break-glass-password.txt
 data/audit.log
+# Phase 25 A.3b: the key behind employees.licenceHash (driver's-licence check-in). Never in git.
+data/id-hash-secret.txt
 
 # Environment and secrets
 .env*

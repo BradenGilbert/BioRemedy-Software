@@ -111,6 +111,12 @@ try {
   if (fieldCheck.stderr?.trim()) console.log(fieldCheck.stderr.trim());
   check(fieldCheck.status === 0, "scripts/field-api-check.mjs");
 
+  // ---- 3c. driver's-licence barcode parser (Phase 25 A.3b) --------------------------------------
+  console.log("\nAAMVA parser");
+  const aamvaCheck = spawnSync(process.execPath, ["scripts/aamva-parse-check.mjs"], { cwd: projectRoot, encoding: "utf8" });
+  if (aamvaCheck.status !== 0) console.log(aamvaCheck.stdout || aamvaCheck.stderr || "");
+  check(aamvaCheck.status === 0, "scripts/aamva-parse-check.mjs");
+
   // ---- 4. browser sweep -----------------------------------------------------------------------
   if (!noBrowser) {
     console.log("\nBrowser sweep");

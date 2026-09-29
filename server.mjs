@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { readFile, mkdir, writeFile, rename, appendFile, rm } from "node:fs/promises";
-import { createHash, randomBytes, scryptSync, timingSafeEqual, createPublicKey, verify } from "node:crypto";
-import { existsSync, statSync, readFileSync, createReadStream } from "node:fs";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual, createPublicKey, verify } from "node:crypto";
+import { existsSync, statSync, readFileSync, writeFileSync, createReadStream } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runBackupCycle } from "./scripts/backup-lib.mjs";
@@ -63,6 +63,8 @@ const mimeTypes = new Map([
   [".webm", "video/webm"],
   [".pdf", "application/pdf"],
   [".geojson", "application/geo+json"],
+  // Phase 25 A.3b: the vendored barcode decoder (public/vendor/zxing/).
+  [".wasm", "application/wasm"],
 ]);
 
 // Phase 20 item 0 (2026-09-23): the only files the static branch serves outside public/. Everything
@@ -2736,7 +2738,29 @@ function walkParticipantMayDelete(request, collection, row, data) {
   return false;
 }
 
+// Phase 25 A.3b (2026-09-29): fields the server keeps and never sends to any client, whatever the role.
+// employees.licenceHash is the keyed hash of a driver's licence number the roll call's "Scan ID"
+// matches on (see fieldRollCallScan); knowing it would let anyone test a guessed licence number.
+const serverOnlyFields = { employees: ["licenceHash"] };
+function withoutServerOnlyFields(collection, row) {
+  const hidden = serverOnlyFields[collection];
+  if (!hidden || !row || typeof row !== "object" || !hidden.some((key) => key in row)) return row;
+  const copy = { ...row };
+  for (const key of hidden) delete copy[key];
+  return copy;
+}
+function stripServerOnlyFields(view) {
+  for (const collection of Object.keys(serverOnlyFields)) {
+    if (Array.isArray(view?.[collection])) view[collection] = view[collection].map((row) => withoutServerOnlyFields(collection, row));
+  }
+  return view;
+}
+
 function filterBackendForRole(data, role, session = null) {
+  return stripServerOnlyFields(filterBackendForRoleUnstripped(data, role, session));
+}
+
+function filterBackendForRoleUnstripped(data, role, session = null) {
   if (isFieldSession(session)) return applyFieldProjection(session, data);
   if (isPortalRole(role)) return portalView(data, session);
   const view = {
@@ -3063,7 +3087,7 @@ function applyFieldProjection(session, data) {
     out[collection] = rows;
   }
   out.qboSettings = { connectionStatus: "Restricted", realmId: "", lastExportAt: "" };
-  return out;
+  return stripServerOnlyFields(out);
 }
 
 function validateScheduleEvent(data, record) {
@@ -5588,7 +5612,17 @@ async function handleApi(request, response, pathname) {
     const index = data[collection].findIndex((item) => item.id === record.id);
     const stored = index >= 0 ? data[collection][index] : null;
     const conflict = versionConflict(stored, body);
-    if (conflict) return json(response, 409, conflict);
+    if (conflict) return json(response, 409, { ...conflict, current: withoutServerOnlyFields(collection, conflict.current) });
+    // Phase 25 A.3b: server-only fields are never taken from a payload (no client ever has them) and
+    // survive every save of the record.
+    for (const key of serverOnlyFields[collection] || []) {
+      if (stored && stored[key] !== undefined) record[key] = stored[key];
+      else delete record[key];
+    }
+    // Phase 25 A.3b: the roll call changes only through the /api/field/jobs/:id/briefing,
+    // .../briefing/acknowledge and .../roll-call/scan commands -- they check who may change whose row
+    // and are the only writers of acknowledgedAt and the check-in fields (checkInMethod, idLast4...).
+    if (collection === "jobSafetyBriefings") record.rollCall = stored?.rollCall || [];
     if (collection === "siteWalkReports" && stored) {
       // Phase 25 (2026-09-29): share links and completion are written by /api/field/* commands only; a
       // report save (the phone's autosave, or an offline save replayed without a version) keeps them.
@@ -5648,8 +5682,9 @@ async function handleApi(request, response, pathname) {
       await revokeSessions(auth, (session) => session.systemUserId === record.id, request.session?.name || "system");
     }
     await audit(request, { action: stored ? "update" : "create", collection, recordId: record.id, summary: recordSummary(record), changed: stored ? changedKeys(stored, record) : undefined });
-    if (commandId) await recordCommandReceipt(commandId, 200, record);
-    return json(response, 200, record);
+    const visibleRecord = withoutServerOnlyFields(collection, record);
+    if (commandId) await recordCommandReceipt(commandId, 200, visibleRecord);
+    return json(response, 200, visibleRecord);
   }
 
   return json(response, 405, { error: "Method not allowed." });
@@ -6131,6 +6166,9 @@ function mergeBriefingRollCall(data, stored, incoming, { actorEmployeeId, isLead
     if (existing && !Object.keys(changes).length) continue; // unchanged row, echoed back by the client
     const isSelf = Boolean(employeeId) && employeeId === actorEmployeeId;
     if (!isLead && !isSelf) throw requestError("Only the field lead can update someone else on the roll call.", 403);
+    // Phase 25 A.3b: an arrival through this route is a manual check-in (no licence scanned), with the
+    // reason the phone asks for. The scan fields belong to a scan -- only fieldRollCallScan sets them.
+    if (changes.arrivedAt) Object.assign(changes, manualCheckInFields(raw.checkInNote));
     if (existing) {
       Object.assign(existing, changes);
       continue;
@@ -6153,6 +6191,7 @@ function mergeBriefingRollCall(data, stored, incoming, { actorEmployeeId, isLead
       employeeId,
       personType,
       displayName,
+      ...changes,
       arrivedAt: changes.arrivedAt || "",
       leftAt: changes.leftAt || "",
       acknowledgedAt: "",
@@ -6161,6 +6200,22 @@ function mergeBriefingRollCall(data, stored, incoming, { actorEmployeeId, isLead
     });
   }
   return rows;
+}
+
+// Phase 25 A.3b: the check-in fields of a manual arrival -- the reason, and the previous scan's
+// fields cleared so an old "Scanned ID" can't stand behind a later manual re-arrival.
+function manualCheckInFields(note) {
+  return {
+    checkInMethod: "manual",
+    checkInNote: String(note || "").trim().slice(0, 160),
+    idLast4: "",
+    idState: "",
+    idExpiry: "",
+    scannedAt: "",
+    lat: "",
+    lng: "",
+    accuracyM: "",
+  };
 }
 
 async function fieldUpsertBriefing(request, jobId) {
@@ -6256,7 +6311,7 @@ async function fieldAcknowledgeBriefing(request, jobId) {
   let entry = rollCallId ? rollCall.find((item) => item.id === rollCallId) : rollCall.find((item) => item.employeeId === employeeId);
   if (!entry) {
     if (rollCallId) throw requestError("That person is not on today's roll call.", 404);
-    entry = { id: makeId("roll-call"), employeeId, personType: "employee", displayName: (data.employees || []).find((item) => item.id === employeeId)?.displayName || "", arrivedAt: now, leftAt: "", acknowledgedAt: "", signatureAttachmentId: "" };
+    entry = { id: makeId("roll-call"), employeeId, personType: "employee", displayName: (data.employees || []).find((item) => item.id === employeeId)?.displayName || "", arrivedAt: now, leftAt: "", acknowledgedAt: "", signatureAttachmentId: "", ...manualCheckInFields("Signed the briefing before being marked arrived") };
     rollCall.push(entry);
   }
   entry.acknowledgedAt = now;
@@ -6267,6 +6322,239 @@ async function fieldAcknowledgeBriefing(request, jobId) {
   await saveBackend(data);
   await audit(request, { action: "field-briefing-acknowledge", collection: "jobSafetyBriefings", recordId: stored.id, summary: `${employeeId || entry.displayName || rollCallId} acknowledged` });
   return { status: 200, body: record };
+}
+
+// ---- POST /api/field/jobs/:id/roll-call/scan (Phase 25 A.3b, 2026-09-29) ----
+//
+// Driver's-licence check-in. The phone decodes the licence's PDF417 barcode and sends the licence
+// number here once; the server keeps only a keyed hash of it (HMAC-SHA256 of state + number with a
+// server secret, on employees.licenceHash, never sent to any client) plus, on the roll-call row, the
+// last 4 digits, issuing state, expiry, scan time and GPS. No DOB, no address, no image.
+//   - hash matches an employee -> that person is marked arrived (added to the roll call if missing);
+//   - no match, no decision    -> {match: null, suggestions} (nothing written) for the lead to pick;
+//   - employeeId               -> the lead confirms "this is <employee>": links the hash, marks arrived;
+//   - asVisitor                -> a visitor/subcontractor row named from the licence.
+// An expired licence is a warning in the response, never a block. The secret comes from
+// CRM_ID_HASH_SECRET, else <data>/id-hash-secret.txt (generated on first use). Losing it only means
+// everyone's licence is linked again on their next scan.
+const idHashSecretFile = path.join(dataDir, "id-hash-secret.txt");
+let idHashSecretCache = "";
+function idHashSecret() {
+  if (idHashSecretCache) return idHashSecretCache;
+  const fromEnv = (process.env.CRM_ID_HASH_SECRET || "").trim();
+  if (fromEnv) return (idHashSecretCache = fromEnv);
+  if (existsSync(idHashSecretFile)) {
+    const stored = readFileSync(idHashSecretFile, "utf8").trim();
+    if (stored) return (idHashSecretCache = stored);
+  }
+  const secret = randomBytes(32).toString("hex");
+  writeFileSync(idHashSecretFile, `${secret}\n`, { encoding: "utf8", mode: 0o600 });
+  return (idHashSecretCache = secret);
+}
+
+function normalizeLicenceNumber(value) {
+  return String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function licenceHashFor(state, licenceNumber) {
+  return createHmac("sha256", idHashSecret()).update(`${state}|${licenceNumber}`).digest("hex");
+}
+
+function isOfficeSession(request) {
+  if (isFieldSession(request.session)) return false;
+  const roles = getRoles(request);
+  return canAccess(roles, "workforce") || canAccess(roles, "dispatch");
+}
+
+// Who the lead might mean when a licence matches nobody: this job's crew first, then active employees
+// whose name is like the one on the licence.
+function licenceMatchSuggestions(data, job, givenName, familyName) {
+  const crewIds = new Set([job.fieldLeadEmployeeId, ...(data.jobAssignments || []).filter((item) => item.jobId === job.id && !item.deletedAt && item.status !== "Cancelled").map((item) => item.employeeId)].filter(Boolean));
+  const given = String(givenName || "").trim().toLowerCase();
+  const family = String(familyName || "").trim().toLowerCase();
+  return (data.employees || [])
+    .filter((employee) => !employee.deletedAt && (employee.employmentStatus || "Active") === "Active")
+    .map((employee) => {
+      const first = String(employee.firstName || String(employee.displayName || "").split(" ")[0] || "").toLowerCase();
+      const last = String(employee.lastName || String(employee.displayName || "").split(" ").slice(-1)[0] || "").toLowerCase();
+      let nameScore = 0;
+      if (family && last === family) nameScore += 10;
+      if (given && first === given) nameScore += 5;
+      else if (given && first && (first.startsWith(given.slice(0, 3)) || given.startsWith(first.slice(0, 3)))) nameScore += 2;
+      const onCrew = crewIds.has(employee.id);
+      return { employee, onCrew, nameScore, score: (onCrew ? 100 : 0) + nameScore };
+    })
+    .filter((item) => item.onCrew || item.nameScore > 0)
+    .sort((a, b) => b.score - a.score || String(a.employee.displayName || "").localeCompare(String(b.employee.displayName || "")))
+    .slice(0, 8)
+    .map(({ employee, onCrew, nameScore }) => ({
+      employeeId: employee.id,
+      displayName: employee.displayName || "",
+      jobTitle: employee.jobTitle || "",
+      onCrew,
+      nameMatch: nameScore > 0,
+      hasLicenceLinked: Boolean(employee.licenceHash),
+    }));
+}
+
+async function fieldRollCallScan(request, jobId) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const data = await loadBackend();
+  const job = (data.dispatchJobs || []).find((item) => item.id === jobId && !item.deletedAt);
+  if (!job) throw requestError("Job not found.", 404);
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+  } else if (!canAccess(getRoles(request), "dispatch")) {
+    throw requestError("Dispatch role required.", 403);
+  }
+  const isLead = fieldIsJobLead(session, data, job);
+  const actorEmployeeId = session?.employeeId || "";
+
+  const licenceNumber = normalizeLicenceNumber(body.licenceNumber);
+  if (!/^[A-Z0-9]{4,25}$/.test(licenceNumber)) throw requestError("The licence number could not be read. Scan again, or mark the person arrived by hand.", 400);
+  const idState = String(body.idState || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+  if (idState.length < 2) throw requestError("The licence's issuing state could not be read. Scan again, or mark the person arrived by hand.", 400);
+  const idExpiry = typeof body.idExpiry === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.idExpiry) ? body.idExpiry : "";
+  const idLast4 = licenceNumber.slice(-4);
+  const licenceName = String(body.displayName || [body.givenName, body.familyName].filter(Boolean).join(" ")).replace(/\s+/g, " ").trim().slice(0, 120);
+  const hash = licenceHashFor(idState, licenceNumber);
+  const today = serverLocalIsoDate(new Date());
+  const expired = Boolean(idExpiry) && idExpiry < today;
+  const licence = { displayName: licenceName, idLast4, idState, idExpiry, expired };
+  const warning = expired ? `This licence expired on ${idExpiry}. The person is checked in; follow up on a current licence.` : "";
+
+  const employees = data.employees || [];
+  const matched = employees.find((item) => !item.deletedAt && item.licenceHash && item.licenceHash === hash) || null;
+  const requestedEmployeeId = typeof body.employeeId === "string" ? body.employeeId.trim() : "";
+  const replace = body.replace === true && isOfficeSession(request);
+  let target = null;
+  let linked = false;
+  let visitor = false;
+
+  if (matched && !(replace && requestedEmployeeId && requestedEmployeeId !== matched.id)) {
+    if (!isLead && matched.id !== actorEmployeeId) throw requestError("That licence belongs to someone else. Only the field lead can check other people in.", 403);
+    target = matched;
+  } else if (requestedEmployeeId) {
+    if (!isLead) throw requestError("Only the field lead can link a licence to an employee. Ask the lead to scan it once.", 403);
+    const employee = employees.find((item) => item.id === requestedEmployeeId && !item.deletedAt);
+    if (!employee) throw requestError("That employee was not found.", 400);
+    if (employee.licenceHash && employee.licenceHash !== hash && !replace) {
+      throw Object.assign(requestError(`${employee.displayName || "That employee"} already has a different licence linked. The office can replace it.`, 409), { conflict: true });
+    }
+    // An office replace moves the licence off whoever had it.
+    if (matched && matched.id !== employee.id) {
+      delete matched.licenceHash;
+      matched.licenceLinkedAt = "";
+      matched.licenceLinkedBy = "";
+      touchRecord(matched);
+    }
+    if (employee.licenceHash !== hash) {
+      employee.licenceHash = hash;
+      employee.licenceLinkedAt = new Date().toISOString();
+      employee.licenceLinkedBy = attribution(request);
+      touchRecord(employee);
+      linked = true;
+    }
+    target = employee;
+  } else if (body.asVisitor === true) {
+    if (!isLead) throw requestError("Only the field lead can add a visitor to the roll call.", 403);
+    visitor = true;
+  } else {
+    // No match and no decision yet: nothing is written.
+    return {
+      status: 200,
+      body: { match: null, licence, warning, canLink: isLead, suggestions: isLead ? licenceMatchSuggestions(data, job, body.givenName, body.familyName) : [] },
+    };
+  }
+
+  const operationalDate = typeof body.operationalDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.operationalDate) ? body.operationalDate : fieldBriefingDate(data, job);
+  const stored = (data.jobSafetyBriefings || []).find((item) => item.jobId === jobId && item.operationalDate === operationalDate && !item.deletedAt) || null;
+  const clientBriefingId = typeof body.briefingId === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(body.briefingId) && !(data.jobSafetyBriefings || []).some((item) => item.id === body.briefingId) ? body.briefingId : "";
+  const record = stored
+    ? { ...stored, rollCall: (stored.rollCall || []).map((row) => ({ ...row })) }
+    : {
+        id: clientBriefingId || makeId("job-safety-briefing"),
+        jobId,
+        operationalDate,
+        ppeLevel: "",
+        ppeRationale: "",
+        musterPoint: "",
+        emergencyContact: "",
+        nearestHospital: "",
+        hazards: [],
+        reminders: {},
+        airReadings: [],
+        airMonitoring: [],
+        rollCall: [],
+        completedAt: "",
+        completedBy: "",
+        createdBy: attribution(request),
+      };
+  const now = new Date().toISOString();
+  const personType = visitor ? (body.personType === "subcontractor" ? "subcontractor" : "visitor") : "employee";
+  let row = target
+    ? record.rollCall.find((item) => item.employeeId === target.id)
+    : record.rollCall.find((item) => !item.employeeId && item.idLast4 === idLast4 && item.idState === idState && String(item.displayName || "").toLowerCase() === licenceName.toLowerCase());
+  if (!row) {
+    if (visitor && !licenceName) throw requestError("The name on the licence could not be read. Add the visitor by name instead.", 400);
+    row = {
+      id: makeId("roll-call"),
+      employeeId: target ? target.id : "",
+      personType,
+      displayName: target ? target.displayName || licenceName : licenceName,
+      arrivedAt: "",
+      leftAt: "",
+      acknowledgedAt: "",
+      signatureAttachmentId: "",
+      addedBy: actorEmployeeId,
+    };
+    record.rollCall.push(row);
+  }
+  if (!row.arrivedAt || row.leftAt) {
+    row.arrivedAt = now;
+    row.leftAt = "";
+  }
+  const number = (value) => (value === "" || value === null || value === undefined || !Number.isFinite(Number(value)) ? "" : Number(value));
+  const lat = number(body.lat);
+  const lng = number(body.lng);
+  const hasFix = lat !== "" && lng !== "" && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  Object.assign(row, {
+    checkInMethod: "scan",
+    checkInNote: "",
+    idLast4,
+    idState,
+    idExpiry,
+    scannedAt: now,
+    lat: hasFix ? Math.round(lat * 1e6) / 1e6 : "",
+    lng: hasFix ? Math.round(lng * 1e6) / 1e6 : "",
+    accuracyM: hasFix && number(body.accuracyM) !== "" ? Math.round(number(body.accuracyM)) : "",
+  });
+  if (target) row.displayName = target.displayName || row.displayName;
+  if (visitor) row.personType = personType;
+  touchRecord(record, stored);
+  if (stored) data.jobSafetyBriefings[data.jobSafetyBriefings.findIndex((item) => item.id === stored.id)] = record;
+  else data.jobSafetyBriefings.push(record);
+  await saveBackend(data);
+  await audit(request, {
+    action: "field-roll-call-scan",
+    collection: "jobSafetyBriefings",
+    recordId: record.id,
+    summary: `${job.jobNumber || jobId} · ${row.displayName || "?"} · ${idState} ••••${idLast4}${linked ? " · licence linked" : ""}${expired ? " · expired" : ""}`,
+  });
+  return {
+    status: 200,
+    body: {
+      match: target ? { employeeId: target.id, displayName: target.displayName || "" } : null,
+      visitor: visitor ? { rollCallId: row.id, displayName: row.displayName } : null,
+      linked,
+      licence,
+      warning,
+      rollCallId: row.id,
+      briefing: record,
+    },
+  };
 }
 
 // ---- POST /api/field/site-walk/:eventId/complete ----
@@ -6720,6 +7008,9 @@ async function handleFieldApi(request, response, pathname) {
 
   const briefingAckMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/briefing\/acknowledge$/);
   if (briefingAckMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldAcknowledgeBriefing(request, briefingAckMatch[1]));
+
+  const rollCallScanMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/roll-call\/scan$/);
+  if (rollCallScanMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldRollCallScan(request, rollCallScanMatch[1]));
 
   const briefingMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/briefing$/);
   if (briefingMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldUpsertBriefing(request, briefingMatch[1]));

@@ -12837,6 +12837,22 @@ function renderJobSafetyBriefingsPanel(job) {
               <div><dt>Roll call</dt><dd>${(briefing.rollCall || []).length} on the roll call, ${(briefing.rollCall || []).filter((row) => row.acknowledgedAt).length} signed the briefing</dd></div>
               <div><dt>Completed</dt><dd>${briefing.completedAt ? escapeHtml(`${formatDateTime(briefing.completedAt)}${briefing.completedBy ? ` by ${briefing.completedBy}` : ""}`) : "Not completed"}</dd></div>
             </dl>
+            ${
+              (briefing.rollCall || []).length
+                ? `<table class="data-table" data-roll-call-office>
+                    <thead><tr><th>Person</th><th>Arrived</th><th>Check-in</th><th>Left</th><th>Briefing</th></tr></thead>
+                    <tbody>
+                      ${(briefing.rollCall || [])
+                        .map((row) => {
+                          const person = row.employeeId ? findEmployee(row.employeeId) : null;
+                          const kind = row.personType === "visitor" ? " (visitor)" : row.personType === "subcontractor" ? " (subcontractor)" : "";
+                          return `<tr><td>${escapeHtml(person?.displayName || row.displayName || "Unknown")}${kind}</td><td>${row.arrivedAt ? escapeHtml(formatShortTime(row.arrivedAt)) : "Not arrived"}</td><td>${escapeHtml(rollCallCheckInLabel(row))}</td><td>${row.leftAt ? escapeHtml(formatShortTime(row.leftAt)) : ""}</td><td>${row.acknowledgedAt ? "Signed" : "Not signed"}</td></tr>`;
+                        })
+                        .join("")}
+                    </tbody>
+                  </table>`
+                : ""
+            }
           </details>
         `,
             )
@@ -20501,6 +20517,18 @@ function briefingReadiness(job) {
   return { date, briefing, present, unsigned, ready: !reason, reason };
 }
 
+// Phase 25 A.3b (2026-09-29): how a roll-call row was checked in -- "Scanned ID ••••1234 TX" (from the
+// licence barcode; the licence number itself is never stored), or "Manual — <reason>". Rows from
+// before the scan shipped have no checkInMethod and read as a plain manual arrival.
+function rollCallCheckInLabel(row) {
+  if (!row?.arrivedAt) return "";
+  if (row.checkInMethod === "scan") {
+    const expired = row.idExpiry && row.idExpiry < String(row.scannedAt || row.arrivedAt).slice(0, 10);
+    return `Scanned ID ••••${row.idLast4 || "????"}${row.idState ? ` ${row.idState}` : ""}${expired ? " (licence expired)" : ""}`;
+  }
+  return row.checkInNote ? `Manual — ${row.checkInNote}` : "Manual";
+}
+
 function jobEquipmentUsageForJob(jobId) {
   return (state.backend.jobEquipmentUsage || []).filter((row) => row.jobId === jobId && !row.deletedAt);
 }
@@ -21650,13 +21678,13 @@ function renderPostWorkReportHtml(report) {
                       : ""
                   }
                   ${table(
-                    [["On site"], ["Arrived"], ["Left"], ["Briefing signed"]],
+                    [["On site"], ["Arrived"], ["Check-in"], ["Left"], ["Briefing signed"]],
                     (briefing.rollCall || []).map((row) => {
                       const person = row.employeeId ? findEmployee(row.employeeId) : null;
                       // Phase 25 A.2: visitors/subcontractors on the roll call carry a displayName.
                       const label = person?.displayName || row.displayName || row.employeeId || "";
                       const kind = row.personType === "visitor" ? " (visitor)" : row.personType === "subcontractor" ? " (subcontractor)" : "";
-                      return `<tr><td>${escapeHtml(label)}${kind}</td><td>${row.arrivedAt ? formatDateTime(row.arrivedAt) : ""}</td><td>${row.leftAt ? formatDateTime(row.leftAt) : ""}</td><td>${row.acknowledgedAt ? formatDateTime(row.acknowledgedAt) : gap("Not signed")}</td></tr>`;
+                      return `<tr><td>${escapeHtml(label)}${kind}</td><td>${row.arrivedAt ? formatDateTime(row.arrivedAt) : ""}</td><td>${escapeHtml(rollCallCheckInLabel(row))}</td><td>${row.leftAt ? formatDateTime(row.leftAt) : ""}</td><td>${row.acknowledgedAt ? formatDateTime(row.acknowledgedAt) : gap("Not signed")}</td></tr>`;
                     }),
                     "No roll call recorded.",
                   )}
@@ -35014,6 +35042,7 @@ export {
   dispatchJobWorkDays,
   dispatchJobOperationalDate,
   briefingReadiness,
+  rollCallCheckInLabel,
   narrativeForDay,
   narrativeComplete,
   postJobReviewComplete,
