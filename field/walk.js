@@ -129,13 +129,35 @@ function blankReport(walk) {
   };
 }
 
+// Item 11 (found, 2026-09-28 IT report): reportFor used to hand back a brand-new blankReport(walk)
+// -- with its own random id -- on every call until a row existed on the server. Two edits made before
+// the first save landed (e.g. typing a summary, then toggling a chip) each got their own throwaway
+// object; only the last one ever reached queuePersist's single debounce timer, so the other was
+// silently dropped. One object per walk id, created once and reused for the life of the page, fixes
+// that: every edit mutates the same report, so a debounced save always carries everything so far.
+const reportCache = new Map();
 function reportFor(walk) {
-  return walkReportForEvent(walk.id) || blankReport(walk);
+  const cached = reportCache.get(walk.id);
+  if (cached) return cached;
+  const report = walkReportForEvent(walk.id) || blankReport(walk);
+  reportCache.set(walk.id, report);
+  return report;
 }
 
 function sectionState(report, key) {
   const sections = report.sections || (report.sections = {});
   return sections[key] || (sections[key] = { done: false, fields: {}, photoDocumentIds: [], shots: {} });
+}
+
+// Item 11 (found, 2026-09-28 IT report): the fields a save is allowed to pull back from the server
+// onto the in-memory report. Never `sections` (or any other content field) -- Object.assign-ing the
+// whole server row back over `report` used to wipe out an edit made while the save was in flight
+// (the save that completes later, chained on persistChain, would otherwise overwrite it with the
+// pre-edit copy it saved).
+const SERVER_OWNED_REPORT_FIELDS = ["id", "version", "updatedAt", "createdAt", "shares", "completedAt", "completedBy"];
+function applyServerOwnedFields(report, saved) {
+  if (!saved || typeof saved !== "object") return;
+  for (const key of SERVER_OWNED_REPORT_FIELDS) if (saved[key] !== undefined) report[key] = saved[key];
 }
 
 // Report saves are serialised: the check-in save and the debounced autosave otherwise overlap and
@@ -160,7 +182,7 @@ function persistReport(report, { rerender = false } = {}) {
       Object.assign(report, merged);
       saved = await saveFieldRecord("siteWalkReports", report);
     }
-    if (saved && typeof saved === "object") Object.assign(report, saved);
+    applyServerOwnedFields(report, saved);
     if (rerender) crm.render();
     return saved;
   });
@@ -863,7 +885,11 @@ registerFieldAction("walk-complete", async (button) => {
     const payload = { reportId: report.id, summary: report.summary, sections: report.sections, needs: { ...needs, samplingNeeded: Boolean(report.needs?.samplingNeeded) }, contactsMet: report.contactsMet || [], measurements: report.measurements || [], checkIn: report.checkIn, referenceSnapshot: report.referenceSnapshot, backgrounds: report.backgrounds || [], completedAt: now, completedBy: by };
     let serverDidIt = false;
     try {
-      await fieldRequest(`/api/field/site-walk/${encodeURIComponent(walk.id)}/complete`, { body: payload, kind: "walk-complete" });
+      // reportFor now hands back one cached object for the life of the page (item 11), so the
+      // completedAt/completedBy/shares the server just wrote have to be copied onto it explicitly --
+      // a plain refreshBackendState() no longer reaches this report the way it used to.
+      const saved = await fieldRequest(`/api/field/site-walk/${encodeURIComponent(walk.id)}/complete`, { body: payload, kind: "walk-complete" });
+      applyServerOwnedFields(report, saved);
       serverDidIt = true;
     } catch (error) {
       if (!/does not have|404/.test(error?.message || "") && error?.status !== 404) throw error;
@@ -903,9 +929,14 @@ export async function shareWalk(walk) {
     const result = await fieldRequest(`/api/field/walks/${encodeURIComponent(report.id)}/share`, { body: { expiresInDays: 14 }, kind: "walk-share" });
     const url = result?.url?.startsWith("http") ? result.url : `${location.origin}${result?.url || ""}`;
     const title = `Site walk — ${crm.findOpportunity(walk.opportunityId)?.name || walk.title || ""}`;
+    // The share route only echoes {id, url, expiresAt, audience}, not the whole report row, so (with
+    // reportFor now caching one object per walk, item 11) the cached report's own `shares` list needs
+    // a manual refresh rather than the refreshBackendState() below reaching it automatically.
+    if (result?.id) report.shares = [...(report.shares || []), { id: result.id, audience: result.audience || "staff", expiresAt: result.expiresAt || "", createdAt: new Date().toISOString(), revokedAt: "" }];
     if (navigator.share) {
       try {
         await navigator.share({ title, text: `${title}. Live map and photos:`, url });
+        await crm.refreshBackendState().catch(() => {});
         return;
       } catch {
         // fall through to the clipboard

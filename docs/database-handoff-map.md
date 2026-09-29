@@ -985,11 +985,22 @@ generic pass-through normaliser; no server-side whitelist yet — Phase 14 table
   "Site walk check-in"`, `locationType: "Check-in"`, `reportedByEmployeeId`; the server's `locations`
   whitelist drops `opportunityId`, so the link to the opportunity is an `opportunityLocations` row
   (`type:"Location"`, `role:"Site walk check-in"`). Quick lead writes `locationType:"Lead"` the same way.
+  IT report item 10 (2026-09-28): a GPS fix sent with the field ladder's advance to On site/Start work
+  writes a `locations` row server-side (`server.mjs`'s `fieldAdvanceJob`) with `locationType: "Job
+  event"`, `label: "Arrived on site"`, `dispatchJobId` (new field, added to `normalizeRecord`'s
+  `locations` allowlist), `projectId`, `source: "Field advance"`, `reportedByEmployeeId`; this is what
+  `resolveWeatherAnchor` now finds for a location-only site (address, no coordinates) that used to fail
+  every weather capture.
 - **`documents`** — walk photos are `site-photo` on the **opportunity** (caption carries the section and
   required-shot slot, or "Pin N · label"); uploaded plans are `site-plan` on the facility (opportunity when
   the walk has none); the fallback sketch is `site-sketch` on the opportunity. The observation and the
   report section hold the document ids; the `documents.section` field W1 planned is not written yet
   because the upload route has no header for it.
+  `includeInReport` (boolean, IT report item 8c, 2026-09-28): kept by the documents metadata route
+  (`POST /api/backend/documents`) alongside visibility/caption/tags/documentTypeId/retainUntil/markup/
+  section/heading/requiredShotKey. A field-captured photo (quick-bar Photo) sets it true with a second
+  write right after the upload (the upload route itself has no header for it); the office Report tab's
+  photo checkbox is the other writer. The report builder reading it is worker C's half of item 8.
 - **`opportunities`** — `siteWalkStatus` now has `Scheduled` in both dropdowns; the field Complete sets
   `Complete`; needs written from the walk land in `equipmentNeeds / vendorNeeds / resourceNeeds` as
   `{name, note}` (and "Sampling" in `resourceNeeds` when flagged). `scheduleEvents.status` becomes
