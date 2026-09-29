@@ -1,6 +1,6 @@
 # Phase 25 — Pilot fixes (feedback pass 2026-09-29)
 
-**Status:** 🟡 In progress — started 2026-09-29. Wave A first.
+**Status:** 🟡 In progress. **Waves A and B built 2026-09-29** on branch `p25-wave-a` (smoke green, Wave B click-tested end to end on a copy of live data), **not yet on main or live** — waiting on the owner for the merge and live-server restart. Waves C–F not started.
 
 **Depends on:** Phase 21 (Front Line 2), Phase 13 (documents), Phase 15 (project workspace), Phase 16 (emergency intake) — all shipped.
 
@@ -215,7 +215,9 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 
 ## Build record
 
-*(filled in as each wave ships)*
+**Waves A and B — built 2026-09-29.** Nine worktree workers (A: Front Line status/roll call, site-walk photos/measurements/sketch, pin declutter, office fixes, licence check-in; B: walk timeline/Regarding, walk page + filed report, project tabs), integrated on `p25-wave-a` with main (Phase 24) merged in. Smoke green apart from the worktree-only `/.git/config` check; every worker click-tested as the right role (field login via `/go/` links for Front Line); Wave B's cross-worker links click-tested together on a copy of live data (16/16). Service worker cache v67.
+
+**Going live needs, in order:** merge `p25-wave-a` into main → restart the live server (client and server changed together) → run `node scripts/merge-site-walk-activities.mjs --password <break-glass>` as a dry run, then with `--apply`, to fold the two pre-fix duplicate walk activities (Dell R3, Georgetown trash-truck walk).
 
 ## Corrections found during implementation
 
