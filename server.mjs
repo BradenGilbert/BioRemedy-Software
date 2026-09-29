@@ -2912,6 +2912,8 @@ function documentBelongsToFieldContext(document, ctx) {
   if (entityType === "siteWalk") return (ctx.data.siteWalkReports || []).some((item) => item.id === entityId && ctx.myWalkEventIds.has(item.walkEventId));
   if (entityType === "libraryItem") return true;
   if (entityType === "sample") return (ctx.data.sampleRecords || []).some((item) => item.id === entityId && ctx.myJobIds.has(item.dispatchJobId));
+  if (entityType === "jobSafetyBriefing") return (ctx.data.jobSafetyBriefings || []).some((item) => item.id === entityId && ctx.myJobIds.has(item.jobId));
+  if (entityType === "formSubmission") return (ctx.data.jobFormSubmissions || []).some((item) => item.id === entityId && (ctx.myJobIds.has(item.jobId) || (item.submittedByEmployeeId && item.submittedByEmployeeId === ctx.employeeId)));
   return false;
 }
 
@@ -2927,7 +2929,9 @@ const fieldProjections = {
   dispatchJobs: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.id) },
   jobSteps: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
   jobActions: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
-  jobFormSubmissions: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  // Phase 25 A.4: a standalone form (Forms screen, "Not tied to a specific job") has no jobId; its
+  // submitter still has to be able to save it and read it back under "Recently submitted".
+  jobFormSubmissions: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) || (!row.jobId && Boolean(row.submittedByEmployeeId) && row.submittedByEmployeeId === ctx.employeeId) },
   jobAssignments: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
   jobResources: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
   jobStatusEvents: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
@@ -2969,7 +2973,16 @@ const fieldProjections = {
   employees: {
     fields: "*",
     where: (row, ctx) => row.id === ctx.employeeId,
-    extra: (rows, ctx) => rows.concat((ctx.data.employees || []).filter((item) => ctx.crewMateIds.has(item.id) && !item.deletedAt).map((item) => pickFields(item, ["id", "displayName", "jobTitle", "mobilePhone", "readinessStatus"]))),
+    extra: (rows, ctx) =>
+      rows
+        .concat((ctx.data.employees || []).filter((item) => ctx.crewMateIds.has(item.id) && !item.deletedAt).map((item) => pickFields(item, ["id", "displayName", "jobTitle", "mobilePhone", "readinessStatus"])))
+        // Phase 25 A.2: the lead's "+ Add person on site" picks from the active roster, so everyone
+        // else is visible by name and title only (no phone, no pay, no readiness).
+        .concat(
+          (ctx.data.employees || [])
+            .filter((item) => !item.deletedAt && item.id !== ctx.employeeId && !ctx.crewMateIds.has(item.id) && (item.employmentStatus || "Active") === "Active")
+            .map((item) => pickFields(item, ["id", "displayName", "jobTitle", "employmentStatus"])),
+        ),
   },
   inventoryItems: { fields: ["id", "materialType", "name", "unit", "onHand", "productId", "category"], where: () => true },
   equipmentAssets: { fields: ["id", "assetTag", "name", "category", "status"], where: () => true },
@@ -4850,6 +4863,11 @@ const DOCUMENT_ENTITY_TYPES = new Map([
   // Phase 21 (Front Line 2)
   ["libraryItem", "libraryItems"],
   ["siteWalk", "siteWalkReports"],
+  // Phase 25 A.2/A.4: a briefing acknowledgement's signature and a standalone form's photo/signature.
+  // field/safety.js always sent "jobSafetyBriefing" and field/forms.js "formSubmission", but neither
+  // was listed, so every one of those uploads was refused ("Unknown record type") and silently dropped.
+  ["jobSafetyBriefing", "jobSafetyBriefings"],
+  ["formSubmission", "jobFormSubmissions"],
 ]);
 const REQUIREMENT_STATUSES = ["Not started", "Sent", "Returned", "In review", "Approved", "Rejected"];
 const REVIEW_ROLES = ["Admin", "Office Manager", "Sales Manager", "Operations Manager"];
@@ -5778,7 +5796,8 @@ async function fieldClock(request) {
   } else if (!canAccess(role, "dispatch")) {
     throw requestError("Dispatch role required.", 403);
   }
-  const entryType = body.entryType === "Travel" ? "Travel" : "Work";
+  // Phase 25 A.4: the phone sends "travel"/"work" in lower case; store the canonical spelling.
+  const entryType = String(body.entryType || "").toLowerCase() === "travel" ? "Travel" : "Work";
   const at = body.at || new Date().toISOString();
   let record;
   if (body.action === "out") {
@@ -5832,6 +5851,12 @@ const FIELD_DISPATCH_TRANSITIONS = {
   office_review: { status: "closed", dispatchStatus: "Closed", completionPercent: 100 },
 };
 const FIELD_POST_JOB_REVIEW_KEYS = ["accidents", "nearMisses", "injuries"];
+// Mirrors app.js PROJECT_STAGES and advanceProjectStageFromDispatchStatus()'s map.
+const FIELD_PROJECT_STAGES = ["Intake", "Plan", "Mobilize", "Field Work", "Closeout"];
+const FIELD_PROJECT_STAGE_FOR_STATUS = {
+  draft: "Plan", ready: "Plan", scheduled: "Mobilize", dispatched: "Mobilize", acknowledged: "Mobilize", en_route: "Mobilize",
+  on_site: "Field Work", in_progress: "Field Work", field_complete: "Field Work", office_review: "Field Work", closed: "Field Work",
+};
 
 async function fieldAdvanceJob(request, jobId) {
   const body = await readJsonBody(request);
@@ -5872,6 +5897,13 @@ async function fieldAdvanceJob(request, jobId) {
       if (outstanding.length) throw Object.assign(requestError(`${outstanding.length} work plan step${outstanding.length === 1 ? "" : "s"} still open.`, 409), { blocked: true });
     }
   }
+  // Phase 25 A.3: work can't start until today's safety briefing has someone on site and everyone on
+  // site has signed it (client twin: app.js getWorkPlanGate). Acknowledge / en route / on site are
+  // never held up by the briefing -- only Start work.
+  if (transition.status === "in_progress") {
+    const reason = briefingGateReason(todaysBriefingForJob(data, job));
+    if (reason) throw Object.assign(requestError(reason, 409), { blocked: true });
+  }
   if (transition.status === "closed") {
     const review = job.postJobReview || {};
     const complete = FIELD_POST_JOB_REVIEW_KEYS.every((key) => review[key] === "Yes" || review[key] === "No");
@@ -5898,6 +5930,15 @@ async function fieldAdvanceJob(request, jobId) {
   data.dispatchJobs[jobIndex] = updated;
   const statusEvent = touchRecord({ id: makeId("job-status-event"), jobId: job.id, fromStatus: job.status, toStatus: transition.status, occurredAt, by: body.by || attribution(request) });
   data.jobStatusEvents.push(statusEvent);
+  // Phase 25 A.1: the twin of app.js advanceProjectStageFromDispatchStatus() -- the Front Line status
+  // step now goes through this command (a field login can't write projects), so the project's stage
+  // moves here, and never backwards.
+  const project = job.projectId ? (data.projects || []).find((item) => item.id === job.projectId && !item.deletedAt) : null;
+  const targetStage = FIELD_PROJECT_STAGE_FOR_STATUS[transition.status];
+  if (project && targetStage && FIELD_PROJECT_STAGES.indexOf(targetStage) > FIELD_PROJECT_STAGES.indexOf(project.projectStage || "Intake")) {
+    const projectIndex = data.projects.findIndex((item) => item.id === project.id);
+    data.projects[projectIndex] = touchRecord({ ...project, projectStage: targetStage, activePhase: targetStage }, project);
+  }
   // Item 10: a GPS fix sent with the advance (on_site / in_progress) becomes an "Arrived on site"
   // location row, so resolveWeatherAnchor has coordinates to work with even on a location-only site
   // (an address with no lat/lng) and dispatch never sent a position before now.
@@ -5976,12 +6017,131 @@ function captureResponseWeatherInBackground(dispatchJobId) {
 }
 
 // ---- POST /api/field/jobs/:id/briefing (+ /acknowledge) ----
+//
+// Phase 25 A.2/A.3 (2026-09-29): one date rule for "today's briefing" on both sides -- the twin of
+// app.js dispatchJobOperationalDate(): the job's fixed operational day, else the local date of its
+// first Start work / On site event, else its scheduled start, else today (all in local time, as the
+// phone computes them). The acknowledge handler used operationalDate || UTC today, so a job that had
+// not started work yet 409'd "No safety briefing recorded for today yet" against the briefing the
+// phone had just saved under its scheduled date.
+function serverLocalIsoDate(value) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function fieldBriefingDate(data, job) {
+  if (job.operationalDate) return job.operationalDate;
+  const events = (data.jobStatusEvents || [])
+    .filter((event) => event.jobId === job.id && !event.deletedAt)
+    .sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)));
+  const anchor = events.find((event) => event.toStatus === "in_progress") || events.find((event) => event.toStatus === "on_site");
+  const anchored = anchor ? serverLocalIsoDate(anchor.occurredAt) : "";
+  if (anchored) return anchored;
+  const scheduled = job.scheduledStart ? serverLocalIsoDate(job.scheduledStart) : "";
+  return scheduled || serverLocalIsoDate(new Date());
+}
+
+function todaysBriefingForJob(data, job) {
+  const operationalDate = fieldBriefingDate(data, job);
+  return (data.jobSafetyBriefings || []).find((item) => item.jobId === job.id && item.operationalDate === operationalDate && !item.deletedAt) || null;
+}
+
+// Who counts as "on site" for the briefing guard: marked arrived and not marked left.
+function briefingPresentRows(briefing) {
+  return (Array.isArray(briefing?.rollCall) ? briefing.rollCall : []).filter((row) => row.arrivedAt && !row.leftAt);
+}
+
+// The one briefing rule both "Complete briefing" and Start work check (app.js briefingReadiness() is
+// its client twin): at least one person on site, and every person on site has signed the briefing.
+function briefingGateReason(briefing) {
+  if (!briefing) return "Fill out today's safety briefing on the Safety tab before starting work.";
+  const present = briefingPresentRows(briefing);
+  if (!present.length) return "Mark at least one person arrived on the Safety tab's roll call before starting work.";
+  const unsigned = present.filter((row) => !row.acknowledgedAt);
+  if (unsigned.length) return `${unsigned.length} ${unsigned.length === 1 ? "person on site has" : "people on site have"} not signed today's safety briefing.`;
+  return "";
+}
+
+// The job's field lead, per job (the dispatch job's lead or an isFieldLead assignment) -- the same
+// test field/job.js's isFieldLead() uses to show the lead screens. A dispatch-link session always
+// carries the "Field Lead" role, so the role alone can't be the test; it only decides for a job that
+// has no lead named at all. Office sessions (dispatch access already checked) are always lead.
+function fieldIsJobLead(session, data, job) {
+  if (!isFieldSession(session)) return true;
+  const employeeId = session.employeeId || "";
+  const assignments = (data.jobAssignments || []).filter((item) => item.jobId === job.id && !item.deletedAt && item.status !== "Cancelled");
+  if (employeeId && job.fieldLeadEmployeeId === employeeId) return true;
+  if (employeeId && assignments.some((item) => item.employeeId === employeeId && item.isFieldLead)) return true;
+  const jobHasLead = Boolean(job.fieldLeadEmployeeId) || assignments.some((item) => item.isFieldLead);
+  return !jobHasLead && fieldSessionRoles(session).includes("Field Lead");
+}
+
+const ROLL_CALL_PERSON_TYPES = ["employee", "visitor", "subcontractor"];
+const isRollCallTime = (value) => value === "" || (typeof value === "string" && !Number.isNaN(Date.parse(value)));
+
+// Merges the client's roll call onto the stored one, row by row (keyed by employeeId, or by the row id
+// for a visitor). A crew member may set arrivedAt/leftAt on their own row; the lead (or the office) on
+// anyone's, and may add people who are not on the dispatch -- another employee, or a visitor by name.
+// acknowledgedAt/signatureAttachmentId are never taken from this payload: only the acknowledge command
+// sets them. Before this, the server kept `stored.rollCall` and dropped every "Mark arrived".
+function mergeBriefingRollCall(data, stored, incoming, { actorEmployeeId, isLead }) {
+  const rows = (Array.isArray(stored) ? stored : []).map((row) => ({ ...row }));
+  if (!Array.isArray(incoming)) return rows;
+  const keyOf = (row) => (row.employeeId ? `employee:${row.employeeId}` : `row:${row.id || ""}`);
+  for (const raw of incoming) {
+    if (!raw || typeof raw !== "object") continue;
+    const employeeId = typeof raw.employeeId === "string" ? raw.employeeId.trim() : "";
+    const rowId = typeof raw.id === "string" ? raw.id.trim().slice(0, 80) : "";
+    if (!employeeId && !rowId) continue;
+    const key = employeeId ? `employee:${employeeId}` : `row:${rowId}`;
+    const existing = rows.find((row) => keyOf(row) === key);
+    const changes = {};
+    for (const field of ["arrivedAt", "leftAt"]) {
+      if (!Object.prototype.hasOwnProperty.call(raw, field)) continue;
+      const value = raw[field] ?? "";
+      if (!isRollCallTime(value)) continue;
+      if ((existing?.[field] || "") !== value) changes[field] = value;
+    }
+    if (existing && !Object.keys(changes).length) continue; // unchanged row, echoed back by the client
+    const isSelf = Boolean(employeeId) && employeeId === actorEmployeeId;
+    if (!isLead && !isSelf) throw requestError("Only the field lead can update someone else on the roll call.", 403);
+    if (existing) {
+      Object.assign(existing, changes);
+      continue;
+    }
+    // A new row.
+    let personType = ROLL_CALL_PERSON_TYPES.includes(raw.personType) ? raw.personType : employeeId ? "employee" : "visitor";
+    let displayName = String(raw.displayName || "").trim().slice(0, 120);
+    if (employeeId) {
+      const employee = (data.employees || []).find((item) => item.id === employeeId && !item.deletedAt);
+      if (!employee) throw requestError("That employee was not found.", 400);
+      personType = "employee";
+      displayName = employee.displayName || displayName;
+    } else {
+      if (!isLead) throw requestError("Only the field lead can add a visitor to the roll call.", 403);
+      if (personType === "employee") personType = "visitor";
+      if (!displayName) throw requestError("A visitor on the roll call needs a name.", 400);
+    }
+    rows.push({
+      id: rowId || makeId("roll-call"),
+      employeeId,
+      personType,
+      displayName,
+      arrivedAt: changes.arrivedAt || "",
+      leftAt: changes.leftAt || "",
+      acknowledgedAt: "",
+      signatureAttachmentId: "",
+      addedBy: actorEmployeeId || "",
+    });
+  }
+  return rows;
+}
+
 async function fieldUpsertBriefing(request, jobId) {
   const body = await readJsonBody(request);
   const session = request.session;
-  if (isFieldSession(session) && fieldSessionRoles(session).includes("Crew") && !fieldSessionRoles(session).includes("Field Lead")) {
-    throw requestError("Crew cannot write the safety briefing.", 403);
-  }
   const data = await loadBackend();
   const job = (data.dispatchJobs || []).find((item) => item.id === jobId && !item.deletedAt);
   if (!job) throw requestError("Job not found.", 404);
@@ -5991,33 +6151,55 @@ async function fieldUpsertBriefing(request, jobId) {
   } else if (!canAccess(getRoles(request), "dispatch")) {
     throw requestError("Dispatch role required.", 403);
   }
-  const operationalDate = body.operationalDate || job.operationalDate || new Date().toISOString().slice(0, 10);
+  // Phase 25 A.2: crew (not the job's lead) may still send the roll call -- their own arrival -- but
+  // nothing else on the briefing; the lead writes the rest, as before.
+  const isLead = fieldIsJobLead(session, data, job);
+  const operationalDate = typeof body.operationalDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.operationalDate) ? body.operationalDate : fieldBriefingDate(data, job);
   const stored = (data.jobSafetyBriefings || []).find((item) => item.jobId === jobId && item.operationalDate === operationalDate && !item.deletedAt);
+  const fromBody = (key) => (isLead ? body[key] : undefined);
   // Item 1 (2026-09-28 IT report): field/safety.js sends the readings as `airMonitoring`; the record
   // has always been stored under `airReadings`. Accept either name in and echo both back out so a
   // client on either name still reads its own save.
-  const airReadings = body.airMonitoring ?? body.airReadings ?? stored?.airReadings ?? [];
+  const airReadings = fromBody("airMonitoring") ?? fromBody("airReadings") ?? stored?.airReadings ?? [];
+  const rollCall = mergeBriefingRollCall(data, stored?.rollCall, body.rollCall, { actorEmployeeId: session?.employeeId || "", isLead });
+  // A new briefing keeps the id the phone gave it (so an offline-created row, and a signature uploaded
+  // against it, line up with the server's once the outbox drains), unless that id is taken.
+  const clientId = typeof body.id === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(body.id) && !(data.jobSafetyBriefings || []).some((item) => item.id === body.id) ? body.id : "";
   const record = {
-    id: stored?.id || makeId("job-safety-briefing"),
+    ...(stored || {}),
+    id: stored?.id || clientId || makeId("job-safety-briefing"),
     jobId,
     operationalDate,
-    ppeLevel: body.ppeLevel ?? stored?.ppeLevel ?? "",
-    ppeRationale: body.ppeRationale ?? stored?.ppeRationale ?? "",
-    musterPoint: body.musterPoint ?? stored?.musterPoint ?? "",
-    emergencyContact: body.emergencyContact ?? stored?.emergencyContact ?? "",
-    nearestHospital: body.nearestHospital ?? stored?.nearestHospital ?? "",
-    hazards: body.hazards ?? stored?.hazards ?? [],
-    reminders: body.reminders ?? stored?.reminders ?? {},
+    ppeLevel: fromBody("ppeLevel") ?? stored?.ppeLevel ?? "",
+    ppeRationale: fromBody("ppeRationale") ?? stored?.ppeRationale ?? "",
+    musterPoint: fromBody("musterPoint") ?? stored?.musterPoint ?? "",
+    emergencyContact: fromBody("emergencyContact") ?? stored?.emergencyContact ?? "",
+    nearestHospital: fromBody("nearestHospital") ?? stored?.nearestHospital ?? "",
+    hazards: fromBody("hazards") ?? stored?.hazards ?? [],
+    reminders: fromBody("reminders") ?? stored?.reminders ?? {},
     airReadings,
     airMonitoring: airReadings,
-    rollCall: stored?.rollCall ?? [],
+    rollCall,
+    completedAt: stored?.completedAt || "",
+    completedBy: stored?.completedBy || "",
     createdBy: stored?.createdBy || attribution(request),
   };
+  // Phase 25 A.3: "Complete briefing" is an explicit act, refused until someone is on site and
+  // everyone on site has signed. It is the lead's; completedAt is never taken from the payload.
+  if (body.complete === true) {
+    if (!isLead) throw requestError("Only the field lead can complete the briefing.", 403);
+    const reason = briefingGateReason(record);
+    if (reason) throw Object.assign(requestError(reason.replace(/ before starting work\.$/, " before completing the briefing."), 409), { blocked: true });
+    if (!record.completedAt) {
+      record.completedAt = new Date().toISOString();
+      record.completedBy = attribution(request);
+    }
+  }
   touchRecord(record, stored);
   if (stored) data.jobSafetyBriefings[data.jobSafetyBriefings.findIndex((item) => item.id === stored.id)] = record;
   else data.jobSafetyBriefings.push(record);
   await saveBackend(data);
-  await audit(request, { action: "field-briefing", collection: "jobSafetyBriefings", recordId: record.id, summary: `${job.jobNumber || jobId} · ${operationalDate}` });
+  await audit(request, { action: body.complete === true ? "field-briefing-complete" : "field-briefing", collection: "jobSafetyBriefings", recordId: record.id, summary: `${job.jobNumber || jobId} · ${operationalDate}` });
   return { status: 200, body: record };
 }
 
@@ -6027,25 +6209,30 @@ async function fieldAcknowledgeBriefing(request, jobId) {
   const data = await loadBackend();
   const job = (data.dispatchJobs || []).find((item) => item.id === jobId && !item.deletedAt);
   if (!job) throw requestError("Job not found.", 404);
+  const rollCallId = typeof body.rollCallId === "string" ? body.rollCallId : "";
   if (isFieldSession(session)) {
     const ctx = buildFieldContext(session, data);
     if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
-    if (body.employeeId && body.employeeId !== session.employeeId && !fieldSessionRoles(session).includes("Field Lead")) {
+    const forSomeoneElse = rollCallId || (body.employeeId && body.employeeId !== session.employeeId);
+    if (forSomeoneElse && !fieldIsJobLead(session, data, job)) {
       throw requestError("Only the lead may acknowledge for someone else.", 403);
     }
   } else if (!canAccess(getRoles(request), "dispatch")) {
     throw requestError("Dispatch role required.", 403);
   }
-  const employeeId = body.employeeId || session.employeeId;
-  if (!employeeId) throw requestError("employeeId required.", 400);
-  const operationalDate = job.operationalDate || new Date().toISOString().slice(0, 10);
+  const employeeId = rollCallId ? "" : body.employeeId || session.employeeId;
+  if (!employeeId && !rollCallId) throw requestError("employeeId required.", 400);
+  // Phase 25 A.2: the same date rule as the phone (and as the upsert above). The phone may name the
+  // day it is showing; otherwise the rule decides.
+  const operationalDate = typeof body.operationalDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.operationalDate) ? body.operationalDate : fieldBriefingDate(data, job);
   const stored = (data.jobSafetyBriefings || []).find((item) => item.jobId === jobId && item.operationalDate === operationalDate && !item.deletedAt);
   if (!stored) throw requestError("No safety briefing recorded for today yet.", 409);
   const now = new Date().toISOString();
-  const rollCall = Array.isArray(stored.rollCall) ? stored.rollCall.slice() : [];
-  let entry = rollCall.find((item) => item.employeeId === employeeId);
+  const rollCall = Array.isArray(stored.rollCall) ? stored.rollCall.map((row) => ({ ...row })) : [];
+  let entry = rollCallId ? rollCall.find((item) => item.id === rollCallId) : rollCall.find((item) => item.employeeId === employeeId);
   if (!entry) {
-    entry = { employeeId, arrivedAt: now, leftAt: "", acknowledgedAt: "", signatureAttachmentId: "" };
+    if (rollCallId) throw requestError("That person is not on today's roll call.", 404);
+    entry = { id: makeId("roll-call"), employeeId, personType: "employee", displayName: (data.employees || []).find((item) => item.id === employeeId)?.displayName || "", arrivedAt: now, leftAt: "", acknowledgedAt: "", signatureAttachmentId: "" };
     rollCall.push(entry);
   }
   entry.acknowledgedAt = now;
@@ -6054,7 +6241,7 @@ async function fieldAcknowledgeBriefing(request, jobId) {
   touchRecord(record, stored);
   data.jobSafetyBriefings[data.jobSafetyBriefings.findIndex((item) => item.id === stored.id)] = record;
   await saveBackend(data);
-  await audit(request, { action: "field-briefing-acknowledge", collection: "jobSafetyBriefings", recordId: stored.id, summary: `${employeeId} acknowledged` });
+  await audit(request, { action: "field-briefing-acknowledge", collection: "jobSafetyBriefings", recordId: stored.id, summary: `${employeeId || entry.displayName || rollCallId} acknowledged` });
   return { status: 200, body: record };
 }
 

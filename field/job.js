@@ -85,7 +85,8 @@ function renderJob() {
       ${
         nextTransition
           ? `<button class="field-button field-button--primary-bar" type="button" data-field-action="field-advance-job" data-id="${crm.escapeAttribute(job.id)}" data-to="${crm.escapeAttribute(nextTransition.status)}" ${gate.blocked ? "disabled" : ""}>${crm.escapeHtml(nextTransition.label)}</button>
-           ${gate.blocked ? `<p class="help-text field-gap">${crm.escapeHtml(gate.reason || "")}</p>` : ""}`
+           ${gate.blocked ? `<p class="help-text field-gap" data-advance-blocked>${crm.escapeHtml(gate.reason || "")}</p>` : ""}
+           ${gate.blocked && gate.viaBriefing && activeTab !== "safety" ? `<button class="mini-button" type="button" data-field-action="field-job-tab" data-tab="safety">Open the Safety tab</button>` : ""}`
           : ""
       }
     </div>
@@ -133,31 +134,64 @@ function localDateIso(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
-registerFieldAction("field-advance-job", async (button) => {
-  const jobId = button.dataset.id;
-  const toStatus = button.dataset.to;
-  const fix = await getAdvanceGpsFix(toStatus);
-  const body = { toStatus, at: new Date().toISOString(), localDate: localDateIso() };
+// Phase 25 A.1 (2026-09-29): the ONE way the phone -- and the desktop Front Line simulator, through
+// app.js frontlineCompleteStatusAction()/frontlineAutoAdvanceJob() -- moves a job's status: the
+// POST /api/field/jobs/:id/advance command, through the offline outbox. The Work tab's "Acknowledge
+// dispatch" step used to save dispatchJobs.status through the raw backend route instead; the server
+// drops `status` from a field login's row save, so the job never moved and the bottom button kept
+// saying "Mark acknowledged". Both now run this, so they can't disagree: each reads job.status after.
+//
+// Resolves {ok, queued, blocked, reason, job}; never throws. Offline, the command is queued and the
+// new status is applied to the local row so the ladder moves on screen (the server re-checks every
+// gate when the command replays).
+export async function advanceJobFromField(jobId, toStatus = "") {
+  const job = crm.findDispatchJob(jobId);
+  const transition = job ? crm.getNextDispatchTransition(job.status) : null;
+  if (!job || !transition) return { ok: false, reason: "This job has no next status." };
+  const target = toStatus || transition.status;
+  if (target !== transition.status) return { ok: false, blocked: true, reason: `This job is ${crm.formatDispatchStatus(job.status)}; the next step is "${transition.label}".` };
+  const gate = crm.getWorkPlanGate(job);
+  if (gate.blocked) return { ok: false, blocked: true, reason: gate.reason || "That job can't advance yet." };
+  const fix = await getAdvanceGpsFix(target);
+  const body = { toStatus: target, at: new Date().toISOString(), localDate: localDateIso() };
   if (fix) Object.assign(body, { lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracyM });
   try {
     const updated = await fieldPackage.fieldRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/advance`, {
       method: "POST",
       kind: "advance",
-      label: `Advance job → ${toStatus}`,
+      label: `Advance job → ${transition.label}`,
       body,
+      apply: () =>
+        fieldPackage.mergeRow("dispatchJobs", {
+          id: job.id,
+          status: target,
+          dispatchStatus: transition.dispatchStatus,
+          completionPercent: Math.max(Number(job.completionPercent || 0), transition.completionPercent),
+        }),
     });
-    if (updated) fieldPackage.mergeRow("dispatchJobs", updated);
+    if (!updated) return { ok: true, queued: true, job: crm.findDispatchJob(jobId) };
+    fieldPackage.mergeRow("dispatchJobs", updated);
     await crm.refreshBackendState().catch(() => {});
-    crm.render();
+    return { ok: true, queued: false, job: crm.findDispatchJob(jobId) || updated };
   } catch (error) {
     if (/does not have advance yet/.test(error.message || "")) {
-      await crm.advanceDispatchJob(jobId);
-    } else if (error?.payload?.blocked) {
-      crm.showToast(error.payload.reason || "That job can't advance yet.");
-    } else {
-      crm.showToast(error.message || "Could not advance the job.");
+      await crm.advanceDispatchJob(jobId, { silent: true });
+      const after = crm.findDispatchJob(jobId);
+      return after?.status === target ? { ok: true, queued: false, job: after } : { ok: false, reason: "Could not advance the job." };
     }
+    // The server's refusal comes back as {error, blocked:true} (see server.mjs's error handler);
+    // this used to read a `reason` field that never existed, so every block said "can't advance yet".
+    return { ok: false, blocked: Boolean(error?.payload?.blocked), reason: error?.payload?.error || error?.message || "Could not advance the job." };
   }
+}
+
+registerFieldAction("field-advance-job", async (button) => {
+  if (button.disabled) return;
+  button.disabled = true;
+  const result = await advanceJobFromField(button.dataset.id, button.dataset.to);
+  crm.render();
+  if (!result.ok) crm.showToast(result.reason || "Could not advance the job.");
+  else if (result.queued) crm.showToast("Offline -- the status change is queued and will sync when you're back online.");
 });
 
 // ---------------------------------------------------------------------------------------------

@@ -8,6 +8,8 @@ import "./field/library.js";
 // Phase 21 W3: the sales field mode registers its routes at import time; index.js must be fully
 // evaluated first (its route table is a const), which this import order guarantees.
 import "./field/walk.js";
+// Phase 25 A.1: the Front Line status step (phone and simulator) advances through the field command.
+import { advanceJobFromField } from "./field/job.js";
 
 // Phase 24 (2026-09-28): guided tours (tutorials/engine.js draws the overlay, tutorials/registry.js
 // holds the words) are loaded by loadGuidedTours() with a dynamic import, not imported here: a
@@ -1454,13 +1456,16 @@ function projectBackendState() {
   state.facilities = (state.backend.facilities || [])
     .filter((facility) => !facility.deletedAt)
     .slice()
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
   state.accounts = (state.backend.accounts || [])
     .filter((account) => !account.deletedAt)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  // Phase 25 A (2026-09-29): a field session's contacts are projected without `name` (fullName only),
+  // so a.name.localeCompare threw on any job whose account had two contacts -- which broke every
+  // refreshBackendState() on the phone for that job (seen as a raw "reading 'localeCompare'" toast).
   state.contacts = (state.backend.contacts || [])
     .filter((contact) => !contact.deletedAt)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => String(a.name || a.fullName || "").localeCompare(String(b.name || b.fullName || "")));
   state.projects = (state.backend.projects || [])
     .filter((project) => !project.deletedAt)
     .sort((a, b) => parseDate(a.startDate) - parseDate(b.startDate));
@@ -12829,7 +12834,8 @@ function renderJobSafetyBriefingsPanel(job) {
               <div><dt>Emergency contact</dt><dd>${escapeHtml(briefing.emergencyContact || "Not recorded")}</dd></div>
               <div><dt>Nearest hospital</dt><dd>${escapeHtml(briefing.nearestHospital || "Not recorded")}</dd></div>
               <div><dt>Hazards listed</dt><dd>${(briefing.hazards || []).length}</dd></div>
-              <div><dt>Roll call</dt><dd>${(briefing.rollCall || []).length} crew, ${(briefing.rollCall || []).filter((row) => row.acknowledgedAt).length} acknowledged</dd></div>
+              <div><dt>Roll call</dt><dd>${(briefing.rollCall || []).length} on the roll call, ${(briefing.rollCall || []).filter((row) => row.acknowledgedAt).length} signed the briefing</dd></div>
+              <div><dt>Completed</dt><dd>${briefing.completedAt ? escapeHtml(`${formatDateTime(briefing.completedAt)}${briefing.completedBy ? ` by ${briefing.completedBy}` : ""}`) : "Not completed"}</dd></div>
             </dl>
           </details>
         `,
@@ -17811,6 +17817,10 @@ async function saveSampleFromTask(action, job, data, summary, submittedBy) {
   );
 }
 
+// Phase 25 A.1 (2026-09-29): the status move goes through advanceJobFromField() (field/job.js) -- the
+// POST /api/field/jobs/:id/advance command through the offline outbox, the same path as the phone's
+// bottom button -- not advanceDispatchJob(), whose raw dispatchJobs save a field login can't make
+// (the server drops `status`, then 403s the jobStatusEvents write, and the success toast hid it).
 async function frontlineCompleteStatusAction(actionId) {
   const action = findJobAction(actionId);
   if (!action) return;
@@ -17819,14 +17829,23 @@ async function frontlineCompleteStatusAction(actionId) {
     await frontlineMarkActionComplete(actionId);
     await frontlineAdvanceStepIfComplete(stepId, [actionId]);
     await refreshBackendState();
-    const job = findDispatchJob(jobId);
-    const advances = getNextDispatchTransition(job?.status)?.status === "acknowledged";
-    if (advances) await advanceDispatchJob(jobId, { silent: true });
-    render();
-    showToast(advances ? `${action.name} -- job is now acknowledged.` : `${action.name} recorded.`);
   } catch (error) {
+    render();
     showToast(error.message || "Could not record that step.");
+    return;
   }
+  const job = findDispatchJob(jobId);
+  const transition = getNextDispatchTransition(job?.status);
+  if (transition?.status !== "acknowledged") {
+    render();
+    showToast(`${action.name} recorded.`);
+    return;
+  }
+  const result = await advanceJobFromField(jobId, transition.status);
+  render();
+  if (!result.ok) showToast(`${action.name} recorded, but the job is still ${formatDispatchStatus(job.status)}: ${result.reason || "the status change was refused."}`);
+  else if (result.queued) showToast(`${action.name} recorded -- offline, so the job will be acknowledged when the phone syncs.`);
+  else showToast(`${action.name} -- job is now ${formatDispatchStatus(result.job?.status || transition.status)}.`);
 }
 
 // These chain several writes without refetching between them, so they must not re-read a record
@@ -20467,6 +20486,21 @@ function jobSafetyBriefingsForJob(jobId) {
     .sort((a, b) => String(a.operationalDate || "").localeCompare(String(b.operationalDate || "")));
 }
 
+// Phase 25 A.3 (2026-09-29): today's safety briefing and whether work may start -- the client twin of
+// server.mjs briefingGateReason(). "Today" is dispatchJobOperationalDate()'s rule, the same one the
+// server uses. On site = marked arrived and not marked left; everyone on site must have signed.
+function briefingReadiness(job) {
+  const date = dispatchJobOperationalDate(job) || todayIso();
+  const briefing = job ? jobSafetyBriefingsForJob(job.id).find((row) => row.operationalDate === date) || null : null;
+  const present = (briefing?.rollCall || []).filter((row) => row.arrivedAt && !row.leftAt);
+  const unsigned = present.filter((row) => !row.acknowledgedAt);
+  let reason = "";
+  if (!briefing) reason = "Fill out today's safety briefing on the Safety tab before starting work.";
+  else if (!present.length) reason = "Mark at least one person arrived on the Safety tab's roll call before starting work.";
+  else if (unsigned.length) reason = `${unsigned.length} ${unsigned.length === 1 ? "person on site has" : "people on site have"} not signed today's safety briefing.`;
+  return { date, briefing, present, unsigned, ready: !reason, reason };
+}
+
 function jobEquipmentUsageForJob(jobId) {
   return (state.backend.jobEquipmentUsage || []).filter((row) => row.jobId === jobId && !row.deletedAt);
 }
@@ -21242,7 +21276,8 @@ function buildPostWorkReport(project) {
   // given day falls back to a Checklist submission matched against a formTemplates row whose category
   // is "safety" -- no more name-guessing regex. If neither exists for a day, the report shows a red
   // "No safety briefing recorded" line for that job/day instead of silently having nothing to print.
-  const safetyFormNames = new Set((state.backend.formTemplates || []).filter((form) => !form.deletedAt && form.category === "safety").map((form) => form.name));
+  // Phase 25 A.4: the seed stores the category as "Safety" -- compare case-insensitively.
+  const safetyFormNames = new Set((state.backend.formTemplates || []).filter((form) => !form.deletedAt && String(form.category || "").toLowerCase() === "safety").map((form) => form.name));
   const safetyDays = days.map((day) => ({
     date: day.date,
     jobs: day.narratives.map(({ dispatchJob }) => {
@@ -21615,10 +21650,13 @@ function renderPostWorkReportHtml(report) {
                       : ""
                   }
                   ${table(
-                    [["Crew"], ["Arrived"], ["Left"], ["Acknowledged"]],
+                    [["On site"], ["Arrived"], ["Left"], ["Briefing signed"]],
                     (briefing.rollCall || []).map((row) => {
-                      const person = findEmployee(row.employeeId);
-                      return `<tr><td>${escapeHtml(person?.displayName || row.employeeId || "")}</td><td>${row.arrivedAt ? formatDateTime(row.arrivedAt) : ""}</td><td>${row.leftAt ? formatDateTime(row.leftAt) : ""}</td><td>${row.acknowledgedAt ? formatDateTime(row.acknowledgedAt) : gap("Not acknowledged")}</td></tr>`;
+                      const person = row.employeeId ? findEmployee(row.employeeId) : null;
+                      // Phase 25 A.2: visitors/subcontractors on the roll call carry a displayName.
+                      const label = person?.displayName || row.displayName || row.employeeId || "";
+                      const kind = row.personType === "visitor" ? " (visitor)" : row.personType === "subcontractor" ? " (subcontractor)" : "";
+                      return `<tr><td>${escapeHtml(label)}${kind}</td><td>${row.arrivedAt ? formatDateTime(row.arrivedAt) : ""}</td><td>${row.leftAt ? formatDateTime(row.leftAt) : ""}</td><td>${row.acknowledgedAt ? formatDateTime(row.acknowledgedAt) : gap("Not signed")}</td></tr>`;
                     }),
                     "No roll call recorded.",
                   )}
@@ -22688,14 +22726,24 @@ async function frontlineAutoAdvanceJob(jobId, completedStepId) {
   const order = ["dispatched", "acknowledged", "en_route", "on_site", "in_progress", "field_complete"];
   let job = findDispatchJob(jobId);
   let guard = 0;
+  // Phase 25 A.1: through the field advance command (advanceJobFromField, field/job.js), one rung at a
+  // time, stopping at the first refusal -- e.g. the Phase 25 A.3 briefing gate before Start work, whose
+  // reason the lead then sees on the bottom button. A queued (offline) rung stops here too; the
+  // server replays it and re-checks every gate.
+  let blockedReason = "";
   while (target && job && order.includes(job.status) && order.indexOf(job.status) < order.indexOf(target) && guard < 6) {
     guard += 1;
     const before = job.status;
-    await advanceDispatchJob(jobId, { silent: true });
-    await refreshBackendState();
+    const result = await advanceJobFromField(jobId);
+    if (!result.ok) {
+      blockedReason = result.reason || "";
+      break;
+    }
+    if (result.queued) return { advanced: true, queued: true };
     job = findDispatchJob(jobId);
     if (!job || job.status === before) break;
   }
+  if (blockedReason) return { advanced: false, reason: blockedReason };
   if (job && job.status === "in_progress") {
     const actions = required.flatMap((step) => actionsForDispatchStep(step.id)).filter((action) => action.required !== false);
     const done = actions.filter((action) => action.status === "Complete").length;
@@ -33825,7 +33873,12 @@ function getWorkPlanGate(job) {
   const transition = job ? getNextDispatchTransition(job.status) : null;
   if (!transition) return { blocked: false };
   const steps = stepsForDispatchJob(job.id);
-  if (!steps.length) return { blocked: false };
+  // Phase 25 A.3: nobody starts work before today's briefing has someone on site and everyone on site
+  // has signed it (server twin in fieldAdvanceJob). Acknowledge / en route / on site aren't held up.
+  // A work-plan block below still takes precedence -- it names the step to finish first.
+  const briefingGate = transition.status === "in_progress" ? briefingReadiness(job) : null;
+  const briefingBlock = briefingGate && !briefingGate.ready ? { blocked: true, viaBriefing: true, reason: briefingGate.reason } : null;
+  if (!steps.length) return briefingBlock || { blocked: false };
 
   if (transition.status === "acknowledged") {
     const pending = actionsForDispatchStep(steps[0].id).find(
@@ -33843,6 +33896,7 @@ function getWorkPlanGate(job) {
   if (transition.status === "in_progress" && steps[0].status !== "Complete") {
     return { blocked: true, reason: `Finish the "${steps[0].name}" step before starting work.` };
   }
+  if (briefingBlock) return briefingBlock;
 
   if (transition.status === "field_complete") {
     const outstanding = steps.filter((step) => step.required !== false && step.status !== "Complete");
@@ -34959,6 +35013,7 @@ export {
   renderJobFormSubmission,
   dispatchJobWorkDays,
   dispatchJobOperationalDate,
+  briefingReadiness,
   narrativeForDay,
   narrativeComplete,
   postJobReviewComplete,

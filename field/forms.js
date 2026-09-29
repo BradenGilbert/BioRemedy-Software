@@ -162,6 +162,11 @@ registerFieldForm("field-form-submit", async (form) => {
   const employee = currentFieldEmployee();
   const payload = {};
   let summaryParts = [];
+  // Phase 25 A.4: photo and signature fields used to upload against a made-up id (the photo's id was
+  // then thrown away) or not upload at all ({signed:true} only). Now the files are collected here,
+  // uploaded against the saved submission (entityType "formSubmission") once it exists, and their
+  // document ids written back into the payload.
+  const attachments = [];
   for (const field of template.fields) {
     const name = `field-${field.key}`;
     if (field.type === "checklist") {
@@ -170,16 +175,12 @@ registerFieldForm("field-form-submit", async (form) => {
       summaryParts.push(`${checked.length} of ${(field.options || []).length} checked`);
     } else if (field.type === "photo") {
       const file = form.elements[name]?.files?.[0];
-      if (file) {
-        try {
-          await fieldPackage.uploadFieldFile(`/api/documents`, file, { "X-Entity-Type": "formSubmission", "X-Entity-Id": crm.makeId("form-photo"), "X-Visibility": "internal" });
-        } catch (error) {
-          // Non-fatal: the submission still saves without the photo attached.
-        }
-      }
+      payload[field.key] = file ? { fileName: file.name || "photo", documentId: "", pendingUpload: true } : null;
+      if (file) attachments.push({ key: field.key, file, kind: "photo" });
     } else if (field.type === "signature") {
-      const blob = await crm.signatureToBlob().catch(() => null);
-      payload[field.key] = { signed: Boolean(blob) };
+      const blob = crm.state.frontlineSignatureStrokes?.length ? await crm.signatureToBlob().catch(() => null) : null;
+      payload[field.key] = { signed: Boolean(blob), documentId: "", pendingUpload: Boolean(blob) };
+      if (blob) attachments.push({ key: field.key, file: new File([blob], `form-signature-${field.key}.png`, { type: "image/png" }), kind: "signature" });
     } else {
       payload[field.key] = (data.get(name) || "").toString().trim();
       if (field.key === "summary") summaryParts.push(payload[field.key]);
@@ -198,11 +199,45 @@ registerFieldForm("field-form-submit", async (form) => {
     payload,
     standalone: true,
   };
+  let attachmentNote = "";
   try {
     await fieldPackage.saveFieldRecord("jobFormSubmissions", submission, { kind: "form-submission", label: template.name });
+    if (attachments.length) {
+      // Queued in order behind the submission when offline, so the record exists when they replay;
+      // offline the ids aren't known yet, but each document still points at the submission.
+      const nextPayload = { ...payload };
+      let uploadedAny = false;
+      let failed = 0;
+      for (const attachment of attachments) {
+        try {
+          const uploaded = await fieldPackage.uploadFieldFile(`/api/documents`, attachment.file, {
+            "X-Entity-Type": "formSubmission",
+            "X-Entity-Id": submission.id,
+            "X-Visibility": "internal",
+            "X-Caption": encodeURIComponent(`${template.name} — ${attachment.kind}`),
+          });
+          if (uploaded?.id) {
+            nextPayload[attachment.key] = { ...(nextPayload[attachment.key] || {}), documentId: uploaded.id, pendingUpload: false };
+            uploadedAny = true;
+          }
+        } catch (error) {
+          // The same file already on this submission comes back 409 with its document id -- use it.
+          const existingId = error?.payload?.duplicate ? error.payload.documentId : "";
+          if (!existingId) failed += 1;
+          nextPayload[attachment.key] = existingId
+            ? { ...(nextPayload[attachment.key] || {}), documentId: existingId, pendingUpload: false }
+            : { ...(nextPayload[attachment.key] || {}), pendingUpload: false, uploadError: error.message || "Upload failed" };
+          uploadedAny = true;
+        }
+      }
+      if (uploadedAny) {
+        await fieldPackage.saveFieldRecord("jobFormSubmissions", { ...submission, payload: nextPayload }, { kind: "form-submission", label: `${template.name} — attachments` });
+      }
+      attachmentNote = failed ? ` ${failed} attachment${failed === 1 ? "" : "s"} could not be uploaded.` : "";
+    }
     crm.state.fieldOpenFormTemplateId = "";
     crm.state.frontlineSignatureStrokes = [];
-    crm.showToast(`${template.name} submitted.`);
+    crm.showToast(`${template.name} submitted.${attachmentNote}`);
     crm.render();
   } catch (error) {
     if (submitButton) submitButton.disabled = false;

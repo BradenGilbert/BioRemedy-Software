@@ -317,6 +317,93 @@ await step("briefing: airMonitoring rows and a hazard row round-trip through POS
   assert(Array.isArray(stored.hazards) && stored.hazards.some((row) => row.hazard === "field-api-check hazard"), "hazard row missing from stored briefing");
 });
 
+// ---- 11/12. Phase 25 A.2/A.3 (2026-09-29): roll-call merge + the start-of-work briefing guard ------
+// A throwaway on-site job with a lead and one crew member (no work plan, so the briefing is Start
+// work's only gate). Before Phase 25 the server kept its stored roll call and dropped every "Mark
+// arrived", and nothing stopped work starting with nobody on site.
+const activeEmployees = (employees || []).filter((item) => !item.deletedAt && (item.employmentStatus || "Active") === "Active");
+const guardLeadId = activeEmployees[0]?.id || "";
+const guardCrewId = activeEmployees[1]?.id || "";
+const guardJobId = `field-api-check-guard-${Date.now()}`;
+let guardReady = false;
+if (guardLeadId && guardCrewId) {
+  const start = new Date();
+  const end = new Date(start.getTime() + 8 * 3600 * 1000);
+  const created = await adminPost("dispatchJobs", {
+    id: guardJobId, jobNumber: "CHECK-GUARD", jobName: "field-api-check briefing guard", status: "on_site", dispatchStatus: "On site",
+    scheduledStart: start.toISOString(), scheduledEnd: end.toISOString(), fieldLeadEmployeeId: guardLeadId, completionPercent: 20,
+  });
+  const leadRow = await adminPost("jobAssignments", { id: `${guardJobId}-lead`, jobId: guardJobId, employeeId: guardLeadId, isFieldLead: true, status: "Assigned" });
+  const crewRow = await adminPost("jobAssignments", { id: `${guardJobId}-crew`, jobId: guardJobId, employeeId: guardCrewId, isFieldLead: false, status: "Assigned" });
+  guardReady = created.response.ok && leadRow.response.ok && crewRow.response.ok;
+}
+async function linkSession(employeeId, jobId) {
+  const { response, payload } = await apiPost("/api/auth/dispatch-links", { employeeId, dispatchJobId: jobId });
+  assert(response.ok, `mint link -> ${response.status} ${payload.error || ""}`);
+  const open = await fetch(`${baseUrl}/go/${payload.url.split("/go/")[1]}`, { redirect: "manual" });
+  const cookie = cookieOf(open);
+  assert(cookie.startsWith("crm_session="), `no session from the link (${open.status})`);
+  return cookie;
+}
+const fieldPost = (cookie, path, body) =>
+  fetch(`${baseUrl}${path}`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie, "X-Client-Command-Id": `fac-${Date.now()}-${Math.random().toString(36).slice(2)}` }, body: JSON.stringify(body) }).then(async (response) => ({ response, payload: await j(response) }));
+
+await step("roll call: arrivals merge per person; crew only for themselves; acknowledgedAt never taken from the payload", async () => {
+  if (!guardReady) return "skip";
+  const leadCookie = await linkSession(guardLeadId, guardJobId);
+  const crewCookie = await linkSession(guardCrewId, guardJobId);
+  const at = new Date().toISOString();
+  const path = `/api/field/jobs/${guardJobId}/briefing`;
+  const lead = await fieldPost(leadCookie, path, { rollCall: [{ employeeId: guardLeadId, arrivedAt: at, acknowledgedAt: at }] });
+  assert(lead.response.ok, `lead marks self arrived -> ${lead.response.status} ${lead.payload.error || ""}`);
+  const leadRow = (lead.payload.rollCall || []).find((row) => row.employeeId === guardLeadId);
+  assert(leadRow?.arrivedAt === at, "the lead's arrivedAt was dropped");
+  assert(!leadRow.acknowledgedAt, "acknowledgedAt was accepted from the briefing payload");
+  const foreign = await fieldPost(crewCookie, path, { rollCall: [{ employeeId: guardLeadId, leftAt: at }] });
+  assert(foreign.response.status === 403, `crew changing the lead's row -> ${foreign.response.status} (want 403)`);
+  const self = await fieldPost(crewCookie, path, { rollCall: [{ employeeId: guardCrewId, arrivedAt: at }], ppeLevel: "A" });
+  assert(self.response.ok, `crew marks self arrived -> ${self.response.status} ${self.payload.error || ""}`);
+  assert((self.payload.rollCall || []).some((row) => row.employeeId === guardLeadId && row.arrivedAt === at), "crew's save lost the lead's arrival");
+  assert((self.payload.rollCall || []).some((row) => row.employeeId === guardCrewId && row.arrivedAt === at), "crew's own arrival was dropped");
+  assert(self.payload.ppeLevel !== "A", "crew was allowed to change the briefing body");
+  const visitor = await fieldPost(leadCookie, path, { rollCall: [{ id: "fac-visitor", employeeId: "", personType: "visitor", displayName: "Check Visitor", arrivedAt: at }] });
+  assert(visitor.response.ok && (visitor.payload.rollCall || []).some((row) => row.id === "fac-visitor" && row.personType === "visitor" && row.displayName === "Check Visitor"), `lead adds a visitor -> ${visitor.response.status} ${visitor.payload.error || ""}`);
+  const crewVisitor = await fieldPost(crewCookie, path, { rollCall: [{ id: "fac-visitor-2", employeeId: "", displayName: "Nope", arrivedAt: at }] });
+  assert(crewVisitor.response.status === 403, `crew adds a visitor -> ${crewVisitor.response.status} (want 403)`);
+});
+
+await step("start of work: refused until someone is on site and everyone on site signed the briefing", async () => {
+  if (!guardReady) return "skip";
+  const advancePath = `/api/field/jobs/${guardJobId}/advance`;
+  const blocked = await fieldPost(adminCookie, advancePath, { toStatus: "in_progress" });
+  assert(blocked.response.status === 409 && blocked.payload.blocked, `Start work with unsigned people on site -> ${blocked.response.status} (want 409 blocked)`);
+  const complete = await fieldPost(adminCookie, `/api/field/jobs/${guardJobId}/briefing`, { complete: true });
+  assert(complete.response.status === 409, `Complete briefing before everyone signed -> ${complete.response.status} (want 409)`);
+  // Everyone on site signs: lead, crew, and the visitor (by roll-call row, as the lead's phone does).
+  for (const body of [{ employeeId: guardLeadId }, { employeeId: guardCrewId }, { rollCallId: "fac-visitor" }]) {
+    const ack = await fieldPost(adminCookie, `/api/field/jobs/${guardJobId}/briefing/acknowledge`, body);
+    assert(ack.response.ok, `acknowledge ${JSON.stringify(body)} -> ${ack.response.status} ${ack.payload.error || ""}`);
+  }
+  const done = await fieldPost(adminCookie, `/api/field/jobs/${guardJobId}/briefing`, { complete: true });
+  assert(done.response.ok && done.payload.completedAt, `Complete briefing once all signed -> ${done.response.status} ${done.payload.error || ""}`);
+  const started = await fieldPost(adminCookie, advancePath, { toStatus: "in_progress" });
+  assert(started.response.ok && started.payload.status === "in_progress", `Start work once all signed -> ${started.response.status} ${started.payload.error || ""}`);
+});
+
+if (guardReady) {
+  await fetch(`${baseUrl}/api/backend/dispatchJobs/${guardJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+}
+
+await step("Travel clock-in sent in lower case is stored as Travel", async () => {
+  const employeeId = guardCrewId || leadEmployeeId;
+  if (!employeeId) return "skip";
+  const clockIn = await fieldPost(adminCookie, "/api/field/clock", { employeeId, entryType: "travel", action: "in" });
+  if (clockIn.response.status === 409) return "skip"; // already clocked in with no job in this data set
+  assert(clockIn.response.ok, `clock in -> ${clockIn.response.status} ${clockIn.payload.error || ""}`);
+  assert(clockIn.payload.entryType === "Travel", `entryType stored as ${clockIn.payload.entryType} (want Travel)`);
+  await fieldPost(adminCookie, "/api/field/clock", { employeeId, action: "out" });
+});
+
 console.log("");
 const failed = results.filter((item) => item.status === "FAIL").length;
 const skipped = results.filter((item) => item.status === "SKIP").length;
