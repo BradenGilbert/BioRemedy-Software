@@ -1628,10 +1628,7 @@
             </select>
           </label>
         </div>
-        <label>
-          Site photos, one per line as <code>Caption | note</code> (note is optional)
-          <textarea name="sitePhotos" rows="3" placeholder="Loading dock staining | before mobilization"></textarea>
-        </label>
+        <div class="help-text" data-role="project-intake-legacy-site-photos" hidden></div>
 
         <fieldset class="doc-line-items-fieldset" data-role="project-intake-mobilization-fieldset" hidden>
           <legend>Mobilization &amp; down payment</legend>
@@ -4207,6 +4204,7 @@
                 <option>Unknown</option>
                 <option>No</option>
                 <option>Yes</option>
+                <option>Not applicable</option>
               </select>
             </label>
             <label>
@@ -4215,6 +4213,7 @@
                 <option>Unknown</option>
                 <option>No</option>
                 <option>Yes</option>
+                <option>Not applicable</option>
               </select>
             </label>
           </div>
@@ -4224,6 +4223,7 @@
               <select name="absorbentDeployed">
                 <option>No</option>
                 <option>Yes</option>
+                <option>Not applicable</option>
               </select>
             </label>
             <label>
@@ -4278,6 +4278,7 @@
               <select name="hasInsurance">
                 <option>No</option>
                 <option>Yes</option>
+                <option>Not applicable</option>
               </select>
             </label>
             <label>
@@ -4285,6 +4286,7 @@
               <select name="isInsuranceClaim">
                 <option>No</option>
                 <option>Yes</option>
+                <option>Not applicable</option>
               </select>
             </label>
           </div>
@@ -6238,6 +6240,28 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Record decision</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="requirementWaiveDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="requirement-waive">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Office review</p>
+            <h2 data-waive-title>Mark not applicable</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">Only use this when the requirement genuinely does not apply to this deal — it counts as satisfied everywhere "Approved" would.</p>
+        <label>
+          Reason
+          <textarea name="waivedReason" rows="2" maxlength="500" required placeholder="Why this requirement doesn't apply here"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Mark not applicable</button>
         </menu>
       </form>
     </dialog>

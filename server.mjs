@@ -4851,7 +4851,12 @@ const DOCUMENT_ENTITY_TYPES = new Map([
   ["libraryItem", "libraryItems"],
   ["siteWalk", "siteWalkReports"],
 ]);
-const REQUIREMENT_STATUSES = ["Not started", "Sent", "Returned", "In review", "Approved", "Rejected"];
+// "Waived" (Phase 25 item 16, 2026-09-29) — a reviewer marks a requirement not applicable to this
+// deal instead of forcing a document through the normal send/return/review flow. Requires a reason
+// (waivedReason) and is stamped with who/when (waivedBy/waivedAt), same review-role gate as
+// Approved/Rejected. Everywhere that reads "Approved" as satisfying a requirement must also accept
+// "Waived".
+const REQUIREMENT_STATUSES = ["Not started", "Sent", "Returned", "In review", "Approved", "Rejected", "Waived"];
 const REVIEW_ROLES = ["Admin", "Office Manager", "Sales Manager", "Operations Manager"];
 const templatesDir = path.join(root, "docs", "uploaded files");
 
@@ -5290,11 +5295,22 @@ function normalizeRequirementWrite(data, request, body, stored) {
         applyRequirementApproval(data, record, type);
       }
     }
+    if (status === "Waived") {
+      if (!role.some((item) => REVIEW_ROLES.includes(item))) return { error: "Only an administrator, office manager, sales manager or operations manager can mark paperwork not applicable.", status: 403 };
+      const waivedReason = String(body.waivedReason || "").trim().slice(0, 500);
+      if (!waivedReason) return { error: "A reason is required to mark a requirement not applicable.", status: 400 };
+      record.waivedReason = waivedReason;
+      record.waivedBy = request.session?.name || attribution(request);
+      record.waivedAt = now;
+    }
     if (status === "Sent") record.sentAt = record.sentAt || now;
     if (status === "Not started") {
       record.sentAt = "";
       record.reviewedAt = "";
       record.reviewedBy = "";
+      record.waivedReason = "";
+      record.waivedBy = "";
+      record.waivedAt = "";
     }
   }
   return { record };
