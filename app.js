@@ -20921,6 +20921,18 @@ function projectReportPhotos(project) {
   return [...taskPhotos, ...documentPhotos.values()].sort((a, b) => String(a.takenAt || "").localeCompare(String(b.takenAt || "")));
 }
 
+// Item 8c (2026-09-28): the report, the job Files tab and the field Brief all draw photos that may
+// live in either store -- a task capture (jobTaskAttachments, served at /api/job-task-attachments/:id/view)
+// or a plain upload (documents, served at /api/documents/:id/view, e.g. the quick-bar photo, the
+// customer signature and the waste container photo). This resolves an id to whichever it actually is.
+function mediaViewUrl(id, absolute = false) {
+  const base = absolute ? window.location.origin : "";
+  if ((state.backend.jobTaskAttachments || []).some((item) => item.id === id)) {
+    return `${base}/api/job-task-attachments/${encodeURIComponent(id)}/view`;
+  }
+  return `${base}/api/documents/${encodeURIComponent(id)}/view`;
+}
+
 function projectReportReadiness(project) {
   const dispatchJobs = dispatchJobsForProject(project.id);
   const checks = [];
@@ -34744,6 +34756,7 @@ export {
   attachmentViewUrl,
   reportMediaUrl,
   projectReportPhotos,
+  mediaViewUrl,
   captureWeatherSnapshot,
   captureWeatherInBackground,
   renderPrintShell,

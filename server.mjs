@@ -3157,6 +3157,9 @@ function normalizeRecord(collection, payload, data) {
       facilityId: payload.facilityId || "",
       projectId: payload.projectId || "",
       scheduleEventId: payload.scheduleEventId || "",
+      // Item 10 (2026-09-28): the field advance's "Arrived on site" ping (locationType "Job event")
+      // ties back to the dispatch job, not just the project.
+      dispatchJobId: payload.dispatchJobId || "",
       label: payload.label || payload.addressText || "Location",
       addressText: payload.addressText || "",
       latitude: coordinate(payload.latitude),
@@ -5500,6 +5503,9 @@ async function handleApi(request, response, pathname) {
         section: body.section !== undefined ? String(body.section || "") : storedDocument.section || "",
         heading: body.heading !== undefined ? String(body.heading || "") : storedDocument.heading || "",
         requiredShotKey: body.requiredShotKey !== undefined ? String(body.requiredShotKey || "") : storedDocument.requiredShotKey || "",
+        // Item 8c (2026-09-28): a field capture sets this true so the report picks it up without an
+        // office trip to the Report tab's photo checkbox; the office toggle can still clear it.
+        includeInReport: body.includeInReport !== undefined ? Boolean(body.includeInReport) : storedDocument.includeInReport ?? false,
       };
     }
     if (collection === "documentRequirements") {
@@ -5814,22 +5820,59 @@ async function fieldAdvanceJob(request, jobId) {
     if (!complete) throw Object.assign(requestError("Answer the post-job review (accidents, near misses, injuries) before closing the job.", 409), { blocked: true });
   }
   const occurredAt = body.at || new Date().toISOString();
+  // Item 10 (2026-09-28 IT report): the client sends its own local date (occurredAt is UTC, and an
+  // evening advance can roll to the next day in UTC); prefer that for the operational date.
+  const localDate = typeof body.localDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.localDate) ? body.localDate : "";
+  const finiteCoord = (value) => value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value));
+  const hasFix = finiteCoord(body.lat) && finiteCoord(body.lng);
   const updated = {
     ...job,
     status: transition.status,
     dispatchStatus: transition.dispatchStatus,
-    operationalDate: transition.status === "in_progress" && !job.operationalDate ? occurredAt.slice(0, 10) : job.operationalDate || "",
+    operationalDate: transition.status === "in_progress" && !job.operationalDate ? localDate || occurredAt.slice(0, 10) : job.operationalDate || "",
     officeReviewStatus: transition.status === "office_review" ? "In review" : transition.status === "closed" ? "Closed" : job.officeReviewStatus,
     completionPercent: Math.max(Number(job.completionPercent || 0), transition.completionPercent),
+    latitude: hasFix && !finiteCoord(job.latitude) ? Number(body.lat) : job.latitude,
+    longitude: hasFix && !finiteCoord(job.longitude) ? Number(body.lng) : job.longitude,
   };
   touchRecord(updated, job);
   const jobIndex = data.dispatchJobs.findIndex((item) => item.id === job.id);
   data.dispatchJobs[jobIndex] = updated;
   const statusEvent = touchRecord({ id: makeId("job-status-event"), jobId: job.id, fromStatus: job.status, toStatus: transition.status, occurredAt, by: body.by || attribution(request) });
   data.jobStatusEvents.push(statusEvent);
+  // Item 10: a GPS fix sent with the advance (on_site / in_progress) becomes an "Arrived on site"
+  // location row, so resolveWeatherAnchor has coordinates to work with even on a location-only site
+  // (an address with no lat/lng) and dispatch never sent a position before now.
+  if (hasFix && job.projectId) {
+    data.locations.push(
+      touchRecord({
+        id: makeId("location"),
+        accountId: job.accountId || "",
+        facilityId: "",
+        projectId: job.projectId,
+        scheduleEventId: "",
+        dispatchJobId: job.id,
+        label: "Arrived on site",
+        addressText: "",
+        latitude: Number(body.lat),
+        longitude: Number(body.lng),
+        assetTags: [],
+        status: "Field ping",
+        lastPingAt: occurredAt,
+        source: "Field advance",
+        locationType: "Job event",
+        linearReference: "",
+        isTemporary: false,
+        retainUntil: "",
+        retentionReason: "",
+        reportedByEmployeeId: request.session?.employeeId || "",
+        consentId: "",
+      }),
+    );
+  }
   await saveBackend(data);
   await audit(request, { action: "field-advance", collection: "dispatchJobs", recordId: job.id, summary: `${job.jobNumber || job.id} → ${transition.status}` });
-  if (transition.status === "in_progress") captureResponseWeatherInBackground(job.id);
+  if (transition.status === "on_site" || transition.status === "in_progress") captureResponseWeatherInBackground(job.id);
   return { status: 200, body: updated };
 }
 
@@ -5844,7 +5887,11 @@ function captureResponseWeatherInBackground(dispatchJobId) {
     if (!job || !job.projectId) return;
     const project = data.projects.find((item) => item.id === job.projectId);
     if (!project || findCapturedSnapshot(data, project.id, "response", job.id)) return;
-    const startedWork = (data.jobStatusEvents || []).filter((event) => event.jobId === job.id && event.toStatus === "in_progress").sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))[0];
+    // Item 10 (2026-09-28 IT report): this now also fires on the On site transition, not only Start
+    // work (in_progress) -- so the earliest of the two is "when work started" for this purpose.
+    const startedWork = (data.jobStatusEvents || [])
+      .filter((event) => event.jobId === job.id && (event.toStatus === "on_site" || event.toStatus === "in_progress"))
+      .sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))[0];
     const observedFor = startedWork?.occurredAt || "";
     if (!observedFor) return;
     const anchor = resolveWeatherAnchor(data, project, job);
@@ -5888,6 +5935,10 @@ async function fieldUpsertBriefing(request, jobId) {
   }
   const operationalDate = body.operationalDate || job.operationalDate || new Date().toISOString().slice(0, 10);
   const stored = (data.jobSafetyBriefings || []).find((item) => item.jobId === jobId && item.operationalDate === operationalDate && !item.deletedAt);
+  // Item 1 (2026-09-28 IT report): field/safety.js sends the readings as `airMonitoring`; the record
+  // has always been stored under `airReadings`. Accept either name in and echo both back out so a
+  // client on either name still reads its own save.
+  const airReadings = body.airMonitoring ?? body.airReadings ?? stored?.airReadings ?? [];
   const record = {
     id: stored?.id || makeId("job-safety-briefing"),
     jobId,
@@ -5899,7 +5950,8 @@ async function fieldUpsertBriefing(request, jobId) {
     nearestHospital: body.nearestHospital ?? stored?.nearestHospital ?? "",
     hazards: body.hazards ?? stored?.hazards ?? [],
     reminders: body.reminders ?? stored?.reminders ?? {},
-    airReadings: body.airReadings ?? stored?.airReadings ?? [],
+    airReadings,
+    airMonitoring: airReadings,
     rollCall: stored?.rollCall ?? [],
     createdBy: stored?.createdBy || attribution(request),
   };

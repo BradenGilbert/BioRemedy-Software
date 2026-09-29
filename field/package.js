@@ -249,10 +249,25 @@ export async function discardOutboxItem(clientCommandId) {
 // The three functions every other field module writes through
 // ---------------------------------------------------------------------------------------------
 
+// Upsert a server row into crm.state.backend[collection] by id -- what a successful online
+// fieldRequest/enqueueFieldCommand's optimistic `apply` should both do, so a save doesn't leave
+// crm.render() drawing from stale state until the next full refresh (item 1, 2026-09-28 IT report:
+// a briefing saved online looked unsaved until a manual reload for exactly this reason).
+export function mergeRow(collection, row) {
+  if (!row || !row.id) return;
+  const rows = crm.state.backend[collection] || [];
+  const index = rows.findIndex((item) => item.id === row.id);
+  if (index >= 0) rows[index] = { ...rows[index], ...row };
+  else rows.push(row);
+  crm.state.backend[collection] = rows;
+}
+
 // A field API call (JSON body). Offline (or on a network failure while "online"), queues it and
 // returns null instead of a response — callers that need the server's echo (ids, computed fields)
 // should not depend on the return value when offline; they should read from the optimistic apply.
-export async function fieldRequest(url, { method = "POST", body, headers = {}, kind = "request", label, apply } = {}) {
+// `mergeInto`: a collection name — the response row (online) or the request body (queued, unless
+// `apply` is given explicitly) is upserted into crm.state.backend[mergeInto] by id.
+export async function fieldRequest(url, { method = "POST", body, headers = {}, kind = "request", label, apply, mergeInto } = {}) {
   const commandId = headers["X-Client-Command-Id"] || newCommandId();
   const finalHeaders = { "X-Client-Command-Id": commandId, ...headers };
   if (isOnline()) {
@@ -262,14 +277,17 @@ export async function fieldRequest(url, { method = "POST", body, headers = {}, k
         options.headers["Content-Type"] = options.headers["Content-Type"] || "application/json";
         options.body = typeof body === "string" ? body : JSON.stringify(body);
       }
-      return await crm.apiRequest(url, options);
+      const result = await crm.apiRequest(url, options);
+      if (mergeInto && result) mergeRow(mergeInto, result);
+      return result;
     } catch (error) {
       if (error?.status === 404) throw new Error(`The server does not have ${kind} yet (${url}).`);
       if (error?.status >= 400 && error?.status < 500) throw error; // a real rejection, not offline
       // A network-shaped failure while nominally online: fall through to queuing.
     }
   }
-  await enqueueFieldCommand({ kind, url, method, headers: finalHeaders, body, label, apply });
+  const finalApply = apply || (mergeInto && body && typeof body === "object" ? () => mergeRow(mergeInto, body) : undefined);
+  await enqueueFieldCommand({ kind, url, method, headers: finalHeaders, body, label, apply: finalApply });
   return null;
 }
 
