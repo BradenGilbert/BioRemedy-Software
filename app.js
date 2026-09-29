@@ -9,6 +9,11 @@ import "./field/library.js";
 // evaluated first (its route table is a const), which this import order guarantees.
 import "./field/walk.js";
 
+// Phase 24 (2026-09-28): guided tours (tutorials/engine.js draws the overlay, tutorials/registry.js
+// holds the words) are loaded by loadGuidedTours() with a dynamic import, not imported here: a
+// server started before tutorials/ was on its static allowlist 404s them, and a failed static
+// import would stop the whole app from loading. Without them the app simply has no tours.
+
 const DB_NAME = "environmental-crm-foundation";
 const DB_VERSION = 3;
 const AUTH_SESSION_KEY = "enviroCrm.pkce";
@@ -1372,6 +1377,14 @@ async function refreshState({ backend = true } = {}) {
   state.frontlineNotificationPrefs = await getSetting("frontlineNotificationPrefs", defaultFrontlineNotificationPrefs);
   applyPlatformSettings();
   if (backend) await refreshBackendState();
+  // Phase 24: tour progress is per person; fetch it once per session, not on every refresh.
+  if (!state.session) {
+    state.tutorialProgress = [];
+    state.tutorialProgressLoaded = false;
+    state.tutorialProgressOwner = "";
+  } else if (state.tutorialProgressOwner !== state.session.id) {
+    await loadTutorialProgress();
+  }
 }
 
 async function refreshBackendState() {
@@ -1539,6 +1552,7 @@ async function init() {
   await refreshState();
   applyRouteFromHash();
   bindEvents();
+  await loadGuidedTours();
   installCameraCapture();
   registerServiceWorker();
   render();
@@ -1591,6 +1605,36 @@ async function handleClick(event) {
   }
 }
 
+// The one way to open a list or detail view by name: a [data-view] button, and the guided tours
+// (Phase 24), both come through here, so both clear the same selections and filters.
+function openView(targetView) {
+  state.view = targetView;
+  // The Messaging tile always lands on the inbox; only an explicit "open thread" action deep-links.
+  if (targetView === "frontline-messaging") state.frontlineMessagingThreadKey = null;
+  state.pipelineAccountFilter = "";
+  state.projectsAccountFilter = "";
+  state.dispatchAccountFilter = "";
+  state.opsClassTableFilter = "";
+  state.highlightPanel = "";
+  if (state.view !== "account-detail") state.selectedAccountId = "";
+  if (state.view !== "contact-detail") state.selectedContactId = "";
+  if (state.view !== "opportunity-detail") state.selectedOpportunityId = "";
+  if (!["project-detail", "sample-detail", "client-spill-detail"].includes(state.view)) state.selectedProjectId = "";
+  if (state.view !== "sample-detail") state.selectedSampleId = "";
+  if (state.view !== "employee-detail") state.selectedEmployeeId = "";
+  if (state.view !== "dispatch-job-detail") state.selectedDispatchJobId = "";
+  if (state.view !== "inventory-consumable-detail") state.selectedConsumableId = "";
+  if (state.view !== "inventory-equipment-detail") state.selectedEquipmentAssetTag = "";
+  if (state.view !== "workforce-device-detail") state.selectedFrontlineDeviceId = "";
+  if (state.view !== "dispatch-template-editor") {
+    state.selectedTemplateId = "";
+    state.templateDraft = null;
+  }
+  render();
+  window.scrollTo(0, 0);
+  app.focus({ preventScroll: true });
+}
+
 async function dispatchClick(event) {
   // Any click outside a lookup closes its results list.
   closeRecordLookups(event.target.closest?.(".record-lookup"));
@@ -1637,32 +1681,7 @@ async function dispatchClick(event) {
       showToast("Your current role cannot open that panel.");
       return;
     }
-
-    state.view = targetView;
-    // The Messaging tile always lands on the inbox; only an explicit "open thread" action deep-links.
-    if (targetView === "frontline-messaging") state.frontlineMessagingThreadKey = null;
-    state.pipelineAccountFilter = "";
-    state.projectsAccountFilter = "";
-    state.dispatchAccountFilter = "";
-    state.opsClassTableFilter = "";
-    state.highlightPanel = "";
-    if (state.view !== "account-detail") state.selectedAccountId = "";
-    if (state.view !== "contact-detail") state.selectedContactId = "";
-    if (state.view !== "opportunity-detail") state.selectedOpportunityId = "";
-    if (!["project-detail", "sample-detail", "client-spill-detail"].includes(state.view)) state.selectedProjectId = "";
-    if (state.view !== "sample-detail") state.selectedSampleId = "";
-    if (state.view !== "employee-detail") state.selectedEmployeeId = "";
-    if (state.view !== "dispatch-job-detail") state.selectedDispatchJobId = "";
-    if (state.view !== "inventory-consumable-detail") state.selectedConsumableId = "";
-    if (state.view !== "inventory-equipment-detail") state.selectedEquipmentAssetTag = "";
-    if (state.view !== "workforce-device-detail") state.selectedFrontlineDeviceId = "";
-    if (state.view !== "dispatch-template-editor") {
-      state.selectedTemplateId = "";
-      state.templateDraft = null;
-    }
-    render();
-    window.scrollTo(0, 0);
-    app.focus({ preventScroll: true });
+    openView(targetView);
     return;
   }
 
@@ -1670,6 +1689,18 @@ async function dispatchClick(event) {
   if (!actionButton) return;
 
   const { action, id } = actionButton.dataset;
+
+  if (action === "start-tour") {
+    const tutorial = guidedTours?.registry.findTutorial(actionButton.dataset.tourId);
+    if (tutorial) guidedTours.engine.startTour(tutorial);
+    return;
+  }
+
+  if (action === "dismiss-tour-offer") {
+    saveTutorialProgress(actionButton.dataset.tourId, { dismissedOffer: true });
+    render();
+    return;
+  }
 
   if (action === "go-home") {
     state.view = "home";
@@ -2912,6 +2943,7 @@ function render() {
   if (state.view.startsWith("field-")) mountField(state.view);
   syncRouteToHistory();
   updateBackButtonState();
+  guidedTours?.engine.notifyRender();
 }
 
 // Front Line views: the legacy simulator screens (frontline-*) and the Phase 21 field app (field-*).
@@ -3294,20 +3326,99 @@ function getHomeLauncherMetrics(workspaceId) {
 
 function renderWorkspaceHeader(workspaceId, title, description, actions = "") {
   const workspace = findWorkspace(workspaceId);
+  const tour = guidedTours?.registry.sectionTourFor(workspaceId) || null;
+  const tourButton = tour
+    ? `<button type="button" class="icon-button tour-button" data-action="start-tour" data-tour-id="${escapeAttribute(tour.id)}" data-tour="tour-button" aria-label="Take the ${escapeAttribute(tour.title)}" title="Take the ${escapeAttribute(tour.title)}">?</button>`
+    : "";
   return `
-    <section class="workspace-header">
+    <section class="workspace-header" data-tour="page-header">
       <div>
         <nav class="breadcrumb" aria-label="Breadcrumb">
           <button type="button" class="breadcrumb-link" data-action="go-home">Home</button>
           <span class="breadcrumb-sep" aria-hidden="true">/</span>
           <span class="breadcrumb-current">${escapeHtml(workspace?.label || "Workspace")}</span>
         </nav>
-        <h2>${escapeHtml(title)}</h2>
+        <h2>${escapeHtml(title)}${tourButton}</h2>
         <p>${escapeHtml(description)}</p>
       </div>
       ${actions ? `<div class="toolbar">${actions}</div>` : ""}
     </section>
+    ${renderTourOffer(tour)}
   `;
+}
+
+// ---- Guided tours (Phase 24, 2026-09-28) -------------------------------------------------------
+// The first time someone opens a section that has a tour, a one-line offer sits under the header
+// until they take it or wave it off. Progress lives on the server, per person (/api/tutorial/progress).
+
+function tutorialProgressFor(tutorialId) {
+  return (state.tutorialProgress || []).find((row) => row.tutorialId === tutorialId) || null;
+}
+
+function renderTourOffer(tour) {
+  // Without loaded progress (signed out, an older server) say nothing rather than nag every visit.
+  if (!tour || !state.tutorialProgressLoaded || guidedTours?.engine.isTourActive()) return "";
+  const progress = tutorialProgressFor(tour.id);
+  if (progress && (progress.status !== "not-started" || progress.dismissedOfferAt)) return "";
+  return `
+    <section class="tour-offer" aria-label="Guided tour">
+      <p><strong>New to ${escapeHtml(findWorkspace(tour.workspace)?.label || "this section")}?</strong> ${escapeHtml(tour.summary)} The tour takes about a minute.</p>
+      <div class="inline-actions">
+        <button class="primary-button" type="button" data-action="start-tour" data-tour-id="${escapeAttribute(tour.id)}">Take the tour</button>
+        <button class="text-button" type="button" data-action="dismiss-tour-offer" data-tour-id="${escapeAttribute(tour.id)}">No thanks</button>
+      </div>
+    </section>
+  `;
+}
+
+async function loadTutorialProgress() {
+  state.tutorialProgressOwner = state.session?.id || "";
+  try {
+    state.tutorialProgress = await apiRequest("/api/tutorial/progress");
+    state.tutorialProgressLoaded = true;
+  } catch {
+    state.tutorialProgress = [];
+    state.tutorialProgressLoaded = false;
+  }
+}
+
+async function saveTutorialProgress(tutorialId, patch) {
+  if (!tutorialId || !state.session) return;
+  // Optimistic: the offer disappears and the status shows at once; the server copy follows.
+  const rows = state.tutorialProgress || (state.tutorialProgress = []);
+  const current = rows.find((row) => row.tutorialId === tutorialId);
+  const merged = { ...(current || { tutorialId, status: "not-started" }), ...patch };
+  if (current?.status === "done") merged.status = "done";
+  if (patch.dismissedOffer) merged.dismissedOfferAt = merged.dismissedOfferAt || new Date().toISOString();
+  if (current) Object.assign(current, merged);
+  else rows.push(merged);
+  try {
+    const saved = await apiRequest("/api/tutorial/progress", { method: "POST", body: JSON.stringify({ tutorialId, ...patch }) });
+    const index = rows.findIndex((row) => row.tutorialId === tutorialId);
+    if (index >= 0) rows[index] = saved;
+  } catch {
+    // Progress is a convenience; a failed save only means the offer may show again next visit.
+  }
+}
+
+// null until loadGuidedTours() succeeds; every caller treats "no tours" as a normal state.
+let guidedTours = null;
+
+async function loadGuidedTours() {
+  try {
+    const [engine, registry] = await Promise.all([import("./tutorials/engine.js"), import("./tutorials/registry.js")]);
+    engine.initTours({
+      currentView: () => state.view,
+      canView: (view) => canAccessView(view),
+      openView: (view) => openView(view),
+      openTab: ({ action, tab }) => document.querySelector(`#app button[data-action="${action}"][data-tab="${tab}"]`)?.click(),
+      saveProgress: (tutorialId, patch) => saveTutorialProgress(tutorialId, patch),
+      onTourEnd: () => render(),
+    });
+    guidedTours = { engine, registry };
+  } catch (error) {
+    console.warn("Guided tours are unavailable:", error?.message || error);
+  }
 }
 
 function renderModuleTabs(workspaceId) {
@@ -3364,7 +3475,7 @@ function renderMetrics() {
   const pending = pendingQueue().length;
 
   return `
-    <section class="metric-strip" aria-label="CRM metrics">
+    <section class="metric-strip" aria-label="CRM metrics" data-tour="pipeline-metrics">
       <div class="metric">
         <p class="eyebrow">Active pipeline</p>
         <strong>${money(activePipeline)}</strong>
@@ -3586,7 +3697,7 @@ function renderPipeline() {
         </div>
         <div class="list-toolbar">
           ${renderCompactSearch("opportunitySearch", "Search opportunities or accounts", state.opportunitySearch)}
-          <button class="primary-button" type="button" data-action="open-opportunity">New opportunity</button>
+          <button class="primary-button" type="button" data-action="open-opportunity" data-tour="new-opportunity">New opportunity</button>
           ${renderCompactSelect(
             "opportunityTableView",
             VIEW_ICON_SVG,
@@ -3602,7 +3713,7 @@ function renderPipeline() {
       </div>
       ${renderQuickFilterChips("opportunities", getSearchScopedOpportunities())}
       ${state.opportunityTableView !== "board" ? renderOpportunityTable(activeView) : ""}
-      <section class="pipeline-board" aria-label="Pipeline stages">
+      <section class="pipeline-board" aria-label="Pipeline stages" data-tour="pipeline-board">
         ${STAGES.map(renderStageColumn).join("")}
       </section>
     </section>
@@ -5216,7 +5327,7 @@ function renderAccounts() {
       <section class="crm-focus-grid" aria-label="CRM account focus">
         ${priorityAccounts.map(renderAccountFocusCard).join("") || `<div class="empty-state">No account records yet.</div>`}
       </section>
-      <section class="panel">
+      <section class="panel" data-tour="accounts-list">
         <div class="panel-header">
           <div>
             <h3>${escapeHtml(activeView.label)}</h3>
@@ -5236,7 +5347,7 @@ function renderAccounts() {
                 .join("")}`,
               Boolean(state.accountIndustryFilter),
             )}
-            <button class="primary-button" type="button" data-action="open-account">New account</button>
+            <button class="primary-button" type="button" data-action="open-account" data-tour="new-account">New account</button>
             ${renderCompactSelect(
               "accountTableView",
               VIEW_ICON_SVG,
@@ -7308,7 +7419,7 @@ function renderContacts() {
           <span>Accounts missing a decision maker</span>
         </div>
       </section>
-      <section class="panel">
+      <section class="panel" data-tour="contacts-list">
         <div class="panel-header">
           <div>
             <h3>${escapeHtml(activeView.label)}</h3>

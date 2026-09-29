@@ -1131,12 +1131,14 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `ergMaterials` | **new** erg_materials (029+) | Phase 21: ERG 2024 yellow/blue pages (UN number → name → guide), loaded by `scripts/import-erg.mjs` |
 | `ergGuides` | **new** erg_guides (029+) | Phase 21: ERG 2024 orange guide pages (hazards/public safety/emergency response text) |
 | `ergDistances` | **new** erg_distances (029+) | Phase 21: ERG 2024 green-page Table 1 initial isolation / protective-action distances for TIH materials |
+| `tutorialProgress` | **new** tutorial_progress (029+) | Phase 24 (2026-09-28): which guided tours each person finished or waved off; unique on (`ownerKey`, `tutorialId`). Not in `collectionAccess` -- read/written only through `/api/tutorial/progress` |
 
 | `libraryItems` | **new** library_items (029+) | Phase 21 (2026-09-25, W4): Manuals & Training shelves. `{shelf, title, category, audienceRoles[], requiredForRoles[], renewalMonths, pinnedOffline, documentId, url, version, isActive}` |
 | `libraryAcknowledgements` | **new** library_acknowledgements (029+) | Phase 21 (W4): `{employeeId, libraryItemId, itemVersion, acknowledgedAt}`, append-only |
 | `ergMaterials` | **new** erg_materials (029+) | Phase 21 (W4): `{unNumber, name, guide, tihFlag}`, loaded by `scripts/import-erg.mjs` (W1) |
 | `ergGuides` | **new** erg_guides (029+) | Phase 21 (W4): `{guide, title, sections:{potentialHazards, publicSafety, emergencyResponse}}` |
 | `ergDistances` | **new** erg_distances (029+) | Phase 21 (W4): `{unNumber, small:{isolateMeters, dayMeters, nightMeters}, large:{...}}` |
+| `tutorialProgress` | **new** tutorial_progress (029+) | Phase 24 (2026-09-28): `{ownerKey, systemUserId, employeeId, tutorialId, status: not-started\|in-progress\|exited\|done, lastStep, startedAt, completedAt, dismissedOfferAt}`. `ownerKey` is the system user id, `employee:<id>` for a sign-on link, `breakglass` for the break-glass session. `done` is sticky. Tour *content* is code (`tutorials/registry.js`), not data |
 | `jurisdictions` | **new** jurisdictions (029+) | Phase 21 (W4): city/county GIS layer catalog. `{name, kind, portalUrl, layers:[{key, label, kind, serviceUrl, layerId, mode}], lastImportedAt, bounds?}` |
 | `siteReferenceLayers` | **new** site_reference_layers (029+) | Phase 21 (W4): a jurisdiction layer's snapshot, optionally clipped to a facility. `{facilityId, jurisdictionId, kind, label, mode, geojson\|documentId, source, sourceDate, visibility}` |
 

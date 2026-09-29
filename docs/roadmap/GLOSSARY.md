@@ -212,6 +212,13 @@ These are three independent axes. Collapsing them into one field will break the 
 - **`libraryItems`** — the Manuals & Training shelves (manuals/safety/sds/tutorials/resources), a different thing from `documentTypes` (which classifies *uploaded files* generically) even though a `libraryItem` usually points at a `documents` row via `documentId`.
 - **`markup`** (on a `documents` row) — the JSON stroke data from the shared image-markup tool (`field/media.js`), separate from `caption`/`tags`. As of 2026-09-25 the generic document metadata PATCH route does not persist it yet (see `phase-21-frontline-2.md` corrections).
 
+## Phase 24 (Tutorials) additions — 2026-09-28
+
+- **Guided tour** — an overlay (`tutorials/engine.js`) that walks someone through the real screens, step by step, highlighting a control. A **section tour** only points and explains (the "?" on a page header); a **process tutorial** is hands-on and runs on the training copy. Tour content is code (`tutorials/registry.js`), not a collection.
+- **`tutorialProgress`** — per person, which tours they started, finished or waved off. A convenience only: it is **not** a training record. Training completion is a `libraryAcknowledgements` row on the matching Tutorials-shelf `libraryItems` entry.
+- **`data-tour`** — the markup attribute a tour step targets. Renaming or removing one breaks a tour; `scripts/smoke.mjs` walks every tour and fails on a missing target.
+- **Training copy** — a second instance of the same server (`CRM_TRAINING=1`, its own port, data folder and tunnel) loaded with the sample data and reset nightly, for hands-on tutorials. Never the live data. Not built yet (Phase 24 step 2).
+
 ## Deprecated
 
 | Thing | Why | Replacement |

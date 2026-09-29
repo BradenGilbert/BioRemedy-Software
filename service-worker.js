@@ -1,4 +1,4 @@
-const CACHE_NAME = "environmental-crm-shell-v64";
+const CACHE_NAME = "environmental-crm-shell-v65";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -22,6 +22,9 @@ const APP_SHELL = [
   "./field/walk-share.js",
   "./field/walk-share.html",
   "./field/styles.css",
+  // Phase 24: guided tours.
+  "./tutorials/engine.js",
+  "./tutorials/registry.js",
   "./manifest.webmanifest",
   "./public/favicon.svg",
   "./public/brand/bioremedy-logo-primary.png",

@@ -2146,6 +2146,10 @@ const defaultBackend = {
   ergMaterials: [],
   ergGuides: [],
   ergDistances: [],
+  // Phase 24 (2026-09-28): which guided tours each person has finished or waved off. Read and
+  // written only through /api/tutorial/progress, one person's own rows at a time -- never through
+  // the generic collection route, so it has no collectionAccess entry.
+  tutorialProgress: [],
 };
 
 // formTemplates replaces app.js's hard-coded FRONTLINE_STANDALONE_FORMS with data the office can
@@ -5353,6 +5357,8 @@ async function handleApi(request, response, pathname) {
     return handleJobTaskConsume(request, response, jobTaskConsumeMatch[1]);
   }
 
+  if (pathname === "/api/tutorial/progress") return handleTutorialProgress(request, response);
+
   if (pathname === "/api/backend" && request.method === "GET") {
     if (!canAccess(role, "identity")) return json(response, 403, { error: "Role is not allowed to read backend data." });
     const data = await loadBackend();
@@ -5599,6 +5605,58 @@ async function handleApi(request, response, pathname) {
   }
 
   return json(response, 405, { error: "Method not allowed." });
+}
+
+// ---- Phase 24 (2026-09-28): guided-tour progress ----------------------------------------------
+// GET returns the signed-in person's rows; POST { tutorialId, status?, lastStep?, dismissedOffer? }
+// upserts one. The owner comes from the session, never the body, so nobody can read or write
+// another person's progress. A person is their system user; a sign-on link, its employee.
+const TUTORIAL_STATUSES = new Set(["not-started", "in-progress", "exited", "done"]);
+
+function tutorialOwnerKey(session) {
+  if (session?.systemUserId) return session.systemUserId;
+  if (session?.employeeId) return `employee:${session.employeeId}`;
+  return session?.kind === "breakglass" ? "breakglass" : "";
+}
+
+async function handleTutorialProgress(request, response) {
+  const ownerKey = tutorialOwnerKey(request.session);
+  if (!ownerKey) return json(response, 403, { error: "Sign in to keep tour progress." });
+  if (request.method === "GET") {
+    const data = await loadBackend();
+    return json(response, 200, (data.tutorialProgress || []).filter((row) => row.ownerKey === ownerKey));
+  }
+  if (request.method !== "POST") return json(response, 405, { error: "Method not allowed." });
+  const body = await readJsonBody(request);
+  const tutorialId = String(body.tutorialId || "").trim();
+  if (!/^[a-z0-9-]{1,80}$/.test(tutorialId)) return json(response, 400, { error: "A tutorialId is required." });
+  const data = await loadBackend();
+  if (!Array.isArray(data.tutorialProgress)) data.tutorialProgress = [];
+  const index = data.tutorialProgress.findIndex((row) => row.ownerKey === ownerKey && row.tutorialId === tutorialId);
+  const stored = index >= 0 ? data.tutorialProgress[index] : null;
+  const now = new Date().toISOString();
+  // "done" is sticky: re-taking a finished tour, and leaving it halfway, does not un-finish it.
+  const requested = TUTORIAL_STATUSES.has(body.status) ? body.status : stored?.status || "not-started";
+  const status = stored?.status === "done" ? "done" : requested;
+  const record = {
+    id: stored?.id || makeId("tutorial-progress"),
+    ownerKey,
+    systemUserId: request.session.systemUserId || "",
+    employeeId: request.session.employeeId || "",
+    tutorialId,
+    status,
+    lastStep: Number.isInteger(body.lastStep) && body.lastStep >= 0 ? body.lastStep : stored?.lastStep || 0,
+    startedAt: stored?.startedAt || (status !== "not-started" ? now : ""),
+    // "done" is sticky: re-taking a finished tour does not un-finish it.
+    completedAt: stored?.completedAt || (status === "done" ? now : ""),
+    dismissedOfferAt: body.dismissedOffer ? stored?.dismissedOfferAt || now : stored?.dismissedOfferAt || "",
+    createdAt: stored?.createdAt || now,
+  };
+  touchRecord(record, stored);
+  if (index >= 0) data.tutorialProgress[index] = record;
+  else data.tutorialProgress.push(record);
+  await saveBackend(data);
+  return json(response, 200, record);
 }
 
 async function handleSoftDelete(request, response, collection, id, restore) {
@@ -6641,7 +6699,8 @@ const server = createServer(async (request, response) => {
     const relativePath = path.relative(root, filePath).split(path.sep).join("/");
     const insideRoot = relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
     // Phase 21: field/ holds the field app's ES modules and stylesheet (plain web assets, no data).
-    const allowed = insideRoot && (staticAllowlist.has(relativePath) || relativePath.startsWith("public/") || relativePath.startsWith("field/"));
+    // Phase 24: tutorials/ holds the guided-tour engine and its content (same kind of files).
+    const allowed = insideRoot && (staticAllowlist.has(relativePath) || relativePath.startsWith("public/") || relativePath.startsWith("field/") || relativePath.startsWith("tutorials/"));
     const isFile = allowed && existsSync(filePath) && statSync(filePath).isFile();
     let resolvedPath = filePath;
     if (!isFile) {

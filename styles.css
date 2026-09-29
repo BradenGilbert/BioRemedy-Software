@@ -7622,3 +7622,187 @@ body[data-theme="dark"] .it-status.done {
   gap: 4px 12px;
   margin-top: 4px;
 }
+
+/* ---- Guided tours (Phase 24, 2026-09-28) ------------------------------------------------------
+   tutorials/engine.js draws four shade panels around the highlighted control (so clicks can only
+   reach it or the card), a ring on the control, and the step card. Colours come from the theme
+   tokens, so the card follows light and dark mode. */
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+}
+
+.tour-layer[hidden] {
+  display: none;
+}
+
+.tour-shade {
+  position: fixed;
+  background: rgba(9, 20, 13, 0.55);
+  pointer-events: auto;
+}
+
+.tour-ring {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 3px var(--brand-leaf),
+    0 0 0 7px rgba(134, 196, 64, 0.28);
+  pointer-events: none;
+  transition:
+    left 160ms ease,
+    top 160ms ease,
+    width 160ms ease,
+    height 160ms ease;
+}
+
+.tour-ring[hidden] {
+  display: none;
+}
+
+.tour-card {
+  position: fixed;
+  width: min(380px, calc(100vw - 32px));
+  padding: 16px 18px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+
+.tour-card.is-centred {
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%);
+  width: min(460px, calc(100vw - 32px));
+}
+
+.tour-card.is-sheet {
+  left: 16px !important;
+  right: 16px;
+  top: auto !important;
+  bottom: 16px;
+  width: auto;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.tour-card h3 {
+  margin: 2px 0 8px;
+  font-size: 1.05rem;
+}
+
+.tour-progress {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.tour-do,
+.tour-why,
+.tour-wait {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.tour-why {
+  color: var(--muted);
+}
+
+.tour-wait {
+  color: var(--amber);
+  font-weight: 700;
+}
+
+.tour-chain {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.tour-chain li {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.tour-chain li.is-here {
+  border-color: var(--brand-green);
+  background: var(--surface-alt);
+  color: var(--ink);
+  font-weight: 750;
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.tour-actions-spacer {
+  flex: 1;
+}
+
+.tour-actions [hidden] {
+  display: none;
+}
+
+.tour-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* .icon-button is display: grid (a block); the tour button sits inline after the page title. */
+.tour-button {
+  display: inline-grid;
+  width: 28px;
+  min-height: 28px;
+  height: 28px;
+  margin-left: 10px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+
+/* The update banner sits above everything and would cover the card's buttons; it returns when the
+   tour ends. */
+body.tour-running .update-banner {
+  display: none;
+}
+
+.tour-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--brand-green);
+  border-radius: 10px;
+  background: var(--surface-alt);
+}
+
+.tour-offer p {
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-ring {
+    transition: none;
+  }
+}

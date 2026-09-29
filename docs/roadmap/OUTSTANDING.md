@@ -81,6 +81,7 @@ Items a session could pick up without an owner decision. None blocks the pilot.
 - **Phase 14 — PostgreSQL migration.** Big bang at the alpha (owner reversal, 2026-09-22): rehearsal, cut-over day, tested path back to JSON. `docs/roadmap/cutover-runbook.md` and the cutover inventory in `docs/database-handoff-map.md` are ready; the eight Phase 21 collections (`jobSafetyBriefings`, `jobEquipmentUsage`, `formTemplates`, `siteWalkReports`, `siteWalkObservations`, `siteReferenceLayers`, `jurisdictions`, `libraryItems` + acknowledgements and the ERG tables) need tables designed. Hosting: managed cloud (Azure preferred).
 - **Phase 19 — Email & message tracking.** Stage 1 is scoped (send a quote with the PDF attached, tracked on the timeline); Stages 2–3 need their own scoping pass. Needs Graph permissions on the `bioremedy.com` app registration.
 - **Phase 22 — Site workspace.** Placeholder only. The four data rules Phase 21 follows keep a desktop editor cheap; plan it once real walks exist.
+- **Phase 23 — Work Inbox & Capabilities.** Planned 2026-09-28 from the owner's "office manager applet is useless / cross work" conversation. Capabilities as data plus record-scoped assignment roles (the unbuilt Phase 12 item 3), the Office applet rebuilt as Inbox / Compliance / Readiness / Purchase Orders, sales leads requesting dispatch through the existing intake queue. Owner decisions D1–D4 are in the doc; three open decisions remain.
 - **Not on the roadmap:** the AI assistant idea (`docs/ai-assistant-idea.md`).
 
 ---

@@ -125,6 +125,8 @@ Phase 20's review recommended, and the owner accepted, splitting this phase so t
 
 ## Corrections found during implementation
 
+- **2026-09-28 — item 3 (roles and permissions as data) moved to Phase 23.** 12a/12b shipped identity, sessions, audit and combinable roles but left item 3 unbuilt: authorization is still `roleAccess` domains, read = write, and `projectAssignments` is read by nothing. Phase 23 (`phase-23-work-inbox-and-capabilities.md`) builds it as three layers (global role → domains, capabilities as data, assignment on a record) alongside the Office Manager inbox rework.
+
 - **2026-09-25 (owner: "anyone other than admin can't mess with Microsoft Entra settings").** The Entra panel on Identity & Sync was editable by every internal role. It only ever wrote a *browser-side* override (`settings.identityConfig` in IndexedDB) — the real configuration is the server's `.env`, and the server validates every ID token against its own tenant regardless of what a browser sends — but it looked like a global setting and could point that browser's sign-in at another registration. Now only an Admin sees the tenant/client/scopes fields and the Save button (`renderEntraConfigPanel`); everyone else sees the configured tenant and client read-only with "Only an administrator can change the Microsoft sign-in configuration", and `saveIdentityConfig` refuses non-admins even if the form is forged. Users & access and document types were already Admin-only on the server.
 
 

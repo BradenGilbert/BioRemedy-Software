@@ -128,7 +128,7 @@ try {
       }
       console.log(lines.filter((line) => !line.startsWith("SUMMARY ")).join("\n"));
       if (sweep.stderr?.trim()) console.log(sweep.stderr.trim().split("\n").slice(-5).join("\n"));
-      check(sweep.status === 0 && summary.views > 0, `sweep finished (${summary.views || 0} views, ${summary.tabs || 0} tabs, ${summary.dialogs || 0} dialogs, ${summary.resaved || 0} re-saved)`);
+      check(sweep.status === 0 && summary.views > 0, `sweep finished (${summary.views || 0} views, ${summary.tabs || 0} tabs, ${summary.dialogs || 0} dialogs, ${summary.resaved || 0} re-saved, ${summary.tours || 0} tours)`);
       check((summary.consoleErrors || []).length === 0, `${(summary.consoleErrors || []).length} console errors / uncaught rejections`);
       check((summary.badText || []).length === 0, `${(summary.badText || []).length} NaN / undefined / null / [object Object] in rendered text`);
       (summary.consoleErrors || []).slice(0, 10).forEach((line) => console.log(`    ${line}`));
