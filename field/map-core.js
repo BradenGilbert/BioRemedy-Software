@@ -365,8 +365,20 @@ export function createSiteMap(container, options = {}) {
     tileLayer: null,
     destroyed: false,
     suppressClickFor: "",
+    pinTargets: new Map(), // id -> { marker, lat, lng } — the TRUE position, for the declutter pass
+    declutterGroup: null,
   };
   const StoredTileLayer = makeStoredTileLayerClass(L);
+  let resizeTimer = 0;
+  function onWindowResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (state.destroyed || !state.map) return;
+      state.map.invalidateSize();
+      declutterPins();
+    }, 150);
+  }
+  if (typeof window !== "undefined") window.addEventListener("resize", onWindowResize);
 
   container.classList.add("sitemap", `sitemap--${mode}`);
   if (printing) container.classList.add("sitemap--print");
@@ -450,6 +462,8 @@ export function createSiteMap(container, options = {}) {
     state.shapes.clear();
     state.layerGroups.clear();
     state.accuracyCircles.clear();
+    state.pinTargets.clear();
+    state.declutterGroup = null;
     state.gpsMarker = null;
     canvas.innerHTML = "";
     const background = activeBackground();
@@ -467,6 +481,8 @@ export function createSiteMap(container, options = {}) {
       preferCanvas: false,
     });
     state.map = map;
+    state.declutterGroup = L.layerGroup().addTo(map);
+    map.on("zoomend", declutterPins);
     if (plan) {
       const width = Number(background.widthPx || 1000);
       const height = Number(background.heightPx || 1000);
@@ -497,8 +513,12 @@ export function createSiteMap(container, options = {}) {
     drawLayers();
     drawObservations();
     fitAll({ animate: false });
+    declutterPins();
     setTimeout(() => {
-      if (!state.destroyed && state.map) state.map.invalidateSize();
+      if (!state.destroyed && state.map) {
+        state.map.invalidateSize();
+        declutterPins();
+      }
     }, 60);
     // Report tile load to a listener (the print page waits for this before printing).
     if (state.tileLayer && options.onTilesLoaded) state.tileLayer.once("load", () => options.onTilesLoaded());
@@ -515,13 +535,16 @@ export function createSiteMap(container, options = {}) {
       if (row.geometry) geometryPoints(row).forEach((point) => points.push(point));
       else points.push(toLatLng(row));
     });
+    // Print fits tighter to the pins (no draw controls competing for space) but pads in pixels too,
+    // so a fanned-out pin near the edge (declutterPins) isn't cropped by the frame.
+    const pixelPad = printing ? [56, 56] : [0, 0];
     if (isPlan()) {
       if (!points.length) return;
-      map.fitBounds(L.latLngBounds(points).pad(0.4), { animate });
+      map.fitBounds(L.latLngBounds(points).pad(0.4), { animate, paddingTopLeft: pixelPad, paddingBottomRight: pixelPad });
       return;
     }
-    if (points.length >= 2) map.fitBounds(L.latLngBounds(points).pad(0.3), { animate, maxZoom: 19 });
-    else if (points.length === 1) map.setView(points[0], Math.max(map.getZoom(), 18), { animate });
+    if (points.length >= 2) map.fitBounds(L.latLngBounds(points).pad(printing ? 0.12 : 0.3), { animate, maxZoom: 19, paddingTopLeft: pixelPad, paddingBottomRight: pixelPad });
+    else if (points.length === 1) map.setView(points[0], Math.max(map.getZoom(), printing ? 19 : 18), { animate });
   }
 
   // ---- reference layers (dashed grey, source/date tag) ----
@@ -553,7 +576,145 @@ export function createSiteMap(container, options = {}) {
     state.markers.clear();
     state.shapes.clear();
     state.accuracyCircles.clear();
+    state.pinTargets.clear();
     observationsOnActiveBackground().forEach((row) => (row.geometry ? drawShape(row) : drawPin(row)));
+    declutterPins();
+  }
+
+  // Pins never overlap on screen: when two or more fall within ~28px of each other at the current
+  // zoom, fan them out around their true centroid with a thin leader line back to a dot at the real
+  // spot. Nothing is written to the record — this only moves the marker's displayed latLng, which
+  // recomputes on every zoomend/resize and collapses back to the true point once there's room.
+  //
+  // Two originally-separate clusters can sit close enough together that fanning one of them out
+  // walks its pins into the other (or into an unrelated singleton). So after the first fan pass,
+  // check for that and merge any groups whose planned footprints now collide, then re-fan the
+  // merged group as one — a few passes, since merges rarely cascade more than once or twice.
+  const DECLUTTER_THRESHOLD_PX = 28;
+  const PIN_FOOTPRINT_PX = 40;
+
+  function clusterByDistance(entries, threshold) {
+    const parent = new Map(entries.map((entry) => [entry.id, entry.id]));
+    const find = (key) => {
+      let root = key;
+      while (parent.get(root) !== root) root = parent.get(root);
+      return root;
+    };
+    const union = (a, b) => {
+      const rootA = find(a);
+      const rootB = find(b);
+      if (rootA !== rootB) parent.set(rootA, rootB);
+    };
+    for (let i = 0; i < entries.length; i += 1) {
+      for (let j = i + 1; j < entries.length; j += 1) {
+        const dx = entries[i].truePoint.x - entries[j].truePoint.x;
+        const dy = entries[i].truePoint.y - entries[j].truePoint.y;
+        if (Math.hypot(dx, dy) < threshold) union(entries[i].id, entries[j].id);
+      }
+    }
+    const groups = new Map();
+    entries.forEach((entry) => {
+      const root = find(entry.id);
+      if (!groups.has(root)) groups.set(root, []);
+      groups.get(root).push(entry);
+    });
+    return [...groups.values()];
+  }
+
+  function assignDisplayPositions(groups, map) {
+    groups.forEach((group) => {
+      if (group.length === 1) {
+        const entry = group[0];
+        entry.displayPoint = entry.truePoint;
+        entry.displayLatLng = L.latLng(entry.target.lat, entry.target.lng);
+        return;
+      }
+      const centroid = {
+        x: group.reduce((sum, entry) => sum + entry.truePoint.x, 0) / group.length,
+        y: group.reduce((sum, entry) => sum + entry.truePoint.y, 0) / group.length,
+      };
+      const radius = Math.max(30, 14 + group.length * 9);
+      const angleStep = (2 * Math.PI) / group.length;
+      group.forEach((entry, index) => {
+        const angle = -Math.PI / 2 + index * angleStep;
+        entry.displayPoint = { x: centroid.x + radius * Math.cos(angle), y: centroid.y + radius * Math.sin(angle) };
+        entry.displayLatLng = map.containerPointToLatLng(entry.displayPoint);
+      });
+    });
+  }
+
+  function findCollidingGroupPairs(groups) {
+    const pairs = [];
+    for (let a = 0; a < groups.length; a += 1) {
+      for (let b = a + 1; b < groups.length; b += 1) {
+        let collides = false;
+        for (const entryA of groups[a]) {
+          for (const entryB of groups[b]) {
+            const dx = entryA.displayPoint.x - entryB.displayPoint.x;
+            const dy = entryA.displayPoint.y - entryB.displayPoint.y;
+            if (Math.hypot(dx, dy) < PIN_FOOTPRINT_PX) {
+              collides = true;
+              break;
+            }
+          }
+          if (collides) break;
+        }
+        if (collides) pairs.push([a, b]);
+      }
+    }
+    return pairs;
+  }
+
+  function mergeGroupsByPairs(groups, pairs) {
+    const parent = groups.map((_, index) => index);
+    const find = (key) => {
+      let root = key;
+      while (parent[root] !== root) root = parent[root];
+      return root;
+    };
+    const union = (a, b) => {
+      const rootA = find(a);
+      const rootB = find(b);
+      if (rootA !== rootB) parent[rootA] = rootB;
+    };
+    pairs.forEach(([a, b]) => union(a, b));
+    const merged = new Map();
+    groups.forEach((group, index) => {
+      const root = find(index);
+      if (!merged.has(root)) merged.set(root, []);
+      merged.get(root).push(...group);
+    });
+    return [...merged.values()];
+  }
+
+  function declutterPins() {
+    const map = state.map;
+    if (!map || !state.declutterGroup || state.destroyed) return;
+    state.declutterGroup.clearLayers();
+    const entries = [];
+    state.pinTargets.forEach((target, id) => {
+      if (!Number.isFinite(target.lat) || !Number.isFinite(target.lng)) return;
+      const truePoint = map.latLngToContainerPoint(L.latLng(target.lat, target.lng));
+      entries.push({ id, target, truePoint });
+    });
+    if (!entries.length) return;
+    let groups = clusterByDistance(entries, DECLUTTER_THRESHOLD_PX);
+    for (let pass = 0; pass < 6; pass += 1) {
+      assignDisplayPositions(groups, map);
+      const collidingPairs = findCollidingGroupPairs(groups);
+      if (!collidingPairs.length) break;
+      groups = mergeGroupsByPairs(groups, collidingPairs);
+    }
+    groups.forEach((group) => {
+      group.forEach((entry) => {
+        entry.target.marker.setLatLng(entry.displayLatLng);
+        if (group.length > 1) {
+          const trueLatLng = L.latLng(entry.target.lat, entry.target.lng);
+          L.polyline([entry.displayLatLng, trueLatLng], { color: "#1c2520", weight: 1.5, opacity: 0.8, dashArray: "2 4", interactive: false }).addTo(state.declutterGroup);
+          L.circleMarker(trueLatLng, { radius: 3, color: "#1c2520", weight: 1.5, fillColor: "#ffffff", fillOpacity: 1, interactive: false }).addTo(state.declutterGroup);
+        }
+      });
+    });
   }
 
   function drawPin(row) {
@@ -582,12 +743,20 @@ export function createSiteMap(container, options = {}) {
       pushUndo({ type: "update", before, after: { ...row } });
       emit("update", row);
       drawAccuracy(row);
+      const dragLatLng = toLatLng(row);
+      const target = state.pinTargets.get(row.id);
+      if (target) {
+        target.lat = dragLatLng.lat;
+        target.lng = dragLatLng.lng;
+      }
+      declutterPins();
     });
     if (!isPlan() && Number(row.accuracyM) > 0) drawAccuracy(row);
     if (mode === "edit") installLongPress(marker, row);
     marker.addTo(map);
     if (mode === "view" && !printing) marker.bindPopup(() => popupHtml(row), { maxWidth: 280, className: "sitemap-popup" });
     state.markers.set(row.id, marker);
+    state.pinTargets.set(row.id, { marker, lat: latLng.lat, lng: latLng.lng });
   }
 
   function drawAccuracy(row) {
@@ -624,13 +793,13 @@ export function createSiteMap(container, options = {}) {
       }
     }
     const labelPoint = shapeKind === "area" ? L.latLngBounds(points).getCenter() : points[Math.floor(points.length / 2)];
-    parts.push(
-      L.marker(labelPoint, {
-        icon: L.divIcon({ className: "sitemap-shape-label-wrap", html: `<span class="sitemap-shape-label" style="--shape-color:${color}"><b>${escape(row.seq)}</b>${row.label ? ` ${escape(row.label)}` : ""}${row.areaSqFt ? ` · ${escape(formatSqFtValue(row.areaSqFt))}` : row.lengthFt ? ` · ${escape(Math.round(row.lengthFt).toLocaleString())} ft` : ""}</span>`, iconSize: null }),
-        interactive: true,
-        keyboard: false,
-      }),
-    );
+    const labelMarker = L.marker(labelPoint, {
+      icon: L.divIcon({ className: "sitemap-shape-label-wrap", html: `<span class="sitemap-shape-label" style="--shape-color:${color}"><b>${escape(row.seq)}</b>${row.label ? ` ${escape(row.label)}` : ""}${row.areaSqFt ? ` · ${escape(formatSqFtValue(row.areaSqFt))}` : row.lengthFt ? ` · ${escape(Math.round(row.lengthFt).toLocaleString())} ft` : ""}</span>`, iconSize: null }),
+      interactive: true,
+      keyboard: false,
+    });
+    parts.push(labelMarker);
+    state.pinTargets.set(row.id, { marker: labelMarker, lat: labelPoint.lat, lng: labelPoint.lng });
     parts.forEach((part) => {
       part.on("click", (event) => {
         L.DomEvent.stop(event);
@@ -1396,6 +1565,8 @@ export function createSiteMap(container, options = {}) {
 
   function destroy() {
     state.destroyed = true;
+    if (typeof window !== "undefined") window.removeEventListener("resize", onWindowResize);
+    clearTimeout(resizeTimer);
     if (state.map) state.map.remove();
     state.map = null;
     container.innerHTML = "";
@@ -1430,4 +1601,43 @@ function normalizeBackgrounds(list) {
   const backgrounds = (list || []).filter(Boolean).map((item) => ({ ...item }));
   if (!backgrounds.some((item) => item.kind === "aerial")) backgrounds.unshift({ id: "aerial", kind: "aerial", label: "Aerial" });
   return backgrounds;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Print: one map figure for the aerial, plus one more per uploaded plan that actually has pins on
+// it — otherwise a pin placed on a floor plan never showed up anywhere in the PDF. Each figure is
+// its own createSiteMap instance (its own CRS), so pins declutter per figure the same as on screen.
+// ---------------------------------------------------------------------------------------------
+export function renderPrintMaps(root, { center, observations = [], backgrounds = [], layers = [], photoUrl, newId, L: LGlobal, onAllTilesLoaded } = {}) {
+  root.innerHTML = "";
+  const normalizedBackgrounds = normalizeBackgrounds(backgrounds);
+  const plansWithPins = normalizedBackgrounds.filter(
+    (background) => background.kind === "plan" && observations.some((row) => (row.backgroundId || "aerial") === background.id),
+  );
+  const targets = [{ backgroundId: "aerial", title: "" }, ...plansWithPins.map((background) => ({ backgroundId: background.id, title: background.label || "Site plan" }))];
+  let remaining = targets.length;
+  const done = () => {
+    remaining -= 1;
+    if (remaining <= 0 && typeof onAllTilesLoaded === "function") onAllTilesLoaded();
+  };
+  targets.forEach((target, index) => {
+    const figure = el(`<figure class="sitemap-print-figure"></figure>`);
+    if (target.title) figure.appendChild(el(`<figcaption class="sitemap-print-figure-title">${escape(target.title)}</figcaption>`));
+    const mapDiv = el(`<div class="sitemap-print-map" id="sitemapPrint-${index}"></div>`);
+    figure.appendChild(mapDiv);
+    root.appendChild(figure);
+    createSiteMap(mapDiv, {
+      L: LGlobal,
+      mode: "view",
+      printing: true,
+      center,
+      observations,
+      backgrounds: normalizedBackgrounds,
+      activeBackgroundId: target.backgroundId,
+      layers: target.backgroundId === "aerial" ? layers : [],
+      photoUrl,
+      newId,
+      onTilesLoaded: done,
+    });
+  });
 }

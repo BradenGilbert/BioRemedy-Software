@@ -1125,7 +1125,7 @@ export function buildWalkExportHtml(bundle, { origin = location.origin } = {}) {
     </div>
     ${report.summary ? `<section class="walk-section"><h3>Summary</h3><p>${esc(report.summary)}</p></section>` : ""}
     <section class="walk-section"><h3>Site map</h3>
-      <div id="walkPrintMap" class="walk-print-map"></div>
+      <div id="walkPrintMaps" class="walk-print-maps"></div>
       <div class="legend">${legend}</div>
       <p class="walk-fineprint">Imagery: Esri World Imagery; capture date varies by area and may be months to years old. Pins placed by GPS show their accuracy; others were placed by hand. Reference layers are dashed grey with their source and date; parcel lines are tax-map accuracy, not a survey. No public data shows underground lines — a locate is still required before digging.</p>
       ${data.layers.length ? `<p class="walk-fineprint">Reference layers on this map: ${data.layers.map((layer) => esc(`${layer.label} (${[layer.source, layer.sourceDate].filter(Boolean).join(", ")})`)).join("; ")}.</p>` : ""}
@@ -1145,17 +1145,17 @@ export function buildWalkExportHtml(bundle, { origin = location.origin } = {}) {
     ${(report.contactsMet || []).length ? `<section class="walk-section"><h3>Contacts met</h3><p>${report.contactsMet.map((id) => esc(crm.findContact(id)?.name || id)).join(", ")}</p></section>` : ""}
     <script src="${origin}/public/vendor/leaflet/leaflet.js"></script>
     <script type="module">
-      import { createSiteMap } from "${origin}/field/map-core.js";
+      import { renderPrintMaps } from "${origin}/field/map-core.js";
       const data = ${JSON.stringify(data).replace(/</g, "\\u003c")};
       let printed = false;
       const print = () => { if (printed) return; printed = true; setTimeout(() => window.print(), 400); };
-      createSiteMap(document.getElementById("walkPrintMap"), { mode: "view", printing: true, center: data.center, observations: data.observations, backgrounds: data.backgrounds, layers: data.layers, photoUrl: (id) => "${origin}/api/documents/" + encodeURIComponent(id) + "/view", onTilesLoaded: print });
+      renderPrintMaps(document.getElementById("walkPrintMaps"), { center: data.center, observations: data.observations, backgrounds: data.backgrounds, layers: data.layers, photoUrl: (id) => "${origin}/api/documents/" + encodeURIComponent(id) + "/view", onAllTilesLoaded: print });
       setTimeout(print, 6000);
     </script>`;
   const extraStyles = `
     .print-doc { max-width: 900px; }
     .walk-section { margin: 18px 0; page-break-inside: avoid; }
-    .walk-print-map { height: 520px; border: 1px solid #d8dee6; border-radius: 6px; overflow: hidden; }
+    .walk-print-maps { display: flex; flex-direction: column; gap: 16px; }
     .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 8px 0; font-size: 0.8rem; }
     .legend-item i { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; color: #fff; font-style: normal; font-size: 0.7rem; margin-right: 5px; vertical-align: middle; }
     .walk-fineprint { font-size: 0.72rem; color: #666; margin: 4px 0; }
@@ -1173,7 +1173,7 @@ export function buildWalkExportHtml(bundle, { origin = location.origin } = {}) {
     dt { font-size: 0.72rem; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
     dd { margin: 0; }
     .sitemap-imagery-tag { font-size: 0.65rem; }
-    @media print { .walk-print-map { height: 460px; } .leaflet-control { display: none !important; } }`;
+    @media print { .leaflet-control { display: none !important; } }`;
   return crm.renderPrintShell({ title: `Site walk — ${opportunity?.name || walk.title || ""}`, body, extraStyles });
 }
 

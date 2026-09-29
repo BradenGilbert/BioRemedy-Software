@@ -1196,6 +1196,31 @@ body[data-theme="dark"] .markup-canvas-wrap {
   min-height: 460px;
 }
 
+/* Print: one figure per map (aerial + one per plan background that has pins on it). */
+.sitemap-print-figure {
+  margin: 0 0 16px;
+  page-break-inside: avoid;
+}
+
+.sitemap-print-figure-title {
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin: 0 0 6px;
+}
+
+.sitemap-print-map {
+  height: 520px;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+@media print {
+  .sitemap-print-map {
+    height: 460px;
+  }
+}
+
 .sitemap-empty {
   display: grid;
   place-items: center;
@@ -1539,6 +1564,21 @@ body[data-theme="dark"] .markup-canvas-wrap {
 .leaflet-marker-icon.is-moving .sitemap-pin {
   transform: scale(1.18);
   box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.35), 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Print: the pin number is the thing that has to be legible on paper — bigger badge, more contrast. */
+.sitemap--print .sitemap-pin-seq {
+  min-width: 23px;
+  height: 23px;
+  line-height: 23px;
+  top: -10px;
+  right: -10px;
+  font-size: 0.82rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 0 0 1.5px rgba(0, 0, 0, 0.2);
+}
+
+.sitemap--print .sitemap-shape-label {
+  font-size: 0.8rem;
 }
 
 .sitemap-arrowhead {
