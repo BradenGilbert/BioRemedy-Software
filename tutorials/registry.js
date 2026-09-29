@@ -118,7 +118,7 @@ TUTORIALS.push(
         why: "A project holds everything about the engagement; the crews' visits hang off it as dispatch jobs.",
       },
       { view: "ops-projects", target: "section-nav", title: "The Operations pages", do: "All Projects, filtered by Scheduled Work, Emergency Response or Multi-Stage, then the Calendar, the Map and the Race Track." },
-      { view: "ops-projects", target: "action:view-project", title: "A project", do: "Open a project to see its tabs: Intake, Plan, Live, Sampling, Files and Report." },
+      { view: "ops-projects", target: ["action:view-project", "action:clear-quick-filters"], title: "A project", do: "The list starts on My projects (Show all projects widens it). Open a project to see its tabs: Intake, Plan, Live, Sampling, Files and Report." },
       { view: "ops-emergency", target: "action:open-emergency-intake", title: "Spill calls", do: "New spill call is the one-screen intake: it creates the project and the dispatch job in one go." },
       { view: "ops-calendar", target: "page-header", title: "Calendar", do: "Crews, site walks, emergencies and milestones by day." },
       { view: "ops-map", target: "page-header", title: "Map", do: "Projects and equipment on a map, from stored coordinates and live GPS." },
@@ -593,11 +593,11 @@ TUTORIALS.push({
     },
     {
       view: "ops-projects",
-      target: "action:view-project",
+      target: ["action:view-project", "action:clear-quick-filters"],
       title: "Open a project",
-      do: "Open any project (Open on its row).",
+      do: "Open any project (Open on its row). The list starts on My projects; if you have none, press Show all projects first.",
       waitFor: "route:project-detail",
-      auto: [{ click: "action:view-project" }],
+      auto: [{ click: "action:clear-quick-filters", optional: true }, { click: "action:view-project" }],
     },
     {
       target: "action:open-job-request",
@@ -888,11 +888,11 @@ TUTORIALS.push({
     },
     {
       view: "ops-projects",
-      target: "action:view-project",
+      target: ["action:view-project", "action:clear-quick-filters"],
       title: "Open a project",
-      do: "Open a project whose field work is done.",
+      do: "Open a project whose field work is done. The list starts on My projects; press Show all projects if it isn't there.",
       waitFor: "route:project-detail",
-      auto: [{ click: "action:view-project" }],
+      auto: [{ click: "action:clear-quick-filters", optional: true }, { click: "action:view-project" }],
     },
     {
       target: "tab:switch-project-tab:report",

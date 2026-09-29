@@ -25,6 +25,7 @@
 //               this tour created there, ctx.view the current view)
 //   auto     -- what a script does to complete a hands-on step (smoke test, printed guide):
 //               [{ click: target } | { fill: [target, value] } | { select: [target, value] } | { wait: ms }]
+//               add `optional: true` to skip an action whose target is absent (e.g. a filter reset)
 //   finish   -- the last card of a hands-on tutorial: shows the host's "acknowledge on live" link
 //
 // The shade is four panels around the target, so a click can only land on the target or the card.
@@ -124,8 +125,11 @@ export async function runAuto(step = active?.tour.steps[active.index]) {
       continue;
     }
     const [spec, value] = action.fill || action.select || [action.click];
-    const element = await waitForElement(spec, 3000);
-    if (!element) return false;
+    const element = await waitForElement(spec, action.optional ? 800 : 3000);
+    if (!element) {
+      if (action.optional) continue;
+      return false;
+    }
     if (action.click) {
       element.scrollIntoView({ block: "center" });
       element.click();
