@@ -1368,7 +1368,7 @@ registerSalesHomeSection((employee) => {
 // field-spill-intake — the Phase 16 dialog as a stepped phone form (same submit, same guards)
 // ---------------------------------------------------------------------------------------------
 
-const SPILL_STEPS = ["Caller", "Location", "Spill", "Agencies", "Mobilize"];
+const SPILL_STEPS = ["Caller", "Location", "Spill", "Agencies", "Dispatch", "Mobilize"];
 
 registerFieldRoute("field-spill-intake", {
   title: "Spill call",
@@ -1410,7 +1410,8 @@ function renderSpillIntake() {
       <section class="field-step" data-step="2" ${step === 2 ? "" : "hidden"}>
         <label class="field-label"><span>Material</span><input name="spillMaterial" maxlength="120" placeholder="Diesel, hydraulic oil, unknown…" /></label>
         <label class="field-label"><span>Estimated quantity</span><input name="spillQuantity" maxlength="60" placeholder="~50 gallons" /></label>
-        <label class="field-label"><span>Surface</span><select name="spillSurface">${options(["Road", "Soil", "Both", "Water"])}</select></label>
+        <label class="field-label"><span>What is the spill on?</span><select name="spillSurface">${options(["Road", "Hard surface (concrete, asphalt, floor)", "Soil", "Gravel", "Water", "Mixed"])}</select></label>
+        <label class="field-label"><span>Where is it?</span><select name="spillLocationType">${options(["Outdoors", "Inside a building", "Confined space", "Crawl space", "Storm or sewer system", "Septic system"])}</select></label>
         <label class="field-label"><span>Storm drain involvement</span><select name="stormDrainInvolved">${options(["Unknown", "No", "Yes"])}</select></label>
         <label class="field-label"><span>Off-road discharge</span><select name="offRoadDischarge">${options(["Unknown", "No", "Yes"])}</select></label>
         <label class="field-label"><span>Absorbent already deployed?</span><select name="absorbentDeployed">${options(["No", "Yes"])}</select></label>
@@ -1425,6 +1426,18 @@ function renderSpillIntake() {
       </section>
 
       <section class="field-step" data-step="4" ${step === 4 ? "" : "hidden"}>
+        <label class="field-label"><span>On-site contact name</span><input name="onsiteContactName" maxlength="80" placeholder="Defaults to caller" /></label>
+        <label class="field-label"><span>On-site contact phone</span><input name="onsiteContactPhone" type="tel" maxlength="40" placeholder="Defaults to caller" /></label>
+        <label class="field-label"><span>Requested arrival</span><select name="requestedArrival"><option value="Now">Now</option><option value="Schedule">Choose a time</option></select></label>
+        <label class="field-label"><span>Scheduled start (if not now)</span><input name="scheduledStartAt" type="datetime-local" /></label>
+        <label class="field-label"><span>Field lead</span><select name="fieldLeadEmployeeId"><option value="">Not yet assigned</option>${crm.getEmployees().map((employee) => `<option value="${attr(employee.id)}">${esc(employee.displayName)}</option>`).join("")}</select></label>
+        <label class="field-label"><span>Crew (optional)</span><select name="crewId"><option value="">No standing crew</option>${crm.getCrewProfiles().map((crew) => `<option value="${attr(crew.id)}">${esc(crew.name)}</option>`).join("")}</select></label>
+        <label class="field-label"><span>Estimated duration (hours)</span><input name="estimatedDurationHours" type="number" min="0.5" step="0.5" value="4" inputmode="decimal" /></label>
+        <label class="field-label"><span>Equipment notes</span><textarea name="equipmentNotes" rows="2"></textarea></label>
+        <label class="field-label"><span>Labor notes</span><textarea name="laborNotes" rows="2"></textarea></label>
+      </section>
+
+      <section class="field-step" data-step="5" ${step === 5 ? "" : "hidden"}>
         <label class="field-label"><span>Has insurance?</span><select name="hasInsurance">${options(["No", "Yes"])}</select></label>
         <label class="field-label"><span>Filing an insurance claim?</span><select name="isInsuranceClaim">${options(["No", "Yes"])}</select></label>
         <label class="field-label"><span>Carrier</span><input name="insuranceCarrier" maxlength="80" /></label>

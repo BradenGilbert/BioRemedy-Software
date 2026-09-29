@@ -1711,6 +1711,7 @@ async function dispatchClick(event) {
   if (action === "remove-opportunity-assignment") await removeOpportunityAssignment(id);
   if (action === "open-opportunity-needs-list") openOpportunityNeedsListDialog(actionButton.dataset.opportunityId, actionButton.dataset.kind);
   if (action === "open-opportunity-needs-combined") openOpportunityNeedsCombinedDialog(actionButton.dataset.opportunityId);
+  if (action === "open-project-needs") openOpportunityNeedsCombinedDialog(actionButton.dataset.projectId, "projects");
   if (action === "open-opportunity-proposal") openOpportunityProposalDialog(id);
   if (action === "open-opportunity-negotiation") openOpportunityNegotiationDialog(id);
   if (action === "open-opportunity-quote") openOpportunityQuoteDialog(actionButton.dataset.opportunityId, id);
@@ -2670,6 +2671,14 @@ function handleInputInner(event) {
 
   if (event.target.matches("#emergencyIntakeDialog select[name='accountId']")) {
     syncEmergencyIntakeFacilityField(event.target.form);
+  }
+
+  if (event.target.matches("#emergencyIntakeDialog select[name='callerRelationship']")) {
+    syncEmergencyIntakeOnsiteContact(event.target.form);
+  }
+
+  if (event.target.matches("#projectIntakeDialog select[name='jobClass']")) {
+    toggleProjectIntakeMobilizationFields(event.target.form, event.target.value);
   }
 
   if (event.target.matches("#mapLocationDialog input[name='isTemporary']")) {
@@ -4554,6 +4563,14 @@ function buildCoreProjectRecord(project) {
     sitePhotoRefs: project.sitePhotoRefs || [],
     quoteId: project.quoteId || "",
     estimateId: project.estimateId || "",
+    // Item 4 (2026-09-28) — "Where is it?", alongside the existing spillSurface ("What is it on?").
+    spillLocationType: project.spillLocationType || "",
+    // Item 6 (2026-09-28) — the override checkbox/reason as *requested* on the intake form, persisted
+    // so the project intake dialog can show and re-edit it later. `mobilizationOverrideBy/Reason`
+    // (below) are the audit record of an override that actually took effect.
+    overrideMobilization: Boolean(project.overrideMobilization),
+    overrideBy: project.overrideBy || "",
+    overrideReason: project.overrideReason || "",
   };
 }
 
@@ -8465,7 +8482,8 @@ function renderEmergencyIntakePanel(job) {
         <dl class="detail-list">
           <div><dt>Caller</dt><dd>${escapeHtml(job.callerName || "Not captured")}${job.callerPhone ? ` — ${escapeHtml(formatPhoneNumber(job.callerPhone))}` : ""}</dd></div>
           <div><dt>Material</dt><dd>${escapeHtml(job.spillMaterial || "Not captured")}${job.spillQuantity ? ` (${escapeHtml(job.spillQuantity)})` : ""}</dd></div>
-          <div><dt>Surface</dt><dd>${escapeHtml(job.spillSurface || "Not captured")}</dd></div>
+          <div><dt>Surface</dt><dd>${escapeHtml(formatSpillSurface(job.spillSurface) || "Not captured")}</dd></div>
+          <div><dt>Location type</dt><dd>${escapeHtml(job.spillLocationType || "Not captured")}</dd></div>
           <div><dt>Storm drain</dt><dd>${escapeHtml(job.stormDrainInvolved || "Unknown")}</dd></div>
           <div><dt>Off-road discharge</dt><dd>${escapeHtml(job.offRoadDischarge || "Unknown")}</dd></div>
           <div><dt>Absorbent deployed</dt><dd>${escapeHtml(job.absorbentDeployed || "No")}${job.absorbentDeployedBy ? ` by ${escapeHtml(job.absorbentDeployedBy)}` : ""}</dd></div>
@@ -8475,6 +8493,8 @@ function renderEmergencyIntakePanel(job) {
           ${job.agencyIncidentNumber ? `<div><dt>Agency / incident #</dt><dd>${escapeHtml(job.agencyIncidentNumber)}</dd></div>` : ""}
           <div><dt>Insurance</dt><dd>${job.hasInsurance === "Yes" ? `${escapeHtml(job.insuranceCarrier || "Carrier not captured")}${job.isInsuranceClaim === "Yes" ? " — filing a claim" : ""}` : "No insurance on file"}</dd></div>
           ${job.downPaymentAmount ? `<div><dt>Down payment</dt><dd>${money(job.downPaymentAmount)}${job.downPaymentBy ? ` — ${escapeHtml(job.downPaymentBy)}` : ""}</dd></div>` : ""}
+          ${job.downPaymentReference ? `<div><dt>Reference</dt><dd>${escapeHtml(job.downPaymentReference)}</dd></div>` : ""}
+          ${job.mobilizationOverrideBy ? `<div><dt>Override</dt><dd>${escapeHtml(job.mobilizationOverrideBy)}${job.mobilizationOverrideReason ? `: ${escapeHtml(job.mobilizationOverrideReason)}` : ""}</dd></div>` : ""}
         </dl>
       </div>
     </article>
@@ -8491,7 +8511,7 @@ function renderProjectPlanTab(job, ctx) {
     <section class="project-detail-layout">
       <div class="detail-stack">
         <article class="panel">
-          <div class="panel-header"><h3>Scope from sales</h3></div>
+          <div class="panel-header"><h3>Scope</h3><button class="mini-button" type="button" data-action="open-project-needs" data-project-id="${escapeAttribute(job.id)}">Edit</button></div>
           <div class="panel-body">
             <dl class="detail-list">
               <div><dt>Heavy equipment needed</dt><dd class="chip-list">${renderOpportunityNeedsChips(job.equipmentNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
@@ -12363,6 +12383,17 @@ function renderDispatchJobDetailsTab(job) {
                   )
                   .join("")}</div>`
               : `<p class="help-text">No labor or vendor resources assigned during the sales/opportunity stage.</p>`
+          }
+          ${
+            // Item 7 (2026-09-28) — the project's Scope lists (equipment/vendor/resource needs) used
+            // to be visible only on the project's own Plan tab; dispatch never saw them.
+            project
+              ? `<dl class="detail-list job-overview-list">
+                  <div><dt>Project scope — equipment</dt><dd class="chip-list">${renderOpportunityNeedsChips(project.equipmentNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+                  <div><dt>Project scope — vendor</dt><dd class="chip-list">${renderOpportunityNeedsChips(project.vendorNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+                  <div><dt>Project scope — resources</dt><dd class="chip-list">${renderOpportunityNeedsChips(project.resourceNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+                </dl>`
+              : ""
           }
         </div>
       </article>
@@ -19135,6 +19166,10 @@ function openEmergencyIntakeDialog() {
   ].join("");
   form.elements.jobTypeTemplateId.value = templates.find((template) => template.serviceCategory === "ER")?.id || "";
   syncEmergencyIntakeFacilityField(form);
+  // Item 5 (2026-09-28) — the "Dispatch" step's field lead / crew quick-pick and duration default.
+  populateEmployeeSelect(dialog, "fieldLeadEmployeeId", "Not yet assigned");
+  populateCrewProfileSelect(dialog);
+  if (form.elements.estimatedDurationHours) form.elements.estimatedDurationHours.value = 4;
   dialog.showModal();
 }
 
@@ -19171,26 +19206,39 @@ function parseGpsPin(text) {
 // here with the decision reference so it's easy to find when that surface exists.
 const EMERGENCY_DOWN_PAYMENT_THRESHOLD = 15000;
 
-function computeEmergencyMobilization(data, hasExistingAccount) {
+// Item 4 (2026-09-28, owner report: "hard surface" and septic in a confined/crawl space) —
+// `spillSurface` ("What is the spill on?") and the new `spillLocationType` ("Where is it?").
+// Old stored values (Road/Soil/Both/Water) keep rendering: "Both" reads as "Mixed" everywhere.
+const SPILL_SURFACE_OPTIONS = ["Road", "Hard surface (concrete, asphalt, floor)", "Soil", "Gravel", "Water", "Mixed"];
+const SPILL_LOCATION_TYPE_OPTIONS = ["Outdoors", "Inside a building", "Confined space", "Crawl space", "Storm or sewer system", "Septic system"];
+function formatSpillSurface(value) {
+  if (!value) return "";
+  return value === "Both" ? "Mixed" : value;
+}
+
+// The decision tree itself, factored out of `computeEmergencyMobilization` (FormData-shaped input,
+// used at intake) so `applyMobilizationToProjectAndJob` (item 6, plain-object input, used when
+// editing the project intake later) can recompute it from a project record without going through a
+// form. `fields` reads the same names either way.
+function computeMobilizationDecision(fields, hasExistingAccount) {
   const now = new Date().toISOString();
   if (hasExistingAccount) {
     return { status: "Cleared to mobilize", note: "Existing account in good standing.", clearedAt: now };
   }
-  const isInsuranceClaim = data.get("hasInsurance").toString() === "Yes" && data.get("isInsuranceClaim").toString() === "Yes";
+  const isInsuranceClaim = fields.hasInsurance === "Yes" && fields.isInsuranceClaim === "Yes";
   if (isInsuranceClaim) {
-    if (form_checked(data, "policyCopyOnFile")) {
+    if (fields.policyCopyOnFile) {
       return { status: "Cleared to mobilize", note: "Insurance claim, policy copy on file.", clearedAt: now };
     }
     return { status: "Blocked — awaiting insurance documentation", note: "Insurance claim reported but no policy/declarations copy captured yet.", clearedAt: "" };
   }
-  const downPayment = Number(data.get("downPaymentAmount") || 0);
-  const overridden = form_checked(data, "overrideMobilization");
+  const downPayment = Number(fields.downPaymentAmount || 0);
   if (downPayment >= EMERGENCY_DOWN_PAYMENT_THRESHOLD) {
     return { status: "Cleared to mobilize", note: `Down payment of ${money(downPayment)} recorded (threshold ${money(EMERGENCY_DOWN_PAYMENT_THRESHOLD)}).`, clearedAt: now };
   }
-  if (overridden) {
-    const overrideBy = data.get("overrideBy").toString().trim() || "Unrecorded";
-    const overrideReason = data.get("overrideReason").toString().trim() || "No reason recorded";
+  if (fields.overrideMobilization) {
+    const overrideBy = (fields.overrideBy || "").trim() || "Unrecorded";
+    const overrideReason = (fields.overrideReason || "").trim() || "No reason recorded";
     return {
       status: "Cleared to mobilize",
       note: `Mobilization override by ${overrideBy}: ${overrideReason}.`,
@@ -19207,10 +19255,87 @@ function computeEmergencyMobilization(data, hasExistingAccount) {
   };
 }
 
+function computeEmergencyMobilization(data, hasExistingAccount) {
+  return computeMobilizationDecision(
+    {
+      hasInsurance: data.get("hasInsurance").toString(),
+      isInsuranceClaim: data.get("isInsuranceClaim").toString(),
+      policyCopyOnFile: form_checked(data, "policyCopyOnFile"),
+      downPaymentAmount: Number(data.get("downPaymentAmount") || 0),
+      overrideMobilization: form_checked(data, "overrideMobilization"),
+      overrideBy: data.get("overrideBy").toString().trim(),
+      overrideReason: data.get("overrideReason").toString().trim(),
+    },
+    hasExistingAccount,
+  );
+}
+
+// Item 6 (2026-09-28, "No way to edit down payment") — shared by `submitEmergencyIntake` (a
+// brand-new dispatch job, gated the same way as always) and `saveProjectIntake` (recomputing after
+// the office edits insurance/down-payment/override fields on an existing project). Recomputes the
+// mobilization decision from the project's own recorded fields, applies the result to the project,
+// and — only for dispatch jobs still sitting at draft/ready — flips readiness to match. A job that
+// has moved past ready (scheduled, dispatched, …) is never touched here, per the owner's "never
+// touch a job past ready."
+//
+// `hasExistingAccount` here means "a real account, not the provisional one the intake creates for
+// an unknown caller" (`!account.isProvisional`) — a good-enough proxy for "existing account in good
+// standing" once we're editing after the fact, since the intake's own explicit boolean (known only
+// at the moment of caller lookup) isn't available anymore.
+function applyMobilizationToProjectAndJob(project, dispatchJobs = []) {
+  const account = project.accountId ? findAccount(project.accountId) : null;
+  const hasExistingAccount = Boolean(account) && !account.isProvisional;
+  const mobilization = computeMobilizationDecision(
+    {
+      hasInsurance: project.hasInsurance || "",
+      isInsuranceClaim: project.isInsuranceClaim || "",
+      policyCopyOnFile: Boolean(project.policyCopyOnFile),
+      downPaymentAmount: Number(project.downPaymentAmount || 0),
+      overrideMobilization: Boolean(project.overrideMobilization),
+      overrideBy: (project.overrideBy || "").trim(),
+      overrideReason: (project.overrideReason || "").trim(),
+    },
+    hasExistingAccount,
+  );
+  const updatedProject = {
+    ...project,
+    mobilizationStatus: mobilization.status,
+    mobilizationNote: mobilization.note,
+    mobilizationClearedAt: mobilization.clearedAt,
+    mobilizationOverrideBy: mobilization.mobilizationOverrideBy || "",
+    mobilizationOverrideReason: mobilization.mobilizationOverrideReason || "",
+  };
+  const cleared = mobilization.status === "Cleared to mobilize";
+  const updatedJobs = dispatchJobs
+    .filter((job) => ["draft", "ready"].includes(job.status))
+    .map((job) => ({
+      ...job,
+      status: cleared ? "ready" : "draft",
+      readinessStatus: cleared ? "Ready" : "Blocked",
+      officeReviewStatus: cleared ? "Ready" : "Blocked",
+    }));
+  return { project: updatedProject, mobilization, jobs: updatedJobs };
+}
+
 // FormData has no `.get(name)` boolean helper for checkboxes — a checkbox that isn't checked is
 // simply absent from the FormData entirely, so `.get()` returns null rather than "false".
 function form_checked(data, name) {
   return data.get(name) === "on";
+}
+
+// Item 5 (2026-09-28, owner: "if we auto-create a job dispatch for the ER spill call we need to ask
+// the job dispatch questions") — when the caller is on site (a facility contact, not a driver or a
+// remote dispatcher), default the Dispatch step's on-site contact to the caller unless it's already
+// been typed over.
+function syncEmergencyIntakeOnsiteContact(form) {
+  const relationship = (form.elements.callerRelationship?.value || "").toString();
+  if (relationship !== "Facility contact") return;
+  if (form.elements.onsiteContactName && !form.elements.onsiteContactName.value.trim()) {
+    form.elements.onsiteContactName.value = form.elements.callerName?.value || "";
+  }
+  if (form.elements.onsiteContactPhone && !form.elements.onsiteContactPhone.value.trim()) {
+    form.elements.onsiteContactPhone.value = form.elements.callerPhone?.value || "";
+  }
 }
 
 async function submitEmergencyIntake(form) {
@@ -19294,6 +19419,7 @@ async function submitEmergencyIntake(form) {
       spillMaterial: data.get("spillMaterial").toString().trim(),
       spillQuantity: data.get("spillQuantity").toString().trim(),
       spillSurface: (data.get("spillSurface") || "").toString(),
+      spillLocationType: (data.get("spillLocationType") || "").toString(),
       stormDrainInvolved: (data.get("stormDrainInvolved") || "").toString(),
       offRoadDischarge: (data.get("offRoadDischarge") || "").toString(),
       absorbentDeployed: (data.get("absorbentDeployed") || "").toString(),
@@ -19313,6 +19439,9 @@ async function submitEmergencyIntake(form) {
       downPaymentAmount: Number(data.get("downPaymentAmount") || 0),
       downPaymentBy: data.get("downPaymentBy").toString().trim(),
       downPaymentReference: data.get("downPaymentReference").toString().trim(),
+      overrideMobilization: form_checked(data, "overrideMobilization"),
+      overrideBy: data.get("overrideBy").toString().trim(),
+      overrideReason: data.get("overrideReason").toString().trim(),
       mobilizationStatus: mobilization.status,
       mobilizationNote: mobilization.note,
       mobilizationClearedAt: mobilization.clearedAt,
@@ -19354,6 +19483,24 @@ async function submitEmergencyIntake(form) {
     const sequence = getDispatchJobs().length + 1;
     const now = new Date();
     const template = findJobTypeTemplate((data.get("jobTypeTemplateId") || "").toString()) || null;
+
+    // Item 5 (2026-09-28, owner: "if we auto-create a job dispatch for the ER spill call we need to
+    // ask the job dispatch questions") — the Dispatch step. A field lead + a time only turns into a
+    // real schedule (assignments, a schedule segment, status "scheduled") when mobilization is also
+    // cleared; otherwise the job stays draft/ready exactly as it did before this step existed.
+    const onsiteContactName = (data.get("onsiteContactName") || "").toString().trim() || data.get("callerName").toString().trim();
+    const onsiteContactPhone = (data.get("onsiteContactPhone") || "").toString().trim() || data.get("callerPhone").toString().trim();
+    const fieldLead = findEmployee((data.get("fieldLeadEmployeeId") || "").toString());
+    const crewId = (data.get("crewId") || "").toString();
+    const equipmentNotes = data.get("equipmentNotes").toString().trim();
+    const laborNotes = data.get("laborNotes").toString().trim();
+    const estimatedDurationHours = Number(data.get("estimatedDurationHours") || 0) || 4;
+    const scheduledStartAtRaw = (data.get("scheduledStartAt") || "").toString();
+    const scheduledStartDate = (data.get("requestedArrival") || "").toString() === "Schedule" && scheduledStartAtRaw ? new Date(scheduledStartAtRaw) : now;
+    const scheduledEndDate = new Date(scheduledStartDate.getTime() + estimatedDurationHours * 3600000);
+    const mobilizationCleared = mobilization.status === "Cleared to mobilize";
+    const dispatchScheduled = Boolean(fieldLead) && mobilizationCleared;
+
     const dispatchJob = {
       id: makeId("dispatch-job"),
       jobNumber: `JOB-${now.getFullYear()}-${localIsoDate(now).replaceAll("-", "").slice(4)}-${String(sequence).padStart(2, "0")}`,
@@ -19366,20 +19513,25 @@ async function submitEmergencyIntake(form) {
       jobType: template?.name || "Emergency Response",
       jobTypeCode: "ER",
       jobTypeVersion: 1,
-      status: mobilization.status === "Cleared to mobilize" ? "ready" : "draft",
-      dispatchStatus: "Unassigned",
-      officeReviewStatus: mobilization.status === "Cleared to mobilize" ? "Ready" : "Blocked",
+      status: dispatchScheduled ? "scheduled" : mobilizationCleared ? "ready" : "draft",
+      dispatchStatus: dispatchScheduled ? "Scheduled" : "Unassigned",
+      officeReviewStatus: mobilizationCleared ? "Ready" : "Blocked",
       priority: "Emergency",
-      scheduledStart: now.toISOString(),
+      scheduledStart: scheduledStartDate.toISOString(),
+      scheduledEnd: scheduledEndDate.toISOString(),
+      estimatedDurationHours,
+      fieldLeadEmployeeId: fieldLead?.id || "",
+      equipmentNotes,
+      laborNotes,
       timezone: "America/Chicago",
       locationName: siteName,
       addressText,
       latitude: gpsPin?.latitude ?? "",
       longitude: gpsPin?.longitude ?? "",
-      onsiteContactName: data.get("callerName").toString().trim(),
-      onsiteContactPhone: data.get("callerPhone").toString().trim(),
-      description: `Emergency spill response. ${data.get("spillMaterial").toString().trim() || "Material not specified"} — ${(data.get("spillSurface") || "").toString()}.`,
-      readinessStatus: mobilization.status === "Cleared to mobilize" ? "Ready" : "Blocked",
+      onsiteContactName,
+      onsiteContactPhone,
+      description: `Emergency spill response. ${data.get("spillMaterial").toString().trim() || "Material not specified"} — ${formatSpillSurface((data.get("spillSurface") || "").toString())}${(data.get("spillLocationType") || "").toString() ? `, ${(data.get("spillLocationType") || "").toString()}` : ""}.`,
+      readinessStatus: mobilizationCleared ? "Ready" : "Blocked",
       completionPercent: 0,
       updatedAt: new Date().toISOString(),
     };
@@ -19387,6 +19539,50 @@ async function submitEmergencyIntake(form) {
     // The work plan the crew executes on Front Line (owner, 2026-09-24: it used to be missing here).
     if (template) await applyJobTypeTemplateToJob(savedDispatchJob, template);
     else await applyFallbackJobPlan(savedDispatchJob);
+
+    // A field lead was picked — commit the assignment(s) and a schedule segment the same shape
+    // `saveDispatchSchedule` writes, so the dispatch board and the job's Plan & resources tab read
+    // it exactly like a normally-scheduled job. Reuses `crewMemberIds` rather than duplicating it.
+    if (fieldLead) {
+      await saveBackendRecord(
+        "jobScheduleSegments",
+        {
+          id: makeId("segment"),
+          jobId: savedDispatchJob.id,
+          type: "Work",
+          name: `${savedDispatchJob.jobType} work`,
+          sequence: 1,
+          plannedStart: scheduledStartDate.toISOString(),
+          plannedEnd: scheduledEndDate.toISOString(),
+          status: "Confirmed",
+          lockedForDispatch: false,
+          notes: laborNotes,
+        },
+        { refresh: false },
+      );
+      const crewEmployeeIds = crewMemberIds(crewId);
+      const employeeIds = [...new Set([fieldLead.id, ...crewEmployeeIds])];
+      for (const employeeId of employeeIds) {
+        const employee = findEmployee(employeeId);
+        await saveBackendRecord(
+          "jobAssignments",
+          {
+            id: makeId("assignment"),
+            jobId: savedDispatchJob.id,
+            employeeId,
+            crewId,
+            role: employeeId === fieldLead.id ? "Field Lead" : employee?.jobTitle || "Technician",
+            isFieldLead: employeeId === fieldLead.id,
+            status: "Assigned",
+            eligibilityStatus: employee?.readinessStatus === "Blocked" ? "Blocked" : employee?.readinessStatus === "Expiring" ? "Warning" : "Eligible",
+            eligibilityNote: employee?.readinessStatus === "Blocked" ? "Employee has a blocking credential record" : "",
+            plannedStart: scheduledStartDate.toISOString(),
+            plannedEnd: scheduledEndDate.toISOString(),
+          },
+          { refresh: false },
+        );
+      }
+    }
     // Phase 16 item 2, via Phase 13 (2026-09-24): the onsite paperwork this emergency needs is a tracked
     // requirement from the first minute -- the packet and a service agreement, unless already on file.
     await ensurePaperworkRequirements(account.id, ["customer-packet", "waste-authorization", "service-agreement-msa"], { entityType: "project", entityId: project.id, source: "emergency-intake" });
@@ -20910,7 +21106,7 @@ function renderPostWorkReportHtml(report) {
   ].filter(Boolean);
   const description = [
     project.spillMaterial ? `${project.spillMaterial}${project.spillQuantity ? ` (${project.spillQuantity})` : ""}` : "",
-    project.spillSurface ? `on ${project.spillSurface}` : "",
+    project.spillSurface ? `on ${formatSpillSurface(project.spillSurface)}${project.spillLocationType ? ` · ${project.spillLocationType}` : ""}` : "",
     project.stormDrainInvolved === "Yes" ? "storm drain involved" : "",
     project.offRoadDischarge === "Yes" ? "off-road discharge" : "",
   ].filter(Boolean).join(", ");
@@ -23376,14 +23572,35 @@ function openProjectIntakeDialog(jobId) {
   form.elements.tceqId.value = job.tceqId || fallback.tceqId;
   form.elements.insuranceContact.value = job.insuranceContact || fallback.insuranceContact;
   form.elements.insuranceCarrier.value = job.insuranceCarrier || fallback.insuranceCarrier;
-  form.elements.claimNumber.value = job.claimNumber || "";
+  form.elements.claimNumber.value = job.claimNumber || job.insuranceClaimNumber || "";
   form.elements.serviceProfile.value = job.serviceProfile || "";
   form.elements.jobClass.value = job.jobClass || "Scheduled Work";
   form.elements.siteWalkStatus.value = job.siteWalkStatus || "Incomplete";
   form.elements.sitePhotos.value = (job.sitePhotoRefs || [])
     .map((photo) => (photo.note ? `${photo.caption} | ${photo.note}` : photo.caption))
     .join("\n");
+  // Item 6 (2026-09-28, "No way to edit down payment") — the mobilization/down-payment section,
+  // shown only for Emergency Response projects (the only jobClass that gates on it).
+  if (form.elements.hasInsurance) form.elements.hasInsurance.value = job.hasInsurance || "No";
+  if (form.elements.isInsuranceClaim) form.elements.isInsuranceClaim.value = job.isInsuranceClaim || "No";
+  if (form.elements.insurancePolicyNumber) form.elements.insurancePolicyNumber.value = job.insurancePolicyNumber || "";
+  if (form.elements.policyCopyOnFile) form.elements.policyCopyOnFile.checked = Boolean(job.policyCopyOnFile);
+  if (form.elements.downPaymentAmount) form.elements.downPaymentAmount.value = job.downPaymentAmount || "";
+  if (form.elements.downPaymentBy) form.elements.downPaymentBy.value = job.downPaymentBy || "";
+  if (form.elements.downPaymentReference) form.elements.downPaymentReference.value = job.downPaymentReference || "";
+  if (form.elements.overrideMobilization) form.elements.overrideMobilization.checked = Boolean(job.overrideMobilization);
+  if (form.elements.overrideBy) form.elements.overrideBy.value = job.overrideBy || "";
+  if (form.elements.overrideReason) form.elements.overrideReason.value = job.overrideReason || "";
+  const statusReadout = dialog.querySelector('[data-role="project-intake-mobilization-status"]');
+  if (statusReadout) statusReadout.textContent = job.mobilizationStatus ? `Current: ${job.mobilizationStatus}${job.mobilizationNote ? ` — ${job.mobilizationNote}` : ""}` : "Mobilization has not been computed for this project yet.";
+  toggleProjectIntakeMobilizationFields(form, job.jobClass || "Scheduled Work");
   dialog.showModal();
+}
+
+// Item 6 — the mobilization/down-payment fieldset only applies to Emergency Response projects.
+function toggleProjectIntakeMobilizationFields(form, jobClass) {
+  const fieldset = form.querySelector('[data-role="project-intake-mobilization-fieldset"]');
+  if (fieldset) fieldset.hidden = jobClass !== "Emergency Response";
 }
 
 async function saveProjectIntake(form) {
@@ -23402,7 +23619,11 @@ async function saveProjectIntake(form) {
     })
     .filter((photo) => photo.caption);
 
-  const updated = {
+  // Read `claimNumber || insuranceClaimNumber` everywhere, write `claimNumber`, keep
+  // `insuranceClaimNumber` in sync (item 6 — the intake wrote one, this dialog read the other).
+  const claimNumber = data.get("claimNumber").toString().trim();
+  const jobClass = (data.get("jobClass") || "").toString();
+  const fields = {
     ...job,
     generatorName: data.get("generatorName").toString().trim(),
     generatorSiteName: data.get("generatorSiteName").toString().trim(),
@@ -23412,20 +23633,49 @@ async function saveProjectIntake(form) {
     tceqId: data.get("tceqId").toString().trim(),
     insuranceContact: data.get("insuranceContact").toString().trim(),
     insuranceCarrier: data.get("insuranceCarrier").toString().trim(),
-    claimNumber: data.get("claimNumber").toString().trim(),
+    claimNumber,
+    insuranceClaimNumber: claimNumber,
     serviceProfile: data.get("serviceProfile").toString().trim(),
-    jobClass: (data.get("jobClass") || "").toString(),
+    jobClass,
     siteWalkStatus: (data.get("siteWalkStatus") || "").toString(),
     sitePhotoRefs,
   };
+  // The mobilization/down-payment section only exists (and only submits meaningful values) for
+  // Emergency Response projects — don't let stale/default select values from a hidden fieldset
+  // overwrite a non-ER project's (empty) mobilization fields.
+  if (jobClass === "Emergency Response") {
+    Object.assign(fields, {
+      hasInsurance: (data.get("hasInsurance") || "").toString(),
+      isInsuranceClaim: (data.get("isInsuranceClaim") || "").toString(),
+      insurancePolicyNumber: data.get("insurancePolicyNumber").toString().trim(),
+      policyCopyOnFile: form_checked(data, "policyCopyOnFile"),
+      downPaymentAmount: Number(data.get("downPaymentAmount") || 0),
+      downPaymentBy: data.get("downPaymentBy").toString().trim(),
+      downPaymentReference: data.get("downPaymentReference").toString().trim(),
+      overrideMobilization: form_checked(data, "overrideMobilization"),
+      overrideBy: data.get("overrideBy").toString().trim(),
+      overrideReason: data.get("overrideReason").toString().trim(),
+    });
+  }
+
+  let updated = buildCoreProjectRecord(fields);
+  let jobsToSave = [];
+  if (updated.jobClass === "Emergency Response") {
+    const result = applyMobilizationToProjectAndJob(updated, dispatchJobsForProject(updated.id));
+    updated = result.project;
+    jobsToSave = result.jobs;
+  }
 
   try {
     await saveBackendRecord("projects", updated, { refresh: false });
+    for (const dispatchJobRecord of jobsToSave) {
+      await saveBackendRecord("dispatchJobs", dispatchJobRecord, { refresh: false });
+    }
     await queueChange("Project", "intake updated", updated);
     closeDialogs();
     await refreshState();
     render();
-    showToast("Intake details saved.");
+    showToast(jobsToSave.length ? `Intake details saved — ${updated.mobilizationStatus}.` : "Intake details saved.");
   } catch (error) {
     showToast(error.message || "Intake details could not be saved.");
   }
@@ -24099,46 +24349,55 @@ function openOpportunityNeedsListDialog(opportunityId, kind) {
 
 // Item 33 — the combined "Add / Edit all" dialog: one popup, all three lists, one write. The
 // per-list dialog/buttons above stay untouched — this is an addition, not a replacement.
-function openOpportunityNeedsCombinedDialog(opportunityId) {
-  const opportunity = findOpportunity(opportunityId);
-  if (!opportunity) return;
+//
+// Item 7 (2026-09-28, "Scope from sales is not editable once a project is created") — generalised
+// to a target `{collection, id}` so the same dialog edits either an opportunity's or a project's
+// needs lists; `collection` defaults to "opportunities" so every existing call site (which only
+// ever passed an opportunity id) keeps working unchanged.
+function needsTargetRecord(recordId, collection) {
+  return collection === "projects" ? findProject(recordId) : findOpportunity(recordId);
+}
+
+function openOpportunityNeedsCombinedDialog(recordId, collection = "opportunities") {
+  const record = needsTargetRecord(recordId, collection);
+  if (!record) return;
   const dialog = document.querySelector("#opportunityNeedsCombinedDialog");
   const form = dialog.querySelector("form");
   form.reset();
-  form.elements.id.value = opportunityId;
+  form.elements.id.value = recordId;
+  if (form.elements.targetCollection) form.elements.targetCollection.value = collection;
   Object.values(OPPORTUNITY_NEEDS_LIST_CONFIG).forEach((config) => {
-    const items = opportunity[config.field] || [];
+    const items = record[config.field] || [];
     form.elements[config.field].value = items.map((item) => (item.note ? `${item.name} | ${item.note}` : item.name)).join("\n");
   });
-  renderApprovedSubPicks(dialog, opportunity.accountId);
+  renderApprovedSubPicks(dialog, record.accountId);
   dialog.showModal();
 }
 
 async function saveOpportunityNeedsCombined(form) {
   const data = new FormData(form);
-  const opportunity = findOpportunity(data.get("id").toString());
-  if (!opportunity) return;
+  const collection = (data.get("targetCollection") || "opportunities").toString();
+  const record = needsTargetRecord(data.get("id").toString(), collection);
+  if (!record) return;
   const updates = {};
   Object.values(OPPORTUNITY_NEEDS_LIST_CONFIG).forEach((config) => {
     updates[config.field] = splitNeedsListInput(data.get(config.field).toString());
   });
 
-  const updated = buildCoreOpportunityRecord({
-    ...opportunity,
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  });
+  const updated = collection === "projects"
+    ? buildCoreProjectRecord({ ...record, ...updates })
+    : buildCoreOpportunityRecord({ ...record, ...updates, updatedAt: new Date().toISOString() });
 
   try {
-    await saveBackendRecord("opportunities", updated);
+    await saveBackendRecord(collection, updated);
   } catch (error) {
-    showToast(error.message || "Resource needs could not be saved.");
+    showToast(error.message || "Scope could not be saved.");
     return;
   }
   closeDialogs();
   await refreshState();
   render();
-  showToast("Resource needs saved.");
+  showToast("Scope saved.");
 }
 
 async function saveOpportunityNeedsList(form) {
@@ -34346,4 +34605,13 @@ export {
   getInitials,
   siteWalkReportsForOpportunity,
   siteWalkObservationsForWalk,
+
+  // Pass 1 items 4/5/6/7 (2026-09-28)
+  SPILL_SURFACE_OPTIONS,
+  SPILL_LOCATION_TYPE_OPTIONS,
+  formatSpillSurface,
+  applyMobilizationToProjectAndJob,
+  crewMemberIds,
+  getCrewProfiles,
+  renderOpportunityNeedsChips,
 };

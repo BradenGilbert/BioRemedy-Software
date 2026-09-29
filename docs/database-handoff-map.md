@@ -448,6 +448,30 @@ the existing `facilityId` key. SQL: `job_sites` (005) already has nullable `lati
 `name`, `description` and `facility_id`; it needs `account_id` (present), an `address_text`
 column, and `projects.site_location_id`.
 
+**Messages-to-IT inbox Pass 1, items 4/5/6/7 (2026-09-28).** All on existing collections; no new
+top-level collections.
+
+- `projects` gained **`spillLocationType`** (string: `"Outdoors"` / `"Inside a building"` /
+  `"Confined space"` / `"Crawl space"` / `"Storm or sewer system"` / `"Septic system"` — "Where is
+  it?", alongside the existing `spillSurface` "What is it on?", whose own option set changed to
+  Road / Hard surface (concrete, asphalt, floor) / Soil / Gravel / Water / Mixed; old stored values
+  including the retired `"Both"` still render via `formatSpillSurface()`, no migration needed) and
+  three fields that persist the mobilization override *request* so it survives a later edit —
+  **`overrideMobilization`** (boolean), **`overrideBy`**, **`overrideReason`** — distinct from the
+  existing `mobilizationOverrideBy`/`mobilizationOverrideReason`, which are the audit record of an
+  override that actually took effect.
+- `dispatchJobs` gained **`estimatedDurationHours`** (number, default 4), **`scheduledEnd`** (was
+  already read/written by `saveDispatchSchedule`, now also written by the emergency intake), and the
+  emergency intake now writes `onsiteContactName`/`onsiteContactPhone`/`equipmentNotes`/
+  `laborNotes`/`fieldLeadEmployeeId` at creation time (previously written only by `saveDispatchSchedule`
+  after the fact) — via the intake's new "Dispatch" step/section. When a field lead is picked at
+  intake, `jobScheduleSegments` and `jobAssignments` rows are created in the same shape
+  `saveDispatchSchedule` writes (no new fields on those two collections).
+- `opportunityNeedsCombinedDialog`'s save path (`app.js` `openOpportunityNeedsCombinedDialog`/
+  `saveOpportunityNeedsCombined`) was generalised to a `{collection, id}` target instead of always
+  writing `opportunities` — it now also writes a `projects` row's `equipmentNeeds`/`vendorNeeds`/
+  `resourceNeeds` (same shape, no new fields). See phase-15's corrections for the full story.
+
 **Phase 15 (2026-09-23)** added the sales-to-operations handover to `projects` -- no new top-level
 collections, six new fields on the existing `projects` record, all copied once at creation from the
 won opportunity and never re-synced afterward (owner decision: "we just need the data, where it came

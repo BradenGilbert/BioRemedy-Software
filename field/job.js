@@ -182,6 +182,7 @@ function renderBriefTab(job, project, account) {
     </section>
 
     ${project ? renderIntakeCard(project) : ""}
+    ${project ? renderScopeCard(project) : ""}
 
     <section class="field-card">
       <div class="field-card-row"><strong>Assigned crew</strong></div>
@@ -228,14 +229,19 @@ function renderBriefTab(job, project, account) {
   `;
 }
 
+// Item 4 (2026-09-28, owner report: "hard surface" and septic in a confined/crawl space) — this
+// used to test `project.stormDrainInvolved ? "Yes" : "No"`, which is true for ANY non-empty string
+// including the literal text "No", so a stored "No" rendered as "Yes". These fields are already
+// the human-readable "Yes"/"No"/"Unknown" strings the intake writes — render them as-is.
 function renderIntakeCard(project) {
   const rows = [
     ["Material", project.spillMaterial],
     ["Quantity", project.spillQuantity],
-    ["Surface", project.spillSurface],
-    ["Storm drain involved", project.stormDrainInvolved != null ? (project.stormDrainInvolved ? "Yes" : "No") : ""],
-    ["Off-road discharge", project.offRoadDischarge != null ? (project.offRoadDischarge ? "Yes" : "No") : ""],
-    ["Absorbent deployed", project.absorbentDeployed != null ? (project.absorbentDeployed ? "Yes" : "No") : ""],
+    ["Surface", crm.formatSpillSurface(project.spillSurface)],
+    ["Location type", project.spillLocationType],
+    ["Storm drain involved", project.stormDrainInvolved],
+    ["Off-road discharge", project.offRoadDischarge],
+    ["Absorbent deployed", project.absorbentDeployed],
     ["Agencies", Array.isArray(project.agencies) ? project.agencies.join(", ") : project.agencies],
     ["Mobilization status", project.mobilizationStatus],
   ].filter(([, value]) => value);
@@ -244,6 +250,23 @@ function renderIntakeCard(project) {
     <section class="field-card">
       <div class="field-card-row"><strong>ER intake</strong>${project.ergGuideNumber ? `<span>ERG Guide ${crm.escapeHtml(project.ergGuideNumber)}</span>` : ""}</div>
       ${rows.map(([label, value]) => `<div class="field-card-row"><span>${crm.escapeHtml(label)}</span><span>${crm.escapeHtml(String(value))}</span></div>`).join("")}
+    </section>
+  `;
+}
+
+// Item 7 (2026-09-28, "Scope from sales is not editable once a project is created") — read-only on
+// the field Brief; editing stays an office action (the project's Plan tab / dispatch job Details).
+function renderScopeCard(project) {
+  const lists = [
+    ["Equipment", project.equipmentNeeds],
+    ["Vendor / subcontractor", project.vendorNeeds],
+    ["Resources", project.resourceNeeds],
+  ].filter(([, items]) => Array.isArray(items) && items.length);
+  if (!lists.length) return "";
+  return `
+    <section class="field-card">
+      <div class="field-card-row"><strong>Scope</strong></div>
+      ${lists.map(([label, items]) => `<div class="field-card-row"><span>${crm.escapeHtml(label)}</span></div><div class="chip-list">${crm.renderOpportunityNeedsChips(items)}</div>`).join("")}
     </section>
   `;
 }
