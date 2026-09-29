@@ -124,8 +124,12 @@ export async function runAuto(step = active?.tour.steps[active.index]) {
       continue;
     }
     const [spec, value] = action.fill || action.select || [action.click];
-    const element = await waitForElement(spec, 3000);
-    if (!element) return false;
+    // `optional: true`: a click that only applies sometimes (e.g. clearing a default filter).
+    const element = await waitForElement(spec, action.optional ? 800 : 3000);
+    if (!element) {
+      if (action.optional) continue;
+      return false;
+    }
     if (action.click) {
       element.scrollIntoView({ block: "center" });
       element.click();

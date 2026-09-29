@@ -595,9 +595,10 @@ TUTORIALS.push({
       view: "ops-projects",
       target: "action:view-project",
       title: "Open a project",
-      do: "Open any project (Open on its row).",
+      do: "Open any project (Open on its row). If the list is empty, press Show all projects first.",
       waitFor: "route:project-detail",
-      auto: [{ click: "action:view-project" }],
+      // All Projects opens on "My projects" (Phase 25 item 12); someone on no project sees an empty list.
+      auto: [{ click: "sel:[data-action=clear-quick-filters][data-list=projects]", optional: true }, { click: "action:view-project" }],
     },
     {
       target: "action:open-job-request",
@@ -890,9 +891,10 @@ TUTORIALS.push({
       view: "ops-projects",
       target: "action:view-project",
       title: "Open a project",
-      do: "Open a project whose field work is done.",
+      do: "Open a project whose field work is done. If the list is empty, press Show all projects first.",
       waitFor: "route:project-detail",
-      auto: [{ click: "action:view-project" }],
+      // All Projects opens on "My projects" (Phase 25 item 12); someone on no project sees an empty list.
+      auto: [{ click: "sel:[data-action=clear-quick-filters][data-list=projects]", optional: true }, { click: "action:view-project" }],
     },
     {
       target: "tab:switch-project-tab:report",
