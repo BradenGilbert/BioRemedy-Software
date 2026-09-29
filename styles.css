@@ -7979,8 +7979,104 @@ body.tour-running .update-banner {
 /* "Open in training" is a link to the training copy dressed as a button (Home card, office library). */
 .home-learn a.secondary-button,
 .home-learn a.primary-button,
+.site-walk-page-actions a.secondary-button,
 a.mini-button {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
+}
+
+/* Phase 25 B.4 (2026-09-29): the site walk page (#view=site-walk&id=…) */
+.site-walk-page-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.site-walk-page-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0 18px 14px;
+}
+
+.site-walk-page .crm-profile-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  padding: 0 18px 18px;
+}
+
+.site-walk-measurements {
+  min-width: 520px;
+  table-layout: auto;
+}
+
+/* The map's toolbar has a wide min-content; without this the right column grows past the page. */
+.site-walk-page .detail-stack {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .site-walk-page .crm-profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.site-walk-warning {
+  border: 1px solid var(--red);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  color: var(--red);
+  font-weight: 600;
+}
+
+.site-walk-warning p {
+  margin: 0;
+}
+
+.site-walk-warning p + p {
+  margin-top: 4px;
+}
+
+.site-walk-summary-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.site-walk-done {
+  color: var(--green);
+  font-weight: 800;
+}
+
+.site-walk-open {
+  color: var(--muted);
+}
+
+.site-walk-needs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.site-walk-panel-sketches {
+  margin-top: 12px;
+}
+
+.site-walk-panel-sketches h4 {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+}
+
+.site-walk-sketch-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.site-walk-sketch-grid .photo-tile img {
+  object-fit: contain;
+  background: #fff;
 }

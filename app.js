@@ -368,6 +368,8 @@ const viewWorkspace = {
   "account-detail": "sales",
   "facility-detail": "sales",
   "contact-detail": "sales",
+  // Phase 25 B.4: also open to Operations roles (canAccessView / getCurrentWorkspaceId).
+  "site-walk": "sales",
   operations: "operations",
   fieldwork: "operations",
   "ops-projects": "operations",
@@ -1201,6 +1203,8 @@ const state = {
   frontlineSignatureStrokes: [],
   frontlineGps: null,
   fieldWalkEventId: "",
+  // Phase 25 B.4: the site walk page (#view=site-walk&id=<walkEventId>).
+  selectedSiteWalkId: "",
   fieldWalkTab: "brief",
   frontlineNotificationPrefs: defaultFrontlineNotificationPrefs,
   // "+ Activity" ad hoc capture (Phase 10, Part 2 gap item 4) -- open type picker on the job detail
@@ -1924,6 +1928,10 @@ async function dispatchClick(event) {
   if (action === "walk-export-pdf") window.fieldWalk?.exportWalkPdf(actionButton.dataset.walkEventId);
   if (action === "walk-export-zip") await window.fieldWalk?.exportWalkZip(actionButton.dataset.walkEventId);
   if (action === "walk-open-field") openWalkInField(actionButton.dataset.walkEventId);
+  // Phase 25 B.4/B.5: the site walk page, its filed report and share-link copy.
+  if (action === "open-site-walk") openSiteWalkPage(id || actionButton.dataset.walkEventId);
+  if (action === "site-walk-file-report") await fileSiteWalkReport(id, actionButton);
+  if (action === "site-walk-copy-share") await copyTextToClipboard(actionButton.dataset.url || "");
   if (action === "facility-fetch-parcel") await fetchFacilityParcel(actionButton.dataset.facilityId);
   if (action === "facility-download-tiles") await downloadFacilityTilesAction(actionButton.dataset.facilityId);
   if (action === "facility-remove-layer") await removeFacilityReferenceLayer(actionButton.dataset.id);
@@ -2946,6 +2954,7 @@ function render() {
   if (state.view === "facility-detail") renderFacilityDetail();
   if (state.view === "contacts") renderContacts();
   if (state.view === "contact-detail") renderContactDetail();
+  if (state.view === "site-walk") renderSiteWalkPage();
   if (state.view === "sales-race") renderSalesRaceTrack();
   if (state.view === "rate-card") renderRateCard();
   if (state.view === "operations") renderOperations();
@@ -3049,6 +3058,11 @@ const ROUTE_ID_FIELDS = [
 function computeRouteHash() {
   const params = new URLSearchParams();
   params.set("view", state.view);
+  // Phase 25 B.4: a site walk link is just #view=site-walk&id=<walkEventId>.
+  if (state.view === "site-walk") {
+    if (state.selectedSiteWalkId) params.set("id", state.selectedSiteWalkId);
+    return `#${params.toString()}`;
+  }
   for (const field of ROUTE_ID_FIELDS) {
     if (state[field]) params.set(field, state[field]);
   }
@@ -3065,6 +3079,7 @@ function applyRouteFromHash() {
   for (const field of ROUTE_ID_FIELDS) {
     state[field] = params.get(field) || "";
   }
+  state.selectedSiteWalkId = view === "site-walk" ? params.get("id") || "" : "";
   return true;
 }
 
@@ -3229,6 +3244,7 @@ function findWorkspace(workspaceId) {
 
 function getCurrentWorkspaceId() {
   if (state.view === "home") return "home";
+  if (state.view === "site-walk") return canAccessWorkspace("sales") ? "sales" : "operations";
   return viewWorkspace[state.view] || "sales";
 }
 
@@ -3260,6 +3276,8 @@ function canAccessWorkspace(workspaceId) {
 
 function canAccessView(view) {
   if (view === "home") return true;
+  // Phase 25 B.4: the site walk page belongs to whoever can see the opportunity or the project.
+  if (view === "site-walk") return canAccessWorkspace("sales") || canAccessWorkspace("operations");
   // field-* routes are declared in field/index.js, not in viewWorkspace; they belong to Front Line.
   if (typeof view === "string" && view.startsWith("field-")) return canAccessWorkspace("frontline");
   const workspaceId = viewWorkspace[view];
@@ -3292,6 +3310,7 @@ function getDefaultAllowedView() {
 function isActiveModule(moduleView) {
   if (moduleView === state.view) return true;
   if (moduleView === "pipeline" && state.view === "opportunity-detail") return true;
+  if (state.view === "site-walk" && moduleView === (getCurrentWorkspaceId() === "sales" ? "pipeline" : "ops-projects")) return true;
   if (moduleView === "accounts" && (state.view === "account-detail" || state.view === "facility-detail")) return true;
   if (moduleView === "contacts" && state.view === "contact-detail") return true;
   if (moduleView === "ops-projects" && ["project-detail", "sample-detail"].includes(state.view)) return true;
@@ -4501,6 +4520,12 @@ function renderOpportunityDevelopPlanningTab(opportunity, missingFields = []) {
               <dt>Site walk</dt>
               <dd>
                 ${escapeHtml(opportunity.siteWalkStatus || "Incomplete")}
+                ${(() => {
+                  const latestWalk = siteWalkEvents()
+                    .filter((event) => event.opportunityId === opportunity.id)
+                    .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+                  return latestWalk ? `<button class="mini-button" type="button" data-action="open-site-walk" data-id="${escapeAttribute(latestWalk.id)}">Open site walk</button>` : "";
+                })()}
                 ${
                   (opportunity.siteWalkStatus || "Incomplete") === "Incomplete"
                     ? `<button class="mini-button" type="button" data-action="quick-schedule-site-walk" data-opportunity-id="${escapeAttribute(opportunity.id)}">Schedule</button>`
@@ -35075,12 +35100,16 @@ function renderSiteWalkReportPanel(opportunity) {
   const sections = report ? Object.entries(report.sections || {}).filter(([, value]) => value && (value.done || Object.keys(value.fields || {}).length || (value.photoDocumentIds || []).length)) : [];
   const shares = (report?.shares || []).filter((share) => !share.revokedAt);
   const participants = walk ? siteWalkParticipants(walk).map((person) => person.displayName).join(", ") : "";
+  // Phase 25 B.4 (2026-09-29): the walk's sketches and its filed report show here too.
+  const sketches = (report?.sketchDocumentIds || []).map(findDocument).filter((document) => document && !document.deletedAt);
+  const filedReport = walk ? siteWalkReportDocumentFor(walk.id) : null;
   return `
     <article class="panel crm-profile-grid-full site-walk-report-panel">
       <div class="panel-header">
         <div><h3>Site walk report</h3><span>${escapeHtml(walk ? `${formatDate(walk.date)}${walk.startTime ? ` ${walk.startTime}` : ""}${participants ? ` · ${participants}` : ""}` : "No walk scheduled yet")}</span></div>
         <div class="inline-actions">
           <span class="tag">${escapeHtml(status)}</span>
+          ${walk ? `<button class="mini-button" type="button" data-action="open-site-walk" data-id="${escapeAttribute(walk.id)}">Open site walk</button>` : ""}
           ${walk && !report?.completedAt ? `<button class="mini-button" type="button" data-action="walk-open-field" data-walk-event-id="${escapeAttribute(walk.id)}">Open on this device</button>` : ""}
           ${report ? `<button class="mini-button" type="button" data-action="walk-open-share" data-report-id="${escapeAttribute(report.id)}">Share link${shares.length ? ` (${shares.length})` : ""}</button>` : ""}
           ${walk ? `<button class="mini-button" type="button" data-action="walk-export-pdf" data-walk-event-id="${escapeAttribute(walk.id)}">Export PDF</button>` : ""}
@@ -35116,6 +35145,8 @@ function renderSiteWalkReportPanel(opportunity) {
                   .join("")}</div>`
               : ""
           }
+          ${sketches.length ? `<div class="site-walk-panel-sketches"><h4>Sketch${sketches.length === 1 ? "" : "es"}</h4><div class="photo-grid document-list">${sketches.map((document) => renderSiteWalkPhotoTile(document, "Sketch")).join("")}</div></div>` : ""}
+          ${filedReport ? `<p class="help-text">Filed report: <a href="/api/documents/${encodeURIComponent(filedReport.id)}/view" target="_blank" rel="noopener">${escapeHtml(filedReport.fileName)}</a> (v${Number(filedReport.versionNumber || 1)}, ${escapeHtml(formatDateTime(filedReport.uploadedAt))})</p>` : ""}
         </div>
         <div class="site-walk-report-map">${summary ? summary.html : `<div class="empty-state compact">${walk ? "This site has no coordinates yet." : "Schedule a walk to start a map."}</div>`}</div>
       </div>
@@ -35140,6 +35171,390 @@ function renderProjectWalkMapPanel(job) {
       </div>
       <div class="panel-body">${summary.html}</div>
     </article>
+  `;
+}
+
+// ---- Phase 25 B.4/B.5 (2026-09-29): the site walk page and its filed report ----
+//
+// #view=site-walk&id=<walkEventId>. The office's second renderer of a walk (Phase 22 rule 4): the same
+// records the phone writes, the same read-only map (field/map.js → map-core.js) and the same print
+// page (field/walk.js buildWalkExportHtml, reached through window.fieldWalk). Timeline rows, the
+// siteWalk Regarding type and the project tabs link here with
+// data-action="open-site-walk" data-id="<walkEventId>". The filed report is a `site-walk-report`
+// document on the opportunity whose `walkEventId` names the walk (siteWalkReportDocumentFor).
+const SITE_WALK_CHECKIN_FAR_METERS = 500;
+const SITE_WALK_CHECKIN_POOR_ACCURACY_METERS = 100;
+
+function findSiteWalkEvent(walkEventId) {
+  return walkEventId ? getScheduleEvents().find((event) => event.id === walkEventId && event.kind === "site_walk") || null : null;
+}
+
+function siteWalkReportForEvent(walkEventId) {
+  return walkEventId ? liveRows(state.backend.siteWalkReports).find((report) => report.walkEventId === walkEventId) || null : null;
+}
+
+// The project the walk carried over to: the report's or event's projectId, the opportunity's, or a
+// project created from the opportunity.
+function siteWalkProjectFor(walk, report) {
+  const opportunity = findOpportunity(walk?.opportunityId || report?.opportunityId || "");
+  const directId = report?.projectId || walk?.projectId || opportunity?.projectId || "";
+  const direct = directId ? findProject(directId) : null;
+  if (direct) return direct;
+  return opportunity ? state.projects.find((project) => project.opportunityId === opportunity.id && !project.deletedAt) || null : null;
+}
+
+// The newest version of the walk's filed report, or null.
+function siteWalkReportDocumentFor(walkEventId) {
+  const type = documentTypeByCode("site-walk-report");
+  if (!type || !walkEventId) return null;
+  return (
+    getDocuments()
+      .filter((document) => document.documentTypeId === type.id && document.walkEventId === walkEventId)
+      .sort((a, b) => Number(b.versionNumber || 1) - Number(a.versionNumber || 1) || String(b.uploadedAt || "").localeCompare(String(a.uploadedAt || "")))[0] || null
+  );
+}
+
+// The filed report's URL (it opens as a printable page), or "" when nothing is filed yet. For the live
+// print page use data-action="walk-export-pdf" data-walk-event-id="<walkEventId>".
+function siteWalkPrintUrl(walkEventId) {
+  const document = siteWalkReportDocumentFor(walkEventId);
+  return document ? `/api/documents/${encodeURIComponent(document.id)}/view` : "";
+}
+
+function openSiteWalkPage(walkEventId) {
+  if (!walkEventId) return;
+  if (!canAccessView("site-walk")) {
+    showToast("Your current role cannot open site walks.");
+    return;
+  }
+  state.selectedSiteWalkId = walkEventId;
+  state.view = "site-walk";
+  render();
+  app.focus({ preventScroll: true });
+}
+
+async function fileSiteWalkReport(walkEventId, button = null) {
+  if (!window.fieldWalk?.fileWalkReport) {
+    showToast("The walk module has not loaded yet. Try again in a moment.");
+    return;
+  }
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Filing…";
+  }
+  try {
+    const saved = await window.fieldWalk.fileWalkReport(walkEventId);
+    render();
+    if (saved?.unchanged) {
+      showToast("Nothing has changed since the last filed copy, so no new version was added.");
+      return;
+    }
+    showToast(`Walk report filed on the opportunity${Number(saved?.versionNumber || 1) > 1 ? ` as version ${saved.versionNumber}` : ""}.`);
+  } catch (error) {
+    showToast(error.message || "Could not file the walk report.");
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.textContent = "File report";
+    }
+  }
+}
+
+function siteWalkDistanceMeters(a, b) {
+  const rad = (degrees) => (degrees * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function formatSiteWalkDistance(meters) {
+  const feet = meters * 3.28084;
+  if (feet < 1000) return `${Math.round(feet).toLocaleString()} ft`;
+  const miles = meters / 1609.344;
+  return `${miles < 10 ? miles.toFixed(1) : Math.round(miles).toLocaleString()} mi`;
+}
+
+// Where the check-in was, against where the site is. The reference is the facility's own coordinates,
+// else a GPS point logged at the facility -- never the check-in's own point (the walk logs one at the
+// facility, and measuring the check-in against itself would always say 0 ft).
+function siteWalkCheckInAssessment(walk, report) {
+  const checkIn = report?.checkIn;
+  if (!checkIn) return null;
+  const real = (value) => value !== "" && value != null && Number.isFinite(Number(value));
+  const fix = real(checkIn.lat) && real(checkIn.lng) ? { lat: Number(checkIn.lat), lng: Number(checkIn.lng) } : null;
+  const facility = findFacility(walk?.facilityId || report.facilityId || "");
+  let reference = null;
+  let referenceLabel = "";
+  if (facility && real(facility.latitude) && real(facility.longitude)) {
+    reference = { lat: Number(facility.latitude), lng: Number(facility.longitude) };
+    referenceLabel = "the facility's coordinates";
+  } else if (facility) {
+    const samePoint = (location) => fix && Math.abs(Number(location.latitude) - fix.lat) < 1e-6 && Math.abs(Number(location.longitude) - fix.lng) < 1e-6;
+    const point = locationsForFacility(facility.id).filter(hasGpsCoordinates).find((location) => location.id !== checkIn.locationId && !samePoint(location));
+    if (point) {
+      reference = { lat: Number(point.latitude), lng: Number(point.longitude) };
+      referenceLabel = `a GPS point logged at the facility${point.name ? ` (${point.name})` : ""}`;
+    }
+  }
+  const accuracy = real(checkIn.accuracyM) ? Number(checkIn.accuracyM) : null;
+  const distance = fix && reference ? siteWalkDistanceMeters(fix, reference) : null;
+  const warnings = [];
+  if (!fix) warnings.push("No GPS fix at check-in, so nothing shows the walker was at the site.");
+  if (distance !== null && distance > SITE_WALK_CHECKIN_FAR_METERS) warnings.push(`Checked in ${formatSiteWalkDistance(distance)} from ${referenceLabel}. GPS may not be at the site.`);
+  if (fix && (accuracy === null || accuracy > SITE_WALK_CHECKIN_POOR_ACCURACY_METERS)) warnings.push(`${accuracy === null ? "No GPS accuracy was reported" : `GPS accuracy was poor (±${Math.round(accuracy)} m)`}. GPS may not be at the site; a laptop or desk position is often this far off.`);
+  return { checkIn, fix, facility, reference, referenceLabel, accuracy, distance, warnings };
+}
+
+function renderSiteWalkPhotoTile(document, label = "") {
+  const viewUrl = `/api/documents/${encodeURIComponent(document.id)}/view`;
+  const caption = document.caption || document.fileName || "Photo";
+  return `
+    <figure class="photo-tile">
+      <a href="${viewUrl}" target="_blank" rel="noopener" title="Open full size"><img src="${viewUrl}" alt="${escapeAttribute(caption)}" loading="lazy" /></a>
+      <figcaption>${escapeHtml(caption)}<small>${escapeHtml([label, document.uploadedAt ? formatDateTime(document.uploadedAt) : ""].filter(Boolean).join(" · "))}</small></figcaption>
+    </figure>
+  `;
+}
+
+function siteWalkFieldLabel(sectionKey, fieldKey) {
+  const section = (window.fieldWalk?.WALK_SECTIONS || []).find((item) => item.key === sectionKey);
+  return section?.fields?.find((field) => field.key === fieldKey)?.label || fieldKey.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+}
+
+function siteWalkFieldValue(value) {
+  if (Array.isArray(value)) return value.join(", ");
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  return String(value);
+}
+
+function renderSiteWalkPage() {
+  const walkEventId = state.selectedSiteWalkId || "";
+  const event = findSiteWalkEvent(walkEventId);
+  const report = siteWalkReportForEvent(walkEventId);
+  if (!event && !report) {
+    app.innerHTML = `
+      <section class="empty-state">
+        <h2>Site walk not found</h2>
+        <p>It may have been cancelled or deleted.</p>
+        <button class="secondary-button" type="button" data-action="nav-back">Back</button>
+      </section>
+    `;
+    return;
+  }
+  const walk = event || { id: walkEventId, title: "Site walk", facilityId: report.facilityId || "", opportunityId: report.opportunityId || "", participantEmployeeIds: [], date: String(report.startedAt || "").slice(0, 10), status: report.completedAt ? "Completed" : "" };
+  const opportunity = findOpportunity(walk.opportunityId || report?.opportunityId || "");
+  const account = findAccount(walk.accountId || opportunity?.accountId || "");
+  const facility = findFacility(walk.facilityId || report?.facilityId || "");
+  const project = siteWalkProjectFor(walk, report);
+  const observations = siteWalkObservationsForWalk(walkEventId);
+  const completed = Boolean(report?.completedAt) || walk.status === "Completed";
+  const status = completed ? "Completed" : walk.status === "Cancelled" ? "Cancelled" : report?.checkIn ? "In progress" : walk.status || "Scheduled";
+  const participants = siteWalkParticipants(walk);
+  const contactsMet = (report?.contactsMet || []).map((id) => ({ id, contact: findContact(id) }));
+  const assessment = siteWalkCheckInAssessment(walk, report);
+  const filed = siteWalkReportDocumentFor(walkEventId);
+  const sections = window.fieldWalk?.WALK_SECTIONS || [];
+  const sectionEntries = Object.entries(report?.sections || {});
+  const orderedSections = [...sections.filter((section) => report?.sections?.[section.key]).map((section) => [section.key, report.sections[section.key]]), ...sectionEntries.filter(([key]) => !sections.some((section) => section.key === key))];
+  const shownSections = orderedSections.filter(([, value]) => value && (value.done || Object.values(value.fields || {}).some((fieldValue) => fieldValue !== "" && fieldValue != null && !(Array.isArray(fieldValue) && !fieldValue.length)) || (value.photoDocumentIds || []).length));
+  const sketches = (report?.sketchDocumentIds || []).map(findDocument).filter((document) => document && !document.deletedAt);
+  const sketchIds = new Set(sketches.map((document) => document.id));
+  const photoLabels = new Map();
+  orderedSections.forEach(([key, value]) => {
+    const shotBy = new Map(Object.entries(value?.shots || {}).map(([label, id]) => [id, label]));
+    (value?.photoDocumentIds || []).forEach((id) => {
+      if (!photoLabels.has(id)) photoLabels.set(id, [walkSectionLabel(key), shotBy.get(id)].filter(Boolean).join(": "));
+    });
+  });
+  observations.forEach((row) => (row.photoDocumentIds || []).forEach((id) => photoLabels.has(id) || photoLabels.set(id, `Pin ${row.seq}${row.label ? ` · ${row.label}` : ""}`)));
+  const photos = [...photoLabels.entries()].filter(([id]) => !sketchIds.has(id)).map(([id, label]) => ({ document: findDocument(id), label })).filter((item) => item.document && !item.document.deletedAt);
+  const measurementRows = [
+    ...(report?.measurements || []).map((item) => ({
+      what: item.label || item.kind || "Measurement",
+      value: window.fieldWalk?.measurementDimensions ? window.fieldWalk.measurementDimensions(item) : `${item.value ?? ""} ${item.unit || ""}`.trim(),
+      method: `${window.fieldWalk?.measurementMethodLabel ? window.fieldWalk.measurementMethodLabel(item.method) : item.method || ""}${item.geometry ? ` (${(item.geometry.coordinates?.[0] || []).length} GPS points)` : ""}`,
+      note: item.note || "",
+      by: [item.by, item.at ? formatDateTime(item.at) : ""].filter(Boolean).join(" · "),
+    })),
+    ...observations
+      .filter((row) => row.areaSqFt || row.lengthFt)
+      .map((row) => ({
+        what: `Map ${row.geometry ? "shape" : "pin"} ${row.seq}${row.label ? ` · ${row.label}` : ""}`,
+        value: [row.areaSqFt ? `${Math.round(row.areaSqFt).toLocaleString()} sq ft` : "", row.lengthFt ? `${Math.round(row.lengthFt).toLocaleString()} ft` : ""].filter(Boolean).join(" · "),
+        method: "Drawn on the map",
+        note: row.note || "",
+        by: [row.createdBy, row.createdAt ? formatDateTime(row.createdAt) : ""].filter(Boolean).join(" · "),
+      })),
+  ];
+  const needs = opportunity ? Object.values(OPPORTUNITY_NEEDS_LIST_CONFIG).map((config) => ({ title: config.title, items: opportunity[config.field] || [] })).filter((group) => group.items.length) : [];
+  const shares = report?.shares || [];
+  const summaryMap = window.fieldMap?.renderWalkMapSummary?.({ walkEventId }, { height: 460 }) || null;
+  if (summaryMap) scheduleWalkMapMount();
+  const when = `${walk.date ? formatDate(walk.date) : "No date"}${walk.startTime ? ` ${walk.startTime}` : ""}${walk.endTime && walk.endTime > (walk.startTime || "") ? `–${walk.endTime}` : ""}`;
+  const checkInPanelClass = assessment?.warnings.length ? "panel-needs-attention" : "";
+
+  app.innerHTML = `
+    <section class="view">
+      <div class="account-detail-shell site-walk-page" data-site-walk-page="${escapeAttribute(walkEventId)}">
+        <div class="account-hero">
+          <div class="account-hero-identity">
+            <span class="person-avatar large">SW</span>
+            <div>
+              <div class="account-hero-backrow">
+                ${opportunity ? `<button class="text-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">Back to ${escapeHtml(opportunity.name)}</button>` : `<button class="text-button" type="button" data-action="nav-back">Back</button>`}
+              </div>
+              <h2>${escapeHtml(walk.title || "Site walk")}</h2>
+              <p class="eyebrow">Site walk · ${escapeHtml(when)}</p>
+              <p class="site-walk-page-links">
+                ${facility ? `<span>Facility <button class="link-button" type="button" data-action="view-facility" data-id="${escapeAttribute(facility.id)}">${escapeHtml(facility.name)}</button></span>` : ""}
+                ${account ? `<span>Account <button class="link-button" type="button" data-action="view-account" data-id="${escapeAttribute(account.id)}">${escapeHtml(account.name)}</button></span>` : ""}
+                ${opportunity ? `<span>Opportunity <button class="link-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">${escapeHtml(opportunity.name)}</button></span>` : ""}
+                ${project ? `<span>Project <button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(project.id)}">${escapeHtml(project.name || project.id)}</button></span>` : ""}
+              </p>
+            </div>
+          </div>
+          <div class="account-hero-stats">
+            <span class="stage-badge">${escapeHtml(status)}</span>
+            ${assessment?.warnings.length ? `<span class="risk-badge high" title="${escapeAttribute(assessment.warnings.join(" "))}">Check-in location doubtful</span>` : ""}
+          </div>
+        </div>
+        <div class="inline-actions site-walk-page-actions">
+          ${event ? `<button class="primary-button" type="button" data-action="walk-export-pdf" data-walk-event-id="${escapeAttribute(walkEventId)}">Print / Save as PDF</button>` : ""}
+          ${event && (opportunity || report?.opportunityId) ? `<button class="secondary-button" type="button" data-action="site-walk-file-report" data-id="${escapeAttribute(walkEventId)}">${filed ? "File report again" : "File report"}</button>` : ""}
+          ${filed ? `<a class="secondary-button" href="/api/documents/${encodeURIComponent(filed.id)}/view" target="_blank" rel="noopener" data-site-walk-filed-report>Filed report (v${Number(filed.versionNumber || 1)}, ${escapeHtml(formatDateTime(filed.uploadedAt))})</a>` : ""}
+          ${report ? `<button class="secondary-button" type="button" data-action="walk-share-mint" data-report-id="${escapeAttribute(report.id)}">Create share link</button>` : ""}
+          ${event ? `<button class="secondary-button" type="button" data-action="walk-open-field" data-walk-event-id="${escapeAttribute(walkEventId)}">Open in phone view</button>` : ""}
+          ${event && observations.length ? `<button class="secondary-button" type="button" data-action="walk-export-zip" data-walk-event-id="${escapeAttribute(walkEventId)}">Site package</button>` : ""}
+        </div>
+        <section class="crm-profile-grid">
+          <div class="detail-stack">
+            <article class="panel">
+              <div class="panel-header"><h3>Who and when</h3></div>
+              <div class="panel-body">
+                <dl class="detail-list">
+                  <div><dt>Scheduled</dt><dd>${escapeHtml(when)}</dd></div>
+                  <div><dt>Lead</dt><dd>${participants[0] ? `<button class="link-button" type="button" data-action="view-employee" data-id="${escapeAttribute(participants[0].id)}">${escapeHtml(participants[0].displayName)}</button>` : "Nobody assigned"}</dd></div>
+                  <div><dt>BioRemedy attendees</dt><dd>${participants.length > 1 ? participants.slice(1).map((person) => `<button class="link-button" type="button" data-action="view-employee" data-id="${escapeAttribute(person.id)}">${escapeHtml(person.displayName)}</button>`).join(", ") : participants.length ? "Lead only" : "None"}</dd></div>
+                  <div><dt>Customer contacts met</dt><dd>${contactsMet.length ? contactsMet.map(({ id, contact }) => (contact ? `<button class="link-button" type="button" data-action="view-contact" data-id="${escapeAttribute(id)}">${escapeHtml(contact.name)}</button>` : escapeHtml(id))).join(", ") : "None recorded"}</dd></div>
+                  <div><dt>Started</dt><dd>${report?.startedAt || report?.checkIn?.at ? escapeHtml(formatDateTime(report.startedAt || report.checkIn.at)) : "Not started"}${report?.createdBy ? ` by ${escapeHtml(report.createdBy)}` : ""}</dd></div>
+                  <div><dt>Completed</dt><dd>${report?.completedAt ? `${escapeHtml(formatDateTime(report.completedAt))}${report.completedBy ? ` by ${escapeHtml(report.completedBy)}` : ""}` : "Not completed"}</dd></div>
+                  ${walk.notes ? `<div><dt>Scheduling notes</dt><dd>${escapeHtml(walk.notes)}</dd></div>` : ""}
+                </dl>
+              </div>
+            </article>
+            <article class="panel ${checkInPanelClass}" data-site-walk-checkin>
+              <div class="panel-header"><h3>Check-in</h3></div>
+              <div class="panel-body">
+                ${
+                  assessment
+                    ? `
+                      ${assessment.warnings.length ? `<div class="site-walk-warning" role="alert">${assessment.warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("")}</div>` : ""}
+                      <dl class="detail-list">
+                        <div><dt>Time</dt><dd>${escapeHtml(formatDateTime(assessment.checkIn.at))}</dd></div>
+                        <div><dt>Position</dt><dd>${assessment.fix ? `${assessment.fix.lat.toFixed(6)}, ${assessment.fix.lng.toFixed(6)}` : "No GPS fix"}</dd></div>
+                        <div><dt>Accuracy</dt><dd>${assessment.accuracy !== null ? `±${Math.round(assessment.accuracy)} m` : "Not reported"}</dd></div>
+                        <div><dt>Distance from the site</dt><dd>${assessment.distance !== null ? `${escapeHtml(formatSiteWalkDistance(assessment.distance))} from ${escapeHtml(assessment.referenceLabel)}` : assessment.fix ? "Unknown: the facility has no coordinates of its own" : "Unknown"}</dd></div>
+                      </dl>`
+                    : `<div class="empty-state compact">${completed ? "Completed without a check-in." : "Not checked in yet."}</div>`
+                }
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><h3>Summary</h3>${opportunity ? `<span class="tag">Opportunity site walk: ${escapeHtml(opportunity.siteWalkStatus || "Incomplete")}</span>` : ""}</div>
+              <div class="panel-body">
+                <p class="site-walk-summary-text">${escapeHtml(report?.summary || "No summary written.")}</p>
+                ${report?.needs?.samplingNeeded ? `<p><span class="tag">Sampling needed</span></p>` : ""}
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><h3>Checklist</h3><span>${sections.filter((section) => report?.sections?.[section.key]?.done).length} of ${sections.length || orderedSections.length} sections complete</span></div>
+              <div class="panel-body site-walk-sections">
+                ${
+                  shownSections.length
+                    ? shownSections
+                        .map(([key, value]) => {
+                          const fields = Object.entries(value.fields || {}).filter(([, fieldValue]) => fieldValue !== "" && fieldValue != null && !(Array.isArray(fieldValue) && !fieldValue.length));
+                          const sectionPhotos = (value.photoDocumentIds || []).map(findDocument).filter((document) => document && !document.deletedAt);
+                          return `
+                            <details class="site-walk-section" open>
+                              <summary>${value.done ? '<span class="site-walk-done" aria-label="Complete">✓</span>' : '<span class="site-walk-open" aria-label="Not complete">○</span>'} ${escapeHtml(walkSectionLabel(key))}${sectionPhotos.length ? ` · ${sectionPhotos.length} photo${sectionPhotos.length === 1 ? "" : "s"}` : ""}</summary>
+                              ${fields.length ? `<dl class="detail-list">${fields.map(([fieldKey, fieldValue]) => `<div><dt>${escapeHtml(siteWalkFieldLabel(key, fieldKey))}</dt><dd>${escapeHtml(siteWalkFieldValue(fieldValue))}</dd></div>`).join("")}</dl>` : ""}
+                              ${sectionPhotos.length ? `<div class="photo-grid">${sectionPhotos.map((document) => renderSiteWalkPhotoTile(document, photoLabels.get(document.id) || "")).join("")}</div>` : ""}
+                            </details>`;
+                        })
+                        .join("")
+                    : `<div class="empty-state compact">Nothing recorded in the checklist.</div>`
+                }
+              </div>
+            </article>
+          </div>
+          <div class="detail-stack">
+            <article class="panel">
+              <div class="panel-header"><div><h3>Site map</h3><span>${observations.length} pin${observations.length === 1 ? "" : "s"} &amp; shapes${(report?.referenceSnapshot?.layers || []).length ? ` · ${report.referenceSnapshot.layers.length} reference layer${report.referenceSnapshot.layers.length === 1 ? "" : "s"}` : ""}</span></div></div>
+              <div class="panel-body">${summaryMap ? summaryMap.html : `<div class="empty-state compact">The map module has not loaded.</div>`}</div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><h3>Measurements</h3></div>
+              <div class="panel-body">
+                ${
+                  measurementRows.length
+                    ? `<div class="data-table-scroll"><table class="data-table site-walk-measurements"><thead><tr><th>What</th><th>Value</th><th>Method</th><th>Note</th><th>By</th></tr></thead><tbody>${measurementRows.map((row) => `<tr><td>${escapeHtml(row.what)}</td><td>${escapeHtml(row.value)}</td><td>${escapeHtml(row.method)}</td><td>${escapeHtml(row.note)}</td><td>${escapeHtml(row.by)}</td></tr>`).join("")}</tbody></table></div>`
+                    : `<div class="empty-state compact">Nothing measured.</div>`
+                }
+              </div>
+            </article>
+            <article class="panel" data-site-walk-sketches>
+              <div class="panel-header"><h3>Sketches</h3></div>
+              <div class="panel-body">
+                ${sketches.length ? `<div class="photo-grid site-walk-sketch-grid">${sketches.map((document) => renderSiteWalkPhotoTile(document, "Sketch")).join("")}</div>` : `<div class="empty-state compact">No sketches on this walk.</div>`}
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-header"><h3>Needs</h3></div>
+              <div class="panel-body">
+                ${
+                  needs.length || report?.needs?.samplingNeeded
+                    ? `<dl class="detail-list">${needs.map((group) => `<div><dt>${escapeHtml(group.title)}</dt><dd class="site-walk-needs">${renderOpportunityNeedsChips(group.items)}</dd></div>`).join("")}${report?.needs?.samplingNeeded ? `<div><dt>Sampling</dt><dd>Needed</dd></div>` : ""}</dl>`
+                    : `<div class="empty-state compact">No needs recorded on the opportunity.</div>`
+                }
+              </div>
+            </article>
+            <article class="panel">
+              <div class="panel-header">
+                <h3>Share links</h3>
+                ${report ? `<button class="mini-button" type="button" data-action="walk-open-share" data-report-id="${escapeAttribute(report.id)}">Manage</button>` : ""}
+              </div>
+              <div class="panel-body record-list">
+                ${
+                  shares.length
+                    ? shares
+                        .map((share) => {
+                          const url = share.url ? (share.url.startsWith("http") ? share.url : `${location.origin}${share.url}`) : "";
+                          return `
+                            <div class="detail-card">
+                              <div class="row-meta">
+                                <div><strong>${share.audience === "customer" ? "Customer link" : "Staff link"} · ${share.revokedAt ? "Revoked" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`}</strong><span>Created ${escapeHtml(formatDateTime(share.createdAt))}${share.createdBy ? ` by ${escapeHtml(share.createdBy)}` : ""} · ${Number(share.opens || 0)} open${Number(share.opens || 0) === 1 ? "" : "s"}</span></div>
+                                ${url && !share.revokedAt ? `<button class="mini-button" type="button" data-action="site-walk-copy-share" data-url="${escapeAttribute(url)}">Copy</button>` : ""}
+                              </div>
+                              ${url ? `<code class="file-ref">${escapeHtml(url)}</code>` : `<p class="help-text">The link itself was only shown when it was created.</p>`}
+                            </div>`;
+                        })
+                        .join("")
+                    : `<div class="empty-state compact">No share links yet.</div>`
+                }
+              </div>
+            </article>
+          </div>
+          <article class="panel crm-profile-grid-full">
+            <div class="panel-header"><div><h3>Photos</h3><span>${photos.length} from the checklist and the map pins</span></div></div>
+            <div class="panel-body">
+              ${photos.length ? `<div class="photo-grid">${photos.map((item) => renderSiteWalkPhotoTile(item.document, item.label)).join("")}</div>` : `<div class="empty-state compact">No photos on this walk.</div>`}
+            </div>
+          </article>
+        </section>
+      </div>
+    </section>
   `;
 }
 
@@ -35466,6 +35881,10 @@ export {
   getInitials,
   siteWalkReportsForOpportunity,
   siteWalkObservationsForWalk,
+  // Phase 25 B.4/B.5: the site walk page and its filed report
+  siteWalkReportDocumentFor,
+  siteWalkPrintUrl,
+  openSiteWalkPage,
 
   // Pass 1 items 4/5/6/7 (2026-09-28)
   SPILL_SURFACE_OPTIONS,

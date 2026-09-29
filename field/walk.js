@@ -14,9 +14,9 @@
 import * as crm from "../app.js";
 import { registerFieldRoute, registerFieldAction, registerFieldForm, registerSalesHomeSection, currentFieldEmployee } from "./index.js";
 import { fieldRequest, saveFieldRecord } from "./package.js";
-import { createSiteMap, walkReportForEvent, observationsForWalk, photoUrl, thumbUrl, uploadSiteDocument, backgroundsForReport, facilityCenter, renderObservationLine, choosePhotoSource, addWalkPhotos, runWalkPhotoAction, releaseWalkDocument, walkPhotoCandidates } from "./map.js";
+import { createSiteMap, walkReportForEvent, observationsForWalk, photoUrl, thumbUrl, uploadSiteDocument, backgroundsForReport, facilityCenter, renderObservationLine, choosePhotoSource, addWalkPhotos, runWalkPhotoAction, releaseWalkDocument, walkPhotoCandidates, documentTypeIdByCode } from "./map.js";
 import { snapshotReferenceLayers, bboxAround } from "./layers.js";
-import { PIN_KINDS, SHAPE_KINDS, SHAPE_COLORS } from "./map-core.js";
+import { PIN_KINDS, SHAPE_KINDS, SHAPE_COLORS, renderPrintMaps, rasterizeMapElement } from "./map-core.js";
 
 const esc = (value) => crm.escapeHtml(value ?? "");
 const attr = (value) => crm.escapeAttribute(value ?? "");
@@ -1130,6 +1130,13 @@ registerFieldAction("walk-complete", async (button) => {
     }
     crm.render();
     crm.showToast(serverDidIt ? "Walk completed." : "Walk completed (recorded by the app; the server command is not deployed yet).");
+    // Phase 25 B.5: file the report on the opportunity in the background. It needs the network (map
+    // tiles and the upload); offline, the office files it later from the walk page.
+    if (navigator.onLine !== false && walk.opportunityId) {
+      fileWalkReport(walk.id)
+        .then(() => crm.showToast("Walk report filed on the opportunity."))
+        .catch(() => crm.showToast("The walk report could not be filed yet. File it from the walk page in the office app."));
+    }
   } catch (error) {
     button.disabled = false;
     button.textContent = "Complete walk";
@@ -1384,10 +1391,116 @@ export function exportWalkPdf(walkEventId) {
   try {
     const bundle = walkBundle(walkEventId);
     crm.openPrintWindow(buildWalkExportHtml(bundle), "site walk report");
-    crm.showToast("The print page is the PDF: it prints itself once the map tiles have loaded (Save as PDF in the print dialog). A file could not be produced in the browser without a PDF library, so nothing is filed automatically.");
+    crm.showToast("The print page is the PDF: it prints itself once the map tiles have loaded (Save as PDF in the print dialog). A copy is filed on the opportunity when the walk is completed, and again with File report on the walk page.");
   } catch (error) {
     crm.showToast(error.message || "Could not export the walk.");
   }
+}
+
+// ---- the filed report (Phase 25 B.5, 2026-09-29) ----
+//
+// The same print page, stored as a `site-walk-report` document on the opportunity: a self-contained
+// HTML snapshot (no PDF library in the app, so no real PDF). Scripts are stripped -- the server also
+// serves stored HTML with a script-blocking sandbox -- so the Leaflet map is captured as a picture
+// first: the print maps are mounted off screen, rasterised once their tiles load, and dropped in
+// where the print page would have drawn them live. Photos and sketches stay links to their document
+// URLs (auth-gated, like every other document; this is an internal document).
+export const WALK_REPORT_TYPE_CODE = "site-walk-report";
+
+async function renderStaticWalkMaps(bundle) {
+  if (!window.L || typeof document === "undefined") return [];
+  const { walk, report, observations } = bundle;
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  host.style.cssText = "position:fixed;left:-20000px;top:0;width:860px;pointer-events:none;";
+  document.body.appendChild(host);
+  let figures = [];
+  try {
+    const layers = (report.referenceSnapshot?.layers || []).map((layer) => ({ id: layer.layerId, label: layer.label, kind: layer.kind, geojson: layer.geojson, source: layer.source, sourceDate: layer.sourceDate, visible: true }));
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 9000);
+      figures = renderPrintMaps(host, {
+        center: facilityCenter(walk.facilityId),
+        observations,
+        backgrounds: backgroundsForReport(report),
+        layers,
+        photoUrl,
+        onAllTilesLoaded: () => {
+          clearTimeout(timer);
+          resolve();
+        },
+      });
+    });
+    // The pins declutter just after the first paint.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const images = [];
+    for (const figure of figures) {
+      const dataUrl = await rasterizeMapElement(figure.element);
+      if (dataUrl) images.push({ title: figure.title, dataUrl });
+    }
+    return images;
+  } finally {
+    figures.forEach((figure) => figure.api?.destroy?.());
+    host.remove();
+  }
+}
+
+export async function buildWalkReportSnapshot(walkEventId, { filedBy = "" } = {}) {
+  const bundle = walkBundle(walkEventId);
+  let images = [];
+  try {
+    images = await renderStaticWalkMaps(bundle);
+  } catch {
+    images = [];
+  }
+  const filedAt = new Date().toISOString();
+  let html = buildWalkExportHtml(bundle, { origin: "" });
+  html = html.replace(/<script\b[\s\S]*?<\/script>/gi, "");
+  html = html.replace(/<link rel="stylesheet" href="\/public\/vendor\/leaflet\/leaflet\.css" \/>/, "");
+  html = html.replace(/<div class="print-doc-actions">[\s\S]*?<\/div>/, () => `<p class="walk-filed-note">Filed copy of the site walk report, ${esc(crm.formatDateTime(filedAt))}${filedBy ? ` by ${esc(filedBy)}` : ""}. Print it from the browser (Ctrl+P). The walk page in the app has the live map.</p>`);
+  const maps = images.length
+    ? images.map((image) => `<figure class="sitemap-print-figure">${image.title ? `<figcaption class="sitemap-print-figure-title">${esc(image.title)}</figcaption>` : ""}<img class="walk-static-map" src="${image.dataUrl}" alt="${attr(`Site map${image.title ? ` — ${image.title}` : ""}`)}" /></figure>`).join("")
+    : `<p class="walk-fineprint">The map could not be captured when this copy was filed; every pin and shape is listed under Observations. Open the walk page in the app for the live map.</p>`;
+  html = html.replace(/<div id="walkPrintMaps" class="walk-print-maps"><\/div>/, () => `<div class="walk-print-maps">${maps}</div>`);
+  html = html.replace("</style>", () => ".walk-static-map { display: block; width: 100%; height: auto; border: 1px solid #d8dee6; border-radius: 6px; } .walk-filed-note { font-size: 0.78rem; color: #555; margin: 0 0 10px; } @media print { .walk-filed-note { display: none; } }</style>");
+  return html;
+}
+
+// Files (or re-files, as the next version in the same document group) the walk's report on its
+// opportunity. Returns the saved documents row.
+export async function fileWalkReport(walkEventId) {
+  const walk = crm.getScheduleEvents().find((event) => event.id === walkEventId);
+  if (!walk) throw new Error("Walk not found.");
+  const report = walkReportForEvent(walk.id);
+  const opportunityId = walk.opportunityId || report?.opportunityId || "";
+  if (!opportunityId) throw new Error("This walk has no opportunity to file its report on.");
+  const typeId = documentTypeIdByCode(WALK_REPORT_TYPE_CODE);
+  if (!typeId) throw new Error("The Site walk report document type is not on the server yet (it needs the server update).");
+  const filedBy = crm.currentActorName ? crm.currentActorName() : crm.state.currentUser?.name || "";
+  const html = await buildWalkReportSnapshot(walk.id, { filedBy });
+  const facility = crm.findFacility(walk.facilityId || report?.facilityId || "");
+  const date = String(walk.date || report?.completedAt || crm.todayIso()).slice(0, 10);
+  const place = String(facility?.name || walk.title || "site").replace(/[^a-zA-Z0-9._() -]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 100) || "site";
+  const previous = crm.siteWalkReportDocumentFor(walk.id);
+  const file = new File([html], `Site walk report - ${place} - ${date}.html`, { type: "text/html" });
+  let saved;
+  try {
+    saved = await crm.uploadRawFile("/api/documents", file, {
+      "X-Entity-Type": "opportunity",
+      "X-Entity-Id": opportunityId,
+      "X-Document-Type": typeId,
+      "X-Group-Id": previous ? previous.groupId || previous.id : "",
+      "X-Visibility": "internal",
+      "X-Caption": encodeURIComponent(`Site walk report${facility ? ` — ${facility.name}` : ""}`.slice(0, 200)),
+      "X-Walk-Event-Id": walk.id,
+    });
+  } catch (error) {
+    // The same bytes are already filed (refiled within the minute with nothing changed).
+    if (error?.status === 409 && error.payload?.duplicate) return { ...(previous || {}), id: error.payload.documentId, unchanged: true };
+    throw error;
+  }
+  await crm.refreshBackendState();
+  return saved;
 }
 
 // ---- zip (a real ZIP container, deflate via CompressionStream; no library) ----
@@ -1556,6 +1669,10 @@ window.fieldWalk = {
   mintShareLink,
   revokeShareLink,
   buildWalkExportHtml: (walkEventId) => buildWalkExportHtml(walkBundle(walkEventId)),
+  // Phase 25 B.4/B.5 (2026-09-29): the desktop walk page reuses these rather than forking them.
+  fileWalkReport,
+  measurementDimensions,
+  measurementMethodLabel,
   openWalk(walkEventId, tab = "brief") {
     crm.state.fieldWalkEventId = walkEventId;
     crm.state.fieldWalkTab = tab;
