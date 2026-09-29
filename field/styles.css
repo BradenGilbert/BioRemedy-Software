@@ -1046,6 +1046,178 @@ body[data-theme="dark"] .markup-canvas-wrap {
   margin-bottom: 4px;
 }
 
+/* Phase 25 items 5-7 (2026-09-29): tray tiles are buttons that open the photo sheet. */
+button.field-shot {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  width: 100%;
+}
+
+button.field-shot:not(.is-filled) {
+  padding-bottom: 0;
+}
+
+.field-sketch-strip {
+  display: grid;
+  gap: 6px;
+}
+
+.field-button--danger {
+  background: var(--field-bad);
+  color: #fff;
+}
+
+dialog.field-photo-sheet {
+  width: min(520px, 100vw);
+  max-width: 100vw;
+  max-height: 88dvh;
+  margin: auto auto 0;
+  padding: 0 0 max(12px, env(safe-area-inset-bottom));
+  border: 0;
+  border-radius: 18px 18px 0 0;
+  background: var(--surface, #fff);
+  color: var(--text, #13241b);
+  overflow: auto;
+}
+
+dialog.field-photo-sheet::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.field-photo-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px 6px;
+}
+
+.field-photo-sheet-close {
+  min-width: var(--field-tap);
+  min-height: var(--field-tap);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.4rem;
+}
+
+.field-photo-sheet-actions {
+  display: grid;
+  gap: 8px;
+  padding: 6px 16px 4px;
+}
+
+.field-photo-sheet-actions--row {
+  grid-template-columns: 1fr 1fr;
+}
+
+.field-photo-sheet-upload {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.field-photo-sheet-upload input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.field-photo-sheet-upload .camera-capture-button {
+  position: relative;
+  z-index: 1;
+}
+
+.field-photo-sheet-preview {
+  margin: 0 16px 6px;
+}
+
+.field-photo-sheet-preview img {
+  display: block;
+  width: 100%;
+  max-height: 42dvh;
+  object-fit: contain;
+  border-radius: 10px;
+  background: var(--surface-alt, #eef7ef);
+}
+
+.field-photo-sheet-preview figcaption {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted, #5b6b62);
+}
+
+.field-photo-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 6px 16px;
+}
+
+.field-photo-pick {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  border: 3px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface-alt, #eef7ef);
+  color: inherit;
+  font: inherit;
+  font-size: 0.7rem;
+  text-align: left;
+}
+
+.field-photo-pick img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.field-photo-pick span {
+  padding: 0 4px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-photo-pick.is-picked {
+  border-color: var(--field-accent);
+}
+
+.field-photo-pick.is-picked::after {
+  content: "✓";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--field-accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+button.sitemap-photo {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+button.sitemap-photo-add {
+  font: inherit;
+  font-weight: 700;
+}
+
 .field-inline-form {
   display: flex;
   gap: 6px;

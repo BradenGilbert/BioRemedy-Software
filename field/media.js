@@ -8,7 +8,7 @@
 // Exposed to the rest of the app (and to app.js, which cannot import this module at the top level
 // because the app.js <-> field/*.js graph is circular) on `window.fieldMedia`.
 import * as crm from "../app.js";
-import { fieldRequest, saveFieldRecord, uploadFieldFile } from "./package.js";
+import { fieldRequest, saveFieldRecord, uploadFieldFile, mergeRow, pendingUploadUrl } from "./package.js";
 import { isPhoneSurface } from "./index.js";
 
 const COLORS = { red: "#e11d48", orange: "#f97316", yellow: "#eab308", blue: "#2563eb" };
@@ -88,10 +88,26 @@ async function resolveMarkupSource(source) {
   if (typeof source === "string") return { image: await loadImage(source), priorStrokes: null };
   if (source instanceof Blob) return { image: await loadImage(URL.createObjectURL(source)), priorStrokes: null };
   if (source && typeof source === "object" && source.id && "fileName" in source) {
-    const image = await loadImage(`/api/documents/${encodeURIComponent(source.id)}/view`);
-    return { image, priorStrokes: safeParseMarkup(source.markup) };
+    // Phase 25 item 7 (2026-09-29): a marked-up version's pixels already carry its strokes. Draw the
+    // strokes over the stroke-free version beneath it in the same group, so they stay editable and are
+    // never painted twice. With no such version (older markups), start clean on the marked image.
+    const strokes = safeParseMarkup(source.markup);
+    const base = strokes ? markupBaseFor(source) : null;
+    const imageDocument = base || source;
+    const image = await loadImage(pendingUploadUrl(imageDocument.id) || `/api/documents/${encodeURIComponent(imageDocument.id)}/view`);
+    return { image, priorStrokes: base ? strokes : null };
   }
   throw new Error("Unrecognized image source.");
+}
+
+function markupBaseFor(document) {
+  const key = document.groupId || document.id;
+  const version = Number(document.versionNumber || 1);
+  return (
+    (crm.state.backend.documents || [])
+      .filter((row) => !row.deletedAt && (row.groupId || row.id) === key && Number(row.versionNumber || 1) < version && !safeParseMarkup(row.markup))
+      .sort((a, b) => Number(b.versionNumber || 1) - Number(a.versionNumber || 1))[0] || null
+  );
 }
 
 function setMarkupImage(image, priorStrokes) {
@@ -271,6 +287,16 @@ function wireMarkupDialog() {
   dialog.querySelector("[data-field-action='markup-save']").addEventListener("click", () => saveMarkup());
 }
 
+// The image the strokes were drawn over, with no strokes (the sketch's stroke-free version 1).
+async function exportMarkupBaseBlob() {
+  const source = markupDialog().querySelector("[data-markup-canvas]");
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  canvas.getContext("2d").drawImage(markupState.image, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Could not export the image."))), "image/png"));
+}
+
 async function exportMarkupBlob() {
   const canvas = markupDialog().querySelector("[data-markup-canvas]");
   return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Could not export the image."))), "image/png"));
@@ -288,24 +314,51 @@ async function saveMarkup() {
     let result;
     if (opts.upload !== false && opts.entityType && opts.entityId) {
       const type = crm.documentTypeByCode(opts.documentType || "job-photo");
-      const file = new File([blob], `markup-${Date.now()}.png`, { type: "image/png" });
       const headers = {
         "X-Entity-Type": opts.entityType,
         "X-Entity-Id": opts.entityId,
         "X-Document-Type": type?.id || "",
-        "X-Group-Id": opts.groupId || markupState.sourceDocument?.groupId || markupState.sourceDocument?.id || "",
         "X-Visibility": markupState.sourceDocument?.visibility || "internal",
         "X-Caption": encodeURIComponent(caption || markupState.sourceDocument?.caption || ""),
       };
-      result = await uploadFieldFile("/api/documents", file, headers);
-      try {
-        // Keeps the strokes so re-opening this version loads them back. The generic metadata route
-        // (server.mjs) only whitelists visibility/caption/tags/documentTypeId/retainUntil today; W1
-        // is extending it to also keep `markup` (see phase-21-frontline-2.md corrections). Until that
-        // ships this call is a harmless no-op for the markup field specifically.
-        await saveFieldRecord("documents", { ...result, markup: JSON.stringify(markupState.strokes) });
-      } catch {
-        // best effort
+      // Phase 25 items 5/7 (2026-09-29): a client-chosen id, so a markup made offline still hands back
+      // a row (a stand-in until the outbox uploads it) the walk can reference; a byte-identical file
+      // already on the record (409) resolves to that row instead of failing.
+      const upload = async (fileBlob, name, groupId) => {
+        try {
+          const saved = await uploadFieldFile("/api/documents", new File([fileBlob], name, { type: "image/png" }), { ...headers, "X-Group-Id": groupId, "X-Document-Id": crm.makeId("document") });
+          if (saved?.id && !saved.pendingUpload) mergeRow("documents", saved);
+          return saved;
+        } catch (error) {
+          const existingId = error?.status === 409 ? error.payload?.documentId : "";
+          if (!existingId) throw error;
+          return { ...((crm.state.backend.documents || []).find((row) => row.id === existingId) || {}), id: existingId, duplicate: true };
+        }
+      };
+      let groupId = opts.groupId || markupState.sourceDocument?.groupId || markupState.sourceDocument?.id || "";
+      // Item 9: a sketch is drawn over a generated canvas (satellite snapshot or grid). That canvas,
+      // unmarked, is kept as version 1 of the sketch's group so re-opening the sketch edits its strokes.
+      if (opts.keepBase && !groupId) {
+        try {
+          const base = await upload(await exportMarkupBaseBlob(), `sketch-base-${Date.now()}.png`, "");
+          // A base identical to one already filed (the same snapshot) would merge two sketches into one group.
+          groupId = base && !base.duplicate ? base.groupId || base.id || "" : "";
+        } catch {
+          groupId = "";
+        }
+      }
+      result = await upload(blob, `markup-${Date.now()}.png`, groupId);
+      if (result?.id) {
+        const markup = JSON.stringify(markupState.strokes);
+        result = { ...result, markup };
+        mergeRow("documents", result);
+        try {
+          // Keeps the strokes on this version, so re-opening it loads them back as editable vectors.
+          const saved = await saveFieldRecord("documents", result);
+          if (saved?.id) mergeRow("documents", saved);
+        } catch {
+          // best effort
+        }
       }
     } else {
       result = { blob, dataUrl: canvas_toDataUrlSafe(dialog), strokes: structuredClone(markupState.strokes), caption };
@@ -331,7 +384,13 @@ function canvas_toDataUrlSafe(dialog) {
 }
 
 // ---- Site sketch: markup over a satellite snapshot (or a blank grid offline) ------------------
-export async function openSiteSketch({ opportunityId = "", dispatchJobId = "", facilityId = "" } = {}) {
+// Phase 25 item 9 (2026-09-29): `walkReportId` files the sketch on the walk report when the walk has no
+// opportunity (entityType siteWalk); `document` re-opens a saved sketch to edit it (a new version).
+export async function openSiteSketch({ opportunityId = "", dispatchJobId = "", facilityId = "", walkReportId = "", document: existing = null } = {}) {
+  if (existing?.id) {
+    const localCopy = existing.pendingUpload ? pendingUploadUrl(existing.id) : "";
+    return openImageMarkup(localCopy || existing, { entityType: existing.entityType, entityId: existing.entityId, documentType: "site-sketch", groupId: existing.groupId || existing.id, caption: existing.caption || "Site sketch", title: "Edit site sketch" });
+  }
   const facility = facilityId ? crm.findFacility(facilityId) : null;
   const lat = Number(facility?.latitude);
   const lng = Number(facility?.longitude);
@@ -346,8 +405,23 @@ export async function openSiteSketch({ opportunityId = "", dispatchJobId = "", f
     canvas = renderBlankGrid();
   }
   const entityType = dispatchJobId ? "dispatchJob" : opportunityId ? "opportunity" : "siteWalk";
-  const entityId = dispatchJobId || opportunityId || "";
-  return openImageMarkup(canvas, { entityType, entityId, documentType: "site-sketch", title: "Site sketch" });
+  const entityId = dispatchJobId || opportunityId || walkReportId || "";
+  stampSketch(canvas);
+  return openImageMarkup(canvas, { entityType, entityId, documentType: "site-sketch", title: "Site sketch", caption: "Site sketch", keepBase: true });
+}
+
+// When the sketch was started, in the corner of the base image -- useful on paper, and it keeps two
+// sketches of the same spot from being byte-identical (the upload de-dup would otherwise merge them).
+function stampSketch(canvas) {
+  const context = canvas.getContext("2d");
+  const label = `Sketched ${new Date().toLocaleString([], { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
+  context.font = "12px sans-serif";
+  const width = context.measureText(label).width + 12;
+  context.fillStyle = "rgba(255,255,255,0.8)";
+  context.fillRect(canvas.width - width - 8, 8, width, 20);
+  context.fillStyle = "#333333";
+  context.textBaseline = "middle";
+  context.fillText(label, canvas.width - width - 2, 18);
 }
 
 function tileXY(lat, lng, zoom) {
@@ -742,25 +816,46 @@ function wireMeasurementsDialog() {
   const dialog = measurementsDialog();
   if (!dialog) return;
   measurementsWired = true;
-  dialog.querySelector("[data-field-action='measurements-cancel']").addEventListener("click", () => {
+  // Both the header × and the bottom Close (only the first was wired before 2026-09-29).
+  dialog.querySelectorAll("[data-field-action='measurements-cancel']").forEach((button) =>
+    button.addEventListener("click", () => {
+      stopGpsWalk();
+      dialog.close();
+    }),
+  );
+  // Closing any other way (Escape) stops a GPS walk in progress too, and resets its buttons.
+  dialog.addEventListener("close", () => {
     stopGpsWalk();
-    dialog.close();
+    dialog.querySelector("[data-field-action='gps-walk-start']").hidden = false;
+    dialog.querySelector("[data-field-action='gps-walk-stop']").hidden = true;
   });
   dialog.querySelector("[data-field-form='measurements']").addEventListener("submit", async (event) => {
     event.preventDefault();
-    await saveMeasurementRow(new FormData(event.target));
+    try {
+      await saveMeasurementRow(new FormData(event.target));
+    } catch (error) {
+      crm.showToast(error?.message || "Could not save the measurement.");
+    }
   });
   dialog.querySelector("[data-field-action='gps-walk-start']").addEventListener("click", () => startGpsWalk());
-  dialog.querySelector("[data-field-action='gps-walk-stop']").addEventListener("click", () => finishGpsWalk());
+  dialog.querySelector("[data-field-action='gps-walk-stop']").addEventListener("click", () => finishGpsWalk().catch((error) => crm.showToast(error?.message || "Could not save the perimeter.")));
 }
 
+// opts: { target: "walk" | "job", id } and, from the site walk (Phase 25 item 8, 2026-09-29),
+//   onSave(row)  -- the caller stores the row itself (the walk writes it into its own report, so the
+//                   Walk tab's autosave can never overwrite it with an older copy);
+//   getRows()    -- the rows to list (the caller's live copy);
+//   startGps     -- begin a GPS-walked perimeter straight away.
 export function openMeasurementsForm(opts = {}) {
   wireMeasurementsDialog();
   const dialog = measurementsDialog();
   if (!dialog) return;
   dialog._opts = opts;
+  const status = dialog.querySelector("[data-gps-status]");
+  if (status && gpsWatchId == null) status.textContent = "";
   renderMeasurementsList();
-  dialog.showModal();
+  if (!dialog.open) dialog.showModal();
+  if (opts.startGps && gpsWatchId == null) startGpsWalk();
 }
 
 function measurementsTargetCollection(target) {
@@ -775,15 +870,20 @@ function findMeasurementsTarget(opts) {
 function renderMeasurementsList() {
   const dialog = measurementsDialog();
   const opts = dialog._opts || {};
-  const target = findMeasurementsTarget(opts);
-  const rows = target?.measurements || [];
+  const rows = typeof opts.getRows === "function" ? opts.getRows() || [] : findMeasurementsTarget(opts)?.measurements || [];
+  // Both shapes: the walk's { value, unit } rows and this form's { area, length, depth, volume } rows.
+  const dimensions = (row) => {
+    const parts = [row.area ? `${row.area} ${row.areaUnit || "sq ft"}` : "", row.length ? `${row.length} ft long` : "", row.depth ? `${row.depth} ft deep` : "", row.volume ? `${row.volume} cu ft` : ""].filter(Boolean);
+    if (!parts.length && row.value !== undefined && row.value !== null && row.value !== "") parts.push(`${row.value} ${row.unit || ""}`.trim());
+    return parts.join(" · ");
+  };
   dialog.querySelector("[data-measurements-list]").innerHTML =
     rows
       .map(
         (row) => `
     <div class="field-card">
-      <div class="field-card-row"><strong>${crm.escapeHtml(row.label || "Measurement")}</strong><span>${crm.escapeHtml(row.method || "")}</span></div>
-      <div class="field-card-row"><span>${row.area ? `${row.area} ${crm.escapeHtml(row.areaUnit || "sq ft")}` : ""}</span><span>${row.length ? `${row.length} ft` : ""}</span></div>
+      <div class="field-card-row"><strong>${crm.escapeHtml(row.label || row.kind || "Measurement")}</strong><span>${crm.escapeHtml(row.method || "")}</span></div>
+      <div class="field-card-row"><span>${crm.escapeHtml(dimensions(row))}</span></div>
     </div>`,
       )
       .join("") || `<p class="field-muted">No measurements yet.</p>`;
@@ -792,6 +892,10 @@ function renderMeasurementsList() {
 async function saveMeasurementRow(data) {
   const dialog = measurementsDialog();
   const opts = dialog._opts || {};
+  if (!["area", "length", "depth", "volume"].some((name) => Number(data.get(name)))) {
+    crm.showToast("Enter at least one of area, length, depth or volume.");
+    return;
+  }
   const row = {
     label: (data.get("label") || "").toString().trim() || "Measurement",
     area: Number(data.get("area")) || null,
@@ -810,6 +914,10 @@ async function saveMeasurementRow(data) {
 }
 
 async function addMeasurement(opts, row) {
+  if (typeof opts.onSave === "function") {
+    await opts.onSave(row);
+    return;
+  }
   try {
     await fieldRequest("/api/field/measurements", { method: "POST", body: { target: opts.target, id: opts.id, measurement: row }, kind: "measurement" });
     return;

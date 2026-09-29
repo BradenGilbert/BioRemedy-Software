@@ -1057,8 +1057,15 @@ export function createSiteMap(container, options = {}) {
         <div class="sitemap-field">
           <span>Photos ${photos.length ? `(${photos.length})` : ""}</span>
           <div class="sitemap-photo-tray">
-            ${photos.map((id) => `<a class="sitemap-photo" href="${escape(photoUrl(id))}" target="_blank" rel="noopener"><img src="${escape(photoUrl(id))}" alt="" loading="lazy" /></a>`).join("")}
-            ${options.onPhoto ? `<label class="sitemap-photo-add"><input type="file" accept="image/*" multiple data-sheet-photo /><span>+ Photo</span></label>` : ""}
+            ${photos
+              .map((id) =>
+                // Phase 25 items 5-7: with onPhotoTap a photo opens the caller's action sheet (view, mark up, replace, remove).
+                options.onPhotoTap
+                  ? `<button type="button" class="sitemap-photo" data-sheet-photo-id="${escape(id)}" aria-label="Photo options"><img src="${escape(photoUrl(id))}" alt="" loading="lazy" /></button>`
+                  : `<a class="sitemap-photo" href="${escape(photoUrl(id))}" target="_blank" rel="noopener"><img src="${escape(photoUrl(id))}" alt="" loading="lazy" /></a>`,
+              )
+              .join("")}
+            ${options.onPhotoAdd ? `<button type="button" class="sitemap-photo-add" data-sheet-photo-add><span>+ Photo</span></button>` : options.onPhoto ? `<label class="sitemap-photo-add"><input type="file" accept="image/*" multiple data-sheet-photo /><span>+ Photo</span></label>` : ""}
           </div>
         </div>
       </div>
@@ -1129,6 +1136,37 @@ export function createSiteMap(container, options = {}) {
         say(error?.message || "Photo upload failed.");
       }
       if (state.selectedId === row.id) renderSheet(row);
+    });
+    // Phase 25 item 6 (2026-09-29): "+ Photo" hands off to the caller (choose existing / upload new),
+    // which returns the document ids to link.
+    const addButton = sheet.querySelector("[data-sheet-photo-add]");
+    if (addButton) addButton.onclick = async () => {
+      commitFields();
+      try {
+        const ids = await options.onPhotoAdd({ ...row });
+        const fresh = (Array.isArray(ids) ? ids : []).filter((id) => id && !(row.photoDocumentIds || []).includes(id));
+        if (fresh.length) {
+          updateObservation(row.id, { photoDocumentIds: [...(row.photoDocumentIds || []), ...fresh] }, { undoable: false });
+          say(`${fresh.length} photo${fresh.length === 1 ? "" : "s"} added to ${row.seq}.`);
+        }
+      } catch (error) {
+        say(error?.message || "Photo upload failed.");
+      }
+      if (state.selectedId === row.id) renderSheet(row);
+    };
+    // Items 5 and 7: a photo tap returns the pin's new photo list (a photo removed, or swapped for its
+    // replacement / marked-up version), or nothing when the sheet was dismissed.
+    sheet.querySelectorAll("[data-sheet-photo-id]").forEach((button) => {
+      button.onclick = async () => {
+        commitFields();
+        try {
+          const next = await options.onPhotoTap({ ...row }, button.dataset.sheetPhotoId);
+          if (Array.isArray(next)) updateObservation(row.id, { photoDocumentIds: [...new Set(next.filter(Boolean))] }, { undoable: false });
+        } catch (error) {
+          say(error?.message || "That photo could not be changed.");
+        }
+        if (state.selectedId === row.id) renderSheet(row);
+      };
     });
   }
 
