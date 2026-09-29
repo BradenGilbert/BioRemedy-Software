@@ -219,4 +219,21 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 
 ## Corrections found during implementation
 
-*(none yet)*
+**Wave A (2026-09-29)**
+- **Two upload paths had never worked.** Briefing signatures (`X-Entity-Type: jobSafetyBriefing`) and form photos/signatures (`formSubmission`) were refused as unknown document entity types. Both are valid types now, readable by field logins.
+- **The phone crashed on refresh** for any job whose account has two or more contacts: `projectBackendState` sorted contacts by `a.name`, but field sessions only receive `fullName` (the "reading 'localeCompare'" toast). The name sorts are now null-safe.
+- **Blocked-step reasons were never shown.** The bottom-button handler read `error.payload.reason`; the server sends `{error, blocked}`.
+- **Standalone forms could not save** from a field login: no jobId → 403, and the submitter could not read it back. The submitter can now do both.
+- **Field logins now see all active employees (name and title only)** so "+ Add person on site" works. Before, a field session saw only itself and its crew-mates.
+- **The project stage never moved from the phone:** `fieldAdvanceJob` did not advance the project stage the way the office path does. It does now.
+- **Who counts as lead is decided per job.** A dispatch-link session always carries the Field Lead role, so the server now uses the job's lead or the `isFieldLead` assignment and only falls back to the role when the job names no lead.
+- **Multi-day jobs share one briefing.** `dispatchJobOperationalDate` is fixed once work starts, so every day of a multi-day job maps to the same briefing row. Recorded, not changed; a per-day briefing needs its own decision.
+- **Still open:** `frontlineAutoAdvanceJob` writes `completionPercent` with a raw save, which the server drops for field logins (unchanged).
+- **Opening a walk share link bumped the report's version**, so an offline-queued walk save came back 409 and dropped the photo link. Walk report saves queued offline now replay without a version (`queuedLastWriteWins`); the generic POST keeps `shares` and `completedAt`/`completedBy` from the stored row.
+- **A pure Sales (Account Manager) phone showed "No field employee"**, because Sales cannot read employees. `withWalkParticipantRows` now includes the walker's own employee row (id, names, title, status).
+- **Photo Remove only soft-deletes versions uploaded since the walk started** (5 minutes' leeway). A photo that was already on the opportunity and linked in with "Choose existing" is only unlinked.
+- **The measurements dialog's Close button was never wired.** Fixed; closing also stops a GPS walk in progress.
+- **Pins on uploaded floor plans were never printed** (only the aerial background's pins). The PDF now prints one figure per background that has pins.
+- **Mobilization gating already treated anything but "Yes" as No**, so the spill-call N/A option needed no gate change.
+- **Both Wave A and Phase 24 bumped the service worker to v66** on the same day; the merge took v67 so phones refetch.
+- **Not done in A:** the desktop walk panel does not show sketches yet (Wave B, with the walk page).
