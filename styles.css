@@ -1146,6 +1146,7 @@ h3 {
   display: grid;
   gap: 10px;
   padding: 10px;
+  min-width: 0;
 }
 
 .opportunity-card,
@@ -1167,10 +1168,16 @@ h3 {
   padding: 12px;
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .opportunity-card {
   cursor: grab;
+  overflow-wrap: anywhere;
+}
+
+.opportunity-card * {
+  min-width: 0;
 }
 
 .opportunity-card.dragging {

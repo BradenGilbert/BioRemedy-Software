@@ -1044,7 +1044,8 @@ const state = {
   timelinePersonFilters: {},
   timelineRelatedFilters: {},
   contactConnectionFilter: "",
-  quickFilters: { accounts: [], contacts: [], opportunities: [] },
+  // Projects defaults to "My projects" on (Phase 25 item 12, 2026-09-29) — everything else defaults open.
+  quickFilters: { accounts: [], contacts: [], opportunities: [], projects: ["mine"] },
   timelineTypeFilters: {},
   contactSearch: "",
   contactTableView: "sales",
@@ -2277,6 +2278,7 @@ async function dispatchClick(event) {
     if (requirement) openDocumentUploadDialog({ entityType: requirement.entityType, entityId: requirement.entityId, requirementId: requirement.id });
   }
   if (action === "open-requirement-review") openRequirementReviewDialog(id);
+  if (action === "open-requirement-waive") openRequirementWaiveDialog(id);
   if (action === "open-requirement-form") openRequirementFormDialog(id);
   if (action === "start-microsoft-signin") await startMicrosoftSignIn();
   if (action === "frontline-login") await frontlineLogin();
@@ -2486,6 +2488,7 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "jurisdiction") await saveJurisdiction(form);
   if (form.dataset.form === "requirement") await saveRequirement(form);
   if (form.dataset.form === "requirement-review") await saveRequirementReview(form);
+  if (form.dataset.form === "requirement-waive") await saveRequirementWaive(form);
   if (form.dataset.form === "requirement-form") await saveRequirementForm(form);
   if (form.dataset.form === "dispatch-message") await dispatchSendMessage(form);
   if (form.dataset.form === "frontline-location-ping") await frontlineRecordLocationPing(form);
@@ -3854,6 +3857,7 @@ const QUICK_FILTERS = {
     { id: "recent", label: "Added in 30 days", test: (contact) => Boolean(contact.createdAt) && daysUntil(contact.createdAt) >= -30 },
   ],
   projects: [
+    { id: "mine", label: "My projects", test: (job) => isCurrentUsersProject(job) },
     { id: "no-dispatch", label: "No dispatch yet", test: (job) => dispatchJobsForProject(job.id).length === 0 },
     { id: "work-started", label: "Work started", test: (job) => dispatchWorkHasStarted(job.id) },
     { id: "alerts", label: "Open alerts", test: (job) => alertsForJob(job.id).some((alert) => alert.status !== "Resolved") },
@@ -3875,6 +3879,29 @@ const QUICK_FILTERS = {
 function isCurrentUsersRecord(ownerName) {
   const me = state.currentUser?.name;
   return Boolean(me) && String(ownerName || "").trim().toLowerCase() === me.trim().toLowerCase();
+}
+
+// Phase 25 item 12 (2026-09-29) — "mine" for a project isn't a single owner field like accounts/
+// contacts/opportunities. A project is the current user's if they're the PM (by employee id or
+// name), the sales lead (by name), assigned crew on any of its dispatch jobs (jobAssignments ->
+// dispatchJobs.projectId), or listed in the legacy projectAssignments table.
+function isCurrentUsersProject(project) {
+  const me = state.currentUser;
+  if (!me || (!me.employeeId && !me.name && !me.email)) return false;
+  if (isCurrentUsersRecord(project.projectManager) || isCurrentUsersRecord(project.salesLead)) return true;
+  if (me.employeeId && project.projectManagerEmployeeId === me.employeeId) return true;
+  if (me.employeeId) {
+    const dispatchIds = new Set(dispatchJobsForProject(project.id).map((job) => job.id));
+    if (getJobAssignments().some((assignment) => dispatchIds.has(assignment.jobId) && assignment.employeeId === me.employeeId)) return true;
+  }
+  const myEmail = (me.email || "").trim().toLowerCase();
+  if (
+    assignmentsForJob(project.id).some(
+      (assignment) => isCurrentUsersRecord(assignment.userName) || (myEmail && String(assignment.userEmail || "").trim().toLowerCase() === myEmail),
+    )
+  )
+    return true;
+  return false;
 }
 
 function applyQuickFilters(listKey, rows) {
@@ -8440,7 +8467,22 @@ function renderAllProjectsTable(jobs) {
   const jobClassLabel = { "Emergency Response": "ER", "Scheduled Work": "Scheduled", "Multi-Stage Remediation": "Multi-Stage" };
   // Owner 2026-09-23: the table needs filters, not just search. Each chip narrows the list.
   const rows = applyQuickFilters("projects", jobs);
-  return renderQuickFilterChips("projects", jobs) + renderDataTable({
+  const activeProjectFilters = state.quickFilters.projects || [];
+  const mineEmptyHint =
+    activeProjectFilters.includes("mine") && rows.length === 0
+      ? `
+        <div class="core-table-notice" aria-label="No projects match My projects">
+          <div>
+            <strong>No projects match "My projects"</strong>
+            <span>You're not the project manager, sales lead, or assigned crew on any project in this view.</span>
+          </div>
+          <div class="inline-actions">
+            <button class="mini-button" type="button" data-action="clear-quick-filters" data-list="projects">Show all projects</button>
+          </div>
+        </div>
+      `
+      : "";
+  return mineEmptyHint + renderQuickFilterChips("projects", jobs) + renderDataTable({
     tableId: "all-projects",
     searchPlaceholder: "Search projects...",
     emptyText: "No projects match.",
@@ -8655,10 +8697,11 @@ function renderProjectDetail() {
         <div class="toolbar">
           <button class="danger-button" type="button" data-action="open-alert" data-job-id="${escapeAttribute(job.id)}">Field alert</button>
           <button class="danger-button" type="button" data-action="delete-record" data-collection="projects" data-id="${escapeAttribute(job.id)}">Delete project</button>
-          <button class="secondary-button" type="button" data-action="open-material" data-job-id="${escapeAttribute(job.id)}">Log material</button>
-          <button class="secondary-button" type="button" data-action="open-equipment" data-job-id="${escapeAttribute(job.id)}">Log equipment</button>
-          <button class="secondary-button" type="button" data-action="open-schedule" data-job-id="${escapeAttribute(job.id)}">Schedule</button>
-          <button class="secondary-button" type="button" data-action="print-post-work-report" data-id="${escapeAttribute(job.id)}">Post-work report</button>
+          ${
+            projectDispatchJobs.some((dispatchJob) => postJobReviewAvailable(dispatchJob))
+              ? `<button class="secondary-button" type="button" data-action="print-post-work-report" data-id="${escapeAttribute(job.id)}">Post-work report</button>`
+              : ""
+          }
           ${!job.closedAt && projectCanClose(job) ? `<button class="primary-button" type="button" data-action="close-project" data-id="${escapeAttribute(job.id)}">Close project</button>` : ""}
           <button class="primary-button" type="button" data-action="open-job-request" data-account-id="${escapeAttribute(job.accountId)}" data-project-id="${escapeAttribute(job.id)}">New job request</button>
         </div>
@@ -8769,6 +8812,17 @@ function renderProjectTabBody(tab, job, ctx) {
   }
 }
 
+// Phase 25 item 14 (2026-09-29) — the Intake "Site photos" count used to be the length of the free-
+// text sitePhotoRefs field, which nobody kept in sync with what was actually uploaded. Count real
+// photo documents instead: image documents on the project itself, plus image documents on the
+// opportunity the project came from (the sales site walk carries over — same join renderProjectFilesTab
+// uses for "N more from the sales site walk below").
+function projectIntakePhotoCount(job) {
+  const projectPhotos = latestDocumentsForEntity("project", job.id).filter(isImageDocument).length;
+  const opportunityPhotos = job.opportunityId ? latestDocumentsForEntity("opportunity", job.opportunityId).filter(isImageDocument).length : 0;
+  return projectPhotos + opportunityPhotos;
+}
+
 // What arrived: account, site, the sales handover, generator/EPA/TCEQ identifiers, insurance/claim
 // details, paperwork status, and the originating opportunity.
 function renderProjectIntakeTab(job, ctx) {
@@ -8794,7 +8848,7 @@ function renderProjectIntakeTab(job, ctx) {
               <div><dt>Services</dt><dd>${escapeHtml(generator.serviceProfile)}</dd></div>
               <div><dt>Project type</dt><dd>${escapeHtml(job.jobClass)}</dd></div>
               <div><dt>Site walk</dt><dd>${escapeHtml(job.siteWalkStatus || "Incomplete")}</dd></div>
-              <div><dt>Site photos</dt><dd>${(job.sitePhotoRefs || []).length ? `${job.sitePhotoRefs.length} captured` : "None captured yet"}</dd></div>
+              <div><dt>Site photos</dt><dd>${projectIntakePhotoCount(job) ? `${projectIntakePhotoCount(job)} captured` : "None captured yet"}</dd></div>
             </dl>
           </div>
         </article>
@@ -8853,14 +8907,14 @@ function renderEmergencyIntakePanel(job) {
           <div><dt>Material</dt><dd>${escapeHtml(job.spillMaterial || "Not captured")}${job.spillQuantity ? ` (${escapeHtml(job.spillQuantity)})` : ""}</dd></div>
           <div><dt>Surface</dt><dd>${escapeHtml(formatSpillSurface(job.spillSurface) || "Not captured")}</dd></div>
           <div><dt>Location type</dt><dd>${escapeHtml(job.spillLocationType || "Not captured")}</dd></div>
-          <div><dt>Storm drain</dt><dd>${escapeHtml(job.stormDrainInvolved || "Unknown")}</dd></div>
-          <div><dt>Off-road discharge</dt><dd>${escapeHtml(job.offRoadDischarge || "Unknown")}</dd></div>
-          <div><dt>Absorbent deployed</dt><dd>${escapeHtml(job.absorbentDeployed || "No")}${job.absorbentDeployedBy ? ` by ${escapeHtml(job.absorbentDeployedBy)}` : ""}</dd></div>
+          <div><dt>Storm drain</dt><dd>${job.stormDrainInvolved === "Not applicable" ? "N/A" : escapeHtml(job.stormDrainInvolved || "Unknown")}</dd></div>
+          <div><dt>Off-road discharge</dt><dd>${job.offRoadDischarge === "Not applicable" ? "N/A" : escapeHtml(job.offRoadDischarge || "Unknown")}</dd></div>
+          <div><dt>Absorbent deployed</dt><dd>${job.absorbentDeployed === "Not applicable" ? "N/A" : escapeHtml(job.absorbentDeployed || "No")}${job.absorbentDeployedBy ? ` by ${escapeHtml(job.absorbentDeployedBy)}` : ""}</dd></div>
           <div><dt>Law enforcement</dt><dd>${escapeHtml(job.lawEnforcementStatus || "Not involved")}</dd></div>
           <div><dt>Fire department</dt><dd>${escapeHtml(job.fireDepartmentStatus || "Not involved")}</dd></div>
           <div><dt>Other emergency services</dt><dd>${escapeHtml(job.otherEmergencyServicesStatus || "Not involved")}</dd></div>
           ${job.agencyIncidentNumber ? `<div><dt>Agency / incident #</dt><dd>${escapeHtml(job.agencyIncidentNumber)}</dd></div>` : ""}
-          <div><dt>Insurance</dt><dd>${job.hasInsurance === "Yes" ? `${escapeHtml(job.insuranceCarrier || "Carrier not captured")}${job.isInsuranceClaim === "Yes" ? " — filing a claim" : ""}` : "No insurance on file"}</dd></div>
+          <div><dt>Insurance</dt><dd>${job.hasInsurance === "Not applicable" ? "N/A" : job.hasInsurance === "Yes" ? `${escapeHtml(job.insuranceCarrier || "Carrier not captured")}${job.isInsuranceClaim === "Not applicable" ? " — claim: N/A" : job.isInsuranceClaim === "Yes" ? " — filing a claim" : ""}` : "No insurance on file"}</dd></div>
           ${job.downPaymentAmount ? `<div><dt>Down payment</dt><dd>${money(job.downPaymentAmount)}${job.downPaymentBy ? ` — ${escapeHtml(job.downPaymentBy)}` : ""}</dd></div>` : ""}
           ${job.downPaymentReference ? `<div><dt>Reference</dt><dd>${escapeHtml(job.downPaymentReference)}</dd></div>` : ""}
           ${job.mobilizationOverrideBy ? `<div><dt>Override</dt><dd>${escapeHtml(job.mobilizationOverrideBy)}${job.mobilizationOverrideReason ? `: ${escapeHtml(job.mobilizationOverrideReason)}` : ""}</dd></div>` : ""}
@@ -24266,9 +24320,23 @@ function openProjectIntakeDialog(jobId) {
   form.elements.serviceProfile.value = job.serviceProfile || "";
   form.elements.jobClass.value = job.jobClass || "Scheduled Work";
   form.elements.siteWalkStatus.value = job.siteWalkStatus || "Incomplete";
-  form.elements.sitePhotos.value = (job.sitePhotoRefs || [])
-    .map((photo) => (photo.note ? `${photo.caption} | ${photo.note}` : photo.caption))
-    .join("\n");
+  // Phase 25 item 14 (2026-09-29) — the free-text sitePhotos field is gone; the Site photos count on
+  // the Intake tab now counts real photo documents (projectIntakePhotoCount). Any sitePhotoRefs a
+  // project already has from the old field are shown read-only here so the text isn't lost, but this
+  // dialog never writes to sitePhotoRefs again.
+  const legacyPhotosNote = dialog.querySelector('[data-role="project-intake-legacy-site-photos"]');
+  if (legacyPhotosNote) {
+    const legacyRefs = job.sitePhotoRefs || [];
+    if (legacyRefs.length) {
+      legacyPhotosNote.hidden = false;
+      legacyPhotosNote.innerHTML = `<strong>Photo notes (from the old intake field)</strong><br />${legacyRefs
+        .map((photo) => escapeHtml(photo.note ? `${photo.caption} | ${photo.note}` : photo.caption))
+        .join("<br />")}`;
+    } else {
+      legacyPhotosNote.hidden = true;
+      legacyPhotosNote.innerHTML = "";
+    }
+  }
   // Item 6 (2026-09-28, "No way to edit down payment") — the mobilization/down-payment section,
   // shown only for Emergency Response projects (the only jobClass that gates on it).
   if (form.elements.hasInsurance) form.elements.hasInsurance.value = job.hasInsurance || "No";
@@ -24297,18 +24365,6 @@ async function saveProjectIntake(form) {
   const data = new FormData(form);
   const job = findProject(data.get("id").toString());
   if (!job) return;
-  const sitePhotoRefs = data
-    .get("sitePhotos")
-    .toString()
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [caption, ...noteParts] = line.split("|");
-      return { caption: caption.trim(), note: noteParts.join("|").trim() };
-    })
-    .filter((photo) => photo.caption);
-
   // Read `claimNumber || insuranceClaimNumber` everywhere, write `claimNumber`, keep
   // `insuranceClaimNumber` in sync (item 6 — the intake wrote one, this dialog read the other).
   const claimNumber = data.get("claimNumber").toString().trim();
@@ -24328,7 +24384,6 @@ async function saveProjectIntake(form) {
     serviceProfile: data.get("serviceProfile").toString().trim(),
     jobClass,
     siteWalkStatus: (data.get("siteWalkStatus") || "").toString(),
-    sitePhotoRefs,
   };
   // The mobilization/down-payment section only exists (and only submits meaningful values) for
   // Emergency Response projects — don't let stale/default select values from a hidden fieldset
@@ -30734,7 +30789,7 @@ async function acceptConsent() {
 // something is a `documentRequirements` row with the lifecycle Not started → Sent → Returned → In
 // review → Approved | Rejected; the office reviews, the app reads the approved state everywhere it
 // used to ask again. One panel component for files, one for requirements, used on every record.
-const REQUIREMENT_STATUS_TONE = { "Not started": "medium", Sent: "medium", Returned: "medium", "In review": "medium", Approved: "low", Rejected: "high" };
+const REQUIREMENT_STATUS_TONE = { "Not started": "medium", Sent: "medium", Returned: "medium", "In review": "medium", Approved: "low", Rejected: "high", Waived: "low" };
 const REVIEW_ROLES = ["Admin", "Office Manager", "Sales Manager", "Operations Manager"];
 
 function getDocumentTypes() {
@@ -30802,7 +30857,11 @@ function requirementIsExpired(requirement) {
   return end < new Date();
 }
 
+// Phase 25 item 16 (2026-09-29) — "Waived" (marked not applicable by a reviewer, with a reason)
+// satisfies a requirement the same as "Approved". This is the single chokepoint the Negotiation
+// gate (paperworkApproved) and the project's paperwork flag both read through.
 function requirementIsSatisfied(requirement) {
+  if (requirement.status === "Waived") return true;
   return requirement.status === "Approved" && !requirementIsExpired(requirement);
 }
 
@@ -30992,6 +31051,7 @@ function requirementCurrentDocument(requirement) {
 
 function describeRequirementState(requirement) {
   if (requirementIsExpired(requirement)) return `Expired ${formatDate(requirement.expiresAt)}`;
+  if (requirement.status === "Waived") return `Not applicable ${formatDate(requirement.waivedAt)}${requirement.waivedBy ? ` by ${requirement.waivedBy}` : ""}${requirement.waivedReason ? ` — ${requirement.waivedReason}` : ""}`;
   if (requirement.status === "Approved") return `Approved ${formatDate(requirement.reviewedAt)}${requirement.reviewedBy ? ` by ${requirement.reviewedBy}` : ""}${requirement.expiresAt ? ` · expires ${formatDate(requirement.expiresAt)}` : ""}`;
   if (requirement.status === "Rejected") return `Rejected ${formatDate(requirement.reviewedAt)}${requirement.reviewedBy ? ` by ${requirement.reviewedBy}` : ""}${requirement.reviewNote ? ` — ${requirement.reviewNote}` : ""}`;
   if (requirement.status === "In review") return `Returned ${formatDate(requirement.returnedAt)} · waiting for office review`;
@@ -31007,13 +31067,16 @@ function renderRequirementRow(requirement, { entityType, entityId } = {}) {
   const portal = isPortalUser();
   const reviewable = requirement.status === "In review" && canReviewPaperwork() && !portal;
   const uploadable = requirement.status !== "Approved" || expired;
+  // Phase 25 item 16 (2026-09-29) — any requirement type can be marked not applicable, reviewer-only,
+  // any time it isn't already Waived.
+  const waivable = requirement.status !== "Waived" && canReviewPaperwork() && !portal;
   const formData = requirement.formData || {};
   const filledFields = (type?.formFields || []).filter(([key]) => formData[key]);
   return `
     <div class="detail-card requirement-row ${requirement.status === "In review" && !portal ? "panel-needs-attention" : ""}">
       <div class="row-meta">
         <strong>${escapeHtml(type?.name || "Document")}${requirement.status === "In review" && canReviewPaperwork() ? renderAlertDot("Waiting for your review") : ""}</strong>
-        <span class="risk-badge ${tone}">${escapeHtml(expired ? "Expired" : requirement.status)}</span>
+        <span class="risk-badge ${tone}">${escapeHtml(expired ? "Expired" : requirement.status === "Waived" ? "N/A" : requirement.status)}</span>
       </div>
       <span class="help-text">${escapeHtml(describeRequirementState(requirement))}${requirement.entityType === "opportunity" ? " · for this opportunity" : ""}${requirement.source === "emergency-intake" ? " · required by emergency intake" : ""}</span>
       ${current ? `<span class="help-text">Current file: <a href="/api/documents/${encodeURIComponent(current.id)}/view" target="_blank" rel="noopener">${escapeHtml(current.fileName)}</a> (v${Number(current.versionNumber || 1)}, ${formatDateTime(current.uploadedAt)})</span>` : ""}
@@ -31024,6 +31087,7 @@ function renderRequirementRow(requirement, { entityType, entityId } = {}) {
         ${requirement.status === "Not started" && !portal ? `<button class="mini-button" type="button" data-action="mark-requirement-sent" data-id="${escapeAttribute(requirement.id)}">Mark sent</button>` : ""}
         ${uploadable ? `<button class="mini-button" type="button" data-action="open-requirement-upload" data-id="${escapeAttribute(requirement.id)}">${portal ? "Upload signed copy" : current ? "Upload another copy" : "Upload returned copy"}</button>` : ""}
         ${reviewable ? `<button class="primary-button" type="button" data-action="open-requirement-review" data-id="${escapeAttribute(requirement.id)}">Review</button>` : ""}
+        ${waivable ? `<button class="mini-button" type="button" data-action="open-requirement-waive" data-id="${escapeAttribute(requirement.id)}">Mark N/A</button>` : ""}
         ${!portal ? `<button class="mini-button" type="button" data-action="delete-record" data-collection="documentRequirements" data-id="${escapeAttribute(requirement.id)}">Remove</button>` : ""}
       </div>
     </div>
@@ -31180,6 +31244,41 @@ async function saveRequirementReview(form) {
     showToast(decision === "Approved" ? "Approved." : "Rejected — the customer can send a corrected copy.");
   } catch (error) {
     showToast(error.message || "Could not record the review.");
+  }
+}
+
+// Phase 25 item 16 (2026-09-29) — "Mark N/A" on a requirement row. Reviewer-only (enforced again on
+// the server), requires a reason, and counts as satisfied everywhere "Approved" would
+// (requirementIsSatisfied).
+function openRequirementWaiveDialog(requirementId) {
+  const requirement = getDocumentRequirements().find((item) => item.id === requirementId);
+  if (!requirement) return;
+  const type = findDocumentType(requirement.documentTypeId);
+  const dialog = document.querySelector("#requirementWaiveDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.id.value = requirement.id;
+  dialog.querySelector("[data-waive-title]").textContent = `Mark not applicable: ${type?.name || "document"}`;
+  dialog.showModal();
+}
+
+async function saveRequirementWaive(form) {
+  const data = new FormData(form);
+  const requirement = getDocumentRequirements().find((item) => item.id === (data.get("id") || "").toString());
+  if (!requirement) return;
+  const waivedReason = (data.get("waivedReason") || "").toString().trim();
+  if (!waivedReason) {
+    showToast("A reason is required.");
+    return;
+  }
+  try {
+    await saveBackendRecord("documentRequirements", { ...requirement, status: "Waived", waivedReason });
+    closeDialogs();
+    await refreshBackendState();
+    render();
+    showToast("Marked not applicable.");
+  } catch (error) {
+    showToast(error.message || "Could not update that requirement.");
   }
 }
 
