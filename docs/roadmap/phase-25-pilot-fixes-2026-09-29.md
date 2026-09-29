@@ -241,3 +241,9 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 - **The plain `jobSafetyBriefings` save route now keeps the stored roll call** — a field lead could previously fake `acknowledgedAt` or a scan through it.
 - **The server does not require a manual-arrival reason** (the phone does), so arrivals already queued by older clients are not rejected.
 - **Not done in A:** the desktop walk panel does not show sketches yet (Wave B, with the walk page).
+
+**Wave B (2026-09-29)**
+- **Two duplicate walk pairs in live data, not one:** Dell Solution Center (R3) and the City of Georgetown trash-truck spill walk (Austin Ave storm drain). The Dell stray had since been re-saved by the client into `activityType:"Task"`, owner Unassigned, so the cleanup matches strays by `regardingScheduleEventId`/`siteWalkReportId` rather than by a missing `activityType`.
+- **The scheduled Meeting's body (scheduling notes) is kept**; the walk summary goes to `description` and the timeline shows it from the report.
+- **Documents and `tasks` rows have no Regarding field**, so "regarding a site walk" applies to activities (Task-type activities included), not to documents.
+- **"Site walk" is offered in the Schedule menu only where an opportunity is in context** — the walk dialog needs one.
