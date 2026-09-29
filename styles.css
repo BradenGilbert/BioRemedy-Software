@@ -7984,3 +7984,93 @@ a.mini-button {
   align-items: center;
   text-decoration: none;
 }
+
+/* Phase 25 Wave B (2026-09-29): the site walk carried onto the project — Plan tab walk panel, the
+   Live tab's one Site walk event, the priced baseline inside Billing & cost, source tags on Files. */
+.project-site-walk {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.project-site-walk .risk-badge {
+  margin-left: 4px;
+}
+
+.project-walk-measurements {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.project-walk-measurements th,
+.project-walk-measurements td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.project-walk-measurements th {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.project-walk-measurements .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.project-walk-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.project-walk-thumb img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.project-walk-sections {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+  font-size: 0.88rem;
+}
+
+.project-event-item summary .link-button {
+  padding: 0;
+  text-align: left;
+  font-weight: inherit;
+}
+
+.project-priced-baseline {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.project-priced-baseline > summary {
+  cursor: pointer;
+  padding: 10px 12px;
+}
+
+.project-priced-baseline-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.document-source-tag {
+  font-weight: 700;
+}

@@ -7638,17 +7638,23 @@ function renderProjectSampleRecord(sample) {
   `;
 }
 
+// titleAction ({action, id}) makes the title a link; bodyHtml is trusted markup built by the caller
+// (the Site walk event's section list and thumbnails, Phase 25 Wave B item 7).
 function renderProjectChronologyItem(event) {
+  const title = event.titleAction
+    ? `<button class="link-button" type="button" data-action="${escapeAttribute(event.titleAction.action)}" data-id="${escapeAttribute(event.titleAction.id)}">${escapeHtml(event.title)}</button>`
+    : escapeHtml(event.title);
   return `
-    <details class="project-event-item" ${event.defaultOpen ? "open" : ""}>
+    <details class="project-event-item${event.bodyHtml ? " project-event-item--rich" : ""}" ${event.defaultOpen ? "open" : ""}>
       <summary>
         <span>${formatDate(event.timestamp)}</span>
-        <strong>${escapeHtml(event.title)}</strong>
+        <strong>${title}</strong>
         <em>${escapeHtml(event.kind)}</em>
       </summary>
       <div class="project-event-body">
         <p class="help-text">${escapeHtml(event.detail)}</p>
         ${event.meta?.length ? `<div class="inline-actions">${event.meta.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("")}</div>` : ""}
+        ${event.bodyHtml || ""}
       </div>
     </details>
   `;
@@ -8756,10 +8762,8 @@ function renderProjectDetail() {
   `;
 
   requestAnimationFrame(() => {
-    if (activeTab === "plan") {
-      initializeProjectSampleMap(job.id);
-      initializeProjectModelViewers();
-    }
+    if (activeTab === "plan") initializeProjectModelViewers();
+    if (activeTab === "sampling") initializeProjectSampleMap(job.id);
   });
 }
 
@@ -8928,8 +8932,10 @@ function renderEmergencyIntakePanel(job) {
 // sales handover carried over at creation — Phase 15 item 1), sample schedule options, and the
 // reports generated for this project (Phase 09's cost report today, Phase 11's post-work report
 // lands here later).
+// Phase 25 Wave B (2026-09-29): the top-right panel is the site walk (it used to be the sample map,
+// which moved to the Sampling tab), and the priced baseline sits inside Billing & cost.
 function renderProjectPlanTab(job, ctx) {
-  const { spatial, samples, sampleSessions } = ctx;
+  const { spatial, sampleSessions } = ctx;
   return `
     <section class="project-detail-layout">
       <div class="detail-stack">
@@ -8944,8 +8950,6 @@ function renderProjectPlanTab(job, ctx) {
           </div>
         </article>
 
-        ${renderProjectPricedBaselinePanel(job)}
-
         ${renderProjectWalkMapPanel(job)}
 
         <article class="panel">
@@ -8957,7 +8961,7 @@ function renderProjectPlanTab(job, ctx) {
       </div>
 
       <div class="detail-stack">
-        ${renderProjectSampleMap(job, samples)}
+        ${renderProjectSiteWalkPanel(job)}
 
         <article class="panel">
           <div class="panel-header"><h3>Sampling sessions</h3></div>
@@ -9075,6 +9079,8 @@ function projectPaperworkFlag(job) {
 // Phase 15 item 1 — the quote/estimate itself is the priced baseline (not a copied snapshot of its
 // lines); job.quoteId/estimateId are copied at project creation so this keeps reading the same
 // document even if the opportunity's "current" quote changes later.
+// Phase 25 Wave B item 8 (2026-09-29): no longer a Plan-tab panel of its own; it renders as a collapsed
+// sub-section inside the Billing & cost panel (renderProjectBillingPanel), closed by default.
 function renderProjectPricedBaselinePanel(job) {
   const quote = job.quoteId ? (state.backend.quotes || []).find((item) => item.id === job.quoteId && !item.deletedAt) : null;
   const estimate = !quote && job.estimateId ? (state.backend.estimates || []).find((item) => item.id === job.estimateId && !item.deletedAt) : null;
@@ -9085,9 +9091,9 @@ function renderProjectPricedBaselinePanel(job) {
   const total = Number((quote || estimate)?.totalAmount || 0);
 
   return `
-    <article class="panel">
-      <div class="panel-header"><h3>Priced baseline</h3>${docLabel ? `<span>${escapeHtml(docLabel)}${lines.length ? ` — ${money(total)}` : ""}</span>` : ""}</div>
-      <div class="panel-body">
+    <details class="project-priced-baseline">
+      <summary><strong>Priced baseline (from the quote)</strong>${docLabel ? ` <span class="muted-text">${escapeHtml(docLabel)}${lines.length ? ` — ${money(total)}` : ""}</span>` : ""}</summary>
+      <div class="project-priced-baseline-body">
         ${
           lines.length
             ? `<div class="record-list">
@@ -9105,10 +9111,10 @@ function renderProjectPricedBaselinePanel(job) {
                   )
                   .join("")}
               </div>`
-            : `<div class="empty-state">${docLabel ? `No line items on the linked ${docLabel.toLowerCase()}.` : "No quote or estimate linked to this project."}</div>`
+            : `<div class="empty-state compact">${docLabel ? `No line items on the linked ${docLabel.toLowerCase()}.` : "No quote or estimate linked to this project."}</div>`
         }
       </div>
-    </article>
+    </details>
   `;
 }
 
@@ -9127,6 +9133,7 @@ function renderProjectBillingPanel(job) {
               ? `<div class="empty-state">This project has reached Closeout and is ready to close. Closing generates a cost report and P&amp;L from logged equipment, labor, and material usage, priced from the rate card, and feeds the invoice dialog.</div>`
               : `<div class="empty-state">The project can be closed once field work has happened and no dispatch job or job request is open (stage: ${escapeHtml(job.projectStage || "Intake")}${projectNextStep(job) ? `, ${escapeHtml(projectNextStep(job).toLowerCase())}` : ""}). No cost report or P&amp;L exists yet.</div>`
           }
+          ${renderProjectPricedBaselinePanel(job)}
         </div>
       </article>
     `;
@@ -9163,6 +9170,7 @@ function renderProjectBillingPanel(job) {
         </dl>
         ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours && !costs.expenses?.items.length && !costs.waste?.items.length ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
         ${costs.waste ? "" : `<p class="help-text">This report was generated before waste disposal was tracked. Regenerate it to include disposal cost from the waste log.</p>`}
+        ${renderProjectPricedBaselinePanel(job)}
       </div>
     </article>
   `;
@@ -21351,7 +21359,7 @@ function projectReportPhotos(project) {
   }));
 
   const documentPhotos = new Map();
-  const addDocument = (document, source) => {
+  const addDocument = (document, source, extra = {}) => {
     if (!document || document.deletedAt || documentPhotos.has(document.id)) return;
     documentPhotos.set(document.id, {
       kind: "document",
@@ -21363,6 +21371,7 @@ function projectReportPhotos(project) {
       source,
       // Documents default to included; the office can exclude one from the Report tab.
       includeInReport: document.includeInReport !== false,
+      ...extra,
     });
   };
   const isReportPhotoType = (document) => REPORT_PHOTO_DOCUMENT_TYPE_CODES.includes(findDocumentType(document.documentTypeId)?.code);
@@ -21370,26 +21379,34 @@ function projectReportPhotos(project) {
   dispatchJobs.forEach((job) => {
     latestDocumentsForEntity("dispatchJob", job.id).filter(isReportPhotoType).forEach((document) => addDocument(document, `Job · ${job.jobNumber || "quick photo"}`));
   });
+  // Phase 25 Wave B item 6 (2026-09-29): walk photos are matched through siteWalksForProject. Pins
+  // carry walkEventId, not a report id (the old reportId filter matched nothing), and are numbered by
+  // seq. The walk is read before the opportunity's own photos so a walk photo keeps its walk source and
+  // walkEventId (the Live tab folds those into one Site walk event). Pin photos print as one block in
+  // pin order, placed at the walk's first pin photo.
+  siteWalksForProject(project).forEach(({ event, report }) => {
+    const walkEventId = event?.id || report?.walkEventId || "";
+    const pinPhotos = [];
+    siteWalkObservationsForWalk(walkEventId).forEach((observation) => {
+      (observation.photoDocumentIds || []).forEach((id) => {
+        const document = findDocument(id);
+        if (document && !document.deletedAt && !pinPhotos.some((entry) => entry.document.id === id)) pinPhotos.push({ document, observation });
+      });
+    });
+    const blockAt = pinPhotos.map(({ document }) => String(document.uploadedAt || "")).filter(Boolean).sort()[0] || "";
+    pinPhotos.forEach(({ document, observation }, index) =>
+      addDocument(document, `Walk · pin ${observation.seq ?? ""}${observation.label ? ` · ${observation.label}` : ""}`, { walkEventId, sortAt: blockAt, sortSeq: index + 1 }),
+    );
+    Object.entries(report?.sections || {}).forEach(([key, section]) => {
+      (section?.photoDocumentIds || []).forEach((id) => addDocument(findDocument(id), `Walk · ${walkSectionLabel(key)}`, { walkEventId }));
+    });
+  });
   if (project.opportunityId) {
     latestDocumentsForEntity("opportunity", project.opportunityId).filter(isReportPhotoType).forEach((document) => addDocument(document, "Sales · opportunity photo"));
   }
 
-  const walkReports = (state.backend.siteWalkReports || []).filter(
-    (report) => !report.deletedAt && (report.projectId === project.id || (project.opportunityId && report.opportunityId === project.opportunityId)),
-  );
-  walkReports.forEach((report) => {
-    Object.entries(report.sections || {}).forEach(([key, section]) => {
-      (section?.photoDocumentIds || []).forEach((id) => addDocument(findDocument(id), `Walk · ${walkSectionLabel(key)}`));
-    });
-  });
-  const walkReportIds = new Set(walkReports.map((report) => report.id));
-  (state.backend.siteWalkObservations || [])
-    .filter((observation) => !observation.deletedAt && walkReportIds.has(observation.reportId))
-    .forEach((observation) => {
-      (observation.photoDocumentIds || []).forEach((id) => addDocument(findDocument(id), `Walk · ${observation.label || "site pin"}`));
-    });
-
-  return [...taskPhotos, ...documentPhotos.values()].sort((a, b) => String(a.takenAt || "").localeCompare(String(b.takenAt || "")));
+  const sortKey = (photo) => String(photo.sortAt || photo.takenAt || "");
+  return [...taskPhotos, ...documentPhotos.values()].sort((a, b) => sortKey(a).localeCompare(sortKey(b)) || Number(a.sortSeq || 0) - Number(b.sortSeq || 0));
 }
 
 // Item 8c (2026-09-28): the report, the job Files tab and the field Brief all draw photos that may
@@ -21533,6 +21550,16 @@ async function saveReportPhotoCaption(id, caption, kind = "attachment") {
 // buildPostWorkReport() gathers the data and renderPostWorkReportHtml() lays it out, so a stored
 // artifact (Phase 13) or the Client Portal can reuse the first without the second.
 
+// A walk pin stores lat/lng; a drawn shape stores GeoJSON geometry instead (its first vertex is shown).
+function reportObservationPoint(observation) {
+  const lat = observation.lat ?? observation.latitude;
+  const lng = observation.lng ?? observation.longitude;
+  if (lat != null && lng != null && lat !== "" && lng !== "") return { lat: String(lat), lng: String(lng) };
+  const coordinates = observation.geometry?.coordinates;
+  const first = observation.geometry?.type === "Point" ? coordinates : observation.geometry?.type === "Polygon" ? coordinates?.[0]?.[0] : coordinates?.[0];
+  return Array.isArray(first) && first.length >= 2 ? { lat: Number(first[1]).toFixed(6), lng: Number(first[0]).toFixed(6) } : { lat: "", lng: "" };
+}
+
 function buildPostWorkReport(project) {
   const dispatchJobs = dispatchJobsForProject(project.id).slice().reverse();
   const dayOf = (value) => (value ? localIsoDate(parseDate(value)) : "");
@@ -21629,15 +21656,12 @@ function buildPostWorkReport(project) {
 
   // Site map (build item 1): a numbered list of site-walk observations, not a rendered map -- the
   // integrator wires the actual map image (see phase doc "Corrections found during implementation").
-  // Linked defensively since siteWalkReports can carry either an opportunityId or a projectId.
-  const siteWalkReportIds = new Set(
-    (state.backend.siteWalkReports || [])
-      .filter((report) => !report.deletedAt && (report.projectId === project.id || (project.opportunityId && report.opportunityId === project.opportunityId)))
-      .map((report) => report.id),
-  );
-  const siteMapObservations = (state.backend.siteWalkObservations || [])
-    .filter((observation) => !observation.deletedAt && siteWalkReportIds.has(observation.reportId))
-    .sort((a, b) => Number(a.number || 0) - Number(b.number || 0));
+  // Phase 25 Wave B item 6 (2026-09-29): pins are keyed by walkEventId and numbered by seq (the old
+  // reportId/number filter matched nothing). Oldest walk first, each walk's pins in seq order.
+  const siteMapObservations = siteWalksForProject(project)
+    .slice()
+    .reverse()
+    .flatMap(({ event, report }) => siteWalkObservationsForWalk(event?.id || report?.walkEventId || ""));
 
   // ERG (build item 1): what the guidebook said for this incident, from whichever dispatch job has it set.
   const ergJob = dispatchJobs.find((dispatchJob) => dispatchJob.ergGuideNumber);
@@ -22028,7 +22052,7 @@ function renderPostWorkReportHtml(report) {
       [["#"], ["Kind"], ["Label"], ["Note"], ["Latitude"], ["Longitude"]],
       report.siteMapObservations.map(
         (observation) =>
-          `<tr><td>${escapeHtml(String(observation.number ?? ""))}</td><td>${escapeHtml(observation.kind || "")}</td><td>${escapeHtml(observation.label || "")}</td><td>${escapeHtml(observation.note || "")}</td><td>${observation.latitude != null ? escapeHtml(String(observation.latitude)) : ""}</td><td>${observation.longitude != null ? escapeHtml(String(observation.longitude)) : ""}</td></tr>`,
+          `<tr><td>${escapeHtml(String(observation.seq ?? observation.number ?? ""))}</td><td>${escapeHtml([observation.kind, observation.shapeKind].filter(Boolean).join(" · "))}</td><td>${escapeHtml(observation.label || "")}</td><td>${escapeHtml(observation.note || "")}</td><td>${escapeHtml(reportObservationPoint(observation).lat)}</td><td>${escapeHtml(reportObservationPoint(observation).lng)}</td></tr>`,
       ),
       "No site-walk observations on file.",
     )}
@@ -22929,6 +22953,7 @@ function renderProjectSamplingTab(job) {
         <div class="metric"><p class="eyebrow">Exceedances</p><strong>${exceedances.length}</strong><span>${labs.length ? `Lab: ${escapeHtml(labs.join(", "))}` : "No lab assigned yet"}</span></div>
       </section>
       ${awaiting.length ? `<div class="empty-state warning">${awaiting.length} sample${awaiting.length === 1 ? " is" : "s are"} out for analysis. Results decide whether more work is needed; the project stays open until they're in.</div>` : ""}
+      ${renderProjectSampleMap(job, samples)}
       <section class="project-detail-layout">
         <div class="detail-stack">
           <article class="panel">
@@ -24288,6 +24313,7 @@ async function saveProjectFromOpportunity(form) {
 
   await saveBackendRecord("projects", job, { refresh: false });
   await queueChange("Project", "created", job);
+  await linkSiteWalksToProject(job);
   closeDialogs();
   await refreshState();
   if (canAccessView("project-detail")) {
@@ -24298,6 +24324,24 @@ async function saveProjectFromOpportunity(form) {
     showToast(`Project "${job.name}" created. Ask operations to continue setup.`);
   }
   render();
+}
+
+// Phase 25 Wave B item 6 (2026-09-29): the won deal's site walk reports gain the new project's id. Only
+// the report rows: the walk's scheduleEvents row keeps projectId "" on purpose (see siteWalksForProject).
+// A report already stamped with an earlier project from the same opportunity keeps that stamp; readers
+// also match on the opportunity, so the second project still sees the walk. Best effort: the project is
+// saved either way, and a report this session cannot write (no sales access, or a phone saving it at
+// the same moment) is still found through the opportunity.
+async function linkSiteWalksToProject(project) {
+  if (!project?.opportunityId) return;
+  const reports = liveRows(state.backend.siteWalkReports).filter((report) => report.opportunityId === project.opportunityId && !report.projectId);
+  for (const report of reports) {
+    try {
+      await saveBackendRecord("siteWalkReports", { ...report, projectId: project.id }, { refresh: false });
+    } catch (error) {
+      console.warn("Site walk report was not linked to the new project", report.id, error?.message || error);
+    }
+  }
 }
 
 function openProjectIntakeDialog(jobId) {
@@ -30897,7 +30941,11 @@ function documentTypesFor({ entityType, counterparty = null, stageGate = null })
 }
 
 // ---- Documents panel --------------------------------------------------------------------------
-function renderDocumentRow(document) {
+// options.source (Phase 25 Wave B, 2026-09-29): a label for where a row comes from when a panel mixes
+// its own documents with other records' ("From opportunity", "Regarding this project"). Called as a
+// .map() callback too, so a non-object second argument (the index) is ignored.
+function renderDocumentRow(document, options = {}) {
+  const source = options && typeof options === "object" ? options.source || "" : "";
   const type = findDocumentType(document.documentTypeId);
   const versions = documentVersions(document);
   const internal = !isPortalUser();
@@ -30913,6 +30961,7 @@ function renderDocumentRow(document) {
         </div>
         ${document.caption ? `<p class="help-text">${escapeHtml(document.caption)}</p>` : ""}
         <div class="inline-actions">
+          ${source ? `<span class="tag document-source-tag">${escapeHtml(source)}</span>` : ""}
           <span class="risk-badge ${document.visibility === "customer" ? "low" : "medium"}">${document.visibility === "customer" ? "Shared with customer" : "Internal only"}</span>
           <a class="mini-button" href="${viewUrl}" target="_blank" rel="noopener">Open</a>
           <a class="mini-button" href="/api/documents/${encodeURIComponent(document.id)}/download">Download</a>
@@ -30938,8 +30987,24 @@ function renderDocumentRow(document) {
   `;
 }
 
-function renderDocumentsPanel({ entityType, entityId, title = "Documents", subtitle = "", typeId = "", imagesOnly = false, exclude = null, panelClass = "" }) {
-  const documents = latestDocumentsForEntity(entityType, entityId).filter((document) => (!imagesOnly || isImageDocument(document)) && (!exclude || !exclude(document)));
+// extraRows (Phase 25 Wave B, 2026-09-29): [{document, source}] from other records, listed after the
+// panel's own documents with their source label (ownSource labels the panel's own rows when extras are
+// present); a document already listed is not repeated. extraHtml: ready-made rows appended at the end.
+function renderDocumentsPanel({ entityType, entityId, title = "Documents", subtitle = "", typeId = "", imagesOnly = false, exclude = null, panelClass = "", extraRows = [], extraHtml = "", ownSource = "" }) {
+  const keep = (document) => (!imagesOnly || isImageDocument(document)) && (!exclude || !exclude(document));
+  const documents = latestDocumentsForEntity(entityType, entityId).filter(keep);
+  const seen = new Set(documents.map((document) => document.groupId || document.id));
+  const extras = (extraRows || []).filter(({ document }) => {
+    if (!document || !keep(document)) return false;
+    const key = document.groupId || document.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const mixed = extras.length > 0 || Boolean(extraHtml);
+  const rows = imagesOnly
+    ? [...documents, ...extras.map(({ document }) => document)].map(renderPhotoTile).join("")
+    : [...documents.map((document) => renderDocumentRow(document, { source: mixed ? ownSource : "" })), ...extras.map(({ document, source }) => renderDocumentRow(document, { source }))].join("");
   return `
     <article class="panel ${panelClass}">
       <div class="panel-header">
@@ -30947,7 +31012,7 @@ function renderDocumentsPanel({ entityType, entityId, title = "Documents", subti
         ${isPortalUser() ? "" : `<button class="mini-button" type="button" data-action="open-document-upload" data-entity-type="${escapeAttribute(entityType)}" data-entity-id="${escapeAttribute(entityId)}" data-type-id="${escapeAttribute(typeId)}">${imagesOnly ? "Add photo" : "Upload"}</button>`}
       </div>
       <div class="panel-body record-list document-list ${imagesOnly ? "photo-grid" : ""}">
-        ${documents.map(imagesOnly ? renderPhotoTile : renderDocumentRow).join("") || `<div class="empty-state compact">${imagesOnly ? "No photos yet." : "No documents yet."}</div>`}
+        ${rows + (extraHtml || "") || `<div class="empty-state compact">${imagesOnly ? "No photos yet." : "No documents yet."}</div>`}
       </div>
     </article>
   `;
@@ -31339,7 +31404,16 @@ function renderProjectFilesTab(job) {
   const opportunityPhotos = job.opportunityId ? latestDocumentsForEntity("opportunity", job.opportunityId).filter(isImageDocument) : [];
   return `
     <section class="crm-profile-grid">
-      ${renderDocumentsPanel({ entityType: "project", entityId: job.id, title: "Project documents", subtitle: "Reports, permits, correspondence, lab results", exclude: isImageDocument })}
+      ${renderDocumentsPanel({
+        entityType: "project",
+        entityId: job.id,
+        title: "Project documents",
+        subtitle: job.opportunityId ? "This project's files, plus the source opportunity's (walk report, sketches, quote, packets)" : "Reports, permits, correspondence, lab results",
+        exclude: isImageDocument,
+        ownSource: "This project",
+        extraRows: projectRelatedDocuments(job),
+        extraHtml: renderProjectPricingDocumentLinks(job),
+      })}
       ${renderDocumentsPanel({ entityType: "project", entityId: job.id, title: "Site photos", subtitle: opportunityPhotos.length ? `${opportunityPhotos.length} more from the sales site walk below` : "From the field and the site walk", typeId: documentTypeByCode("site-photo")?.id || "", imagesOnly: true })}
       ${
         opportunityPhotos.length
@@ -33098,7 +33172,7 @@ function groupSamplesIntoSessions(samples) {
 function getProjectChronology(job) {
   const events = [];
   getScheduleEvents()
-    .filter((work) => work.projectId === job.id)
+    .filter((work) => work.projectId === job.id && work.kind !== "site_walk")
     .forEach((work) => {
       events.push({
         kind: "Scheduled work",
@@ -33171,7 +33245,15 @@ function getProjectChronology(job) {
     });
   });
 
+  // Phase 25 Wave B item 7 (2026-09-29): each site walk is one event (below), so the walk's own
+  // Meeting activity (scheduled, then completed) is not listed again among the opportunity's activities.
+  const walks = siteWalksForProject(job);
+  const walkActivityIds = new Set(walks.map(({ event }) => event?.activityId).filter(Boolean));
+  const walkEventIds = new Set(walks.map(({ event, report }) => event?.id || report?.walkEventId).filter(Boolean));
+  const walkReportIds = new Set(walks.map(({ report }) => report?.id).filter(Boolean));
+  const isWalkActivity = (activity) => walkActivityIds.has(activity.id) || walkEventIds.has(activity.regardingScheduleEventId) || walkReportIds.has(activity.siteWalkReportId);
   (job.opportunityId ? activitiesForOpportunity(job.opportunityId) : [])
+    .filter((activity) => !isWalkActivity(activity))
     .slice(0, 6)
     .forEach((activity) => {
       events.push({
@@ -33201,15 +33283,20 @@ function getProjectChronology(job) {
       });
     });
 
-  projectReportPhotos(job).forEach((photo) => {
-    events.push({
-      kind: "Photo",
-      title: photo.caption || photo.source,
-      timestamp: photo.takenAt,
-      detail: photo.source,
-      meta: [photo.record?.uploadedBy].filter(Boolean),
+  events.push(...projectWalkChronologyEvents(job));
+
+  // Walk photos are inside their Site walk event; every other photo is still its own event.
+  projectReportPhotos(job)
+    .filter((photo) => !photo.walkEventId)
+    .forEach((photo) => {
+      events.push({
+        kind: "Photo",
+        title: photo.caption || photo.source,
+        timestamp: photo.takenAt,
+        detail: photo.source,
+        meta: [photo.record?.uploadedBy].filter(Boolean),
+      });
     });
-  });
 
   return events
     .filter((event) => event.timestamp)
@@ -35125,8 +35212,7 @@ function renderSiteWalkReportPanel(opportunity) {
 
 // The same map on the project's Plan tab, read from the originating opportunity's walk.
 function renderProjectWalkMapPanel(job) {
-  const opportunityId = job.opportunityId || state.opportunities.find((opportunity) => opportunity.projectId === job.id)?.id || "";
-  const report = opportunityId ? siteWalkReportsForOpportunity(opportunityId)[0] : null;
+  const report = siteWalksForProject(job).find((walk) => walk.report)?.report || null;
   const facility = findFacility(job.facilityId || report?.facilityId || "");
   if (!report && !facilityCoordinates(facility)) return "";
   const summary = window.fieldMap?.renderWalkMapSummary?.(report ? { walkEventId: report.walkEventId } : { facilityId: facility.id }, { height: 320 });
@@ -35141,6 +35227,312 @@ function renderProjectWalkMapPanel(job) {
       <div class="panel-body">${summary.html}</div>
     </article>
   `;
+}
+
+// ---- Phase 25 Wave B items 6–8 (2026-09-29): the site walk carried onto the project -------------
+//
+// A walk belongs to the opportunity (scheduleEvents kind:"site_walk" + its siteWalkReports row +
+// siteWalkObservations pins). When the deal is won, saveProjectFromOpportunity stamps projectId on the
+// walk's siteWalkReports row. The walk's scheduleEvents row deliberately does NOT get projectId: the
+// server's project delete cascade soft-deletes scheduleEvents by projectId (and, through them, the walk
+// report and pins), so a deleted project would take the opportunity's walk with it; and every
+// "schedule events for this project" reader (chronology, client portal) would pick it up as work.
+// Projects won before this shipped have no stamp, and nothing is backfilled on load, so every reader
+// resolves by the report's projectId OR the project's source opportunity.
+function siteWalksForProject(project) {
+  if (!project) return [];
+  const opportunityId = project.opportunityId || "";
+  const reports = liveRows(state.backend.siteWalkReports).filter((report) => report.projectId === project.id || (opportunityId && report.opportunityId === opportunityId));
+  const events = getScheduleEvents().filter((event) => !event.deletedAt && event.kind === "site_walk" && event.status !== "Cancelled" && opportunityId && event.opportunityId === opportunityId);
+  const byEvent = new Map();
+  events.forEach((event) => byEvent.set(event.id, { event, report: null }));
+  reports.forEach((report) => {
+    const key = report.walkEventId || report.id;
+    const entry = byEvent.get(key) || { event: getScheduleEvents().find((event) => event.id === report.walkEventId && !event.deletedAt) || null, report: null };
+    // Two report rows for one walk should not happen; keep the newest.
+    if (!entry.report || String(report.updatedAt || "").localeCompare(String(entry.report.updatedAt || "")) > 0) entry.report = report;
+    byEvent.set(key, entry);
+  });
+  return [...byEvent.values()].sort((a, b) => String(projectWalkTimestamp(b)).localeCompare(String(projectWalkTimestamp(a))));
+}
+
+// When the walk happened: its completion, else when it was scheduled, else its check-in.
+function projectWalkTimestamp({ event, report }) {
+  if (report?.completedAt) return report.completedAt;
+  if (event?.date) {
+    const start = new Date(siteWalkStart(event));
+    return Number.isNaN(start.getTime()) ? event.date : start.toISOString();
+  }
+  return report?.checkIn?.at || report?.createdAt || "";
+}
+
+function projectWalkStatusLabel({ event, report }) {
+  if (report?.completedAt) return "Completed";
+  if (report) return "In progress";
+  return event?.status || "Scheduled";
+}
+
+function projectWalkFacility({ event, report }, project = null) {
+  return findFacility(event?.facilityId || report?.facilityId || project?.facilityId || "") || null;
+}
+
+function projectWalkContactName(contactId) {
+  const contact = findContact(contactId);
+  return contact?.name || contact?.fullName || [contact?.firstName, contact?.lastName].filter(Boolean).join(" ") || "Unknown contact";
+}
+
+// The walk's lead is whoever closed it; before it closes, the first person scheduled on it.
+function projectWalkPeople({ event, report }) {
+  const staff = event ? siteWalkParticipants(event).map((person) => person.displayName).filter(Boolean) : [];
+  const lead = report?.completedBy || staff[0] || "";
+  const customer = (report?.contactsMet || []).map(projectWalkContactName);
+  return { lead, staff, customer };
+}
+
+// Every photo the walk holds, section photos first, then pin photos in pin order; unique ids.
+function projectWalkPhotoIds({ event, report }) {
+  const ids = [];
+  Object.values(report?.sections || {}).forEach((section) => (section?.photoDocumentIds || []).forEach((id) => ids.push(id)));
+  siteWalkObservationsForWalk(event?.id || report?.walkEventId || "").forEach((row) => (row.photoDocumentIds || []).forEach((id) => ids.push(id)));
+  return [...new Set(ids)].filter((id) => {
+    const document = findDocument(id);
+    return document && !document.deletedAt;
+  });
+}
+
+// The sketch(es) the walk saved (report.sketchDocumentIds since Wave A item 9), plus any site-sketch
+// document on the opportunity, for walks closed before the report kept the ids.
+function projectWalkSketches({ report }, opportunityId = "") {
+  const byId = new Map();
+  (report?.sketchDocumentIds || []).map(findDocument).filter((document) => document && !document.deletedAt).forEach((document) => byId.set(document.id, document));
+  if (opportunityId) {
+    latestDocumentsForEntity("opportunity", opportunityId)
+      .filter((document) => findDocumentType(document.documentTypeId)?.code === "site-sketch")
+      .forEach((document) => byId.set(document.id, document));
+  }
+  return [...byId.values()];
+}
+
+// The walk report filed as a document (Wave B item 5, built alongside this): a "site-walk-report"
+// document on the opportunity (or on the walk itself). Matched to this walk when the row names it;
+// with one walk on the opportunity, the newest such document is that walk's.
+function projectWalkFiledReportDocument({ event, report }, opportunityId = "", walkCount = 1) {
+  const walkEventId = event?.id || report?.walkEventId || "";
+  const isWalkReportType = (document) => findDocumentType(document.documentTypeId)?.code === "site-walk-report";
+  const candidates = [
+    ...(opportunityId ? latestDocumentsForEntity("opportunity", opportunityId) : []),
+    ...(report ? latestDocumentsForEntity("siteWalk", report.id) : []),
+    ...(walkEventId ? latestDocumentsForEntity("siteWalk", walkEventId) : []),
+  ].filter(isWalkReportType);
+  const namesThisWalk = (document) =>
+    document.walkEventId === walkEventId ||
+    (report && document.siteWalkReportId === report.id) ||
+    (document.entityType === "siteWalk" && [walkEventId, report?.id].includes(document.entityId)) ||
+    (document.relatedRecords || []).some((link) => [walkEventId, report?.id].includes(link?.id));
+  return candidates.find(namesThisWalk) || (walkCount === 1 ? candidates[0] : null) || null;
+}
+
+function projectWalkDistanceMeters(a, b) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(s));
+}
+
+// A check-in worth a second look: far from the facility (~500 m, the Wave D threshold) or a GPS fix
+// too loose to place anyone on the site (worse than ±100 m).
+function projectWalkCheckInWarnings(checkIn, facility) {
+  if (!checkIn) return [];
+  const warnings = [];
+  const lat = Number(checkIn.lat);
+  const lng = Number(checkIn.lng);
+  const site = facilityCoordinates(facility);
+  if (site && checkIn.lat != null && checkIn.lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+    const meters = projectWalkDistanceMeters({ lat, lng }, site);
+    if (meters > 500) warnings.push(`${meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`} from the facility`);
+  }
+  if (Number(checkIn.accuracyM) > 100) warnings.push(`Low GPS accuracy (±${Math.round(Number(checkIn.accuracyM))} m)`);
+  return warnings;
+}
+
+function projectWalkMeasurementSize(item) {
+  const value = item.value ?? item.area ?? item.length ?? item.depth ?? item.volume;
+  return value === undefined || value === null || value === "" ? "" : `${value} ${item.unit || ""}`.trim();
+}
+
+function renderProjectWalkThumb(document) {
+  const viewUrl = `/api/documents/${encodeURIComponent(document.id)}/view`;
+  return `<a class="project-walk-thumb" href="${viewUrl}" target="_blank" rel="noopener" title="${escapeAttribute(document.caption || document.fileName || "")}"><img src="${viewUrl}" alt="${escapeAttribute(document.caption || document.fileName || "Site walk image")}" loading="lazy" /></a>`;
+}
+
+function renderProjectSiteWalkCard(walk, job, walkCount) {
+  const { event, report } = walk;
+  const walkEventId = event?.id || report?.walkEventId || "";
+  const facility = projectWalkFacility(walk, job);
+  const people = projectWalkPeople(walk);
+  const photoIds = projectWalkPhotoIds(walk);
+  const sketches = projectWalkSketches(walk, job.opportunityId);
+  const filed = projectWalkFiledReportDocument(walk, job.opportunityId, walkCount);
+  const warnings = projectWalkCheckInWarnings(report?.checkIn, facility);
+  const measurements = report?.measurements || [];
+  const pins = walkEventId ? siteWalkObservationsForWalk(walkEventId).length : 0;
+  const status = projectWalkStatusLabel(walk);
+  const when = event?.date ? `${formatDate(event.date)}${event.startTime ? ` ${event.startTime}` : ""}` : report?.checkIn?.at ? formatDateTime(report.checkIn.at) : "Not scheduled";
+  return `
+    <div class="project-site-walk" data-walk-event-id="${escapeAttribute(walkEventId)}">
+      <div class="row-meta">
+        <strong>${escapeHtml(facility?.name || "Site walk")}</strong>
+        <span class="risk-badge ${status === "Completed" ? "low" : "medium"}">${escapeHtml(status)}</span>
+      </div>
+      <dl class="detail-list">
+        <div><dt>When</dt><dd>${escapeHtml(when)}${report?.completedAt ? ` · closed ${escapeHtml(formatDateTime(report.completedAt))}` : ""}</dd></div>
+        <div><dt>Lead</dt><dd>${escapeHtml(people.lead || "Not recorded")}</dd></div>
+        <div><dt>Attendees</dt><dd>${escapeHtml([...people.staff, ...people.customer.map((name) => `${name} (customer)`)].join(", ") || "Not recorded")}</dd></div>
+        <div><dt>Check-in</dt><dd>${
+          report?.checkIn
+            ? `${escapeHtml(formatDateTime(report.checkIn.at))}${report.checkIn.accuracyM ? ` · GPS ±${Math.round(Number(report.checkIn.accuracyM))} m` : " · no GPS fix"}${warnings.map((warning) => ` <span class="risk-badge high" title="Check this check-in before relying on its location">${escapeHtml(warning)}</span>`).join("")}`
+            : "Not checked in"
+        }</dd></div>
+        <div><dt>Closure summary</dt><dd>${escapeHtml(report?.summary || (report?.completedAt ? "No summary written" : "Not closed yet"))}</dd></div>
+        <div><dt>Photos</dt><dd>${photoIds.length} photo${photoIds.length === 1 ? "" : "s"}${pins ? ` · ${pins} pin${pins === 1 ? "" : "s"} & shapes` : ""}</dd></div>
+      </dl>
+      ${
+        measurements.length
+          ? `<table class="project-walk-measurements"><thead><tr><th>Measurement</th><th class="num">Size</th><th>Method</th><th>Note</th></tr></thead><tbody>${measurements
+              .map((item) => `<tr><td>${escapeHtml(item.label || item.kind || "Measurement")}</td><td class="num">${escapeHtml(projectWalkMeasurementSize(item))}</td><td>${escapeHtml(item.method || "")}</td><td>${escapeHtml(item.note || "")}</td></tr>`)
+              .join("")}</tbody></table>`
+          : `<p class="help-text">No measurements taken on the walk.</p>`
+      }
+      ${sketches.length ? `<div class="project-walk-thumbs" aria-label="Site sketches">${sketches.map(renderProjectWalkThumb).join("")}</div>` : ""}
+      <div class="inline-actions">
+        ${walkEventId ? `<button class="mini-button" type="button" data-action="open-site-walk" data-id="${escapeAttribute(walkEventId)}">Open site walk</button>` : ""}
+        ${filed ? `<a class="mini-button" href="/api/documents/${encodeURIComponent(filed.id)}/view" target="_blank" rel="noopener">Filed walk report</a>` : ""}
+        ${walkEventId && report ? `<button class="mini-button" type="button" data-action="walk-export-pdf" data-walk-event-id="${escapeAttribute(walkEventId)}">Print report</button>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+// Plan tab, top right: the walk(s) behind this project, from the source opportunity.
+function renderProjectSiteWalkPanel(job) {
+  const walks = siteWalksForProject(job);
+  const opportunity = job.opportunityId ? findOpportunity(job.opportunityId) : null;
+  return `
+    <article class="panel project-site-walk-panel">
+      <div class="panel-header">
+        <div><h3>Site walk</h3><span>${walks.length ? `From the source opportunity${walks.length > 1 ? ` · ${walks.length} walks, newest first` : ""}` : "What sales saw on site before the win"}</span></div>
+        ${opportunity ? `<button class="mini-button" type="button" data-action="view-opportunity" data-id="${escapeAttribute(opportunity.id)}">Open opportunity</button>` : ""}
+      </div>
+      <div class="panel-body record-list">
+        ${
+          walks.length
+            ? walks.map((walk) => renderProjectSiteWalkCard(walk, job, walks.length)).join("")
+            : `<div class="empty-state">${opportunity ? "No site walk on the source opportunity." : "This project did not come from an opportunity, so there is no sales site walk."}${
+                opportunity ? ` <button class="mini-button" type="button" data-action="quick-schedule-site-walk" data-opportunity-id="${escapeAttribute(opportunity.id)}">Schedule a site walk</button>` : ""
+              }</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
+// Live tab chronology: one event per walk instead of one per walk photo.
+function projectWalkChronologyEvents(job) {
+  const walks = siteWalksForProject(job);
+  return walks.map((walk) => {
+    const { event, report } = walk;
+    const walkEventId = event?.id || report?.walkEventId || "";
+    const facility = projectWalkFacility(walk, job);
+    const people = projectWalkPeople(walk);
+    const photoIds = projectWalkPhotoIds(walk);
+    const title = `Site walk — ${facility?.name || "site"}`;
+    const sections = Object.entries(report?.sections || {}).filter(([, value]) => value && (value.done || Object.keys(value.fields || {}).length || (value.photoDocumentIds || []).length));
+    const thumbs = photoIds.slice(0, 6).map(findDocument).filter(Boolean);
+    const bodyHtml = `
+      ${
+        sections.length
+          ? `<ul class="project-walk-sections">${sections
+              .map(([key, value]) => `<li>${escapeHtml(walkSectionLabel(key))}${value.done ? " ✓" : ""}${(value.photoDocumentIds || []).length ? ` <small class="muted-text">${(value.photoDocumentIds || []).length} photo${(value.photoDocumentIds || []).length === 1 ? "" : "s"}</small>` : ""}</li>`)
+              .join("")}</ul>`
+          : ""
+      }
+      ${thumbs.length ? `<div class="project-walk-thumbs">${thumbs.map(renderProjectWalkThumb).join("")}${photoIds.length > thumbs.length ? `<span class="tag">+${photoIds.length - thumbs.length} more</span>` : ""}</div>` : ""}
+      ${walkEventId ? `<div class="inline-actions"><button class="mini-button" type="button" data-action="open-site-walk" data-id="${escapeAttribute(walkEventId)}">Open site walk</button></div>` : ""}
+    `;
+    return {
+      kind: "Site walk",
+      title,
+      titleAction: walkEventId ? { action: "open-site-walk", id: walkEventId } : null,
+      timestamp: projectWalkTimestamp(walk),
+      detail: [
+        projectWalkStatusLabel(walk),
+        people.lead ? `Lead ${people.lead}` : "",
+        [...people.staff, ...people.customer].length ? `Attendees: ${[...people.staff, ...people.customer.map((name) => `${name} (customer)`)].join(", ")}` : "",
+        `${photoIds.length} photo${photoIds.length === 1 ? "" : "s"}`,
+        report?.summary ? `Summary: ${report.summary}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      meta: [],
+      bodyHtml,
+    };
+  });
+}
+
+// Files tab › Project documents: what else belongs with the project's own files. Documents on the source
+// opportunity, documents filed on the walk itself, and any document whose relatedRecords (Regarding)
+// names the opportunity or the project. Images are left to the photo grids. The newest version of each
+// document group, once, labelled with the first reason it qualified.
+function projectRelatedDocuments(job) {
+  const rows = new Map();
+  const add = (document, source) => {
+    if (!document || document.deletedAt || isImageDocument(document)) return;
+    if (document.entityType === "project" && document.entityId === job.id) return;
+    const key = document.groupId || document.id;
+    if (!rows.has(key)) rows.set(key, { document, source });
+  };
+  if (job.opportunityId) latestDocumentsForEntity("opportunity", job.opportunityId).forEach((document) => add(document, "From opportunity"));
+  siteWalksForProject(job).forEach(({ report }) => {
+    if (report) latestDocumentsForEntity("siteWalk", report.id).forEach((document) => add(document, "From the site walk"));
+  });
+  const regarding = getDocuments().filter((document) =>
+    (document.relatedRecords || []).some((link) => (link?.type === "project" && link.id === job.id) || (job.opportunityId && link?.type === "opportunity" && link.id === job.opportunityId)),
+  );
+  const newest = new Map();
+  regarding.forEach((document) => {
+    const key = document.groupId || document.id;
+    const current = newest.get(key);
+    if (!current || Number(document.versionNumber || 1) > Number(current.versionNumber || 1)) newest.set(key, document);
+  });
+  [...newest.values()].forEach((document) =>
+    add(document, (document.relatedRecords || []).some((link) => link?.type === "project" && link.id === job.id) ? "Regarding this project" : "Regarding the opportunity"),
+  );
+  return [...rows.values()];
+}
+
+// The quote/estimate are records, not files: they print from the opportunity. Listed as link rows.
+function renderProjectPricingDocumentLinks(job) {
+  const opportunityId = job.opportunityId || "";
+  const quotes = liveRows(state.backend.quotes).filter((quote) => (opportunityId && quote.opportunityId === opportunityId) || quote.id === job.quoteId);
+  const estimates = liveRows(state.backend.estimates).filter((estimate) => (opportunityId && estimate.opportunityId === opportunityId) || estimate.id === job.estimateId);
+  const row = (kind, record, printAction) => `
+    <div class="detail-card document-row">
+      <span class="document-ext">${kind === "Quote" ? "QUO" : "EST"}</span>
+      <div class="document-main">
+        <div class="row-meta">
+          <strong>${escapeHtml(record.name || record.quoteNumber || record.estimateNumber || kind)}</strong>
+          <span>${escapeHtml(kind)}${record.status ? ` · ${escapeHtml(record.status)}` : ""} · ${money(record.totalAmount || 0)}${record.updatedAt ? ` · ${formatDateTime(record.updatedAt)}` : ""}</span>
+        </div>
+        <div class="inline-actions">
+          <span class="tag">From opportunity</span>
+          ${[job.quoteId, job.estimateId].includes(record.id) ? `<span class="tag">Priced baseline</span>` : ""}
+          ${record.opportunityId ? `<button class="mini-button" type="button" data-action="${printAction}" data-opportunity-id="${escapeAttribute(record.opportunityId)}" data-id="${escapeAttribute(record.id)}">Print</button>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+  return [...quotes.map((quote) => row("Quote", quote, "print-opportunity-quote")), ...estimates.map((estimate) => row("Estimate", estimate, "print-opportunity-estimate"))].join("");
 }
 
 function renderFacilityReferenceLayersPanel(facility) {
