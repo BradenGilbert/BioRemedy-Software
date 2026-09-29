@@ -154,7 +154,7 @@ Fourteen show-only tours (`kind: "section"`):
 
 ### The printed guide and the check (`scripts/build-user-guide.mjs`)
 
-- It builds its own scratch training copy (reset script `--no-start` into a temp folder, then `CRM_TRAINING=1` on port 4319).
+- It builds its own scratch training copy (reset script `--no-start` into a temp folder, then `CRM_TRAINING=1` on a free port, so parallel smoke runs never share one).
 - It starts every tutorial through the real engine, screenshots every step, and completes hands-on steps with their `auto` actions.
 - It writes `docs/user-guide/<id>.html`, an index and PDFs. These are gitignored (about 35 MB of screenshots): regenerate rather than commit.
 - **`--check`** writes nothing and fails on:

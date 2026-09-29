@@ -8,7 +8,7 @@
 //   node scripts/build-user-guide.mjs --url http://localhost:4312/ --password <break-glass>
 //
 // Without --url it builds its own scratch training copy (scripts/reset-training.mjs --no-start into a
-// temp folder, then server.mjs with CRM_TRAINING=1 on a spare port), so the pictures show the sample
+// temp folder, then server.mjs with CRM_TRAINING=1 on a free port), so the pictures show the sample
 // data and never live records. Each tutorial from tutorials/registry.js is started through the real
 // engine; every step is photographed with its spotlight; a hands-on step is completed with the step's
 // `auto` actions (the same ones a person would do by hand). The guide is generated, never hand-written:
@@ -23,6 +23,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { createServer } from "node:net";
 
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -222,7 +223,8 @@ function esc(value) {
 
 async function startScratchTraining() {
   const dir = mkdtempSync(join(tmpdir(), "crm-guide-"));
-  const port = Number(option("--port", "4319"));
+  // A free port unless one is given: two smoke runs (parallel sessions) must not share a server.
+  const port = Number(option("--port", "0")) || (await freePort());
   const pw = `guide-${Math.random().toString(36).slice(2)}`;
   const reset = spawnSync(process.execPath, ["scripts/reset-training.mjs", "--data", dir, "--port", String(port), "--no-start"], { cwd: projectRoot, encoding: "utf8" });
   if (reset.status !== 0) fail(`reset-training failed:\n${reset.stderr || reset.stdout}`);
@@ -239,6 +241,17 @@ async function startScratchTraining() {
   }
   child.kill();
   fail(`The scratch training server did not start on port ${port}.`);
+}
+
+function freePort() {
+  return new Promise((resolvePort, reject) => {
+    const probe = createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address();
+      probe.close(() => resolvePort(port));
+    });
+  });
 }
 
 async function loadPlaywright() {
