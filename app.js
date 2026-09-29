@@ -3160,6 +3160,7 @@ function renderQuickActions() {
           <button type="button" data-action="open-activity-call"${accountAttr}${opportunityAttr}>Call</button>
           <button type="button" data-action="open-activity-email"${accountAttr}${opportunityAttr}>Email</button>
           <button type="button" data-action="open-activity-task"${accountAttr}${opportunityAttr}>Task</button>
+          <button type="button" data-action="quick-schedule-site-walk"${opportunityAttr}>Site walk</button>
           <button type="button" data-action="open-quick-note"${accountAttr}${opportunityAttr}>Quick note</button>
         </div>
       </details>
@@ -15564,6 +15565,7 @@ function renderActivityPicker(accountId, contactId = "", opportunityId = "") {
           <button type="button" data-action="open-activity-call" data-account-id="${escapeAttribute(accountId)}"${contactAttr}${opportunityAttr}>Call</button>
           <button type="button" data-action="open-activity-email" data-account-id="${escapeAttribute(accountId)}"${contactAttr}${opportunityAttr}>Email</button>
           <button type="button" data-action="open-activity-task" data-account-id="${escapeAttribute(accountId)}"${contactAttr}${opportunityAttr}>Task</button>
+          ${opportunityId ? `<button type="button" data-action="quick-schedule-site-walk" data-opportunity-id="${escapeAttribute(opportunityId)}">Site walk</button>` : ""}
         </div>
       </details>
       <button class="mini-button" type="button" data-action="open-quick-note" data-account-id="${escapeAttribute(accountId)}"${contactAttr}${opportunityAttr}>Quick note</button>
@@ -15613,7 +15615,8 @@ function renderTimelinePanel(activities, contextKey, emptyMessage) {
     .map((key) => {
       const [type, id] = key.split(":");
       const title = lookupRecordTitle(type, id);
-      return title ? { key, label: `${RECORD_LOOKUP_TYPES[type]?.label || type}: ${title}` } : null;
+      const typeLabel = RECORD_LOOKUP_TYPES[type]?.label || type;
+      return title ? { key, label: title.startsWith(typeLabel) ? title : `${typeLabel}: ${title}` } : null;
     })
     .filter(Boolean)
     .sort((a, b) => a.label.localeCompare(b.label));
@@ -15672,20 +15675,56 @@ function renderTimelinePanel(activities, contextKey, emptyMessage) {
   `;
 }
 
+// Phase 25 Wave B (2026-09-29): the walk an activity stands for -- the Meeting that scheduling
+// created (regardingScheduleEventId, or the event's activityId for walks scheduled before the back
+// link) or the record its completion wrote (siteWalkReportId).
+function siteWalkEventForActivity(activity) {
+  if (!activity) return null;
+  const walks = RECORD_LOOKUP_TYPES.siteWalk.rows();
+  if (activity.regardingScheduleEventId) {
+    const event = walks.find((row) => row.id === activity.regardingScheduleEventId);
+    if (event) return event;
+  }
+  if (activity.siteWalkReportId) {
+    const report = liveRows(state.backend.siteWalkReports).find((row) => row.id === activity.siteWalkReportId);
+    const event = report && walks.find((row) => row.id === report.walkEventId);
+    if (event) return event;
+  }
+  return walks.find((row) => row.activityId === activity.id) || null;
+}
+
+function siteWalkTimelineState(event) {
+  const report = liveRows(state.backend.siteWalkReports).find((row) => row.walkEventId === event.id) || null;
+  if (report?.completedAt) return { label: "Completed", when: formatDateTime(report.completedAt), report };
+  if (/cancel/i.test(event.status || "")) return { label: "Cancelled", when: event.date ? formatDate(event.date) : "", report };
+  if (report?.startedAt || report?.checkIn?.at) return { label: "In progress", when: formatDateTime(report.startedAt || report.checkIn.at), report };
+  const when = event.date ? `${formatDate(event.date)}${event.startTime ? ` ${event.startTime}` : ""}` : "";
+  return { label: event.status === "Completed" ? "Completed" : "Scheduled", when, report };
+}
+
 function renderTimelineItem(activity, contextKey) {
   const account = findAccount(activity.accountId);
   const contacts = (activity.contactIds || []).map((id) => findContact(id)).filter(Boolean);
   const opportunity = findOpportunity(activity.opportunityId);
-  return `
-    <article class="timeline-item">
-      <div class="row-meta">
-        <span class="stage-badge">${escapeHtml(activity.activityType || activity.kind)}</span>
+  const walk = siteWalkEventForActivity(activity);
+  const walkState = walk ? siteWalkTimelineState(walk) : null;
+  const walkSummary = walkState?.report?.summary && walkState.report.summary !== activity.body ? walkState.report.summary : "";
+  const badges = walk
+    ? `<span class="stage-badge site-walk-badge" title="${escapeAttribute(activity.activityType || "Meeting")}">Site walk</span>
+        <span class="tag site-walk-state" data-walk-state="${escapeAttribute(walkState.label)}">${escapeHtml(walkState.label)}${walkState.when ? ` · ${escapeHtml(walkState.when)}` : ""}</span>`
+    : `<span class="stage-badge">${escapeHtml(activity.activityType || activity.kind)}</span>
         <span class="tag">${escapeHtml(activity.status || "Completed")}</span>
-        <span>${formatDate(activity.activityDate || activity.createdAt)}</span>
+        <span>${formatDate(activity.activityDate || activity.createdAt)}</span>`;
+  return `
+    <article class="timeline-item${walk ? " timeline-item-site-walk" : ""}">
+      <div class="row-meta">
+        ${badges}
         ${renderTimelineItemDetail(activity)}
       </div>
       <strong>${escapeHtml(activity.subject || activity.kind || "Activity")}</strong>
       <p>${escapeHtml(activity.body)}</p>
+      ${walkSummary ? `<p class="site-walk-timeline-summary"><span class="muted-text">Walk summary:</span> ${escapeHtml(walkSummary)}</p>` : ""}
+      ${walk ? `<div class="inline-actions"><button class="mini-button" type="button" data-action="open-site-walk" data-id="${escapeAttribute(walk.id)}">Open site walk</button></div>` : ""}
       <div class="tag-chip-list">
         ${(activity.tags || []).map((tag) => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join("")}
         <button class="mini-button" type="button" data-action="edit-activity-tags" data-id="${escapeAttribute(activity.id)}" data-context="${escapeAttribute(contextKey || "")}">Tags &amp; regarding</button>
@@ -23395,6 +23434,9 @@ async function saveSiteWalk(form) {
   }
   const core = getCoreOpportunity(opportunity);
   const title = `Site walk — ${core.opportunityName}${facility ? ` at ${facility.name}` : ""}`;
+  // Phase 25 Wave B: the Meeting points back at its walk (regardingScheduleEventId + a siteWalk
+  // Regarding entry), so completion updates this record instead of adding a second one.
+  const eventId = makeId("site-walk");
   try {
     const activity = buildCoreActivityRecord({
       id: makeId("act"),
@@ -23411,12 +23453,13 @@ async function saveSiteWalk(form) {
       meetingLocation: facility ? [facility.name, facility.address, facility.city].filter(Boolean).join(", ") : "",
       status: "Scheduled",
       tags: ["Site Visit"],
-      relatedRecords: [{ type: "opportunity", id: opportunity.id }, ...(facilityId ? [{ type: "facility", id: facilityId }] : [])],
+      regardingScheduleEventId: eventId,
+      relatedRecords: [{ type: "opportunity", id: opportunity.id }, ...(facilityId ? [{ type: "facility", id: facilityId }] : []), { type: "siteWalk", id: eventId }],
       body: notes,
     });
     await saveBackendRecord("activities", activity, { refresh: false });
     const event = {
-      id: makeId("site-walk"),
+      id: eventId,
       kind: "site_walk",
       projectId: "",
       opportunityId: opportunity.id,
@@ -32389,7 +32432,23 @@ const RECORD_LOOKUP_TYPES = {
     meta: (row) => [findAccount(row.accountId)?.name, row.projectStage].filter(Boolean).join(" · "),
     accountId: (row) => row.accountId,
   },
+  // Phase 25 Wave B (2026-09-29): a site walk (a scheduleEvents row, kind "site_walk") can be
+  // "Regarding" too. The link opens the walk page (#view=site-walk, Wave B item 4).
+  siteWalk: {
+    label: "Site walk",
+    action: "open-site-walk",
+    rows: () => liveRows(state.backend.scheduleEvents).filter((row) => row.kind === "site_walk"),
+    title: (row) => siteWalkLookupTitle(row),
+    meta: (row) => [findOpportunity(row.opportunityId)?.name, findAccount(row.accountId)?.name, row.status].filter(Boolean).join(" · "),
+    search: (row) => row.title || "",
+    accountId: (row) => row.accountId,
+  },
 };
+
+function siteWalkLookupTitle(event) {
+  const place = findFacility(event.facilityId)?.name || findOpportunity(event.opportunityId)?.name || "";
+  return `Site walk — ${[place, event.date ? formatDate(event.date) : ""].filter(Boolean).join(" ")}`;
+}
 
 // Optional narrowing, via data-lookup-filter on the container. data-lookup-exclude drops one id
 // (e.g. the customer itself when picking its approved subcontractors).
@@ -32492,7 +32551,7 @@ function searchRecordLookup(container) {
       if (chosen.has(`${type}:${row.id}`) || row.id === exclude || !filter(type, row)) return;
       const title = config.title(row);
       const meta = config.meta(row);
-      const haystack = `${title} ${meta}`.toLowerCase();
+      const haystack = `${title} ${meta} ${config.search ? config.search(row) : ""}`.toLowerCase();
       if (term && !haystack.includes(term)) return;
       // Name matches outrank matches on the detail line (a city, an account); the record in
       // context gets a boost on top.
@@ -32593,10 +32652,13 @@ function renderRegardingLinks(activity) {
 function activitiesForFacility(facilityId) {
   const projectIds = new Set(state.projects.filter((project) => project.facilityId === facilityId).map((project) => project.id));
   const jobIds = new Set(getDispatchJobs().filter((job) => job.facilityId === facilityId || projectIds.has(job.projectId)).map((job) => job.id));
+  const walkIds = new Set(RECORD_LOOKUP_TYPES.siteWalk.rows().filter((event) => event.facilityId === facilityId).map((event) => event.id));
   return state.activities.filter(
     (activity) =>
       activityReferences(activity, "facility", facilityId) ||
-      (activity.relatedRecords || []).some((item) => (item.type === "project" && projectIds.has(item.id)) || (item.type === "dispatchJob" && jobIds.has(item.id))),
+      (activity.relatedRecords || []).some(
+        (item) => (item.type === "project" && projectIds.has(item.id)) || (item.type === "dispatchJob" && jobIds.has(item.id)) || (item.type === "siteWalk" && walkIds.has(item.id)),
+      ),
   );
 }
 
@@ -32622,7 +32684,13 @@ function activitiesForContact(contactId) {
 }
 
 function activitiesForOpportunity(opportunityId) {
-  return state.activities.filter((activity) => activity.opportunityId === opportunityId || activityReferences(activity, "opportunity", opportunityId));
+  const walkIds = new Set(RECORD_LOOKUP_TYPES.siteWalk.rows().filter((event) => event.opportunityId === opportunityId).map((event) => event.id));
+  return state.activities.filter(
+    (activity) =>
+      activity.opportunityId === opportunityId ||
+      activityReferences(activity, "opportunity", opportunityId) ||
+      (walkIds.size > 0 && (activity.relatedRecords || []).some((item) => item.type === "siteWalk" && walkIds.has(item.id))),
+  );
 }
 
 function activitiesForRecord({ accountId = "", contactId = "", opportunityId = "" }) {

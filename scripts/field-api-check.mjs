@@ -241,6 +241,53 @@ await step("walk share link: works with no session, 410s after revoke", async ()
   assert(afterRevoke.status === 410, `after revoke -> ${afterRevoke.status} (want 410)`);
 });
 
+// ---- 7b. completing a walk leaves exactly one activity (Phase 25 Wave B, 2026-09-29) --------------
+// Before Wave B the completion never found the scheduled Meeting and pushed a second record. Two
+// cases: a walk scheduled the old way (the Meeting is linked only by event.activityId), completed
+// twice; and a walk with no activity at all, which gets one Meeting.
+await step("walk completion updates the scheduled Meeting: exactly one activity, Completed", async () => {
+  const opportunity = (await adminGet("opportunities")).find((item) => !item.deletedAt);
+  if (!opportunity) return "skip";
+  const stamp = Date.now().toString(36);
+  const post = async (collection, record) => {
+    const response = await fetch(`${baseUrl}/api/backend/${collection}`, { method: "POST", headers: adminHeaders, body: JSON.stringify(record) });
+    assert(response.ok, `POST ${collection} -> ${response.status}`);
+  };
+  const complete = async (eventId, n) => {
+    const response = await fetch(`${baseUrl}/api/field/site-walk/${eventId}/complete`, { method: "POST", headers: { ...adminHeaders, "X-Client-Command-Id": `walk-one-${eventId}-${n}` }, body: JSON.stringify({ summary: `field-api-check ${n}` }) });
+    const body = await j(response);
+    assert(response.ok, `complete walk -> ${response.status} ${body.error || ""}`);
+    return body;
+  };
+  const base = { kind: "site_walk", opportunityId: opportunity.id, accountId: opportunity.accountId || "", facilityId: opportunity.facilityId || "", date: "2026-09-29", startTime: "09:00", endTime: "10:00", participantEmployeeIds: [], status: "Scheduled", crew: "Sales" };
+  const legacyActivity = { id: `act-walk-check-${stamp}`, activityType: "Meeting", subject: "Site walk — field-api-check", status: "Scheduled", opportunityId: opportunity.id, accountId: opportunity.accountId || "", owner: "field-api-check", tags: ["Site Visit"], relatedRecords: [{ type: "opportunity", id: opportunity.id }] };
+  await post("activities", legacyActivity);
+  const legacyEvent = { ...base, id: `site-walk-check-${stamp}`, title: "field-api-check legacy walk", activityId: legacyActivity.id };
+  await post("scheduleEvents", legacyEvent);
+  const bareEvent = { ...base, id: `site-walk-check-bare-${stamp}`, title: "field-api-check walk with no activity", activityId: "" };
+  await post("scheduleEvents", bareEvent);
+  const legacyReport = await complete(legacyEvent.id, 1);
+  await complete(legacyEvent.id, 2);
+  const bareReport = await complete(bareEvent.id, 1);
+  const activities = (await adminGet("activities")).filter((item) => !item.deletedAt);
+  const events = await adminGet("scheduleEvents");
+  for (const [event, report] of [[legacyEvent, legacyReport], [bareEvent, bareReport]]) {
+    const stored = events.find((item) => item.id === event.id);
+    const linked = activities.filter((item) => item.regardingScheduleEventId === event.id || item.id === event.activityId || item.id === stored?.activityId);
+    assert(linked.length === 1, `${event.title}: ${linked.length} activities (want 1)`);
+    const [activity] = linked;
+    assert(activity.status === "Completed" && activity.activityType === "Meeting" && !activity.type, `${event.title}: activity is ${activity.activityType}/${activity.status}${activity.type ? ` type:${activity.type}` : ""} (want Meeting/Completed)`);
+    assert(activity.siteWalkReportId === report.id, `${event.title}: siteWalkReportId ${activity.siteWalkReportId} (want ${report.id})`);
+    assert((activity.relatedRecords || []).some((item) => item.type === "siteWalk" && item.id === event.id), `${event.title}: the walk is not in relatedRecords`);
+    assert((activity.tags || []).includes("Site Visit") && activity.owner, `${event.title}: missing Site Visit tag or owner`);
+    assert(stored?.status === "Completed" && stored.activityId === activity.id, `${event.title}: event ${stored?.status} activityId ${stored?.activityId}`);
+    assert(report.status === "Completed", `${event.title}: report status ${report.status}`);
+  }
+  assert(activities.find((item) => item.id === legacyActivity.id)?.owner === "field-api-check", "an existing owner was overwritten");
+  for (const event of [legacyEvent, bareEvent]) await fetch(`${baseUrl}/api/backend/scheduleEvents/${event.id}`, { method: "DELETE", headers: adminHeaders });
+  for (const activity of activities.filter((item) => [legacyEvent.id, bareEvent.id].includes(item.regardingScheduleEventId))) await fetch(`${baseUrl}/api/backend/activities/${activity.id}`, { method: "DELETE", headers: adminHeaders });
+});
+
 // ---- 8. a suspended-device employee cannot mint a usable session ---------------------------------
 await step("suspended-device employee is refused a sign-on link session", async () => {
   const suspendedDevice = (frontlineDevices || []).find((device) => device.registrationStatus === "Suspended" && !device.deletedAt);

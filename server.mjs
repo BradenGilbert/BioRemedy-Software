@@ -6364,6 +6364,69 @@ function mergeFieldNeeds(existing, incoming) {
   return list;
 }
 
+// Phase 25 Wave B (2026-09-29): the one timeline record for a site walk. Finds the scheduled Meeting
+// (event.activityId, or any activity whose regardingScheduleEventId is the walk) and marks it
+// Completed; only a walk with no activity at all gets a new one. Mutates data.activities.
+function completeSiteWalkActivity(data, event, report, { completer = "", placeName = "", accountId = "" } = {}) {
+  if (!Array.isArray(data.activities)) data.activities = [];
+  const live = data.activities.filter((item) => !item.deletedAt);
+  const activity =
+    (event.activityId && live.find((item) => item.id === event.activityId)) ||
+    live.find((item) => item.regardingScheduleEventId === event.id && item.activityType === "Meeting") ||
+    live.find((item) => item.regardingScheduleEventId === event.id) ||
+    null;
+  const subject = `Site walk completed${placeName ? ` — ${placeName}` : ""}`;
+  const related = [
+    ...(Array.isArray(activity?.relatedRecords) ? activity.relatedRecords : []),
+    ...(event.opportunityId ? [{ type: "opportunity", id: event.opportunityId }] : []),
+    ...(report.facilityId ? [{ type: "facility", id: report.facilityId }] : []),
+    { type: "siteWalk", id: event.id },
+  ].filter((item, index, list) => item?.id && list.findIndex((other) => other.type === item.type && other.id === item.id) === index);
+  const tags = [...new Set([...(Array.isArray(activity?.tags) ? activity.tags : []), "Site Visit"])];
+  const completedFields = {
+    activityType: "Meeting",
+    kind: "Meeting",
+    subject,
+    status: "Completed",
+    tags,
+    regardingScheduleEventId: event.id,
+    siteWalkReportId: report.id,
+    description: report.summary || activity?.description || "",
+    occurredAt: report.completedAt,
+    completedAt: report.completedAt,
+    relatedRecords: related,
+  };
+  if (activity) {
+    const owner = activity.owner && activity.owner !== "Unassigned" ? activity.owner : completer || activity.owner || "";
+    const updated = { ...activity, ...completedFields, owner, author: activity.author && activity.author !== "Unassigned" ? activity.author : owner };
+    delete updated.type;
+    touchRecord(updated, activity);
+    data.activities[data.activities.findIndex((item) => item.id === activity.id)] = updated;
+    return { id: updated.id, created: false };
+  }
+  const date = event.date || String(report.completedAt || "").slice(0, 10);
+  const created = touchRecord({
+    id: makeId("act"),
+    ...completedFields,
+    accountId,
+    opportunityId: event.opportunityId || "",
+    contactId: "",
+    contactIds: [],
+    body: report.summary || "",
+    direction: "Internal",
+    channel: "In person",
+    meetingFormat: "Offline",
+    activityDate: date,
+    dueDate: date,
+    owner: completer || "Unassigned",
+    author: completer || "Unassigned",
+    createdBy: completer || "Unassigned",
+    priority: "",
+  });
+  data.activities.push(created);
+  return { id: created.id, created: true };
+}
+
 async function fieldCompleteSiteWalk(request, eventId) {
   const body = await readJsonBody(request);
   const session = request.session;
@@ -6380,10 +6443,13 @@ async function fieldCompleteSiteWalk(request, eventId) {
   const opportunity = (data.opportunities || []).find((item) => item.id === event.opportunityId);
   const stored = (data.siteWalkReports || []).find((item) => item.walkEventId === eventId && !item.deletedAt);
   const record = {
+    // Keep whatever else the stored report carries (startedAt, a later projectId, ...).
+    ...(stored || {}),
     id: stored?.id || makeId("site-walk-report"),
     walkEventId: eventId,
     opportunityId: event.opportunityId || "",
-    facilityId: opportunity?.facilityId || stored?.facilityId || "",
+    // Phase 25 Wave B: the walk's own facility, not the opportunity's (they differ when a deal spans sites).
+    facilityId: event.facilityId || stored?.facilityId || opportunity?.facilityId || "",
     checkIn: body.checkIn ?? stored?.checkIn ?? null,
     sections: body.sections ?? stored?.sections ?? {},
     needs: body.needs ?? stored?.needs ?? {},
@@ -6395,6 +6461,8 @@ async function fieldCompleteSiteWalk(request, eventId) {
     referenceSnapshot: stored?.referenceSnapshot ?? { layers: [] },
     shares: stored?.shares ?? [],
     summary: body.summary ?? stored?.summary ?? "",
+    status: "Completed",
+    startedAt: stored?.startedAt || body.startedAt || "",
     completedAt: new Date().toISOString(),
     completedBy: attribution(request),
   };
@@ -6402,21 +6470,19 @@ async function fieldCompleteSiteWalk(request, eventId) {
   if (stored) data.siteWalkReports[data.siteWalkReports.findIndex((item) => item.id === stored.id)] = record;
   else data.siteWalkReports.push(record);
 
-  const updatedEvent = { ...event, status: "Completed" };
+  // Phase 25 Wave B (2026-09-29): completion updates the Meeting that scheduling created -- found by
+  // its back link, or by the event's activityId for walks scheduled before the back link existed --
+  // instead of pushing a second "Site walk completed" record.
+  const facility = (data.facilities || []).find((item) => item.id === record.facilityId);
+  const activityResult = completeSiteWalkActivity(data, event, record, {
+    completer: request.session?.name || attribution(request),
+    placeName: facility?.name || opportunity?.name || opportunity?.opportunityName || "",
+    accountId: event.accountId || opportunity?.accountId || "",
+  });
+
+  const updatedEvent = { ...event, status: "Completed", activityId: activityResult.id };
   touchRecord(updatedEvent, event);
   data.scheduleEvents[data.scheduleEvents.findIndex((item) => item.id === event.id)] = updatedEvent;
-
-  const activity = (data.activities || []).find((item) => item.regardingScheduleEventId === event.id && !item.deletedAt);
-  if (activity) {
-    const updatedActivity = { ...activity, status: "Completed", description: record.summary || activity.description };
-    touchRecord(updatedActivity, activity);
-    data.activities[data.activities.findIndex((item) => item.id === activity.id)] = updatedActivity;
-  } else if (Array.isArray(data.activities)) {
-    data.activities.push(touchRecord({
-      id: makeId("activity"), type: "Site Visit", subject: "Site walk completed", opportunityId: event.opportunityId || "",
-      accountId: opportunity?.accountId || "", status: "Completed", regardingScheduleEventId: event.id, description: record.summary || "", occurredAt: record.completedAt,
-    }));
-  }
 
   if (opportunity) {
     const updatedOpportunity = {
