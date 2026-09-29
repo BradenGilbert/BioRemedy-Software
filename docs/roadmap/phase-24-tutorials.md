@@ -239,3 +239,4 @@ Fourteen show-only tours (`kind: "section"`):
 - **Site walks on My Day.** They are the "Site walks" section's `walk-open` cards (`field/walk.js`). The older `field-open-walk` card renders as a plain, untappable card because `field-walk` isn't in `FIELD_ROUTES`. The tutorial targets both.
 - **Where the record-page "?" goes.** Record pages and Identity & Sync have no workspace header, so their "?" is in the top bar instead of beside each tab strip. That is one insertion instead of five page edits.
 - **The printed guide is not committed.** It is about 35 MB of screenshots; it is gitignored and regenerated instead.
+- **Phase 25 Wave A (2026-09-29).** Projects opens filtered to My projects, so the three "Open a project" steps (section-operations, process-plan-dispatch, process-close-bill) also target `clear-quick-filters` (Show all projects), and `runAuto` takes `{ click, optional: true }` to skip an action whose target is absent.
