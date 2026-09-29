@@ -1396,9 +1396,43 @@ async function refreshBackendState() {
     };
     projectBackendState();
     state.authError = state.authError === "Backend API unavailable." ? "" : state.authError;
+    state.lastBackendRefreshAt = Date.now();
   } catch (error) {
     state.authError = "Backend API unavailable.";
   }
+}
+
+// Item 3 (owner, 2026-09-28): the office app never re-fetched in the background — only at init and
+// after the user's own saves — so a second browser tab could sit stale for hours. Refresh quietly on
+// focus/visibility and on a slow poll, but only while the office app is showing (not a field/frontline
+// view, which has its own outbox/package flow) and only when nobody is mid-edit (no open dialog, no
+// focused input/textarea inside #app) so a refresh never yanks the field out from under someone typing.
+const BACKEND_REFRESH_STALE_MS = 30 * 1000;
+function isOfficeAppShowing() {
+  return !String(state.view || "").startsWith("field-") && !String(state.view || "").startsWith("frontline-");
+}
+function isUserMidEdit() {
+  if (document.querySelector("dialog[open]")) return true;
+  const active = document.activeElement;
+  const app = document.querySelector("#app");
+  if (!active || !app) return false;
+  if (!app.contains(active)) return false;
+  return active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.tagName === "SELECT" || active.isContentEditable;
+}
+async function maybeRefreshBackendInBackground() {
+  if (document.visibilityState !== "visible") return;
+  if (!isOfficeAppShowing()) return;
+  if (isUserMidEdit()) return;
+  if (state.lastBackendRefreshAt && Date.now() - state.lastBackendRefreshAt < BACKEND_REFRESH_STALE_MS) return;
+  await refreshBackendState();
+  if (!isUserMidEdit()) render();
+}
+function wireBackgroundBackendRefresh() {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") maybeRefreshBackendInBackground();
+  });
+  window.addEventListener("focus", () => maybeRefreshBackendInBackground());
+  setInterval(() => maybeRefreshBackendInBackground(), 60 * 1000);
 }
 
 // The derived lists (state.accounts, state.projects, ...) are recomputed from state.backend here.
@@ -1555,6 +1589,7 @@ async function init() {
   await loadGuidedTours();
   installCameraCapture();
   registerServiceWorker();
+  wireBackgroundBackendRefresh();
   render();
   sweepDeadlineNotifications();
 }
@@ -1742,6 +1777,7 @@ async function dispatchClick(event) {
   if (action === "remove-opportunity-assignment") await removeOpportunityAssignment(id);
   if (action === "open-opportunity-needs-list") openOpportunityNeedsListDialog(actionButton.dataset.opportunityId, actionButton.dataset.kind);
   if (action === "open-opportunity-needs-combined") openOpportunityNeedsCombinedDialog(actionButton.dataset.opportunityId);
+  if (action === "open-project-needs") openOpportunityNeedsCombinedDialog(actionButton.dataset.projectId, "projects");
   if (action === "open-opportunity-proposal") openOpportunityProposalDialog(id);
   if (action === "open-opportunity-negotiation") openOpportunityNegotiationDialog(id);
   if (action === "open-opportunity-quote") openOpportunityQuoteDialog(actionButton.dataset.opportunityId, id);
@@ -2102,7 +2138,7 @@ async function dispatchClick(event) {
       }
     }
   }
-  if (action === "toggle-report-photo") await toggleReportPhoto(actionButton.dataset.id, actionButton.checked);
+  if (action === "toggle-report-photo") await toggleReportPhoto(actionButton.dataset.id, actionButton.checked, actionButton.dataset.kind || "attachment");
   if (action === "print-post-work-report") printPostWorkReport(actionButton.dataset.id);
   if (action === "open-permit") openPermitDialog(actionButton.dataset.id || "");
   if (action === "open-waste-record") openWasteRecordDialog(actionButton.dataset.projectId, actionButton.dataset.id || "");
@@ -2482,7 +2518,7 @@ function handleInputInner(event) {
     return;
   }
   if (event.type === "change" && event.target.matches?.("[data-report-caption-id]")) {
-    saveReportPhotoCaption(event.target.dataset.reportCaptionId, event.target.value.trim());
+    saveReportPhotoCaption(event.target.dataset.reportCaptionId, event.target.value.trim(), event.target.dataset.reportCaptionKind || "attachment");
     return;
   }
   if (event.type === "input" && event.target.matches?.(".record-lookup-input")) {
@@ -2701,6 +2737,14 @@ function handleInputInner(event) {
 
   if (event.target.matches("#emergencyIntakeDialog select[name='accountId']")) {
     syncEmergencyIntakeFacilityField(event.target.form);
+  }
+
+  if (event.target.matches("#emergencyIntakeDialog select[name='callerRelationship']")) {
+    syncEmergencyIntakeOnsiteContact(event.target.form);
+  }
+
+  if (event.target.matches("#projectIntakeDialog select[name='jobClass']")) {
+    toggleProjectIntakeMobilizationFields(event.target.form, event.target.value);
   }
 
   if (event.target.matches("#mapLocationDialog input[name='isTemporary']")) {
@@ -3031,6 +3075,8 @@ function handlePopState() {
 function renderConnection() {
   connectionStatus.textContent = state.online ? "Online" : "Offline";
   connectionStatus.classList.toggle("offline", !state.online);
+  const hint = document.querySelector("#backendRefreshHint");
+  if (hint) hint.textContent = state.lastBackendRefreshAt ? `Updated ${new Date(state.lastBackendRefreshAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "";
 }
 
 function renderNav() {
@@ -4665,6 +4711,14 @@ function buildCoreProjectRecord(project) {
     sitePhotoRefs: project.sitePhotoRefs || [],
     quoteId: project.quoteId || "",
     estimateId: project.estimateId || "",
+    // Item 4 (2026-09-28) — "Where is it?", alongside the existing spillSurface ("What is it on?").
+    spillLocationType: project.spillLocationType || "",
+    // Item 6 (2026-09-28) — the override checkbox/reason as *requested* on the intake form, persisted
+    // so the project intake dialog can show and re-edit it later. `mobilizationOverrideBy/Reason`
+    // (below) are the audit record of an override that actually took effect.
+    overrideMobilization: Boolean(project.overrideMobilization),
+    overrideBy: project.overrideBy || "",
+    overrideReason: project.overrideReason || "",
   };
 }
 
@@ -5299,6 +5353,11 @@ function renderAccounts() {
   const searchedAccounts = state.accounts
     .filter((account) => {
       if (!search) return true;
+      // Item 3 (owner, 2026-09-28): an account search for "Dell" found nothing because "Dell" is only
+      // the project and site name, not the account name (provisional accounts get a generic name).
+      // Fold in every project's name and site location name so the search finds the work, not just
+      // the billing entity.
+      const projects = projectsForAccount(account.id);
       return [
         ...accountCoreFields.map((field) => getAccountFieldValue(account, field.key)),
         account.contact,
@@ -5306,6 +5365,8 @@ function renderAccounts() {
         account.nextAction,
         account.siteName,
         account.concern,
+        ...projects.map((project) => project.name),
+        ...projects.map((project) => projectSite(project).name),
       ]
         .join(" ")
         .toLowerCase()
@@ -8169,7 +8230,7 @@ function renderAllProjectsTable(jobs) {
     tableId: "all-projects",
     searchPlaceholder: "Search projects...",
     emptyText: "No projects match.",
-    searchFields: [(job) => job.name, (job) => findAccount(job.accountId)?.name, (job) => job.jobClass],
+    searchFields: [(job) => job.name, (job) => findAccount(job.accountId)?.name, (job) => job.jobClass, (job) => projectSite(job).name],
     columns: [
       { key: "name", label: "Project" },
       { key: "account", label: "Account", sortValue: (job) => findAccount(job.accountId)?.name || "" },
@@ -8576,7 +8637,8 @@ function renderEmergencyIntakePanel(job) {
         <dl class="detail-list">
           <div><dt>Caller</dt><dd>${escapeHtml(job.callerName || "Not captured")}${job.callerPhone ? ` — ${escapeHtml(formatPhoneNumber(job.callerPhone))}` : ""}</dd></div>
           <div><dt>Material</dt><dd>${escapeHtml(job.spillMaterial || "Not captured")}${job.spillQuantity ? ` (${escapeHtml(job.spillQuantity)})` : ""}</dd></div>
-          <div><dt>Surface</dt><dd>${escapeHtml(job.spillSurface || "Not captured")}</dd></div>
+          <div><dt>Surface</dt><dd>${escapeHtml(formatSpillSurface(job.spillSurface) || "Not captured")}</dd></div>
+          <div><dt>Location type</dt><dd>${escapeHtml(job.spillLocationType || "Not captured")}</dd></div>
           <div><dt>Storm drain</dt><dd>${escapeHtml(job.stormDrainInvolved || "Unknown")}</dd></div>
           <div><dt>Off-road discharge</dt><dd>${escapeHtml(job.offRoadDischarge || "Unknown")}</dd></div>
           <div><dt>Absorbent deployed</dt><dd>${escapeHtml(job.absorbentDeployed || "No")}${job.absorbentDeployedBy ? ` by ${escapeHtml(job.absorbentDeployedBy)}` : ""}</dd></div>
@@ -8586,6 +8648,8 @@ function renderEmergencyIntakePanel(job) {
           ${job.agencyIncidentNumber ? `<div><dt>Agency / incident #</dt><dd>${escapeHtml(job.agencyIncidentNumber)}</dd></div>` : ""}
           <div><dt>Insurance</dt><dd>${job.hasInsurance === "Yes" ? `${escapeHtml(job.insuranceCarrier || "Carrier not captured")}${job.isInsuranceClaim === "Yes" ? " — filing a claim" : ""}` : "No insurance on file"}</dd></div>
           ${job.downPaymentAmount ? `<div><dt>Down payment</dt><dd>${money(job.downPaymentAmount)}${job.downPaymentBy ? ` — ${escapeHtml(job.downPaymentBy)}` : ""}</dd></div>` : ""}
+          ${job.downPaymentReference ? `<div><dt>Reference</dt><dd>${escapeHtml(job.downPaymentReference)}</dd></div>` : ""}
+          ${job.mobilizationOverrideBy ? `<div><dt>Override</dt><dd>${escapeHtml(job.mobilizationOverrideBy)}${job.mobilizationOverrideReason ? `: ${escapeHtml(job.mobilizationOverrideReason)}` : ""}</dd></div>` : ""}
         </dl>
       </div>
     </article>
@@ -8602,7 +8666,7 @@ function renderProjectPlanTab(job, ctx) {
     <section class="project-detail-layout">
       <div class="detail-stack">
         <article class="panel">
-          <div class="panel-header"><h3>Scope from sales</h3></div>
+          <div class="panel-header"><h3>Scope</h3><button class="mini-button" type="button" data-action="open-project-needs" data-project-id="${escapeAttribute(job.id)}">Edit</button></div>
           <div class="panel-body">
             <dl class="detail-list">
               <div><dt>Heavy equipment needed</dt><dd class="chip-list">${renderOpportunityNeedsChips(job.equipmentNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
@@ -12474,6 +12538,17 @@ function renderDispatchJobDetailsTab(job) {
                   )
                   .join("")}</div>`
               : `<p class="help-text">No labor or vendor resources assigned during the sales/opportunity stage.</p>`
+          }
+          ${
+            // Item 7 (2026-09-28) — the project's Scope lists (equipment/vendor/resource needs) used
+            // to be visible only on the project's own Plan tab; dispatch never saw them.
+            project
+              ? `<dl class="detail-list job-overview-list">
+                  <div><dt>Project scope — equipment</dt><dd class="chip-list">${renderOpportunityNeedsChips(project.equipmentNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+                  <div><dt>Project scope — vendor</dt><dd class="chip-list">${renderOpportunityNeedsChips(project.vendorNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+                  <div><dt>Project scope — resources</dt><dd class="chip-list">${renderOpportunityNeedsChips(project.resourceNeeds) || `<span class="tag">Nothing listed</span>`}</dd></div>
+                </dl>`
+              : ""
           }
         </div>
       </article>
@@ -19246,6 +19321,10 @@ function openEmergencyIntakeDialog() {
   ].join("");
   form.elements.jobTypeTemplateId.value = templates.find((template) => template.serviceCategory === "ER")?.id || "";
   syncEmergencyIntakeFacilityField(form);
+  // Item 5 (2026-09-28) — the "Dispatch" step's field lead / crew quick-pick and duration default.
+  populateEmployeeSelect(dialog, "fieldLeadEmployeeId", "Not yet assigned");
+  populateCrewProfileSelect(dialog);
+  if (form.elements.estimatedDurationHours) form.elements.estimatedDurationHours.value = 4;
   dialog.showModal();
 }
 
@@ -19282,26 +19361,39 @@ function parseGpsPin(text) {
 // here with the decision reference so it's easy to find when that surface exists.
 const EMERGENCY_DOWN_PAYMENT_THRESHOLD = 15000;
 
-function computeEmergencyMobilization(data, hasExistingAccount) {
+// Item 4 (2026-09-28, owner report: "hard surface" and septic in a confined/crawl space) —
+// `spillSurface` ("What is the spill on?") and the new `spillLocationType` ("Where is it?").
+// Old stored values (Road/Soil/Both/Water) keep rendering: "Both" reads as "Mixed" everywhere.
+const SPILL_SURFACE_OPTIONS = ["Road", "Hard surface (concrete, asphalt, floor)", "Soil", "Gravel", "Water", "Mixed"];
+const SPILL_LOCATION_TYPE_OPTIONS = ["Outdoors", "Inside a building", "Confined space", "Crawl space", "Storm or sewer system", "Septic system"];
+function formatSpillSurface(value) {
+  if (!value) return "";
+  return value === "Both" ? "Mixed" : value;
+}
+
+// The decision tree itself, factored out of `computeEmergencyMobilization` (FormData-shaped input,
+// used at intake) so `applyMobilizationToProjectAndJob` (item 6, plain-object input, used when
+// editing the project intake later) can recompute it from a project record without going through a
+// form. `fields` reads the same names either way.
+function computeMobilizationDecision(fields, hasExistingAccount) {
   const now = new Date().toISOString();
   if (hasExistingAccount) {
     return { status: "Cleared to mobilize", note: "Existing account in good standing.", clearedAt: now };
   }
-  const isInsuranceClaim = data.get("hasInsurance").toString() === "Yes" && data.get("isInsuranceClaim").toString() === "Yes";
+  const isInsuranceClaim = fields.hasInsurance === "Yes" && fields.isInsuranceClaim === "Yes";
   if (isInsuranceClaim) {
-    if (form_checked(data, "policyCopyOnFile")) {
+    if (fields.policyCopyOnFile) {
       return { status: "Cleared to mobilize", note: "Insurance claim, policy copy on file.", clearedAt: now };
     }
     return { status: "Blocked — awaiting insurance documentation", note: "Insurance claim reported but no policy/declarations copy captured yet.", clearedAt: "" };
   }
-  const downPayment = Number(data.get("downPaymentAmount") || 0);
-  const overridden = form_checked(data, "overrideMobilization");
+  const downPayment = Number(fields.downPaymentAmount || 0);
   if (downPayment >= EMERGENCY_DOWN_PAYMENT_THRESHOLD) {
     return { status: "Cleared to mobilize", note: `Down payment of ${money(downPayment)} recorded (threshold ${money(EMERGENCY_DOWN_PAYMENT_THRESHOLD)}).`, clearedAt: now };
   }
-  if (overridden) {
-    const overrideBy = data.get("overrideBy").toString().trim() || "Unrecorded";
-    const overrideReason = data.get("overrideReason").toString().trim() || "No reason recorded";
+  if (fields.overrideMobilization) {
+    const overrideBy = (fields.overrideBy || "").trim() || "Unrecorded";
+    const overrideReason = (fields.overrideReason || "").trim() || "No reason recorded";
     return {
       status: "Cleared to mobilize",
       note: `Mobilization override by ${overrideBy}: ${overrideReason}.`,
@@ -19318,10 +19410,87 @@ function computeEmergencyMobilization(data, hasExistingAccount) {
   };
 }
 
+function computeEmergencyMobilization(data, hasExistingAccount) {
+  return computeMobilizationDecision(
+    {
+      hasInsurance: data.get("hasInsurance").toString(),
+      isInsuranceClaim: data.get("isInsuranceClaim").toString(),
+      policyCopyOnFile: form_checked(data, "policyCopyOnFile"),
+      downPaymentAmount: Number(data.get("downPaymentAmount") || 0),
+      overrideMobilization: form_checked(data, "overrideMobilization"),
+      overrideBy: data.get("overrideBy").toString().trim(),
+      overrideReason: data.get("overrideReason").toString().trim(),
+    },
+    hasExistingAccount,
+  );
+}
+
+// Item 6 (2026-09-28, "No way to edit down payment") — shared by `submitEmergencyIntake` (a
+// brand-new dispatch job, gated the same way as always) and `saveProjectIntake` (recomputing after
+// the office edits insurance/down-payment/override fields on an existing project). Recomputes the
+// mobilization decision from the project's own recorded fields, applies the result to the project,
+// and — only for dispatch jobs still sitting at draft/ready — flips readiness to match. A job that
+// has moved past ready (scheduled, dispatched, …) is never touched here, per the owner's "never
+// touch a job past ready."
+//
+// `hasExistingAccount` here means "a real account, not the provisional one the intake creates for
+// an unknown caller" (`!account.isProvisional`) — a good-enough proxy for "existing account in good
+// standing" once we're editing after the fact, since the intake's own explicit boolean (known only
+// at the moment of caller lookup) isn't available anymore.
+function applyMobilizationToProjectAndJob(project, dispatchJobs = []) {
+  const account = project.accountId ? findAccount(project.accountId) : null;
+  const hasExistingAccount = Boolean(account) && !account.isProvisional;
+  const mobilization = computeMobilizationDecision(
+    {
+      hasInsurance: project.hasInsurance || "",
+      isInsuranceClaim: project.isInsuranceClaim || "",
+      policyCopyOnFile: Boolean(project.policyCopyOnFile),
+      downPaymentAmount: Number(project.downPaymentAmount || 0),
+      overrideMobilization: Boolean(project.overrideMobilization),
+      overrideBy: (project.overrideBy || "").trim(),
+      overrideReason: (project.overrideReason || "").trim(),
+    },
+    hasExistingAccount,
+  );
+  const updatedProject = {
+    ...project,
+    mobilizationStatus: mobilization.status,
+    mobilizationNote: mobilization.note,
+    mobilizationClearedAt: mobilization.clearedAt,
+    mobilizationOverrideBy: mobilization.mobilizationOverrideBy || "",
+    mobilizationOverrideReason: mobilization.mobilizationOverrideReason || "",
+  };
+  const cleared = mobilization.status === "Cleared to mobilize";
+  const updatedJobs = dispatchJobs
+    .filter((job) => ["draft", "ready"].includes(job.status))
+    .map((job) => ({
+      ...job,
+      status: cleared ? "ready" : "draft",
+      readinessStatus: cleared ? "Ready" : "Blocked",
+      officeReviewStatus: cleared ? "Ready" : "Blocked",
+    }));
+  return { project: updatedProject, mobilization, jobs: updatedJobs };
+}
+
 // FormData has no `.get(name)` boolean helper for checkboxes — a checkbox that isn't checked is
 // simply absent from the FormData entirely, so `.get()` returns null rather than "false".
 function form_checked(data, name) {
   return data.get(name) === "on";
+}
+
+// Item 5 (2026-09-28, owner: "if we auto-create a job dispatch for the ER spill call we need to ask
+// the job dispatch questions") — when the caller is on site (a facility contact, not a driver or a
+// remote dispatcher), default the Dispatch step's on-site contact to the caller unless it's already
+// been typed over.
+function syncEmergencyIntakeOnsiteContact(form) {
+  const relationship = (form.elements.callerRelationship?.value || "").toString();
+  if (relationship !== "Facility contact") return;
+  if (form.elements.onsiteContactName && !form.elements.onsiteContactName.value.trim()) {
+    form.elements.onsiteContactName.value = form.elements.callerName?.value || "";
+  }
+  if (form.elements.onsiteContactPhone && !form.elements.onsiteContactPhone.value.trim()) {
+    form.elements.onsiteContactPhone.value = form.elements.callerPhone?.value || "";
+  }
 }
 
 async function submitEmergencyIntake(form) {
@@ -19405,6 +19574,7 @@ async function submitEmergencyIntake(form) {
       spillMaterial: data.get("spillMaterial").toString().trim(),
       spillQuantity: data.get("spillQuantity").toString().trim(),
       spillSurface: (data.get("spillSurface") || "").toString(),
+      spillLocationType: (data.get("spillLocationType") || "").toString(),
       stormDrainInvolved: (data.get("stormDrainInvolved") || "").toString(),
       offRoadDischarge: (data.get("offRoadDischarge") || "").toString(),
       absorbentDeployed: (data.get("absorbentDeployed") || "").toString(),
@@ -19424,6 +19594,9 @@ async function submitEmergencyIntake(form) {
       downPaymentAmount: Number(data.get("downPaymentAmount") || 0),
       downPaymentBy: data.get("downPaymentBy").toString().trim(),
       downPaymentReference: data.get("downPaymentReference").toString().trim(),
+      overrideMobilization: form_checked(data, "overrideMobilization"),
+      overrideBy: data.get("overrideBy").toString().trim(),
+      overrideReason: data.get("overrideReason").toString().trim(),
       mobilizationStatus: mobilization.status,
       mobilizationNote: mobilization.note,
       mobilizationClearedAt: mobilization.clearedAt,
@@ -19465,6 +19638,24 @@ async function submitEmergencyIntake(form) {
     const sequence = getDispatchJobs().length + 1;
     const now = new Date();
     const template = findJobTypeTemplate((data.get("jobTypeTemplateId") || "").toString()) || null;
+
+    // Item 5 (2026-09-28, owner: "if we auto-create a job dispatch for the ER spill call we need to
+    // ask the job dispatch questions") — the Dispatch step. A field lead + a time only turns into a
+    // real schedule (assignments, a schedule segment, status "scheduled") when mobilization is also
+    // cleared; otherwise the job stays draft/ready exactly as it did before this step existed.
+    const onsiteContactName = (data.get("onsiteContactName") || "").toString().trim() || data.get("callerName").toString().trim();
+    const onsiteContactPhone = (data.get("onsiteContactPhone") || "").toString().trim() || data.get("callerPhone").toString().trim();
+    const fieldLead = findEmployee((data.get("fieldLeadEmployeeId") || "").toString());
+    const crewId = (data.get("crewId") || "").toString();
+    const equipmentNotes = data.get("equipmentNotes").toString().trim();
+    const laborNotes = data.get("laborNotes").toString().trim();
+    const estimatedDurationHours = Number(data.get("estimatedDurationHours") || 0) || 4;
+    const scheduledStartAtRaw = (data.get("scheduledStartAt") || "").toString();
+    const scheduledStartDate = (data.get("requestedArrival") || "").toString() === "Schedule" && scheduledStartAtRaw ? new Date(scheduledStartAtRaw) : now;
+    const scheduledEndDate = new Date(scheduledStartDate.getTime() + estimatedDurationHours * 3600000);
+    const mobilizationCleared = mobilization.status === "Cleared to mobilize";
+    const dispatchScheduled = Boolean(fieldLead) && mobilizationCleared;
+
     const dispatchJob = {
       id: makeId("dispatch-job"),
       jobNumber: `JOB-${now.getFullYear()}-${localIsoDate(now).replaceAll("-", "").slice(4)}-${String(sequence).padStart(2, "0")}`,
@@ -19477,20 +19668,25 @@ async function submitEmergencyIntake(form) {
       jobType: template?.name || "Emergency Response",
       jobTypeCode: "ER",
       jobTypeVersion: 1,
-      status: mobilization.status === "Cleared to mobilize" ? "ready" : "draft",
-      dispatchStatus: "Unassigned",
-      officeReviewStatus: mobilization.status === "Cleared to mobilize" ? "Ready" : "Blocked",
+      status: dispatchScheduled ? "scheduled" : mobilizationCleared ? "ready" : "draft",
+      dispatchStatus: dispatchScheduled ? "Scheduled" : "Unassigned",
+      officeReviewStatus: mobilizationCleared ? "Ready" : "Blocked",
       priority: "Emergency",
-      scheduledStart: now.toISOString(),
+      scheduledStart: scheduledStartDate.toISOString(),
+      scheduledEnd: scheduledEndDate.toISOString(),
+      estimatedDurationHours,
+      fieldLeadEmployeeId: fieldLead?.id || "",
+      equipmentNotes,
+      laborNotes,
       timezone: "America/Chicago",
       locationName: siteName,
       addressText,
       latitude: gpsPin?.latitude ?? "",
       longitude: gpsPin?.longitude ?? "",
-      onsiteContactName: data.get("callerName").toString().trim(),
-      onsiteContactPhone: data.get("callerPhone").toString().trim(),
-      description: `Emergency spill response. ${data.get("spillMaterial").toString().trim() || "Material not specified"} — ${(data.get("spillSurface") || "").toString()}.`,
-      readinessStatus: mobilization.status === "Cleared to mobilize" ? "Ready" : "Blocked",
+      onsiteContactName,
+      onsiteContactPhone,
+      description: `Emergency spill response. ${data.get("spillMaterial").toString().trim() || "Material not specified"} — ${formatSpillSurface((data.get("spillSurface") || "").toString())}${(data.get("spillLocationType") || "").toString() ? `, ${(data.get("spillLocationType") || "").toString()}` : ""}.`,
+      readinessStatus: mobilizationCleared ? "Ready" : "Blocked",
       completionPercent: 0,
       updatedAt: new Date().toISOString(),
     };
@@ -19498,6 +19694,50 @@ async function submitEmergencyIntake(form) {
     // The work plan the crew executes on Front Line (owner, 2026-09-24: it used to be missing here).
     if (template) await applyJobTypeTemplateToJob(savedDispatchJob, template);
     else await applyFallbackJobPlan(savedDispatchJob);
+
+    // A field lead was picked — commit the assignment(s) and a schedule segment the same shape
+    // `saveDispatchSchedule` writes, so the dispatch board and the job's Plan & resources tab read
+    // it exactly like a normally-scheduled job. Reuses `crewMemberIds` rather than duplicating it.
+    if (fieldLead) {
+      await saveBackendRecord(
+        "jobScheduleSegments",
+        {
+          id: makeId("segment"),
+          jobId: savedDispatchJob.id,
+          type: "Work",
+          name: `${savedDispatchJob.jobType} work`,
+          sequence: 1,
+          plannedStart: scheduledStartDate.toISOString(),
+          plannedEnd: scheduledEndDate.toISOString(),
+          status: "Confirmed",
+          lockedForDispatch: false,
+          notes: laborNotes,
+        },
+        { refresh: false },
+      );
+      const crewEmployeeIds = crewMemberIds(crewId);
+      const employeeIds = [...new Set([fieldLead.id, ...crewEmployeeIds])];
+      for (const employeeId of employeeIds) {
+        const employee = findEmployee(employeeId);
+        await saveBackendRecord(
+          "jobAssignments",
+          {
+            id: makeId("assignment"),
+            jobId: savedDispatchJob.id,
+            employeeId,
+            crewId,
+            role: employeeId === fieldLead.id ? "Field Lead" : employee?.jobTitle || "Technician",
+            isFieldLead: employeeId === fieldLead.id,
+            status: "Assigned",
+            eligibilityStatus: employee?.readinessStatus === "Blocked" ? "Blocked" : employee?.readinessStatus === "Expiring" ? "Warning" : "Eligible",
+            eligibilityNote: employee?.readinessStatus === "Blocked" ? "Employee has a blocking credential record" : "",
+            plannedStart: scheduledStartDate.toISOString(),
+            plannedEnd: scheduledEndDate.toISOString(),
+          },
+          { refresh: false },
+        );
+      }
+    }
     // Phase 16 item 2, via Phase 13 (2026-09-24): the onsite paperwork this emergency needs is a tracked
     // requirement from the first minute -- the packet and a service agreement, unless already on file.
     await ensurePaperworkRequirements(account.id, ["customer-packet", "waste-authorization", "service-agreement-msa"], { entityType: "project", entityId: project.id, source: "emergency-intake" });
@@ -20209,12 +20449,16 @@ function dispatchJobWorkDays(job) {
   return [...days].sort();
 }
 
-// Which work day a record counts on. Q5 rolls it to the operational day (the overnight case); a record
-// keeps its own calendar day only when that day was added to the job as a work day of its own.
+// Which work day a record counts on. Q5 rolls a record with no timestamp of its own to the job's
+// operational day (the overnight-start case); a record with a real timestamp keeps its own local
+// calendar day instead of being collapsed onto Day 1 (item 9, owner 2026-09-28: a second real day of
+// work was merging into the first because only dailyNarratives + the operational date counted as
+// "work days"). Callers that group records by day (buildPostWorkReport, computeJobBillables) create
+// the day the first time a record lands on it, so no separate "add the day" step is needed.
 function dispatchRecordDay(job, timestamp, workDays = dispatchJobWorkDays(job)) {
   const calendar = timestamp ? localIsoDate(parseDate(timestamp)) : "";
-  if (calendar && workDays.includes(calendar)) return calendar;
-  return dispatchJobOperationalDate(job) || calendar;
+  if (calendar) return calendar;
+  return dispatchJobOperationalDate(job) || "";
 }
 
 function jobSafetyBriefingsForJob(jobId) {
@@ -20510,7 +20754,7 @@ function renderJobCustomerAcknowledgementPanel(job) {
             <div><dt>Signed by</dt><dd>${escapeHtml(ack.name || "")}${ack.title ? ` (${escapeHtml(ack.title)})` : ""}</dd></div>
             <div><dt>Signed at</dt><dd>${ack.signedAt ? formatDateTime(ack.signedAt) : "Not recorded"}</dd></div>
           </dl>
-          ${ack.signatureAttachmentId ? `<img class="signature-preview" src="/api/job-task-attachments/${encodeURIComponent(ack.signatureAttachmentId)}/view" alt="Customer signature" style="max-height:64px;border-bottom:1px solid #1a1f26;" />` : ""}
+          ${ack.signatureAttachmentId ? `<img class="signature-preview" src="${reportMediaUrl(ack.signatureAttachmentId)}" alt="Customer signature" style="max-height:64px;border-bottom:1px solid #1a1f26;" />` : ""}
         `
             : `<div class="empty-state compact">No customer acknowledgement captured yet.</div>`
         }
@@ -20588,15 +20832,17 @@ function draftNarrativeActivities(job, date) {
   const workDays = dispatchJobWorkDays(job);
   const sameDay = (value) => value && dispatchRecordDay(job, value, workDays) === date;
   const time = (value) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(parseDate(value));
-  const lines = [];
-  (state.backend.jobStatusEvents || [])
-    .filter((event) => event.jobId === job.id && sameDay(event.occurredAt))
-    .sort((a, b) => String(a.occurredAt).localeCompare(String(b.occurredAt)))
-    .forEach((event) => lines.push(endSentence(`${time(event.occurredAt)}: ${formatDispatchStatus(event.toStatus)}${event.by ? ` (${event.by})` : ""}`)));
-  submissionsForDispatchJob(job.id)
-    .filter((submission) => sameDay(submission.submittedAt))
-    .reverse()
-    .forEach((submission) => lines.push(endSentence(`${time(submission.submittedAt)}: ${submission.formName}${submission.summary ? `: ${submission.summary}` : ""}`)));
+  // Item 9: status events and form submissions interleave in time order instead of printing as two
+  // separate blocks (all events, then all submissions).
+  const timedEntries = [
+    ...(state.backend.jobStatusEvents || [])
+      .filter((event) => event.jobId === job.id && sameDay(event.occurredAt))
+      .map((event) => ({ at: event.occurredAt, text: `${formatDispatchStatus(event.toStatus)}${event.by ? ` (${event.by})` : ""}` })),
+    ...submissionsForDispatchJob(job.id)
+      .filter((submission) => sameDay(submission.submittedAt))
+      .map((submission) => ({ at: submission.submittedAt, text: `${submission.formName}${submission.summary ? `: ${submission.summary}` : ""}` })),
+  ].sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  const lines = timedEntries.map((entry) => endSentence(`${time(entry.at)}: ${entry.text}`));
   const resources = (state.backend.jobResources || []).filter((resource) => resource.jobId === job.id);
   const consumed = resources.filter((resource) => resource.type === "Material" && resource.status === "Consumed" && sameDay(resource.consumedAt));
   if (consumed.length) lines.push(`Materials used: ${consumed.map((resource) => `${resource.quantity} ${resource.unit || ""} ${resource.name}`.replace(/\s+/g, " ").trim()).join(", ")}.`);
@@ -20713,6 +20959,91 @@ function attachmentViewUrl(attachment, absolute = false) {
   return `${absolute ? window.location.origin : ""}/api/job-task-attachments/${encodeURIComponent(attachment.id)}/view`;
 }
 
+// Item 8c: one URL resolver for an id that could be a `jobTaskAttachments` row or a `documents` row —
+// the report, the job Files tab and the field Brief all need to show either kind without caring which
+// store it lives in. (Local to this worktree; the integrator reconciles with worker A's `mediaViewUrl`
+// if one lands in the shared export.)
+function reportMediaUrl(idOrRecord, absolute = false) {
+  const origin = absolute ? window.location.origin : "";
+  const record = idOrRecord && typeof idOrRecord === "object" ? idOrRecord : null;
+  const id = record ? record.id : idOrRecord;
+  const isAttachment = record ? "jobId" in record && "kind" in record : (state.backend.jobTaskAttachments || []).some((item) => item.id === id);
+  return isAttachment ? `${origin}/api/job-task-attachments/${encodeURIComponent(id)}/view` : `${origin}/api/documents/${encodeURIComponent(id)}/view`;
+}
+
+// Item 8a/8d (owner, 2026-09-28): the report only ever read jobTaskAttachments with includeInReport
+// set — which nothing in the field ever sets — so quick-bar photos, markup saves and walk section/pin
+// photos never showed up. This is every photo the report can print, from every store, each carrying
+// where it came from and whether it is included.
+const REPORT_PHOTO_DOCUMENT_TYPE_CODES = ["job-photo", "site-photo"];
+function projectReportPhotos(project) {
+  const dispatchJobs = dispatchJobsForProject(project.id);
+  const taskPhotos = projectReportAttachments(project.id, "photo").map((attachment) => ({
+    kind: "attachment",
+    id: attachment.id,
+    record: attachment,
+    url: attachmentViewUrl(attachment, true),
+    caption: attachment.reportCaption || attachment.caption || "",
+    takenAt: attachment.uploadedAt,
+    source: `Job · ${findDispatchJob(attachment.jobId)?.jobNumber || "quick photo"}`,
+    // Task attachments keep today's explicit, office-set flag (default excluded until someone opts in).
+    includeInReport: Boolean(attachment.includeInReport),
+  }));
+
+  const documentPhotos = new Map();
+  const addDocument = (document, source) => {
+    if (!document || document.deletedAt || documentPhotos.has(document.id)) return;
+    documentPhotos.set(document.id, {
+      kind: "document",
+      id: document.id,
+      record: document,
+      url: reportMediaUrl(document, true),
+      caption: document.caption || "",
+      takenAt: document.uploadedAt,
+      source,
+      // Documents default to included; the office can exclude one from the Report tab.
+      includeInReport: document.includeInReport !== false,
+    });
+  };
+  const isReportPhotoType = (document) => REPORT_PHOTO_DOCUMENT_TYPE_CODES.includes(findDocumentType(document.documentTypeId)?.code);
+  latestDocumentsForEntity("project", project.id).filter(isReportPhotoType).forEach((document) => addDocument(document, "Job · quick photo"));
+  dispatchJobs.forEach((job) => {
+    latestDocumentsForEntity("dispatchJob", job.id).filter(isReportPhotoType).forEach((document) => addDocument(document, `Job · ${job.jobNumber || "quick photo"}`));
+  });
+  if (project.opportunityId) {
+    latestDocumentsForEntity("opportunity", project.opportunityId).filter(isReportPhotoType).forEach((document) => addDocument(document, "Sales · opportunity photo"));
+  }
+
+  const walkReports = (state.backend.siteWalkReports || []).filter(
+    (report) => !report.deletedAt && (report.projectId === project.id || (project.opportunityId && report.opportunityId === project.opportunityId)),
+  );
+  walkReports.forEach((report) => {
+    Object.entries(report.sections || {}).forEach(([key, section]) => {
+      (section?.photoDocumentIds || []).forEach((id) => addDocument(findDocument(id), `Walk · ${walkSectionLabel(key)}`));
+    });
+  });
+  const walkReportIds = new Set(walkReports.map((report) => report.id));
+  (state.backend.siteWalkObservations || [])
+    .filter((observation) => !observation.deletedAt && walkReportIds.has(observation.reportId))
+    .forEach((observation) => {
+      (observation.photoDocumentIds || []).forEach((id) => addDocument(findDocument(id), `Walk · ${observation.label || "site pin"}`));
+    });
+
+  return [...taskPhotos, ...documentPhotos.values()].sort((a, b) => String(a.takenAt || "").localeCompare(String(b.takenAt || "")));
+}
+
+// Item 8c (2026-09-28): the report, the job Files tab and the field Brief all draw photos that may
+// live in either store -- a task capture (jobTaskAttachments, served at /api/job-task-attachments/:id/view)
+// or a plain upload (documents, served at /api/documents/:id/view, e.g. the quick-bar photo, the
+// customer signature and the waste container photo). This resolves an id to whichever it actually is.
+function mediaViewUrl(id, absolute = false) {
+  const base = absolute ? window.location.origin : "";
+  if ((state.backend.jobTaskAttachments || []).some((item) => item.id === id)) {
+    return `${base}/api/job-task-attachments/${encodeURIComponent(id)}/view`;
+  }
+  return `${base}/api/documents/${encodeURIComponent(id)}/view`;
+}
+
 function projectReportReadiness(project) {
   const dispatchJobs = dispatchJobsForProject(project.id);
   const checks = [];
@@ -20735,7 +21066,7 @@ function projectReportReadiness(project) {
   const owedReviews = dispatchJobs.filter((dispatchJob) => ["field_complete", "office_review", "closed"].includes(dispatchJob.status));
   const unanswered = owedReviews.filter((dispatchJob) => !postJobReviewComplete(dispatchJob)).length;
   checks.push({ label: "Post-job review", status: unanswered ? "Warning" : "Pass", detail: owedReviews.length ? `${owedReviews.length - unanswered} of ${owedReviews.length} finished jobs answered` : "No finished dispatch jobs yet." });
-  const photos = projectReportAttachments(project.id, "photo");
+  const photos = projectReportPhotos(project);
   const selected = photos.filter((photo) => photo.includeInReport).length;
   checks.push({ label: "Site photos", status: photos.length && !selected ? "Warning" : "Pass", detail: photos.length ? `${selected} of ${photos.length} selected below` : "No field photos yet." });
   const signatures = projectReportAttachments(project.id, "signature").length;
@@ -20765,19 +21096,22 @@ function projectReportReadiness(project) {
 }
 
 function renderReportPhotoTile(photo) {
-  const dispatchJob = findDispatchJob(photo.jobId);
   return `
     <figure class="report-photo${photo.includeInReport ? " included" : ""}">
-      <a href="${attachmentViewUrl(photo)}" target="_blank" rel="noopener"><img src="${attachmentViewUrl(photo)}" alt="${escapeAttribute(photo.caption || photo.fileName)}" loading="lazy" /></a>
-      <label class="check-row"><input type="checkbox" data-action="toggle-report-photo" data-id="${escapeAttribute(photo.id)}" ${photo.includeInReport ? "checked" : ""} /> Include in report</label>
-      <input type="text" data-report-caption-id="${escapeAttribute(photo.id)}" value="${escapeAttribute(photo.reportCaption || "")}" placeholder="${escapeAttribute(photo.caption || "Caption for the report")}" maxlength="160" aria-label="Report caption" />
-      <figcaption>${escapeHtml(dispatchJob?.jobNumber || "")} · ${formatDateTime(photo.uploadedAt)}${photo.uploadedBy ? ` · ${escapeHtml(photo.uploadedBy)}` : ""}</figcaption>
+      <a href="${photo.url}" target="_blank" rel="noopener"><img src="${photo.url}" alt="${escapeAttribute(photo.caption || "")}" loading="lazy" /></a>
+      <label class="check-row"><input type="checkbox" data-action="toggle-report-photo" data-kind="${escapeAttribute(photo.kind)}" data-id="${escapeAttribute(photo.id)}" ${photo.includeInReport ? "checked" : ""} /> Include in report</label>
+      ${
+        photo.kind === "attachment"
+          ? `<input type="text" data-report-caption-id="${escapeAttribute(photo.id)}" value="${escapeAttribute(photo.record.reportCaption || "")}" placeholder="${escapeAttribute(photo.record.caption || "Caption for the report")}" maxlength="160" aria-label="Report caption" />`
+          : `<input type="text" data-report-caption-id="${escapeAttribute(photo.id)}" data-report-caption-kind="document" value="${escapeAttribute(photo.caption || "")}" placeholder="Caption for the report" maxlength="160" aria-label="Report caption" />`
+      }
+      <figcaption>${escapeHtml(photo.source)} · ${photo.takenAt ? formatDateTime(photo.takenAt) : "Undated"}</figcaption>
     </figure>
   `;
 }
 
 function renderProjectReportTab(job) {
-  const photos = projectReportAttachments(job.id, "photo");
+  const photos = projectReportPhotos(job);
   const selected = photos.filter((photo) => photo.includeInReport).length;
   return `
     <section class="detail-stack">
@@ -20792,21 +21126,24 @@ function renderProjectReportTab(job) {
         </div>
       </article>
       <article class="panel">
-        <div class="panel-header"><div><h3>Report photos</h3><span>${selected} of ${photos.length} selected. Tick the photos the report should carry and caption each one; they print in the order they were taken.</span></div></div>
+        <div class="panel-header"><div><h3>Report photos</h3><span>${selected} of ${photos.length} selected, from quick-bar photos, markup saves, walk sections and pins. Tick the photos the report should carry and caption each one; they print oldest first.</span></div></div>
         <div class="panel-body">
-          ${photos.length ? `<div class="report-photo-grid">${photos.map(renderReportPhotoTile).join("")}</div>` : `<div class="empty-state">No field photos on this project's dispatch jobs yet.</div>`}
+          ${photos.length ? `<div class="report-photo-grid">${photos.map(renderReportPhotoTile).join("")}</div>` : `<div class="empty-state">No field photos on this project or its dispatch jobs yet.</div>`}
         </div>
       </article>
     </section>
   `;
 }
 
-async function toggleReportPhoto(attachmentId, include) {
-  const attachment = (state.backend.jobTaskAttachments || []).find((item) => item.id === attachmentId);
-  if (!attachment) return;
+// Item 8d: generalised for both stores — task attachments keep their own includeInReport flag,
+// documents get the same flag now that the server (worker A) keeps it on the generic metadata route.
+async function toggleReportPhoto(id, include, kind = "attachment") {
+  const collection = kind === "document" ? "documents" : "jobTaskAttachments";
+  const record = (state.backend[collection] || []).find((item) => item.id === id);
+  if (!record) return;
   try {
-    await saveBackendRecord("jobTaskAttachments", { ...attachment, includeInReport: include }, { refresh: false });
-    attachment.includeInReport = include;
+    await saveBackendRecord(collection, { ...record, includeInReport: include }, { refresh: false });
+    record.includeInReport = include;
     render();
   } catch (error) {
     showToast(error.message || "Photo selection could not be saved.");
@@ -20815,12 +21152,14 @@ async function toggleReportPhoto(attachmentId, include) {
 }
 
 // No re-render: the person may tab straight into the next caption.
-async function saveReportPhotoCaption(attachmentId, caption) {
-  const attachment = (state.backend.jobTaskAttachments || []).find((item) => item.id === attachmentId);
-  if (!attachment || (attachment.reportCaption || "") === caption) return;
+async function saveReportPhotoCaption(id, caption, kind = "attachment") {
+  const collection = kind === "document" ? "documents" : "jobTaskAttachments";
+  const captionField = kind === "document" ? "caption" : "reportCaption";
+  const record = (state.backend[collection] || []).find((item) => item.id === id);
+  if (!record || (record[captionField] || "") === caption) return;
   try {
-    await saveBackendRecord("jobTaskAttachments", { ...attachment, reportCaption: caption }, { refresh: false });
-    attachment.reportCaption = caption;
+    await saveBackendRecord(collection, { ...record, [captionField]: caption }, { refresh: false });
+    record[captionField] = caption;
     showToast("Caption saved.");
   } catch (error) {
     showToast(error.message || "Caption could not be saved.");
@@ -20952,8 +21291,15 @@ function buildPostWorkReport(project) {
       dispatchJob: findDispatchJob(attachment.jobId),
     };
   });
-  const samples = samplesForJob(project.id);
+  // Item 9: samples print oldest-first in the report (state.sampleRecords is sorted newest-first for
+  // the Samples tab elsewhere in the app; the report wants the collection story in order).
+  const samples = samplesForJob(project.id)
+    .slice()
+    .sort((a, b) => new Date(a.collectionTime || 0) - new Date(b.collectionTime || 0));
   const sampleIds = new Set(samples.map((sample) => sample.id));
+  days.forEach((day) => {
+    day.chronology = dayChronologyEvents(project, dispatchJobs, day.date, { fieldDay, messages: fieldMessagesForProject(project.id) });
+  });
   return {
     project,
     account: findAccount(project.accountId),
@@ -20969,7 +21315,7 @@ function buildPostWorkReport(project) {
     siteMapObservations,
     ergJob,
     signatures,
-    photos: projectReportAttachments(project.id, "photo").filter((photo) => photo.includeInReport),
+    photos: projectReportPhotos(project).filter((photo) => photo.includeInReport),
     samples,
     sampleResults: (state.backend.sampleResults || []).filter((row) => !row.deletedAt && sampleIds.has(row.sampleId)),
     waste: wasteRecordsForProject(project.id),
@@ -20977,6 +21323,67 @@ function buildPostWorkReport(project) {
     weather: projectWeatherSlots(project),
     generatedAt: new Date().toISOString(),
   };
+}
+
+// Item 9 (owner, 2026-09-28): a per-day chronology — status changes, roll-call arrivals, photos, form
+// submissions, samples, waste, field messages and weather, interleaved by time — so the report tells
+// the day's story in order instead of a narrative plus aggregated billables with nothing placed in time.
+function fieldMessagesForProject(projectId) {
+  const jobIds = new Set(dispatchJobsForProject(projectId).map((job) => job.id));
+  return (state.backend.messages || []).filter((message) => !message.deletedAt && jobIds.has(message.dispatchJobId));
+}
+
+// jobId === "" (project-level records: samples, waste, messages, weather) keeps its own local date.
+function dayChronologyEvents(project, dispatchJobs, date, { fieldDay, messages = [] }) {
+  const events = [];
+  const push = (jobId, at, what, who = "") => {
+    if (!at) return;
+    const recordDate = jobId ? fieldDay(jobId, at) : localIsoDate(parseDate(at));
+    if (recordDate !== date) return;
+    events.push({ at, what, who });
+  };
+
+  (state.backend.jobStatusEvents || [])
+    .filter((event) => !event.deletedAt && dispatchJobs.some((job) => job.id === event.jobId))
+    .forEach((event) =>
+      push(event.jobId, event.occurredAt, `${event.fromStatus ? `${formatDispatchStatus(event.fromStatus)} → ` : ""}${formatDispatchStatus(event.toStatus || "")}`, event.by || ""),
+    );
+
+  dispatchJobs.forEach((job) => {
+    jobSafetyBriefingsForJob(job.id).forEach((briefing) => {
+      (briefing.rollCall || []).forEach((row) => {
+        if (row.arrivedAt) push(job.id, row.arrivedAt, `Arrived on site — ${findEmployee(row.employeeId)?.displayName || row.employeeId || "crew"}`, briefing.createdBy || "");
+      });
+    });
+  });
+
+  projectReportPhotos(project)
+    .filter((photo) => photo.includeInReport)
+    .forEach((photo) => {
+      const jobId = photo.record?.jobId || (photo.record?.entityType === "dispatchJob" ? photo.record.entityId : "");
+      push(jobId, photo.takenAt, `Photo — ${photo.caption || photo.source}`, photo.record?.uploadedBy || "");
+    });
+
+  dispatchJobs.forEach((job) => {
+    submissionsForDispatchJob(job.id).forEach((submission) => push(job.id, submission.submittedAt, `Form submitted — ${submission.formName || "form"}`, submission.submittedBy || ""));
+  });
+
+  samplesForJob(project.id).forEach((sample) => push(sample.dispatchJobId || "", sample.collectionTime, `Sample collected — ${sample.sampleId || sample.id}`, sample.collector || ""));
+
+  wasteRecordsForProject(project.id).forEach((record) => {
+    if (record.createdAt) push("", record.createdAt, `Waste logged — ${record.description || record.classification || "waste"}`, "");
+    if (record.disposedOn) push("", record.disposedOn, `Waste disposed — ${record.description || record.classification || "waste"}`, "");
+  });
+
+  messages.forEach((message) => push(message.dispatchJobId || "", message.sentAt, `Message — ${(message.body || "").slice(0, 80)}`, message.senderName || message.senderRole || ""));
+
+  projectWeatherSlots(project)
+    .filter((entry) => entry.slot.state === "captured")
+    .forEach((entry) =>
+      push(entry.dispatchJob?.id || "", entry.slot.snapshot?.observedFor || entry.slot.snapshot?.fetchedAt, `Weather snapshot — ${formatWeatherLine(entry.slot.snapshot)}`, ""),
+    );
+
+  return events.sort((a, b) => String(a.at).localeCompare(String(b.at)));
 }
 
 function renderPostWorkReportHtml(report) {
@@ -21021,7 +21428,7 @@ function renderPostWorkReportHtml(report) {
   ].filter(Boolean);
   const description = [
     project.spillMaterial ? `${project.spillMaterial}${project.spillQuantity ? ` (${project.spillQuantity})` : ""}` : "",
-    project.spillSurface ? `on ${project.spillSurface}` : "",
+    project.spillSurface ? `on ${formatSpillSurface(project.spillSurface)}${project.spillLocationType ? ` · ${project.spillLocationType}` : ""}` : "",
     project.stormDrainInvolved === "Yes" ? "storm drain involved" : "",
     project.offRoadDischarge === "Yes" ? "off-road discharge" : "",
   ].filter(Boolean).join(", ");
@@ -21104,6 +21511,12 @@ function renderPostWorkReportHtml(report) {
           }
           <h4 class="billables-title">Billables for the day</h4>
           ${billables(day, "Qty")}
+          <h4 class="chronology-title">Chronology</h4>
+          ${
+            (day.chronology || []).length
+              ? `<ul class="chronology-list">${day.chronology.map((item) => `<li><strong>${escapeHtml(formatTimeOnly(item.at))}</strong> — ${escapeHtml(item.what)}${item.who ? ` <small>(${escapeHtml(item.who)})</small>` : ""}</li>`).join("")}</ul>`
+              : `<p class="gap-line">No timestamped events recorded for this day.</p>`
+          }
         </section>
       `,
         )
@@ -21115,7 +21528,8 @@ function renderPostWorkReportHtml(report) {
       report.photos.length
         ? `<div class="photo-grid">${report.photos
             .map(
-              (photo) => `<figure><img src="${attachmentViewUrl(photo, true)}" alt="" /><figcaption>${escapeHtml(photo.reportCaption || photo.caption || "")}<br /><small>${escapeHtml(findDispatchJob(photo.jobId)?.jobNumber || "")} &middot; ${escapeHtml(formatDateTime(photo.uploadedAt))}</small></figcaption></figure>`,
+              (photo) =>
+                `<figure><img src="${photo.url}" alt="" /><figcaption>${escapeHtml((photo.kind === "attachment" ? photo.record.reportCaption : photo.caption) || photo.caption || "")}<br /><small>${escapeHtml(photo.source)} &middot; ${photo.takenAt ? escapeHtml(formatDateTime(photo.takenAt)) : "Undated"}</small></figcaption></figure>`,
             )
             .join("")}</div>`
         : `<p class="gap-line">No photos were selected for this report.</p>`
@@ -21233,7 +21647,7 @@ function renderPostWorkReportHtml(report) {
           acknowledgement
             ? `
         <div class="signature-block">
-          ${acknowledgement.signatureAttachmentId ? `<img src="${attachmentViewUrl({ id: acknowledgement.signatureAttachmentId }, true)}" alt="Signature of ${escapeAttribute(acknowledgement.name || "customer")}" />` : ""}
+          ${acknowledgement.signatureAttachmentId ? `<img src="${reportMediaUrl(acknowledgement.signatureAttachmentId, true)}" alt="Signature of ${escapeAttribute(acknowledgement.name || "customer")}" />` : ""}
           <div>Signed by <strong>${escapeHtml(acknowledgement.name || "")}</strong>${acknowledgement.title ? ` (${escapeHtml(acknowledgement.title)})` : ""}${acknowledgement.signedAt ? ` on ${escapeHtml(formatDateTime(acknowledgement.signedAt))}` : ""}${multipleJobs ? ` &middot; ${escapeHtml(dispatchJob.jobNumber)}` : ""}</div>
         </div>
       `
@@ -21293,6 +21707,9 @@ function renderPostWorkReportHtml(report) {
     .print-doc h5 { font-size: 0.85rem; margin: 12px 0 2px; }
     .report-day { border-left: 3px solid #d8dee6; padding-left: 12px; margin-bottom: 18px; }
     .report-label { font-size: 0.75rem; color: #666; margin: 0; }
+    .chronology-list { margin: 4px 0 0; padding-left: 0; list-style: none; font-size: 0.82rem; }
+    .chronology-list li { padding: 2px 0; border-bottom: 1px dotted #e3e7ec; }
+    .chronology-list li:last-child { border-bottom: none; }
     .prose { white-space: pre-wrap; font-size: 0.88rem; margin: 0 0 6px; }
     .gap, .gap-line { color: #9b2c22; font-style: italic; }
     .gap-line { font-size: 0.85rem; }
@@ -21738,6 +22155,8 @@ const IT_MESSAGES_HINT = "Enter Issues, Comments, Errors, or messages to IT here
 // markup tool (field/media.js openImageMarkup, via markupItScreenshot) and just keeps the resulting
 // PNG blob until the message is actually sent.
 let itShotBlob = null;
+let itShotCaption = "";
+let itShotStrokes = [];
 let itComposerWired = false;
 
 function getItMessages() {
@@ -21859,7 +22278,11 @@ function renderItMessagesDialog() {
           <article class="chat-bubble ${mine ? "mine" : "theirs office"}">
             <span class="chat-sender">${escapeHtml(sender)}</span>
             <p>${escapeHtml(message.body)}</p>
-            ${message.screenshotDocumentId ? `<a class="it-shot-link" href="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" target="_blank" rel="noopener"><img class="it-shot" src="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" alt="Screenshot" loading="lazy" /></a>` : ""}
+            ${
+              message.screenshotDocumentId
+                ? `<figure class="it-shot-figure"><img class="it-shot" src="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" alt="Screenshot" loading="lazy" /><figcaption><a class="it-shot-link" href="/api/documents/${escapeAttribute(message.screenshotDocumentId)}/view" target="_blank" rel="noopener">Open full size</a></figcaption></figure>`
+                : ""
+            }
             <time datetime="${escapeAttribute(message.createdAt)}">${formatDateTime(message.createdAt)}${message.pageUrl && viewerIsIT ? ` · ${escapeHtml(message.pageUrl)}` : ""}</time>
           </article>
           ${renderItMessageTicket(message, { isAdmin, mine })}
@@ -21957,19 +22380,31 @@ async function sendItMessage(form) {
     return;
   }
   if (submitButton) submitButton.disabled = true;
+  const bodyText = text || itShotCaption || "Screenshot attached.";
   try {
-    const saved = await saveBackendRecord("itMessages", { body: text || "Screenshot attached.", threadKey: form.elements.threadKey.value || itOwnThreadKey(), pageUrl: `${location.pathname}${location.hash}` }, { refresh: false });
+    const saved = await saveBackendRecord("itMessages", { body: bodyText, threadKey: form.elements.threadKey.value || itOwnThreadKey(), pageUrl: `${location.pathname}${location.hash}` }, { refresh: false });
     if (hasShot) {
       const file = new File([itShotBlob], `screenshot-${Date.now()}.png`, { type: "image/png" });
+      const captionForUpload = itShotCaption || bodyText;
       try {
-        const document = await uploadRawFile("/api/documents", file, { "X-Entity-Type": "itMessage", "X-Entity-Id": saved.id, "X-Visibility": "internal", "X-Caption": encodeURIComponent("Screenshot sent to IT") });
+        const document = await uploadRawFile("/api/documents", file, {
+          "X-Entity-Type": "itMessage",
+          "X-Entity-Id": saved.id,
+          "X-Visibility": "internal",
+          "X-Caption": encodeURIComponent(captionForUpload),
+        });
+        try {
+          await saveBackendRecord("documents", { ...document, markup: JSON.stringify(itShotStrokes || []) }, { refresh: false });
+        } catch {
+          // best effort — keeps the strokes so re-opening this shot loads them back
+        }
         await saveBackendRecord("itMessages", { ...saved, screenshotDocumentId: document.id }, { refresh: false });
       } catch (error) {
         showToast(`Message sent, but the screenshot did not upload: ${error.message || "upload failed"}.`);
       }
     }
     if (!saved.fromIT) {
-      await raiseNotification({ key: `it-message-${saved.id}`, title: `Message to IT from ${saved.authorName}`, body: (text || "Screenshot attached.").slice(0, 140), severity: "info", audienceRoles: ["Admin"], link: "" });
+      await raiseNotification({ key: `it-message-${saved.id}`, title: `Message to IT from ${saved.authorName}`, body: bodyText.slice(0, 140), severity: "info", audienceRoles: ["Admin"], link: "" });
     }
     form.elements.body.value = "";
     itSetShot(null);
@@ -21995,18 +22430,35 @@ function itWireComposer() {
     if (!file) return;
     try {
       const result = await markupItScreenshot(file);
-      if (result?.blob) itSetShot(result.blob);
+      if (result?.blob) {
+        itSetShot(result.blob, result.caption, result.strokes);
+        itApplyCaptionToComposer(result.caption);
+      }
     } catch {
       showToast("That file could not be read as an image.");
     }
   });
 }
 
-function itSetShot(blob) {
+function itSetShot(blob, caption, strokes) {
   itShotBlob = blob || null;
+  itShotCaption = itShotBlob ? caption || "" : "";
+  itShotStrokes = itShotBlob ? strokes || [] : [];
   const dialog = document.querySelector("#itMessagesDialog");
   const note = dialog?.querySelector("[data-it-attach-note]");
-  if (note) note.textContent = itShotBlob ? "Screenshot attached and marked up." : "No screenshot attached.";
+  if (note) note.textContent = itShotBlob ? (itShotStrokes.length ? "Screenshot attached and marked up." : "Screenshot attached.") : "No screenshot attached.";
+}
+
+// Puts a markup caption into the message textarea: prefilled if the textarea is empty, otherwise
+// appended on its own line (never silently discarded, never overwriting what the user already typed).
+function itApplyCaptionToComposer(caption) {
+  const text = (caption || "").trim();
+  if (!text) return;
+  const dialog = document.querySelector("#itMessagesDialog");
+  const field = dialog?.querySelector("form")?.elements?.body;
+  if (!field) return;
+  const current = field.value.trim();
+  field.value = current ? `${current}\n${text}` : text;
 }
 
 // Captures the screen through the browser's own picker (needs HTTPS or localhost), then opens it in
@@ -22024,7 +22476,10 @@ async function itHandleCaptureScreen() {
     const canvas = await captureScreenForMarkup();
     reopen();
     const result = await markupItScreenshot(canvas);
-    if (result?.blob) itSetShot(result.blob);
+    if (result?.blob) {
+      itSetShot(result.blob, result.caption, result.strokes);
+      itApplyCaptionToComposer(result.caption);
+    }
     scrollChatToBottom();
   } catch (error) {
     reopen();
@@ -23487,14 +23942,35 @@ function openProjectIntakeDialog(jobId) {
   form.elements.tceqId.value = job.tceqId || fallback.tceqId;
   form.elements.insuranceContact.value = job.insuranceContact || fallback.insuranceContact;
   form.elements.insuranceCarrier.value = job.insuranceCarrier || fallback.insuranceCarrier;
-  form.elements.claimNumber.value = job.claimNumber || "";
+  form.elements.claimNumber.value = job.claimNumber || job.insuranceClaimNumber || "";
   form.elements.serviceProfile.value = job.serviceProfile || "";
   form.elements.jobClass.value = job.jobClass || "Scheduled Work";
   form.elements.siteWalkStatus.value = job.siteWalkStatus || "Incomplete";
   form.elements.sitePhotos.value = (job.sitePhotoRefs || [])
     .map((photo) => (photo.note ? `${photo.caption} | ${photo.note}` : photo.caption))
     .join("\n");
+  // Item 6 (2026-09-28, "No way to edit down payment") — the mobilization/down-payment section,
+  // shown only for Emergency Response projects (the only jobClass that gates on it).
+  if (form.elements.hasInsurance) form.elements.hasInsurance.value = job.hasInsurance || "No";
+  if (form.elements.isInsuranceClaim) form.elements.isInsuranceClaim.value = job.isInsuranceClaim || "No";
+  if (form.elements.insurancePolicyNumber) form.elements.insurancePolicyNumber.value = job.insurancePolicyNumber || "";
+  if (form.elements.policyCopyOnFile) form.elements.policyCopyOnFile.checked = Boolean(job.policyCopyOnFile);
+  if (form.elements.downPaymentAmount) form.elements.downPaymentAmount.value = job.downPaymentAmount || "";
+  if (form.elements.downPaymentBy) form.elements.downPaymentBy.value = job.downPaymentBy || "";
+  if (form.elements.downPaymentReference) form.elements.downPaymentReference.value = job.downPaymentReference || "";
+  if (form.elements.overrideMobilization) form.elements.overrideMobilization.checked = Boolean(job.overrideMobilization);
+  if (form.elements.overrideBy) form.elements.overrideBy.value = job.overrideBy || "";
+  if (form.elements.overrideReason) form.elements.overrideReason.value = job.overrideReason || "";
+  const statusReadout = dialog.querySelector('[data-role="project-intake-mobilization-status"]');
+  if (statusReadout) statusReadout.textContent = job.mobilizationStatus ? `Current: ${job.mobilizationStatus}${job.mobilizationNote ? ` — ${job.mobilizationNote}` : ""}` : "Mobilization has not been computed for this project yet.";
+  toggleProjectIntakeMobilizationFields(form, job.jobClass || "Scheduled Work");
   dialog.showModal();
+}
+
+// Item 6 — the mobilization/down-payment fieldset only applies to Emergency Response projects.
+function toggleProjectIntakeMobilizationFields(form, jobClass) {
+  const fieldset = form.querySelector('[data-role="project-intake-mobilization-fieldset"]');
+  if (fieldset) fieldset.hidden = jobClass !== "Emergency Response";
 }
 
 async function saveProjectIntake(form) {
@@ -23513,7 +23989,11 @@ async function saveProjectIntake(form) {
     })
     .filter((photo) => photo.caption);
 
-  const updated = {
+  // Read `claimNumber || insuranceClaimNumber` everywhere, write `claimNumber`, keep
+  // `insuranceClaimNumber` in sync (item 6 — the intake wrote one, this dialog read the other).
+  const claimNumber = data.get("claimNumber").toString().trim();
+  const jobClass = (data.get("jobClass") || "").toString();
+  const fields = {
     ...job,
     generatorName: data.get("generatorName").toString().trim(),
     generatorSiteName: data.get("generatorSiteName").toString().trim(),
@@ -23523,20 +24003,49 @@ async function saveProjectIntake(form) {
     tceqId: data.get("tceqId").toString().trim(),
     insuranceContact: data.get("insuranceContact").toString().trim(),
     insuranceCarrier: data.get("insuranceCarrier").toString().trim(),
-    claimNumber: data.get("claimNumber").toString().trim(),
+    claimNumber,
+    insuranceClaimNumber: claimNumber,
     serviceProfile: data.get("serviceProfile").toString().trim(),
-    jobClass: (data.get("jobClass") || "").toString(),
+    jobClass,
     siteWalkStatus: (data.get("siteWalkStatus") || "").toString(),
     sitePhotoRefs,
   };
+  // The mobilization/down-payment section only exists (and only submits meaningful values) for
+  // Emergency Response projects — don't let stale/default select values from a hidden fieldset
+  // overwrite a non-ER project's (empty) mobilization fields.
+  if (jobClass === "Emergency Response") {
+    Object.assign(fields, {
+      hasInsurance: (data.get("hasInsurance") || "").toString(),
+      isInsuranceClaim: (data.get("isInsuranceClaim") || "").toString(),
+      insurancePolicyNumber: data.get("insurancePolicyNumber").toString().trim(),
+      policyCopyOnFile: form_checked(data, "policyCopyOnFile"),
+      downPaymentAmount: Number(data.get("downPaymentAmount") || 0),
+      downPaymentBy: data.get("downPaymentBy").toString().trim(),
+      downPaymentReference: data.get("downPaymentReference").toString().trim(),
+      overrideMobilization: form_checked(data, "overrideMobilization"),
+      overrideBy: data.get("overrideBy").toString().trim(),
+      overrideReason: data.get("overrideReason").toString().trim(),
+    });
+  }
+
+  let updated = buildCoreProjectRecord(fields);
+  let jobsToSave = [];
+  if (updated.jobClass === "Emergency Response") {
+    const result = applyMobilizationToProjectAndJob(updated, dispatchJobsForProject(updated.id));
+    updated = result.project;
+    jobsToSave = result.jobs;
+  }
 
   try {
     await saveBackendRecord("projects", updated, { refresh: false });
+    for (const dispatchJobRecord of jobsToSave) {
+      await saveBackendRecord("dispatchJobs", dispatchJobRecord, { refresh: false });
+    }
     await queueChange("Project", "intake updated", updated);
     closeDialogs();
     await refreshState();
     render();
-    showToast("Intake details saved.");
+    showToast(jobsToSave.length ? `Intake details saved — ${updated.mobilizationStatus}.` : "Intake details saved.");
   } catch (error) {
     showToast(error.message || "Intake details could not be saved.");
   }
@@ -24210,46 +24719,55 @@ function openOpportunityNeedsListDialog(opportunityId, kind) {
 
 // Item 33 — the combined "Add / Edit all" dialog: one popup, all three lists, one write. The
 // per-list dialog/buttons above stay untouched — this is an addition, not a replacement.
-function openOpportunityNeedsCombinedDialog(opportunityId) {
-  const opportunity = findOpportunity(opportunityId);
-  if (!opportunity) return;
+//
+// Item 7 (2026-09-28, "Scope from sales is not editable once a project is created") — generalised
+// to a target `{collection, id}` so the same dialog edits either an opportunity's or a project's
+// needs lists; `collection` defaults to "opportunities" so every existing call site (which only
+// ever passed an opportunity id) keeps working unchanged.
+function needsTargetRecord(recordId, collection) {
+  return collection === "projects" ? findProject(recordId) : findOpportunity(recordId);
+}
+
+function openOpportunityNeedsCombinedDialog(recordId, collection = "opportunities") {
+  const record = needsTargetRecord(recordId, collection);
+  if (!record) return;
   const dialog = document.querySelector("#opportunityNeedsCombinedDialog");
   const form = dialog.querySelector("form");
   form.reset();
-  form.elements.id.value = opportunityId;
+  form.elements.id.value = recordId;
+  if (form.elements.targetCollection) form.elements.targetCollection.value = collection;
   Object.values(OPPORTUNITY_NEEDS_LIST_CONFIG).forEach((config) => {
-    const items = opportunity[config.field] || [];
+    const items = record[config.field] || [];
     form.elements[config.field].value = items.map((item) => (item.note ? `${item.name} | ${item.note}` : item.name)).join("\n");
   });
-  renderApprovedSubPicks(dialog, opportunity.accountId);
+  renderApprovedSubPicks(dialog, record.accountId);
   dialog.showModal();
 }
 
 async function saveOpportunityNeedsCombined(form) {
   const data = new FormData(form);
-  const opportunity = findOpportunity(data.get("id").toString());
-  if (!opportunity) return;
+  const collection = (data.get("targetCollection") || "opportunities").toString();
+  const record = needsTargetRecord(data.get("id").toString(), collection);
+  if (!record) return;
   const updates = {};
   Object.values(OPPORTUNITY_NEEDS_LIST_CONFIG).forEach((config) => {
     updates[config.field] = splitNeedsListInput(data.get(config.field).toString());
   });
 
-  const updated = buildCoreOpportunityRecord({
-    ...opportunity,
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  });
+  const updated = collection === "projects"
+    ? buildCoreProjectRecord({ ...record, ...updates })
+    : buildCoreOpportunityRecord({ ...record, ...updates, updatedAt: new Date().toISOString() });
 
   try {
-    await saveBackendRecord("opportunities", updated);
+    await saveBackendRecord(collection, updated);
   } catch (error) {
-    showToast(error.message || "Resource needs could not be saved.");
+    showToast(error.message || "Scope could not be saved.");
     return;
   }
   closeDialogs();
   await refreshState();
   render();
-  showToast("Resource needs saved.");
+  showToast("Scope saved.");
 }
 
 async function saveOpportunityNeedsList(form) {
@@ -32218,6 +32736,34 @@ function getProjectChronology(job) {
       });
     });
 
+  // Item 9 (owner, 2026-09-28): the Live tab's "Chronological site events" never showed dispatch
+  // status changes or field photos, so it under-told the site's story next to the report's own
+  // Chronology.
+  const dispatchJobs = dispatchJobsForProject(job.id);
+  const dispatchJobIds = new Set(dispatchJobs.map((dispatchJob) => dispatchJob.id));
+  (state.backend.jobStatusEvents || [])
+    .filter((event) => !event.deletedAt && dispatchJobIds.has(event.jobId))
+    .forEach((event) => {
+      const dispatchJob = findDispatchJob(event.jobId);
+      events.push({
+        kind: "Dispatch status",
+        title: `${event.fromStatus ? `${formatDispatchStatus(event.fromStatus)} → ` : ""}${formatDispatchStatus(event.toStatus || "")}`,
+        timestamp: event.occurredAt,
+        detail: dispatchJob ? `${dispatchJob.jobNumber} · ${dispatchJob.jobName || ""}` : "",
+        meta: [event.by].filter(Boolean),
+      });
+    });
+
+  projectReportPhotos(job).forEach((photo) => {
+    events.push({
+      kind: "Photo",
+      title: photo.caption || photo.source,
+      timestamp: photo.takenAt,
+      detail: photo.source,
+      meta: [photo.record?.uploadedBy].filter(Boolean),
+    });
+  });
+
   return events
     .filter((event) => event.timestamp)
     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -33698,6 +34244,12 @@ function formatDate(value) {
   }).format(parseDate(value));
 }
 
+// Item 9: the report's per-day Chronology wants just a local clock time ("h:mm — what — who").
+function formatTimeOnly(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(parseDate(value));
+}
+
 function formatDateTime(value) {
   if (!value) return "Not set";
   return new Intl.DateTimeFormat("en-US", {
@@ -34313,6 +34865,9 @@ export {
   uploadRawFile,
   uploadDocument,
   attachmentViewUrl,
+  reportMediaUrl,
+  projectReportPhotos,
+  mediaViewUrl,
   captureWeatherSnapshot,
   captureWeatherInBackground,
   renderPrintShell,
@@ -34457,4 +35012,13 @@ export {
   getInitials,
   siteWalkReportsForOpportunity,
   siteWalkObservationsForWalk,
+
+  // Pass 1 items 4/5/6/7 (2026-09-28)
+  SPILL_SURFACE_OPTIONS,
+  SPILL_LOCATION_TYPE_OPTIONS,
+  formatSpillSurface,
+  applyMobilizationToProjectAndJob,
+  crewMemberIds,
+  getCrewProfiles,
+  renderOpportunityNeedsChips,
 };

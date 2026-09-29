@@ -99,6 +99,8 @@ Street, city, postal code. Has a contact person or contact info. Exists for a **
 | Equipment usage | `jobEquipmentUsage` (Phase 21 W2, 2026-09-25) | Hours/days an asset was used on a job, logged from the field as a quick action (not a `jobActions` task type). Feeds the job's billables preview alongside `jobResources`. |
 | Field outbox | IndexedDB `environmental-crm-field › fieldOutbox` (Phase 21 W2, 2026-09-25) | Device-scoped queue of field-app writes made while offline (or on a network failure), replayed in order once back online. **Not** the legacy `syncQueue` store, and not a JSON backend collection — nothing here is shared between devices. |
 | Field package | IndexedDB `environmental-crm-field › fieldPackages` (Phase 21 W2, 2026-09-25) | The cached snapshot of `GET /api/field/package` (or, until that route exists, a snapshot of `state.backend`) a field device reads from when it opens offline. |
+| Spill location type | `projects.spillLocationType` (2026-09-28) | "Where is it?" — Outdoors / Inside a building / Confined space / Crawl space / Storm or sewer system / Septic system. **Not** `spillSurface` ("What is it on?" — Road / Hard surface / Soil / Gravel / Water / Mixed), a separate field it's always shown alongside. |
+| Estimated duration | `dispatchJobs.estimatedDurationHours` (2026-09-28) | The Dispatch step's planned length of the visit (default 4h), used only to compute `scheduledEnd` from `scheduledStart` at intake/creation time. **Not** `completionPercent` and not a billable hours total — those come from `timeEntries`. |
 
 ## Front Line 2 terms (Phase 21, planned 2026-09-24 — none of these exist yet)
 

@@ -448,6 +448,30 @@ the existing `facilityId` key. SQL: `job_sites` (005) already has nullable `lati
 `name`, `description` and `facility_id`; it needs `account_id` (present), an `address_text`
 column, and `projects.site_location_id`.
 
+**Messages-to-IT inbox Pass 1, items 4/5/6/7 (2026-09-28).** All on existing collections; no new
+top-level collections.
+
+- `projects` gained **`spillLocationType`** (string: `"Outdoors"` / `"Inside a building"` /
+  `"Confined space"` / `"Crawl space"` / `"Storm or sewer system"` / `"Septic system"` — "Where is
+  it?", alongside the existing `spillSurface` "What is it on?", whose own option set changed to
+  Road / Hard surface (concrete, asphalt, floor) / Soil / Gravel / Water / Mixed; old stored values
+  including the retired `"Both"` still render via `formatSpillSurface()`, no migration needed) and
+  three fields that persist the mobilization override *request* so it survives a later edit —
+  **`overrideMobilization`** (boolean), **`overrideBy`**, **`overrideReason`** — distinct from the
+  existing `mobilizationOverrideBy`/`mobilizationOverrideReason`, which are the audit record of an
+  override that actually took effect.
+- `dispatchJobs` gained **`estimatedDurationHours`** (number, default 4), **`scheduledEnd`** (was
+  already read/written by `saveDispatchSchedule`, now also written by the emergency intake), and the
+  emergency intake now writes `onsiteContactName`/`onsiteContactPhone`/`equipmentNotes`/
+  `laborNotes`/`fieldLeadEmployeeId` at creation time (previously written only by `saveDispatchSchedule`
+  after the fact) — via the intake's new "Dispatch" step/section. When a field lead is picked at
+  intake, `jobScheduleSegments` and `jobAssignments` rows are created in the same shape
+  `saveDispatchSchedule` writes (no new fields on those two collections).
+- `opportunityNeedsCombinedDialog`'s save path (`app.js` `openOpportunityNeedsCombinedDialog`/
+  `saveOpportunityNeedsCombined`) was generalised to a `{collection, id}` target instead of always
+  writing `opportunities` — it now also writes a `projects` row's `equipmentNeeds`/`vendorNeeds`/
+  `resourceNeeds` (same shape, no new fields). See phase-15's corrections for the full story.
+
 **Phase 15 (2026-09-23)** added the sales-to-operations handover to `projects` -- no new top-level
 collections, six new fields on the existing `projects` record, all copied once at creation from the
 won opportunity and never re-synced afterward (owner decision: "we just need the data, where it came
@@ -610,7 +634,7 @@ writeup.
 - **`qboExports`** gained `payload` (the QBO v3 Invoice JSON) and `validationIssues[]`, and `invoices.qboStatus` can now be `Blocked - fix mapping issues`. **`products.qboItemName`** and **`accounts.qboCustomerName`** override the names sent.
 - **`projects.closeReport.costs`** gained `waste: { items, total }`.
 
-**Phase 13 (2026-09-24).** Three new collections. **`documents`**: `entityType` (account|contact|opportunity|project|facility|dispatchJob|jobRequest|accountApprovedSubcontractors|vendorProfile|documentType|sample), `entityId`, `accountId` (denormalised for the portal scope), `documentTypeId`, `requirementId`, `fileName`, `mimeType`, `sizeBytes`, `sha256`, `storageName`, `groupId`, `versionNumber`, `visibility` (internal|customer), `caption`, `tags[]`, `uploadedAt`, `uploadedBy`, `uploadedBySessionKind`, `retainUntil`, `deletedAt`. **`documentTypes`**: `code`, `name`, `kind` (external-form|upload), `counterparty` (customer|vendor|internal), `appliesTo[]`, `stageGate`, `requiresReview`, `expiryDays`, `templateFile` / `templateDocumentId`, `formFields[]`, `isImage`. **`documentRequirements`**: `documentTypeId`, `counterparty`, `entityType`/`entityId`, `accountId`, `status`, `documentIds[]`, `currentDocumentId`, `sentAt`, `returnedAt`, `reviewedAt`, `reviewedBy`, `reviewNote`, `expiresAt` (date), `formData{}` (Republic's fields incl. `profileNumber`), `source`, `notes`. Also: `systemUsers.clientAccountId` (portal users), `accountApprovedSubcontractors.evidenceDocumentId`, `documentTypes.templateDocumentId`. SQL: replace `012_files.sql`'s `files` with `documents` in this shape (polymorphic `entity_type`/`entity_id` like `annotations`), plus `document_types` and `document_requirements`; the three legacy stores (`jobRequestDocuments`, `sampleLabReports`, `jobTaskAttachments`) fold into `documents` during the migration.
+**Phase 13 (2026-09-24).** Three new collections. **`documents`**: `entityType` (account|contact|opportunity|project|facility|dispatchJob|jobRequest|accountApprovedSubcontractors|vendorProfile|documentType|sample), `entityId`, `accountId` (denormalised for the portal scope), `documentTypeId`, `requirementId`, `fileName`, `mimeType`, `sizeBytes`, `sha256`, `storageName`, `groupId`, `versionNumber`, `visibility` (internal|customer), `caption`, `tags[]`, `uploadedAt`, `uploadedBy`, `uploadedBySessionKind`, `retainUntil`, `deletedAt`. **2026-09-28 (Pass 1 item 8):** `includeInReport` (boolean, default treated as `true` when absent) — the post-work report now pulls `job-photo`/`site-photo` typed documents (quick-bar photos, markup saves, walk section/pin photos) alongside `jobTaskAttachments`, and the office can exclude one from the Report tab's curation grid the same way it already could for a task attachment. Written by the generic document-metadata PATCH route (server-side keep added by worker A alongside `visibility`/`caption`/`tags`/`documentTypeId`/`retainUntil`/`markup`). **`documentTypes`**: `code`, `name`, `kind` (external-form|upload), `counterparty` (customer|vendor|internal), `appliesTo[]`, `stageGate`, `requiresReview`, `expiryDays`, `templateFile` / `templateDocumentId`, `formFields[]`, `isImage`. **`documentRequirements`**: `documentTypeId`, `counterparty`, `entityType`/`entityId`, `accountId`, `status`, `documentIds[]`, `currentDocumentId`, `sentAt`, `returnedAt`, `reviewedAt`, `reviewedBy`, `reviewNote`, `expiresAt` (date), `formData{}` (Republic's fields incl. `profileNumber`), `source`, `notes`. Also: `systemUsers.clientAccountId` (portal users), `accountApprovedSubcontractors.evidenceDocumentId`, `documentTypes.templateDocumentId`. SQL: replace `012_files.sql`'s `files` with `documents` in this shape (polymorphic `entity_type`/`entity_id` like `annotations`), plus `document_types` and `document_requirements`; the three legacy stores (`jobRequestDocuments`, `sampleLabReports`, `jobTaskAttachments`) fold into `documents` during the migration.
 
 **Phase 12a + Phase 18 item 4 (2026-09-23).** One new collection in `backend.json`: **`gpsConsents`** (append-only; `employeeId`, `dispatchJobId`, `sessionId`, `termsVersion`, `termsTitle`, `termsText`, `acceptedAt`, `ip`, `userAgent`; written only by `/api/auth/consent`). `systemUsers` gained `role`, `username`, `employeeId`, `isDisabled`. `locations` gained `consentId`. **Outside backend.json**, in `<data>/auth.json` (gitignored): `credentials` (`systemUserId`, scrypt `salt`/`hash`), `sessions` (`tokenHash`, `kind` user|breakglass|dispatch-link, `systemUserId`, `employeeId`, `role`, `dispatchJobId`, `consentId`, `expiresAt`, `revokedAt`, `ip`, `userAgent`), `dispatchLinks` (`tokenHash`, `employeeId`, `dispatchJobId`, `expiresAt`, `usedAt`), `breakGlass`; and `<data>/audit.log` (NDJSON: `at`, `actor`, `ip`, `action`, `collection`, `recordId`, `summary`, `changed`, `severity`). SQL: `user_credentials`, `user_sessions` (or the designed `frontline_device_sessions` for the link kind), `dispatch_sign_on_links`, `gps_consents`, `audit_log` — all new migrations `029+`.
 
@@ -985,11 +1009,22 @@ generic pass-through normaliser; no server-side whitelist yet — Phase 14 table
   "Site walk check-in"`, `locationType: "Check-in"`, `reportedByEmployeeId`; the server's `locations`
   whitelist drops `opportunityId`, so the link to the opportunity is an `opportunityLocations` row
   (`type:"Location"`, `role:"Site walk check-in"`). Quick lead writes `locationType:"Lead"` the same way.
+  IT report item 10 (2026-09-28): a GPS fix sent with the field ladder's advance to On site/Start work
+  writes a `locations` row server-side (`server.mjs`'s `fieldAdvanceJob`) with `locationType: "Job
+  event"`, `label: "Arrived on site"`, `dispatchJobId` (new field, added to `normalizeRecord`'s
+  `locations` allowlist), `projectId`, `source: "Field advance"`, `reportedByEmployeeId`; this is what
+  `resolveWeatherAnchor` now finds for a location-only site (address, no coordinates) that used to fail
+  every weather capture.
 - **`documents`** — walk photos are `site-photo` on the **opportunity** (caption carries the section and
   required-shot slot, or "Pin N · label"); uploaded plans are `site-plan` on the facility (opportunity when
   the walk has none); the fallback sketch is `site-sketch` on the opportunity. The observation and the
   report section hold the document ids; the `documents.section` field W1 planned is not written yet
   because the upload route has no header for it.
+  `includeInReport` (boolean, IT report item 8c, 2026-09-28): kept by the documents metadata route
+  (`POST /api/backend/documents`) alongside visibility/caption/tags/documentTypeId/retainUntil/markup/
+  section/heading/requiredShotKey. A field-captured photo (quick-bar Photo) sets it true with a second
+  write right after the upload (the upload route itself has no header for it); the office Report tab's
+  photo checkbox is the other writer. The report builder reading it is worker C's half of item 8.
 - **`opportunities`** — `siteWalkStatus` now has `Scheduled` in both dropdowns; the field Complete sets
   `Complete`; needs written from the walk land in `equipmentNeeds / vendorNeeds / resourceNeeds` as
   `{name, note}` (and "Sampling" in `resourceNeeds` when flagged). `scheduleEvents.status` becomes

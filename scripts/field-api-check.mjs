@@ -288,6 +288,35 @@ await step("walk participant without the sales domain can write the walk's pins,
   }
 });
 
+// ---- 10. briefing: airMonitoring alias round-trips, hazards persist (item 1, 2026-09-28 IT report) --
+// field/safety.js sends readings as `airMonitoring`; the server used to store them only under
+// `airReadings` and drop the name the client actually sent, so a save "disappeared" until reload.
+await step("briefing: airMonitoring rows and a hazard row round-trip through POST/GET", async () => {
+  const job = (dispatchJobs || []).find((item) => !item.deletedAt);
+  if (!job) return "skip";
+  const operationalDate = new Date().toISOString().slice(0, 10);
+  const body = {
+    jobId: job.id,
+    operationalDate,
+    ppeLevel: "C",
+    hazards: [{ step: "field-api-check step", hazard: "field-api-check hazard", control: "field-api-check control" }],
+    airMonitoring: [
+      { time: "08:00", reading: "0.2 ppm", notes: "field-api-check reading 1" },
+      { time: "10:00", reading: "0.3 ppm", notes: "field-api-check reading 2" },
+    ],
+  };
+  const response = await fetch(`${baseUrl}/api/field/jobs/${job.id}/briefing`, { method: "POST", headers: { ...adminHeaders, "X-Client-Command-Id": `field-api-check-briefing-${Date.now()}` }, body: JSON.stringify(body) });
+  const payload = await j(response);
+  assert(response.ok, `POST briefing -> ${response.status} ${payload.error || ""}`);
+  assert(Array.isArray(payload.airMonitoring) && payload.airMonitoring.length === 2, `response airMonitoring has ${payload.airMonitoring?.length ?? 0} rows, want 2`);
+  const briefings = await adminGet("jobSafetyBriefings");
+  const stored = briefings.find((item) => item.id === payload.id);
+  assert(stored, "briefing row not found in jobSafetyBriefings after save");
+  assert(Array.isArray(stored.airReadings) && stored.airReadings.length === 2, `stored airReadings has ${stored.airReadings?.length ?? 0} rows, want 2`);
+  assert(Array.isArray(stored.airMonitoring) && stored.airMonitoring.length === 2, `stored airMonitoring has ${stored.airMonitoring?.length ?? 0} rows, want 2`);
+  assert(Array.isArray(stored.hazards) && stored.hazards.some((row) => row.hazard === "field-api-check hazard"), "hazard row missing from stored briefing");
+});
+
 console.log("");
 const failed = results.filter((item) => item.status === "FAIL").length;
 const skipped = results.filter((item) => item.status === "SKIP").length;

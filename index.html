@@ -33,6 +33,7 @@
         </div>
         <div class="topbar-actions">
           <span id="connectionStatus" class="status-pill" aria-live="polite"></span>
+          <span id="backendRefreshHint" class="backend-refresh-hint" aria-live="polite"></span>
           <div id="quickActions" class="quick-actions" aria-label="Quick actions"></div>
           <span id="notificationBell" class="notification-bell"></span>
           <span id="itMessagesSlot" class="notification-bell"></span>
@@ -555,6 +556,7 @@
     <dialog id="opportunityNeedsCombinedDialog" class="modal">
       <form method="dialog" class="modal-panel" data-form="opportunity-needs-combined">
         <input name="id" type="hidden" />
+        <input name="targetCollection" type="hidden" value="opportunities" />
         <div class="modal-header">
           <h2>Resource needs</h2>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
@@ -1630,6 +1632,67 @@
           Site photos, one per line as <code>Caption | note</code> (note is optional)
           <textarea name="sitePhotos" rows="3" placeholder="Loading dock staining | before mobilization"></textarea>
         </label>
+
+        <fieldset class="doc-line-items-fieldset" data-role="project-intake-mobilization-fieldset" hidden>
+          <legend>Mobilization &amp; down payment</legend>
+          <p class="help-text" data-role="project-intake-mobilization-status"></p>
+          <div class="form-grid">
+            <label>
+              Has insurance?
+              <select name="hasInsurance">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </label>
+            <label>
+              Filing an insurance claim?
+              <select name="isInsuranceClaim">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Policy number
+              <input name="insurancePolicyNumber" maxlength="60" />
+            </label>
+            <label class="check-row">
+              <input type="checkbox" name="policyCopyOnFile" />
+              <span>Copy of policy/declarations page captured</span>
+            </label>
+          </div>
+          <p class="help-text">Carrier and claim number are set above under Services. No insurance claim requires a down payment of at least $15,000 to mobilize, unless overridden below by the Director of Sales.</p>
+          <div class="form-grid">
+            <label>
+              Down payment amount ($)
+              <input name="downPaymentAmount" type="number" min="0" step="0.01" />
+            </label>
+            <label>
+              Taken by
+              <input name="downPaymentBy" maxlength="80" />
+            </label>
+            <label>
+              Reference number
+              <input name="downPaymentReference" maxlength="80" />
+            </label>
+          </div>
+          <label class="check-row">
+            <input type="checkbox" name="overrideMobilization" />
+            <span>Override the mobilization block</span>
+          </label>
+          <div class="form-grid">
+            <label>
+              Overridden by
+              <input name="overrideBy" maxlength="80" />
+            </label>
+            <label>
+              Reason
+              <input name="overrideReason" maxlength="160" />
+            </label>
+          </div>
+        </fieldset>
+
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save intake details</button>
@@ -4115,14 +4178,29 @@
           </div>
           <div class="form-grid">
             <label>
-              Surface
+              What is the spill on?
               <select name="spillSurface">
                 <option>Road</option>
+                <option>Hard surface (concrete, asphalt, floor)</option>
                 <option>Soil</option>
-                <option>Both</option>
+                <option>Gravel</option>
                 <option>Water</option>
+                <option>Mixed</option>
               </select>
             </label>
+            <label>
+              Where is it?
+              <select name="spillLocationType">
+                <option>Outdoors</option>
+                <option>Inside a building</option>
+                <option>Confined space</option>
+                <option>Crawl space</option>
+                <option>Storm or sewer system</option>
+                <option>Septic system</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-grid">
             <label>
               Storm drain involvement
               <select name="stormDrainInvolved">
@@ -4255,6 +4333,58 @@
             <label>
               Reason
               <input name="overrideReason" maxlength="160" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="doc-line-items-fieldset">
+          <legend>Dispatch</legend>
+          <p class="help-text">If mobilization is cleared and a field lead is picked here, the job goes straight to Scheduled with the assignment and window already set — this is the same information dispatch would otherwise have to ask for after the fact.</p>
+          <div class="form-grid">
+            <label>
+              On-site contact name
+              <input name="onsiteContactName" maxlength="80" placeholder="Defaults to the caller" />
+            </label>
+            <label>
+              On-site contact phone
+              <input name="onsiteContactPhone" type="tel" maxlength="40" placeholder="Defaults to the caller" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Requested arrival
+              <select name="requestedArrival">
+                <option value="Now">Now</option>
+                <option value="Schedule">Choose a time</option>
+              </select>
+            </label>
+            <label>
+              Scheduled start (if not now)
+              <input name="scheduledStartAt" type="datetime-local" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Field lead
+              <select name="fieldLeadEmployeeId"></select>
+            </label>
+            <label>
+              Crew (optional)
+              <select name="crewId"></select>
+            </label>
+          </div>
+          <label>
+            Estimated duration (hours)
+            <input name="estimatedDurationHours" type="number" min="0.5" step="0.5" value="4" />
+          </label>
+          <div class="form-grid">
+            <label>
+              Equipment notes
+              <textarea name="equipmentNotes" rows="2"></textarea>
+            </label>
+            <label>
+              Labor notes
+              <textarea name="laborNotes" rows="2"></textarea>
             </label>
           </div>
         </fieldset>

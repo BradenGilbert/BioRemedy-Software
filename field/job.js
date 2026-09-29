@@ -104,16 +104,49 @@ registerFieldAction("field-job-tab", (button) => {
   crm.render();
 });
 
+// Item 10 (2026-09-28 IT report): every weather snapshot on a location-only site failed because
+// nothing on the advance path ever sent a position. On On site / Start work, grab a GPS fix -- 10 s,
+// non-blocking: a denied permission or a timeout still lets the advance go through with no position.
+const GPS_ADVANCE_STATUSES = new Set(["on_site", "in_progress"]);
+function getAdvanceGpsFix(toStatus) {
+  if (!GPS_ADVANCE_STATUSES.has(toStatus) || !navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    navigator.geolocation.getCurrentPosition(
+      (position) => finish({ lat: position.coords.latitude, lng: position.coords.longitude, accuracyM: Math.round(position.coords.accuracy || 0) }),
+      () => finish(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+    setTimeout(() => finish(null), 10000);
+  });
+}
+
+function localDateIso(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 registerFieldAction("field-advance-job", async (button) => {
   const jobId = button.dataset.id;
   const toStatus = button.dataset.to;
+  const fix = await getAdvanceGpsFix(toStatus);
+  const body = { toStatus, at: new Date().toISOString(), localDate: localDateIso() };
+  if (fix) Object.assign(body, { lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracyM });
   try {
-    await fieldPackage.fieldRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/advance`, {
+    const updated = await fieldPackage.fieldRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/advance`, {
       method: "POST",
       kind: "advance",
       label: `Advance job → ${toStatus}`,
-      body: { toStatus },
+      body,
     });
+    if (updated) fieldPackage.mergeRow("dispatchJobs", updated);
     await crm.refreshBackendState().catch(() => {});
     crm.render();
   } catch (error) {
@@ -133,7 +166,10 @@ registerFieldAction("field-advance-job", async (button) => {
 
 registerFieldAction("field-quick-photo", () => document.getElementById("fieldQuickPhotoInput")?.click());
 registerFieldAction("field-quick-video", () => {
-  if (window.fieldMedia?.openVideoCapture) window.fieldMedia.openVideoCapture(currentJob());
+  const job = currentJob();
+  // Item 8b (2026-09-28 IT report): openVideoCapture was handed the whole job record as its options
+  // object, which the upload rejected ("Unknown record type") -- it wants {entityType, entityId}.
+  if (window.fieldMedia?.openVideoCapture) window.fieldMedia.openVideoCapture({ entityType: "dispatchJob", entityId: job?.id || "", documentType: "site-video" });
   else crm.showToast("Video capture is not available yet.");
 });
 registerFieldAction("field-quick-note", () => {
@@ -148,7 +184,14 @@ document.addEventListener("change", async (event) => {
   const jobId = input.dataset.jobId;
   const file = input.files[0];
   try {
-    await fieldPackage.uploadFieldFile(`/api/documents`, file, { "X-Entity-Type": "dispatchJob", "X-Entity-Id": jobId, "X-Visibility": "internal" });
+    // Item 8b/8c: no X-Document-Type meant these landed untyped, so the report (which reads
+    // documentType job-photo/site-photo) never picked them up. includeInReport defaults true for a
+    // field capture -- a second write after the upload, since /api/documents doesn't take it as a
+    // header (see server.mjs's documents metadata route).
+    const uploaded = await fieldPackage.uploadFieldFile(`/api/documents`, file, { "X-Entity-Type": "dispatchJob", "X-Entity-Id": jobId, "X-Document-Type": "job-photo", "X-Visibility": "internal" });
+    if (uploaded?.id) {
+      await fieldPackage.saveFieldRecord("documents", { ...uploaded, includeInReport: true }, { kind: "document-flag", label: "Include photo in report" });
+    }
     crm.showToast("Photo attached to the job.");
   } catch (error) {
     crm.showToast(error.message || "Photo could not be uploaded.");
@@ -182,6 +225,7 @@ function renderBriefTab(job, project, account) {
     </section>
 
     ${project ? renderIntakeCard(project) : ""}
+    ${project ? renderScopeCard(project) : ""}
 
     <section class="field-card">
       <div class="field-card-row"><strong>Assigned crew</strong></div>
@@ -211,7 +255,7 @@ function renderBriefTab(job, project, account) {
       <div class="field-card-row"><strong>Documents</strong></div>
       ${[...projectDocuments, ...documents]
         .slice(0, 10)
-        .map((doc) => `<a class="field-icon-button" href="${crm.attachmentViewUrl ? crm.attachmentViewUrl(doc) : "#"}" target="_blank" rel="noopener">${crm.escapeHtml(doc.fileName || doc.documentTypeId || "Document")}</a>`)
+        .map((doc) => `<a class="field-icon-button" href="${crm.mediaViewUrl ? crm.mediaViewUrl(doc.id) : "#"}" target="_blank" rel="noopener">${crm.escapeHtml(doc.fileName || doc.documentTypeId || "Document")}</a>`)
         .join("") || `<div class="empty-state compact">No documents on file.</div>`}
     </section>
 
@@ -228,14 +272,19 @@ function renderBriefTab(job, project, account) {
   `;
 }
 
+// Item 4 (2026-09-28, owner report: "hard surface" and septic in a confined/crawl space) — this
+// used to test `project.stormDrainInvolved ? "Yes" : "No"`, which is true for ANY non-empty string
+// including the literal text "No", so a stored "No" rendered as "Yes". These fields are already
+// the human-readable "Yes"/"No"/"Unknown" strings the intake writes — render them as-is.
 function renderIntakeCard(project) {
   const rows = [
     ["Material", project.spillMaterial],
     ["Quantity", project.spillQuantity],
-    ["Surface", project.spillSurface],
-    ["Storm drain involved", project.stormDrainInvolved != null ? (project.stormDrainInvolved ? "Yes" : "No") : ""],
-    ["Off-road discharge", project.offRoadDischarge != null ? (project.offRoadDischarge ? "Yes" : "No") : ""],
-    ["Absorbent deployed", project.absorbentDeployed != null ? (project.absorbentDeployed ? "Yes" : "No") : ""],
+    ["Surface", crm.formatSpillSurface(project.spillSurface)],
+    ["Location type", project.spillLocationType],
+    ["Storm drain involved", project.stormDrainInvolved],
+    ["Off-road discharge", project.offRoadDischarge],
+    ["Absorbent deployed", project.absorbentDeployed],
     ["Agencies", Array.isArray(project.agencies) ? project.agencies.join(", ") : project.agencies],
     ["Mobilization status", project.mobilizationStatus],
   ].filter(([, value]) => value);
@@ -244,6 +293,23 @@ function renderIntakeCard(project) {
     <section class="field-card">
       <div class="field-card-row"><strong>ER intake</strong>${project.ergGuideNumber ? `<span>ERG Guide ${crm.escapeHtml(project.ergGuideNumber)}</span>` : ""}</div>
       ${rows.map(([label, value]) => `<div class="field-card-row"><span>${crm.escapeHtml(label)}</span><span>${crm.escapeHtml(String(value))}</span></div>`).join("")}
+    </section>
+  `;
+}
+
+// Item 7 (2026-09-28, "Scope from sales is not editable once a project is created") — read-only on
+// the field Brief; editing stays an office action (the project's Plan tab / dispatch job Details).
+function renderScopeCard(project) {
+  const lists = [
+    ["Equipment", project.equipmentNeeds],
+    ["Vendor / subcontractor", project.vendorNeeds],
+    ["Resources", project.resourceNeeds],
+  ].filter(([, items]) => Array.isArray(items) && items.length);
+  if (!lists.length) return "";
+  return `
+    <section class="field-card">
+      <div class="field-card-row"><strong>Scope</strong></div>
+      ${lists.map(([label, items]) => `<div class="field-card-row"><span>${crm.escapeHtml(label)}</span></div><div class="chip-list">${crm.renderOpportunityNeedsChips(items)}</div>`).join("")}
     </section>
   `;
 }

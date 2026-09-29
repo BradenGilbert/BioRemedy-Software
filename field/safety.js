@@ -42,7 +42,10 @@ function isJobErClass(job) {
 export function renderSafetyTab(job, employee, isLead) {
   const date = crm.dispatchJobOperationalDate(job) || crm.todayIso();
   const briefing = briefingForDay(job, date);
-  const myAck = briefing?.acknowledgements?.find((a) => a.employeeId === employee?.id);
+  // Item 1 (2026-09-28 IT report): the acknowledgement is stored on the roll-call row
+  // (rollCall[].acknowledgedAt, written by POST .../briefing/acknowledge), not a separate
+  // `acknowledgements` array -- nothing in the server ever wrote that field.
+  const myAck = briefing?.rollCall?.find((row) => row.employeeId === employee?.id && row.acknowledgedAt);
 
   if (!isLead) {
     // Crew member: only "Acknowledge briefing".
@@ -161,7 +164,7 @@ function renderRollCall(job, briefing) {
         .map((assignment) => {
           const person = crm.findEmployee(assignment.employeeId);
           const entry = rollCall.find((row) => row.employeeId === assignment.employeeId);
-          const ack = briefing?.acknowledgements?.find((a) => a.employeeId === assignment.employeeId);
+          const ack = entry?.acknowledgedAt ? entry : null;
           return `
             <div class="field-card">
               <div class="field-card-row">
@@ -259,18 +262,14 @@ async function updateRollCall(jobId, employeeId, patch) {
 async function saveBriefing(jobId, record) {
   const body = { ...record, jobId, updatedAt: new Date().toISOString(), updatedBy: crm.findEmployee(crm.state.frontlineSession?.employeeId)?.displayName || "Front Line" };
   try {
+    // Item 1 (2026-09-28 IT report): after a successful online save, merge the server's row back into
+    // state so crm.render() below doesn't redraw from what was there before the save.
     await fieldPackage.fieldRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/briefing`, {
       method: "POST",
       kind: "briefing",
       label: "Safety briefing",
       body,
-      apply: () => {
-        const rows = crm.state.backend.jobSafetyBriefings || [];
-        const index = rows.findIndex((row) => row.id === body.id);
-        if (index >= 0) rows[index] = body;
-        else rows.push(body);
-        crm.state.backend.jobSafetyBriefings = rows;
-      },
+      mergeInto: "jobSafetyBriefings",
     });
   } catch (error) {
     if (/does not have briefing yet/.test(error.message || "")) {
@@ -314,7 +313,6 @@ registerFieldForm("field-safety-save", async (form) => {
     airMonitoring: air.filter((row) => row.reading),
     reminders,
     rollCall: existing?.rollCall || [],
-    acknowledgements: existing?.acknowledgements || [],
     createdAt: existing?.createdAt || new Date().toISOString(),
   };
   await saveBriefing(jobId, record);
@@ -353,22 +351,26 @@ registerFieldForm("field-safety-acknowledge", async (form) => {
   const job = crm.findDispatchJob(jobId);
   const date = crm.dispatchJobOperationalDate(job) || crm.todayIso();
   const existing = briefingForDay(job, date);
-  const acknowledgements = [...(existing?.acknowledgements || []).filter((a) => a.employeeId !== employee.id), { employeeId: employee.id, acknowledgedAt: new Date().toISOString(), signatureAttachmentId }];
+  // Item 1 (2026-09-28 IT report): acknowledgement lives on the roll-call row (matches what
+  // POST .../briefing/acknowledge actually writes server-side), not a separate `acknowledgements` list.
+  const acknowledgedAt = new Date().toISOString();
+  const rollCall = [...(existing?.rollCall || []).filter((row) => row.employeeId !== employee.id), { ...((existing?.rollCall || []).find((row) => row.employeeId === employee.id) || {}), employeeId: employee.id, acknowledgedAt, signatureAttachmentId }];
   try {
     await fieldPackage.fieldRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/briefing/acknowledge`, {
       method: "POST",
       kind: "briefing-acknowledge",
       label: "Acknowledge briefing",
       body: { employeeId: employee.id, signatureAttachmentId },
+      mergeInto: "jobSafetyBriefings",
       apply: () => {
         const rows = crm.state.backend.jobSafetyBriefings || [];
         const index = rows.findIndex((row) => row.id === briefingId);
-        if (index >= 0) rows[index] = { ...rows[index], acknowledgements };
+        if (index >= 0) rows[index] = { ...rows[index], rollCall };
       },
     });
   } catch (error) {
     if (/does not have briefing-acknowledge yet/.test(error.message || "")) {
-      await saveBriefing(jobId, { ...existing, acknowledgements });
+      await saveBriefing(jobId, { ...existing, rollCall });
     } else {
       throw error;
     }

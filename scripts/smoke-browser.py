@@ -343,6 +343,63 @@ with sync_playwright() as p:
         else:
             summary["consoleErrors"].append("[offline capture] no dispatch job led by the logged-in field lead — skipped")
 
+        # Item 12 (2026-09-28 IT report): field-action openers are invisible to the rest of this sweep
+        # (press_openers only knows data-action, not data-field-action), so last week's seven dialogs
+        # nested inside the markup dialog -- opened at 0x0 -- went unnoticed until the owner hit them by
+        # hand. Press every visible opener-shaped data-field-action button on the job page and (if the
+        # logged-in field lead is on one) a site-walk page, and assert any dialog it opens has real size.
+        where["at"] = "field openers"
+        opener_pattern = re.compile(r"open|video|scan|sketch|markup|erg|share|measure", re.I)
+
+        def sweep_field_openers(label):
+            actions = phone_page.evaluate(
+                "() => [...new Set([...document.querySelectorAll('button[data-field-action]')]"
+                ".filter(b => b.offsetParent !== null).map(b => b.dataset.fieldAction))]"
+            )
+            pressed = 0
+            for action in actions:
+                if not opener_pattern.search(action or ""):
+                    continue
+                button = phone_page.locator(f'button[data-field-action="{action}"]').first
+                if not button.count() or not button.is_visible():
+                    continue
+                pressed += 1
+                try:
+                    button.click(timeout=2000)
+                except Exception as exc:
+                    summary["consoleErrors"].append(f"[{label} > {action}] click failed: {str(exc)[:120]}")
+                    continue
+                phone_page.wait_for_timeout(400)
+                open_dialogs = phone_page.locator("dialog[open]")
+                count = open_dialogs.count()
+                if count:
+                    summary["dialogs"] += count
+                    for i in range(count):
+                        box = open_dialogs.nth(i).bounding_box()
+                        if not box or box["width"] <= 0 or box["height"] <= 0:
+                            summary["badText"].append(f"{label} > {action}: dialog opened at zero size ({count} dialog(s) open — check for nesting)")
+                    note_bad_text(phone_page, f"{label} > {action}")
+                    phone_page.evaluate("() => document.querySelectorAll('dialog[open]').forEach(d => d.close())")
+                    phone_page.wait_for_timeout(150)
+            print(f"  field openers ({label}): {pressed} pressed")
+
+        if led_job and phone_page.locator('button[data-field-action="field-job-tab"]').count():
+            sweep_field_openers("field-job")
+
+        walks = [e for e in api(phone_page, "scheduleEvents") if e.get("kind") == "site_walk" and phone_lead_id in (e.get("participantEmployeeIds") or []) and not e.get("deletedAt") and e.get("status") != "Completed"]
+        if walks:
+            phone_page.goto(BASE + "?surface=phone#view=field-home")
+            phone_page.wait_for_timeout(500)
+            walk_card = phone_page.locator(f'button[data-field-action="walk-open"][data-id="{walks[0]["id"]}"]')
+            if walk_card.count():
+                walk_card.first.click()
+                phone_page.wait_for_timeout(600)
+                sweep_field_openers("field-walk")
+            else:
+                summary["consoleErrors"].append(f"[field openers] walk card for {walks[0]['id']} not found on My Day")
+        else:
+            print("  field openers (field-walk): no walk for this field lead — skipped")
+
     phone.close()
     browser.close()
 

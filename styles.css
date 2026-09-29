@@ -370,6 +370,16 @@ h3 {
   background: var(--amber);
 }
 
+.backend-refresh-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.backend-refresh-hint:empty {
+  display: none;
+}
+
 .primary-button,
 .secondary-button,
 .danger-button,
@@ -7593,13 +7603,27 @@ body[data-theme="dark"] .it-status.done {
   touch-action: none;
 }
 
+.it-shot-figure {
+  margin: 6px 0 0;
+  max-width: 100%;
+}
+
 .it-shot {
   display: block;
-  max-width: 280px;
-  max-height: 200px;
-  margin-top: 6px;
+  width: 100%;
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
   border-radius: 8px;
   border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.it-shot-figure figcaption {
+  margin-top: 4px;
+}
+
+.it-shot-link {
+  font-size: 0.85em;
 }
 
 @media (max-width: 760px) {

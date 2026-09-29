@@ -129,13 +129,35 @@ function blankReport(walk) {
   };
 }
 
+// Item 11 (found, 2026-09-28 IT report): reportFor used to hand back a brand-new blankReport(walk)
+// -- with its own random id -- on every call until a row existed on the server. Two edits made before
+// the first save landed (e.g. typing a summary, then toggling a chip) each got their own throwaway
+// object; only the last one ever reached queuePersist's single debounce timer, so the other was
+// silently dropped. One object per walk id, created once and reused for the life of the page, fixes
+// that: every edit mutates the same report, so a debounced save always carries everything so far.
+const reportCache = new Map();
 function reportFor(walk) {
-  return walkReportForEvent(walk.id) || blankReport(walk);
+  const cached = reportCache.get(walk.id);
+  if (cached) return cached;
+  const report = walkReportForEvent(walk.id) || blankReport(walk);
+  reportCache.set(walk.id, report);
+  return report;
 }
 
 function sectionState(report, key) {
   const sections = report.sections || (report.sections = {});
   return sections[key] || (sections[key] = { done: false, fields: {}, photoDocumentIds: [], shots: {} });
+}
+
+// Item 11 (found, 2026-09-28 IT report): the fields a save is allowed to pull back from the server
+// onto the in-memory report. Never `sections` (or any other content field) -- Object.assign-ing the
+// whole server row back over `report` used to wipe out an edit made while the save was in flight
+// (the save that completes later, chained on persistChain, would otherwise overwrite it with the
+// pre-edit copy it saved).
+const SERVER_OWNED_REPORT_FIELDS = ["id", "version", "updatedAt", "createdAt", "shares", "completedAt", "completedBy"];
+function applyServerOwnedFields(report, saved) {
+  if (!saved || typeof saved !== "object") return;
+  for (const key of SERVER_OWNED_REPORT_FIELDS) if (saved[key] !== undefined) report[key] = saved[key];
 }
 
 // Report saves are serialised: the check-in save and the debounced autosave otherwise overlap and
@@ -160,7 +182,7 @@ function persistReport(report, { rerender = false } = {}) {
       Object.assign(report, merged);
       saved = await saveFieldRecord("siteWalkReports", report);
     }
-    if (saved && typeof saved === "object") Object.assign(report, saved);
+    applyServerOwnedFields(report, saved);
     if (rerender) crm.render();
     return saved;
   });
@@ -863,7 +885,11 @@ registerFieldAction("walk-complete", async (button) => {
     const payload = { reportId: report.id, summary: report.summary, sections: report.sections, needs: { ...needs, samplingNeeded: Boolean(report.needs?.samplingNeeded) }, contactsMet: report.contactsMet || [], measurements: report.measurements || [], checkIn: report.checkIn, referenceSnapshot: report.referenceSnapshot, backgrounds: report.backgrounds || [], completedAt: now, completedBy: by };
     let serverDidIt = false;
     try {
-      await fieldRequest(`/api/field/site-walk/${encodeURIComponent(walk.id)}/complete`, { body: payload, kind: "walk-complete" });
+      // reportFor now hands back one cached object for the life of the page (item 11), so the
+      // completedAt/completedBy/shares the server just wrote have to be copied onto it explicitly --
+      // a plain refreshBackendState() no longer reaches this report the way it used to.
+      const saved = await fieldRequest(`/api/field/site-walk/${encodeURIComponent(walk.id)}/complete`, { body: payload, kind: "walk-complete" });
+      applyServerOwnedFields(report, saved);
       serverDidIt = true;
     } catch (error) {
       if (!/does not have|404/.test(error?.message || "") && error?.status !== 404) throw error;
@@ -903,9 +929,14 @@ export async function shareWalk(walk) {
     const result = await fieldRequest(`/api/field/walks/${encodeURIComponent(report.id)}/share`, { body: { expiresInDays: 14 }, kind: "walk-share" });
     const url = result?.url?.startsWith("http") ? result.url : `${location.origin}${result?.url || ""}`;
     const title = `Site walk — ${crm.findOpportunity(walk.opportunityId)?.name || walk.title || ""}`;
+    // The share route only echoes {id, url, expiresAt, audience}, not the whole report row, so (with
+    // reportFor now caching one object per walk, item 11) the cached report's own `shares` list needs
+    // a manual refresh rather than the refreshBackendState() below reaching it automatically.
+    if (result?.id) report.shares = [...(report.shares || []), { id: result.id, audience: result.audience || "staff", expiresAt: result.expiresAt || "", createdAt: new Date().toISOString(), revokedAt: "" }];
     if (navigator.share) {
       try {
         await navigator.share({ title, text: `${title}. Live map and photos:`, url });
+        await crm.refreshBackendState().catch(() => {});
         return;
       } catch {
         // fall through to the clipboard
@@ -1368,7 +1399,7 @@ registerSalesHomeSection((employee) => {
 // field-spill-intake — the Phase 16 dialog as a stepped phone form (same submit, same guards)
 // ---------------------------------------------------------------------------------------------
 
-const SPILL_STEPS = ["Caller", "Location", "Spill", "Agencies", "Mobilize"];
+const SPILL_STEPS = ["Caller", "Location", "Spill", "Agencies", "Dispatch", "Mobilize"];
 
 registerFieldRoute("field-spill-intake", {
   title: "Spill call",
@@ -1410,7 +1441,8 @@ function renderSpillIntake() {
       <section class="field-step" data-step="2" ${step === 2 ? "" : "hidden"}>
         <label class="field-label"><span>Material</span><input name="spillMaterial" maxlength="120" placeholder="Diesel, hydraulic oil, unknown…" /></label>
         <label class="field-label"><span>Estimated quantity</span><input name="spillQuantity" maxlength="60" placeholder="~50 gallons" /></label>
-        <label class="field-label"><span>Surface</span><select name="spillSurface">${options(["Road", "Soil", "Both", "Water"])}</select></label>
+        <label class="field-label"><span>What is the spill on?</span><select name="spillSurface">${options(["Road", "Hard surface (concrete, asphalt, floor)", "Soil", "Gravel", "Water", "Mixed"])}</select></label>
+        <label class="field-label"><span>Where is it?</span><select name="spillLocationType">${options(["Outdoors", "Inside a building", "Confined space", "Crawl space", "Storm or sewer system", "Septic system"])}</select></label>
         <label class="field-label"><span>Storm drain involvement</span><select name="stormDrainInvolved">${options(["Unknown", "No", "Yes"])}</select></label>
         <label class="field-label"><span>Off-road discharge</span><select name="offRoadDischarge">${options(["Unknown", "No", "Yes"])}</select></label>
         <label class="field-label"><span>Absorbent already deployed?</span><select name="absorbentDeployed">${options(["No", "Yes"])}</select></label>
@@ -1425,6 +1457,18 @@ function renderSpillIntake() {
       </section>
 
       <section class="field-step" data-step="4" ${step === 4 ? "" : "hidden"}>
+        <label class="field-label"><span>On-site contact name</span><input name="onsiteContactName" maxlength="80" placeholder="Defaults to caller" /></label>
+        <label class="field-label"><span>On-site contact phone</span><input name="onsiteContactPhone" type="tel" maxlength="40" placeholder="Defaults to caller" /></label>
+        <label class="field-label"><span>Requested arrival</span><select name="requestedArrival"><option value="Now">Now</option><option value="Schedule">Choose a time</option></select></label>
+        <label class="field-label"><span>Scheduled start (if not now)</span><input name="scheduledStartAt" type="datetime-local" /></label>
+        <label class="field-label"><span>Field lead</span><select name="fieldLeadEmployeeId"><option value="">Not yet assigned</option>${crm.getEmployees().map((employee) => `<option value="${attr(employee.id)}">${esc(employee.displayName)}</option>`).join("")}</select></label>
+        <label class="field-label"><span>Crew (optional)</span><select name="crewId"><option value="">No standing crew</option>${crm.getCrewProfiles().map((crew) => `<option value="${attr(crew.id)}">${esc(crew.name)}</option>`).join("")}</select></label>
+        <label class="field-label"><span>Estimated duration (hours)</span><input name="estimatedDurationHours" type="number" min="0.5" step="0.5" value="4" inputmode="decimal" /></label>
+        <label class="field-label"><span>Equipment notes</span><textarea name="equipmentNotes" rows="2"></textarea></label>
+        <label class="field-label"><span>Labor notes</span><textarea name="laborNotes" rows="2"></textarea></label>
+      </section>
+
+      <section class="field-step" data-step="5" ${step === 5 ? "" : "hidden"}>
         <label class="field-label"><span>Has insurance?</span><select name="hasInsurance">${options(["No", "Yes"])}</select></label>
         <label class="field-label"><span>Filing an insurance claim?</span><select name="isInsuranceClaim">${options(["No", "Yes"])}</select></label>
         <label class="field-label"><span>Carrier</span><input name="insuranceCarrier" maxlength="80" /></label>
