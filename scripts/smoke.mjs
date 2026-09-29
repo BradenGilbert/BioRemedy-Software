@@ -111,6 +111,19 @@ try {
   if (fieldCheck.stderr?.trim()) console.log(fieldCheck.stderr.trim());
   check(fieldCheck.status === 0, "scripts/field-api-check.mjs");
 
+  // ---- 3c. guided tours (Phase 24) --------------------------------------------------------------
+  // Every tour and hands-on tutorial in tutorials/registry.js, walked end to end on its own scratch
+  // training copy (sample data, CRM_TRAINING=1): fails on a missing highlight target, a hands-on step
+  // its `auto` actions cannot complete, or a console error. Node Playwright, so it runs even when the
+  // Python sweep below cannot.
+  if (!noBrowser) {
+    console.log("\nGuided tours");
+    const tours = spawnSync(process.execPath, ["scripts/build-user-guide.mjs", "--check"], { cwd: projectRoot, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+    console.log((tours.stdout || "").trim());
+    if (tours.stderr?.trim()) console.log(tours.stderr.trim().split("\n").slice(-5).join("\n"));
+    check(tours.status === 0, "scripts/build-user-guide.mjs --check");
+  }
+
   // ---- 4. browser sweep -----------------------------------------------------------------------
   if (!noBrowser) {
     console.log("\nBrowser sweep");
@@ -128,7 +141,7 @@ try {
       }
       console.log(lines.filter((line) => !line.startsWith("SUMMARY ")).join("\n"));
       if (sweep.stderr?.trim()) console.log(sweep.stderr.trim().split("\n").slice(-5).join("\n"));
-      check(sweep.status === 0 && summary.views > 0, `sweep finished (${summary.views || 0} views, ${summary.tabs || 0} tabs, ${summary.dialogs || 0} dialogs, ${summary.resaved || 0} re-saved, ${summary.tours || 0} tours)`);
+      check(sweep.status === 0 && summary.views > 0, `sweep finished (${summary.views || 0} views, ${summary.tabs || 0} tabs, ${summary.dialogs || 0} dialogs, ${summary.resaved || 0} re-saved)`);
       check((summary.consoleErrors || []).length === 0, `${(summary.consoleErrors || []).length} console errors / uncaught rejections`);
       check((summary.badText || []).length === 0, `${(summary.badText || []).length} NaN / undefined / null / [object Object] in rendered text`);
       (summary.consoleErrors || []).slice(0, 10).forEach((line) => console.log(`    ${line}`));

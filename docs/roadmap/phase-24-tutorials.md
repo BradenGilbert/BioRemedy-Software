@@ -1,175 +1,237 @@
 # Phase 24 — Tutorials: guided tours, a training copy, printed guides
 
-**Status:** 🟡 **Step 1 of 4 shipped 2026-09-28**: the tour engine, the "?" button and first-visit offer, per-person tour progress, the Sales tour, and the smoke-test tour walk. Steps 2–4 (training copy, hands-on process tutorials, the other section tours and the printed guide) not started.
-**Depends on:** Phase 21 (the Manuals & Training library; its Tutorials shelf is where process tutorials are listed). The Office section tour waits for Phase 23 (Work Inbox & Capabilities), which rebuilds the Office applet.
+**Status:** 🟢 **Built 2026-09-29, all four steps; smoke-green.**
+- Step 1 (2026-09-28): the tour engine, per-person progress, the Sales tour.
+- Step 2: the training copy.
+- Step 3: six hands-on tutorials, the Home "Learn the app" card, and the library link-up.
+- Step 4: 14 more screen tours, and a generated printed guide that doubles as the smoke check.
+
+**Waiting on the owner (not code):**
+- start the training copy and paste its address into live;
+- register the nightly reset task;
+- set trainees' passwords.
+
+**Open:** the Office tour waits for Phase 23.
+
+**Depends on:** Phase 21 (the Manuals & Training library; its Tutorials shelf lists the hands-on tutorials). The Office section tour waits for Phase 23 (Work Inbox & Capabilities), which rebuilds the Office applet.
+
 **Source:** owner, 2026-09-28: "We need to explore making a tutorial for each section of the app."
 
 ## Why this phase exists
 
-We are close to the pilot, and before this phase nothing in the app taught anyone how to use it: no tours, no help button, no first-run flow. The only related piece was the Phase 21 **Manuals & Training** library. Its "Tutorials & training" shelf held one placeholder item, "How to run a job in Front Line", and open decision 11 in Phase 21 (which tutorials go on the shelves first) was unanswered. The Phase 21 research warns that field workers ignore "anything needing training". So tutorials have to be short, run on the real screens, and let people practise.
+Before this phase, nothing in the app taught anyone how to use it: no tours, no help button, no first-run flow. The only related piece was the Phase 21 **Manuals & Training** library. Its "Tutorials & training" shelf held one placeholder item, and open decision 11 in Phase 21 (which tutorials go on the shelves first) was unanswered. The Phase 21 research warns that field workers ignore "anything needing training". So tutorials have to be short, run on the real screens, and let people practise.
 
 ## Decisions locked 2026-09-28 (owner)
 
 1. **Format.** Guided tours on the real screens, plus a printable guide built from the same content.
 2. **Structure.** Process first, then sections:
-   - one end-to-end story per role (Win a job, Take a spill call, Plan and dispatch, Run a job on your phone, Do a site walk, Close out and bill);
-   - each story links to short "what's on this screen" tours, one per section.
-3. **Where people practise.** Hands-on tutorials run on a separate **training copy** of the app, never on live.
-   - The short "?" screen tours run on live. They only point and explain, and create nothing.
-   - The owner first chose to practise on live and delete the data afterwards, then reversed it the same day. The practice-mode design (tagging every record created in a tutorial run, hiding it from others, blocking edits to real records, purging at the end) is **out of scope**.
-4. **Tracking.** Each process tutorial is an item on the Tutorials shelf of the **live** library.
-   - The last step of a training tutorial sends the person to that item on live to tap **Acknowledge**.
-   - That writes the existing `libraryAcknowledgements` row, so the required/overdue flags and the Workforce certifications view work with no new code.
+   - one end-to-end story per role;
+   - short "what's on this screen" tours per section and per record page.
+3. **Where people practise.** Hands-on tutorials run on a separate **training copy**, never on live.
+   - The show-only screen tours run on live.
+   - The owner first chose to practise on live and delete the data afterwards, then reversed it the same day. That practice-mode design is **out of scope**.
+4. **Tracking.** Each hands-on tutorial is a Tutorials-shelf item on live.
+   - Its last card links back to live, where the person taps **Acknowledge**.
+   - That writes the existing `libraryAcknowledgements` row, so the required/overdue flags and the Workforce certifications view work unchanged.
 5. **Addresses and Microsoft sign-in.**
-   - Live runs on a Cloudflare *quick* tunnel today (`cloudflared tunnel --url http://localhost:4173`). Its `trycloudflare.com` address changes every time cloudflared restarts.
-   - The owner will set up a permanent address later, once the team has taken to the app. That work is not part of this phase.
+   - Live runs on a Cloudflare *quick* tunnel (`cloudflared tunnel --url http://localhost:4173`); its `trycloudflare.com` address changes whenever cloudflared restarts. A permanent address comes later, once the team has taken to the app, and is not part of this phase.
    - Until then:
-     - the training copy gets its own quick tunnel (→ `localhost:4174`);
-     - it runs **without Microsoft sign-in**, so nothing changes in Entra;
-     - trainees sign in with a training password that an Admin sets once on the training copy.
-   - Later, the training address is added as one more SPA redirect URI on the **same** app registration. The tenant, client ID and app roles all stay the same.
-   - Putting training under the live address (`/training/`) was rejected:
-     - both copies would share the `crm_session` cookie (`Path=/`);
-     - every root-relative path in the front end would need rewriting;
-     - Entra would still need a second redirect entry, because the redirect is origin plus path.
+     - the training copy gets **its own quick tunnel** (→ `localhost:4174`);
+     - it runs **password-only**, so **nothing changes in Entra**.
+   - Later, the training address is one more SPA redirect URI on the **same** app registration.
+   - Training under the live address (`/training/`) was rejected: a shared session cookie, root-relative paths everywhere, and a second Entra redirect entry anyway.
 
 ## How we explain things (content rules)
 
 These rules apply to every tour. `tutorials/registry.js` repeats them at the top.
 
-1. **Start with the big picture.** The first card shows the whole chain:
+1. **Start with the big picture.** The first card shows the chain:
    Lead → Opportunity → Site walk → Quote → Won → Project → Dispatch job → Field work → Closeout → Invoice.
-   The part this tour covers is highlighted, so people see who hands them work and who they hand it on to.
+   The part the tour covers is highlighted.
 2. **Keep steps short.** One action per step, at most two sentences: **Do** (the control named exactly as the screen labels it) and **Why** (one business reason).
-3. **Wait for the person to act.** A step that asks for an action (`waitFor: "click"` or `"route:<view>"`) keeps Next disabled until the person does it.
-4. **Follow one practice job through every step.** Even on the training copy, a process tutorial creates the person's own "<Name>'s practice …" job, so trainees never collide on one sample record.
+3. **Wait for the person to act.** A hands-on step keeps Next disabled until the person does it, but can always be skipped, so a gate they can't clear never traps them.
+4. **Use their own practice records.** On the training copy, a tutorial has the person create their own records ("<Name>'s practice customer"), so trainees never collide on one sample record.
 5. **Use the words on screen and the glossary terms.** Facility, not "site"; Location only for a GPS point.
-6. **Keep field tours tiny.** Front Line tours are at most five steps and cover only the three-tap paths.
+6. **Keep field tours tiny.** Front Line section tours are five steps.
 
-## Tutorial catalogue
+## What was built
 
-### Process tutorials (hands-on, on the training copy)
+### Tutorial catalogue
 
-| # | Tutorial | Roles (required for) | Chain covered |
-|---|---|---|---|
-| P1 | Win a job | Sales Mgr, Account Mgr | account/contact/facility → opportunity → stage gates → schedule site walk → quote → Won → project |
-| P2 | Take a spill call | Sales, Ops, Office | emergency intake in one submit → mobilization gate |
-| P3 | Plan and dispatch a job | Ops Mgr, Scheduler | project intake/plan → job request → Create Job → assign crew → conflicts → board |
-| P4 | Run a job on your phone | Field Lead, Crew | My Day → acknowledge → en route → on site → safety briefing → photos/materials → signature → field complete. Replaces `library-tutorials-app-basics`. |
-| P5 | Do a site walk | Sales, Field Lead | Brief / Walk / Map / Finish |
-| P6 | Close out and bill | Office Mgr, Finance Mgr | post-work report → closeout → itemized invoice → QuickBooks export (mock, safe on the training copy) |
+Six hands-on tutorials (`kind: "process"`, on the training copy; each is a Tutorials-shelf item on live, `libraryItemId`):
 
-### Section tours (show-only, 3–11 steps, on live and on the training copy)
+| id | Title | Steps | Required for (library item) | Notes |
+|---|---|---|---|---|
+| `process-win-job` | Win a job | 19 | Sales Mgr, Account Mgr (`library-tutorials-win-job`) | Account → facility → opportunity → one real stage advance (Lead → Qualify through the gate) → site walk → quote. Negotiation/Won are explained, not forced (≈30 gated fields). |
+| `process-spill-call` | Take a spill call | 7 | Ops Mgr, Office Mgr (`library-tutorials-spill-call`) | The one-screen intake → mobilization decision → paperwork → the job on the register. Sales roles cannot open Operations › Emergency Response, so the audience is Ops/Office/Scheduler. |
+| `process-plan-dispatch` | Plan and dispatch a job | 12 | Ops Mgr, Scheduler (`library-tutorials-plan-dispatch`) | Project → job request (a service time, onsite contact and address are required before Create job) → work plan → crew → schedule → conflicts, board. |
+| `process-field-job` | Run a job on your phone | 10 | Field Lead, Crew (`library-tutorials-app-basics`, the old placeholder row) | Phone surface. My Day → job page tabs → the status bar → safety → work → quick capture → close. |
+| `process-site-walk` | Do a site walk | 11 | Sales Mgr (`library-tutorials-site-walk`) | Schedules a walk for today on an opportunity, then does it on Front Line: check in, Walk, Map, Finish. |
+| `process-close-bill` | Close out and bill a project | 8 | Office Mgr, Finance Mgr (`library-tutorials-close-bill`) | Report tab → Close project → itemized invoice → QuickBooks (mock on the training copy). |
 
-- One tour per workspace: Sales ✅, Operations, Jobs & Dispatch, Workforce, Inventory, Office (after Phase 23), Finance, Client Portal, Identity & Sync, Front Line.
-- One tour per tabbed detail page: Opportunity, Account, Contact, Project, Dispatch job.
+Fourteen show-only tours (`kind: "section"`):
+- **Workspace tours**, from the "?" on each workspace header: Sales, Operations, Jobs & Dispatch, Workforce, Inventory, Finance, Client Portal.
+- **Identity & Sync.** Admin-only steps are marked `roles`. The "?" is in the top bar.
+- **Front Line.**
+- **Record-page tours**, from a "?" in the top bar: Opportunity, Account, Contact, Project, Dispatch job.
+- **Office has none yet.** Phase 23 rebuilds it.
 
-## Design
+### The engine (`tutorials/engine.js`) and content (`tutorials/registry.js`)
 
-### Tour engine and content (step 1 — built)
+- **Overlay.**
+  - Four shade panels around the target (clicks reach only the target or the card), a ring, and the card.
+  - Esc exits; ← and → step.
+  - Card placement, in order of preference:
+    1. above or below the target;
+    2. beside it, narrowed to the space;
+    3. a compact card in the bottom-right corner over a wide dialog.
+  - On a phone the card is a sheet at the bottom, or at the top when the target is in the lower half (the job status bar).
+  - When a modal dialog is open, **the layer moves inside it**: outside a modal everything is inert, and inside it the layer paints above the dialog and stays clickable.
+  - A MutationObserver re-finds the target after any re-render, including the field app's own renders.
+- **Targets** are semantic hooks, never structural CSS:
+  - `data-tour="…"` (added for tours);
+  - `action:<data-action>`, `tab:<action>:<tab>`, `field:<data-field-action>`, `view:<data-view>`;
+  - `dialog:<id>`;
+  - `sel:<css>`, only for a dialog field by name.
+- **Waits:**
+  - `click`, `route:<view>`, `dialog:<id>`;
+  - `created:<collection>` (a new record appears; its id is kept);
+  - `until` (a predicate over `ctx.record(collection)` and `ctx.view`).
+- **Scripted actions.** `auto` lists what a script does in the person's place: `click`, `fill`, `select` with `@first`, `label:<text>` and `@today[suffix]`, and `wait`.
+  - `runAuto()` is exported for the guide builder, never used by a person.
+- **Skipped steps.** A step is skipped when its `view` can't be opened, or its `roles` don't match.
+- **Host wiring in `app.js`.**
+  - `loadGuidedTours()` loads both modules with a **guarded dynamic `import()`**, so a server that doesn't serve `tutorials/` still runs the app (see the corrections).
+  - `openView()` was extracted from the `[data-view]` click path.
+  - `render()` ends with the engine's `notifyRender()`.
 
-- **`tutorials/engine.js`** draws the overlay:
-  - four shade panels around the target, so clicks reach only the target or the card;
-  - a ring on the target, and the step card;
-  - keyboard controls: Esc exits, ← and → move between steps.
-  - On a phone (< 640px) the card docks to the bottom as a sheet, and the target is scrolled to just under the header.
-  - When a target cannot be found within 1.5s, the text shows centred and the layer is marked `data-tour-status="missing"`, which the smoke test fails on.
-  - The app's update banner is hidden while a tour runs, because it sits above the card.
-- **`tutorials/registry.js`** holds every word. A tutorial is `{ id, kind: "section"|"process", workspace, title, summary, steps[] }`, and a step is `{ view?, tab?, target?, title, do, why?, chain?, waitFor? }`.
-  - Targets are `data-tour="…"` attributes in the markup, never structural CSS selectors.
-  - A step whose view the person cannot open is skipped.
-- **Host wiring in `app.js`** (`loadGuidedTours`, a dynamic import; see the corrections):
-  - The tour opens pages through the new `openView()`. That function was extracted from the `[data-view]` click branch, so a tour clears the same selections and filters a nav click does.
-  - `render()` calls the engine's `notifyRender()` last, so the highlight re-attaches after every redraw.
-- **Entry points:**
-  - A "?" button after the page title in `renderWorkspaceHeader()` (`data-tour="tour-button"`), shown when that workspace has a section tour.
-  - A one-line first-visit offer under the header ("Take the tour" / "No thanks"), hidden once the tour is started, finished or waved off.
-- **Anchors added so far:**
-  - `section-nav` (`#sideNav`) and `page-header` (every workspace header);
-  - `pipeline-metrics`, `pipeline-board`, `new-opportunity`;
-  - `accounts-list`, `new-account`, `contacts-list`.
+### Entry points (live and training)
 
-### Tour progress (step 1 — built)
+- **"?" buttons.**
+  - Workspace tours: after the page title in `renderWorkspaceHeader()`.
+  - Record pages and Identity & Sync: in the top bar's quick actions (`topbarTourFor(view)`).
+- **First-visit offer.** A one-line "Take the tour / No thanks" under a workspace header, until the person takes the tour or waves it off.
+- **Home "Learn the app" card:**
+  - lists the hands-on tutorials for the person's roles (Admin sees all), each marked Required, Done or Retake from the library acknowledgement;
+  - required-and-not-done gets the red dot and the card a red outline (the app's red-dot rule);
+  - then chips for every screen tour the person can open.
+- **Library.** A Tutorials-shelf item with a `tourId` shows the launch control instead of Open, in both the office library and the field library.
+- **Launch control (`renderTutorialLaunch`).**
+  - On live it is **Open in training**, a link to `<training copy>#tutorial=<id>&return=<live origin>`, or "Training copy not set up yet" when no address is set.
+  - On the training copy it is **Start**.
+- **Round trip.**
+  1. The training copy keeps `return` in `sessionStorage` and starts the tutorial after sign-in.
+  2. The last card's **Open the live app to acknowledge** goes to `<live>#view=home&tutorialDone=<id>`.
+  3. There the Home card scrolls into view with that tutorial highlighted and a primary **Acknowledge** button. It also works when the link lands in an already-open tab (popstate).
+  4. Acknowledge needs the sign-in to be linked to an employee record; break-glass isn't.
 
-- **`tutorialProgress`** is a new collection in `backend.json`, one row per person per tutorial:
-  - `ownerKey`, `systemUserId`, `employeeId`, `tutorialId`;
-  - `status` (`not-started` | `in-progress` | `exited` | `done`), `lastStep`;
-  - `startedAt`, `completedAt`, `dismissedOfferAt`, plus the usual `version`/`createdAt`/`updatedAt`.
-- It is read and written **only** through `GET`/`POST /api/tutorial/progress`. The owner comes from the session, never the body. It has no `collectionAccess` entry, so the generic collection route returns 404 for it.
-- The owner is the system user. A sign-on link session uses `employee:<id>`, and the break-glass session uses `breakglass`.
-- `done` is sticky: re-taking a finished tour and leaving it halfway does not un-finish it.
-- This holds tour progress and dismissed offers only. Training completion is the library acknowledgement (decision 4).
+### Tour progress (live)
 
-### The training copy (step 2 — not started)
+- **`tutorialProgress`** in `backend.json`: one row per person per tutorial.
+  - Fields: `{ ownerKey, systemUserId, employeeId, tutorialId, status: not-started|in-progress|exited|done, lastStep, startedAt, completedAt, dismissedOfferAt }`.
+  - Read and written only through `GET`/`POST /api/tutorial/progress`, with the owner taken from the session. It has no `collectionAccess` entry.
+  - `done` is sticky.
+- This is a convenience (offers, re-takes). Training completion is the library acknowledgement.
 
-- **Same code.** The same `server.mjs` runs with `PORT=4174`, `CRM_DATA_DIR=data-training/`, `CRM_BACKUP_INTERVAL_MINUTES=0` and a new `CRM_TRAINING=1`.
-  - `/api/auth/providers` returns `training: true`.
-  - The client shows a fixed "TRAINING – nothing here is real" ribbon on every screen, including sign-in and the phone frame, and puts "[Training]" in the tab title.
-  - The Microsoft button is hidden, and the sign-in screen says "Use your training password".
-- **Sign-in and users.** `auth.json` is copied from live once at setup. The nightly reset keeps it.
-- **Live → training link.** A server-side, Admin-only "Training copy address" setting on live, stored as a `trainingSettings` object in `backend.json` like `qboSettings`. It is returned on `/api/auth/me`, so pasting a new quick-tunnel address takes effect with no restart.
-- **Training → live link.** Live's "Open in training" link carries `#tutorial=<id>&return=<live origin>`. The training copy keeps `return` in `sessionStorage` and builds the final "Acknowledge on live" deep link from it, so it needs no live address configured.
-- **Nightly reset: `scripts/reset-training.mjs`**
-  1. Stop only the PID whose command line has `server.mjs` **and** the training data dir.
-  2. Regenerate the sample data into `data-training/` dated today.
-  3. Keep `auth.json`.
-  4. Start the server again in the background.
-  5. Print the training tunnel's current address.
-  - It runs from a Windows scheduled task at 2 am.
-- **Generator changes** (`scripts/rebuild/core.mjs`):
-  - `--today YYYY-MM-DD`, because `NOW`/`TODAY` are fixed at 2026-09-25;
-  - `--no-seed-file`, so the reset never rewrites the committed `data/demo-seed.json`;
-  - sample text that spells out the date is built from `TODAY` instead.
-  - `scripts/reset-demo-data.mjs` is not used, because it only upserts and never deletes what trainees added.
-- **Updates.** Restart the training copy whenever live is restarted after an update.
-- **Nothing leaves the app.** QuickBooks is a mock, and email is not built. Phase 19 must refuse to send when `CRM_TRAINING=1`.
+### The training copy
 
-### Process tutorials and library (step 3 — not started)
+- **It is `server.mjs` with `CRM_TRAINING=1`**, its own port (4174) and data folder (`data-training/`, gitignored). Training mode:
+  - serves the TRAINING frame on every screen: an amber border and label that never takes clicks, over the sign-in page and the phone frame too;
+  - adds "[Training]" to the tab title;
+  - is **password-only**. Microsoft is off whatever the shared `.env` says, and the sign-in page says "Use your training password";
+  - takes **no backups**. The `.env`'s `CRM_BACKUP_DIR` is live's OneDrive folder and is ignored;
+  - uses **its own session cookie** (`crm_training_session`), so live and training on one computer don't sign each other out;
+  - **refuses to start on the live `data/` folder**.
+- **`scripts/reset-training.mjs`** (the nightly reset, and the way to start it):
+  1. Stops only a `server.mjs` listening on the training port, and never port 4173.
+  2. Rebuilds `backend.json` from `data/demo-seed.json` plus **live's reference catalog, read-only**: rate sheet, price levels, units, job and form templates, document types, permits, library items. It never copies live activity (IT messages, walks, GPS consents, tour progress).
+  3. Shifts every sample date so the seed's "today" (read from `scripts/rebuild/core.mjs`) is the real today.
+  4. Copies the 174 sample files once.
+  5. Keeps `auth.json`, so trainees' passwords survive.
+  6. Starts the server detached.
+  7. With `--tunnel`, starts or finds a quick tunnel to the port and prints its address.
+- **Live's pointer to it.** The Admin-only **Identity & Sync › Training copy** address: a `trainingSettings` object in `backend.json`, served by `GET`/`POST /api/training/settings`. Pasting a new quick-tunnel address takes effect with no restart. The training copy's own Identity & Sync says it *is* the training copy.
 
-- Home gets a "Learn the app" card listing the person's process tutorials, marked required, done or overdue from the library acknowledgement status.
-  - On live, each item is an "Open in training" link.
-  - On the training copy, the card starts the tutorial directly.
-- Library items gain `tourId`. One Tutorials-shelf item per process tutorial goes into `LIBRARY_ITEM_SEED`, with `requiredForRoles`.
-- Order: P4 and P1 first (the pilot crews and the sales walk), then P3, P5, P6, P2.
+### The printed guide and the check (`scripts/build-user-guide.mjs`)
 
-### Printed guide (step 4 — not started)
+- It builds its own scratch training copy (reset script `--no-start` into a temp folder, then `CRM_TRAINING=1` on port 4319).
+- It starts every tutorial through the real engine, screenshots every step, and completes hands-on steps with their `auto` actions.
+- It writes `docs/user-guide/<id>.html`, an index and PDFs. These are gitignored (about 35 MB of screenshots): regenerate rather than commit.
+- **`--check`** writes nothing and fails on:
+  - a missing highlight target;
+  - a hands-on step whose `auto` can't complete it;
+  - a console error.
+  `scripts/smoke.mjs` runs it ("Guided tours"). It uses Node Playwright, so it runs even while the Python sweep can't (see the corrections).
 
-- `scripts/build-user-guide.py` runs each registry tour on a scratch server with `CRM_SEED_DEMO=1` and screenshots every step with the spotlight on.
-- It writes `docs/user-guide/<id>.html` and a PDF through Chromium. The PDFs can be attached to their library items.
+## Owner actions to switch it on
+
+1. **Start the training copy:** `node scripts/reset-training.mjs --tunnel`.
+2. **Sign in to it** with `data-training/break-glass-password.txt` and set a password for each trainee in Identity & Sync › Users & access.
+3. **On live**, paste the printed address into Identity & Sync › Training copy.
+4. **Register the nightly reset** (`schtasks` line in `README.md`).
+5. **Restart the training copy** whenever live is restarted after an update.
+6. **Later, with a permanent address:** add the training address as an Entra SPA redirect URI and set `CRM_ENTRA_*` on the training copy.
+7. **Optionally, attach the generated PDFs** (`node scripts/build-user-guide.mjs`) to their library items.
 
 ## Build record
 
-**2026-09-28, step 1.**
-- **Files:**
-  - new: `tutorials/engine.js`, `tutorials/registry.js`;
-  - `app.js`: `loadGuidedTours()` (dynamic import), `openView()`, `start-tour` / `dismiss-tour-offer` actions, header button and offer, progress load/save, the engine's `notifyRender()` at the end of `render()`, anchors;
-  - `server.mjs`: `tutorialProgress` default, `/api/tutorial/progress`, `tutorials/` on the static allowlist;
-  - `index.html`: `data-tour` on `#sideNav`;
-  - `styles.css`: overlay, card, offer and "?" styles on the theme tokens;
-  - `service-worker.js`: both modules cached, cache `v65`;
-  - `scripts/smoke-browser.py` + `scripts/smoke.mjs`: the tour walk.
+- **2026-09-28, step 1.** Engine, "?" and first-visit offer, `tutorialProgress`, the Sales tour. Committed with other work as `77a2a5e`.
+- **2026-09-29, steps 2–4:**
+  - **New files:** `scripts/reset-training.mjs`, `scripts/build-user-guide.mjs`.
+  - **`tutorials/engine.js`**, rewritten: dialog seating, target kinds, waits, `auto`, skip, finish link, roles, placement modes.
+  - **`tutorials/registry.js`**: 20 tours.
+  - **`server.mjs`:**
+    - `CRM_TRAINING` (Entra, local login, backups, cookie, data-folder guard, startup line, `training` on `/api/auth/providers`);
+    - `trainingSettings` and `/api/training/settings`;
+    - the six Tutorials-shelf seed rows with `tourId`, plus a one-time patch that gives the old placeholder row its `tourId`.
+  - **`app.js`:**
+    - the training ribbon and title, and password-only sign-in copy;
+    - the Training copy panel;
+    - deep links (`consumeTutorialLink`, `startPendingTutorial`, popstate);
+    - the Home Learn card, acknowledgement, and `renderTutorialLaunch` (exported);
+    - the top-bar "?";
+    - anchors: `opportunity-stage-ladder`, `project-mobilization`, `project-paperwork`, `dispatch-job-register`, `home-learn`, `sync-*`.
+  - **`field/library.js`:** the launch control.
+  - **`styles.css`:** the ribbon, the Learn card, and card modes.
+  - **Tests:** `scripts/smoke.mjs` (the Guided tours check); `scripts/smoke-browser.py` (the Python tour walk removed).
+  - **Other:** `.gitignore` (`data-training/`, `docs/user-guide/`); `README.md`.
 - **Verified:**
-  - Click-tested on a scratch server at 1440×900 and 390×844:
-    - all 11 Sales steps find their targets on both sizes;
-    - the offer shows on first visit and hides afterwards;
-    - progress saves;
-    - "?" restarts the tour and Esc exits it;
-    - clicks outside the highlight hit the shade;
-    - a missing target reports `missing`;
-    - a `waitFor: "click"` step keeps Next disabled until the target is pressed, and the target's real dialog then opens.
-  - `node scripts/smoke.mjs`: 24/24 passed, the sweep reporting "1 tours".
+  - `build-user-guide.mjs` walks all 20 tours clean (156 steps), hands-on steps completed by their `auto` actions.
+  - Click-tested at 1366×860 and 390×844.
+  - Reset script:
+    - refuses port 4173 and `data/`;
+    - `CRM_TRAINING=1` on `data/` exits;
+    - a second run stops and restarts cleanly;
+    - dates shift so "today" has jobs;
+    - live stayed up throughout.
+  - The live → training → live round trip, as a Sales Manager on scratch servers:
+    - the Home card shows Required + red dot + Open in training;
+    - the training copy shows the sign-in with the TRAINING frame, then starts the tutorial after sign-in, and live stays signed in;
+    - the finish link goes back to live, where Acknowledge writes `libraryAcknowledgements` and the card shows Done.
+  - `node scripts/smoke.mjs` 2026-09-29: 25/25 passed, including "Guided tours: all 20 tutorials walk cleanly". The Python sweep ran with the scratch Playwright on `PYTHONPATH`.
 
 ## Corrections found during implementation
 
 - **Phase number.** Planned as Phase 23. Another session recorded Phase 23 (Work Inbox & Capabilities) the same day, so this is Phase 24.
-- **Break-glass session kind.** The break-glass session's `kind` is `breakglass`, not `break-glass`. The first cut of `tutorialOwnerKey` refused it.
-- **Python Playwright has gone missing.** The bundled Python runtime was replaced on 2026-09-28 (11:57), and the new one has **no Python Playwright**, so `scripts/smoke.mjs`'s browser sweep cannot start from the default `CRM_PYTHON`.
-  - Workaround used here: install `playwright==1.62.0` (it matches the cached Chromium builds in `%LOCALAPPDATA%\ms-playwright`) into a scratch folder with `pip install --target <dir>`, then run the smoke test with `PYTHONPATH=<dir>`.
-  - The Node copy of Playwright (1.62.1) is still in the bundled `node_modules`.
-- **`.icon-button` is a block.** It is `display: grid`, so the "?" wrapped under the page title. `.tour-button` overrides it to `inline-grid`.
-- **A static import took live down.** The first cut imported `tutorials/engine.js` statically at the top of `app.js`.
-  - The live server reads front-end files from disk but builds its static allowlist at startup, so until it restarts it 404s `tutorials/`.
-  - A failed static import stops the whole module graph, so live showed a broken app on any reload for about 30 minutes on 2026-09-28.
-  - Fixed without a restart: `app.js` now loads both modules with a guarded dynamic `import()` in `loadGuidedTours()`, and every caller treats "no tours" as normal. Live's sign-in page was checked afterwards: it renders, with one "Guided tours are unavailable" warning.
-  - **Rule for later steps:** any new module under a new folder is loaded this way, or the server is restarted in the same step.
-  - Live shows no tours until it is restarted with the new `server.mjs`.
+- **Break-glass session kind.** The break-glass session's `kind` is `breakglass`, not `break-glass`.
+- **Python Playwright disappeared.** The bundled Python runtime was replaced on 2026-09-28 without Python Playwright, so `smoke.mjs`'s Python sweep can't start from the default `CRM_PYTHON`.
+  - Workaround: `pip install --target <dir> playwright==1.62.0` (it matches the cached Chromium) and `PYTHONPATH=<dir>`.
+  - The tour check was therefore written in **Node** Playwright, which the runtime still ships.
+- **`.icon-button` is a block** (`display: grid`). The "?" overrides it to `inline-grid`.
+- **A static import took live down (2026-09-28).**
+  - The live server reads front-end files from disk, but builds its static allowlist at startup. The first cut's static `import "./tutorials/engine.js"` 404'd on the not-yet-restarted server and stopped the whole app for about 30 minutes.
+  - Fixed with the guarded dynamic import in `loadGuidedTours()`.
+  - **Rule:** a module in a new folder is loaded that way, or the server is restarted in the same step. The auto-mode permission check now refuses a session's live restart as a "production deploy".
+- **The training reset does not run the sample-data generator.** The plan said to add `--today`/`--no-seed-file` to `scripts/rebuild/core.mjs`, but the generator:
+  - needs the OneDrive Photos folder and `pillow_heif` (not in the bundled Python);
+  - rewrites `data/demo-seed.json`;
+  - carries real IT messages over;
+  - hard-codes dates all through the sample files, not just `TODAY`.
+  The reset instead rebuilds from the committed `demo-seed.json` and shifts every `YYYY-MM-DD` (ids, file names and URLs excluded) by the same number of days. The generator is unchanged.
+- **Trainee passwords.** The plan copied live's `auth.json` to the training copy. That would carry live sessions and password hashes across. Instead the training copy has its own `auth.json`: the break-glass admin sets trainees' passwords once, and the reset keeps them. The user records themselves (`systemUsers`) come with the sample set.
+- **The shared cookie between live and training.** Cookies are per host, not per port, so on one computer live and training shared `crm_session`. Training mode names its cookie `crm_training_session`.
+- **Spill-call audience.** Sales roles can't open Operations › Emergency Response, so "Take a spill call" is for Ops/Office/Scheduler, not Sales as planned. The field phone intake is Phase 21's.
+- **A job request needs more than the dialog requires.** Create job refuses a request without a service time, onsite contact and address, even though the dialog only requires the address and description. The tutorial asks for all three.
+- **Site walks on My Day.** They are the "Site walks" section's `walk-open` cards (`field/walk.js`). The older `field-open-walk` card renders as a plain, untappable card because `field-walk` isn't in `FIELD_ROUTES`. The tutorial targets both.
+- **Where the record-page "?" goes.** Record pages and Identity & Sync have no workspace header, so their "?" is in the top bar instead of beside each tab strip. That is one insertion instead of five page edits.
+- **The printed guide is not committed.** It is about 35 MB of screenshots; it is gitignored and regenerated instead.

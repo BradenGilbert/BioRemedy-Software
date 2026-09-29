@@ -1174,8 +1174,9 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `ergGuides` | **new** erg_guides (029+) | Phase 21: ERG 2024 orange guide pages (hazards/public safety/emergency response text) |
 | `ergDistances` | **new** erg_distances (029+) | Phase 21: ERG 2024 green-page Table 1 initial isolation / protective-action distances for TIH materials |
 | `tutorialProgress` | **new** tutorial_progress (029+) | Phase 24 (2026-09-28): which guided tours each person finished or waved off; unique on (`ownerKey`, `tutorialId`). Not in `collectionAccess` -- read/written only through `/api/tutorial/progress` |
+| `trainingSettings` (object) | **new** app_settings row, key `training` (029+) | Phase 24 (2026-09-29): live's `{trainingUrl, updatedAt, updatedBy}` -- the training copy's address. An object like `qboSettings`; read/written only through `/api/training/settings` (POST Admin-only) |
 
-| `libraryItems` | **new** library_items (029+) | Phase 21 (2026-09-25, W4): Manuals & Training shelves. `{shelf, title, category, audienceRoles[], requiredForRoles[], renewalMonths, pinnedOffline, documentId, url, version, isActive}` |
+| `libraryItems` | **new** library_items (029+) | Phase 21 (2026-09-25, W4): Manuals & Training shelves. `{shelf, title, category, audienceRoles[], requiredForRoles[], renewalMonths, pinnedOffline, documentId, url, version, isActive}`; Phase 24 (2026-09-29) adds optional `tourId` (the hands-on tutorial a Tutorials-shelf item opens) |
 | `libraryAcknowledgements` | **new** library_acknowledgements (029+) | Phase 21 (W4): `{employeeId, libraryItemId, itemVersion, acknowledgedAt}`, append-only |
 | `ergMaterials` | **new** erg_materials (029+) | Phase 21 (W4): `{unNumber, name, guide, tihFlag}`, loaded by `scripts/import-erg.mjs` (W1) |
 | `ergGuides` | **new** erg_guides (029+) | Phase 21 (W4): `{guide, title, sections:{potentialHazards, publicSafety, emergencyResponse}}` |

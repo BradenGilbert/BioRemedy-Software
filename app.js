@@ -1386,6 +1386,7 @@ async function refreshState({ backend = true } = {}) {
     state.tutorialProgressOwner = "";
   } else if (state.tutorialProgressOwner !== state.session.id) {
     await loadTutorialProgress();
+    await loadTrainingSettings();
   }
 }
 
@@ -1589,6 +1590,7 @@ async function init() {
   await handleAuthRedirect();
   await loadSession();
   await refreshState();
+  consumeTutorialLink();
   applyRouteFromHash();
   bindEvents();
   await loadGuidedTours();
@@ -1596,6 +1598,7 @@ async function init() {
   registerServiceWorker();
   wireBackgroundBackendRefresh();
   render();
+  startPendingTutorial();
   sweepDeadlineNotifications();
 }
 
@@ -1733,6 +1736,11 @@ async function dispatchClick(event) {
   if (action === "start-tour") {
     const tutorial = guidedTours?.registry.findTutorial(actionButton.dataset.tourId);
     if (tutorial) guidedTours.engine.startTour(tutorial);
+    return;
+  }
+
+  if (action === "acknowledge-tutorial") {
+    await acknowledgeTutorial(actionButton.dataset.tourId);
     return;
   }
 
@@ -2463,6 +2471,7 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "activity-task") await saveActivityTask(form);
   if (form.dataset.form === "activity-tags") await saveActivityTags(form);
   if (form.dataset.form === "identity") await saveIdentityConfig(form);
+  if (form.dataset.form === "training-settings") await saveTrainingSettings(form);
   if (form.dataset.form === "settings") await savePlatformSettings(form);
   if (form.dataset.form === "frontline-complete-action") await frontlineCompleteAction(form);
   if (form.dataset.form === "frontline-adhoc-activity") await frontlineSubmitAdHocActivity(form);
@@ -3069,6 +3078,9 @@ function updateBackButtonState() {
 }
 
 function handlePopState() {
+  // Phase 24: a tutorial link (#tutorial=… / #tutorialDone=…) pasted into an open tab.
+  consumeTutorialLink();
+  startPendingTutorial();
   if (applyRouteFromHash()) {
     render();
   } else {
@@ -3109,6 +3121,9 @@ function renderQuickActions() {
     return;
   }
   const actions = [];
+  // Phase 24: detail pages and Identity & Sync have no workspace header, so their tour's "?" sits here.
+  const pageTour = guidedTours?.registry.topbarTourFor(state.view);
+  if (pageTour) actions.push(`<button class="icon-button tour-button" type="button" data-action="start-tour" data-tour-id="${escapeAttribute(pageTour.id)}" data-tour="tour-button" aria-label="Take the ${escapeAttribute(pageTour.title)}" title="Take the ${escapeAttribute(pageTour.title)}">?</button>`);
   const activeWorkspace = getCurrentWorkspaceId();
   if (activeWorkspace === "dispatch") {
     // Owner, 2026-09-24: the top-bar "new" action here is a Field alert, as on Operations.
@@ -3333,8 +3348,13 @@ function renderHome() {
             : ""
         }
       </section>
+      ${renderHomeLearnCard()}
     </section>
   `;
+  if (state.tutorialScrollPending) {
+    state.tutorialScrollPending = false;
+    requestAnimationFrame(() => document.querySelector(".home-learn-item.is-finished, .home-learn")?.scrollIntoView({ block: "center" }));
+  }
 }
 
 function renderHomeLauncher(workspace, index, total) {
@@ -3452,6 +3472,190 @@ async function saveTutorialProgress(tutorialId, patch) {
   }
 }
 
+// ---- Hands-on tutorials across live and the training copy (Phase 24 step 3) --------------------
+// Live's "Open in training" link is <training copy>#tutorial=<id>&return=<live origin>. The training
+// copy keeps the return address for the tab's lifetime and starts the tutorial once signed in; the
+// tutorial's last card links back to <live>#view=home&tutorialDone=<id>, where the Home card offers
+// Acknowledge -- the libraryAcknowledgements row that makes it a training record.
+const TUTORIAL_LINK_KEY = "crm.tutorialLink";
+const TUTORIAL_RETURN_KEY = "crm.tutorialReturn";
+
+function readSessionValue(key) {
+  try {
+    return sessionStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeSessionValue(key, value) {
+  try {
+    if (value) sessionStorage.setItem(key, value);
+    else sessionStorage.removeItem(key);
+  } catch {
+    // Private mode: the link still starts the tutorial this once; only the way back is lost.
+  }
+}
+
+function consumeTutorialLink() {
+  const params = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const done = params.get("tutorialDone");
+  if (done) {
+    state.tutorialJustFinished = done;
+    // The Learn card sits below the launcher ring; bring it into view once, on arrival.
+    state.tutorialScrollPending = true;
+  }
+  const tutorialId = params.get("tutorial");
+  if (!tutorialId) return;
+  const back = params.get("return") || "";
+  if (/^https?:\/\//.test(back)) writeSessionValue(TUTORIAL_RETURN_KEY, back);
+  writeSessionValue(TUTORIAL_LINK_KEY, tutorialId);
+  state.pendingTutorialId = tutorialId;
+  history.replaceState(null, "", "#view=home");
+}
+
+function startPendingTutorial() {
+  const tutorialId = state.pendingTutorialId || readSessionValue(TUTORIAL_LINK_KEY);
+  if (!tutorialId || state.authRequired || !guidedTours) return;
+  state.pendingTutorialId = "";
+  writeSessionValue(TUTORIAL_LINK_KEY, "");
+  const tutorial = guidedTours.registry.findTutorial(tutorialId);
+  if (tutorial) guidedTours.engine.startTour(tutorial);
+}
+
+function withTrailingSlash(url) {
+  return url.endsWith("/") ? url : `${url}/`;
+}
+
+function tutorialTrainingHref(tutorialId) {
+  const base = trainingCopyUrl();
+  if (!base) return "";
+  return `${withTrailingSlash(base)}#tutorial=${encodeURIComponent(tutorialId)}&return=${encodeURIComponent(`${location.origin}/`)}`;
+}
+
+function tutorialFinishLink(tour) {
+  if (!isTrainingCopy() || tour.kind !== "process") return null;
+  const back = readSessionValue(TUTORIAL_RETURN_KEY);
+  if (!back) return null;
+  return { href: `${withTrailingSlash(back)}#view=home&tutorialDone=${encodeURIComponent(tour.id)}`, label: "Open the live app to acknowledge" };
+}
+
+// The launch control for a tutorial, used by the Home card and both libraries: on the training copy
+// it starts the tutorial; on live it opens the training copy in a new tab (or says it is not set up).
+function renderTutorialLaunch(tutorialId, className = "primary-button") {
+  const tutorial = guidedTours?.registry.findTutorial(tutorialId);
+  if (!tutorial) return "";
+  if (isTrainingCopy() || tutorial.kind !== "process") {
+    return `<button class="${escapeAttribute(className)}" type="button" data-action="start-tour" data-tour-id="${escapeAttribute(tutorial.id)}">Start</button>`;
+  }
+  const href = tutorialTrainingHref(tutorial.id);
+  return href
+    ? `<a class="${escapeAttribute(className)}" href="${escapeAttribute(href)}" target="_blank" rel="noopener">Open in training</a>`
+    : `<span class="help-text">Training copy not set up yet</span>`;
+}
+
+function tutorialLibraryItem(tutorial) {
+  return tutorial?.libraryItemId ? findLibraryItem(tutorial.libraryItemId) : null;
+}
+
+function currentEmployeeId() {
+  return state.session?.employeeId || state.currentUser?.employeeId || "";
+}
+
+// "current" | "missing" | "outdated" | "expired" | "" (no library item or no employee to record it on).
+function tutorialStatus(tutorial) {
+  const item = tutorialLibraryItem(tutorial);
+  const employeeId = currentEmployeeId();
+  return item && employeeId ? libraryAckStatus(item, employeeId) : "";
+}
+
+function tutorialRequiredForMe(tutorial) {
+  const item = tutorialLibraryItem(tutorial);
+  const roles = currentRoles();
+  return Boolean(item && (item.requiredForRoles || []).some((role) => roles.includes(role)));
+}
+
+async function acknowledgeTutorial(tutorialId) {
+  const tutorial = guidedTours?.registry.findTutorial(tutorialId);
+  const item = tutorialLibraryItem(tutorial);
+  const employeeId = currentEmployeeId();
+  if (!item) {
+    showToast("This tutorial is not on the Tutorials shelf yet.");
+    return;
+  }
+  if (!employeeId) {
+    showToast("Your sign-in is not linked to an employee record, so the acknowledgement cannot be recorded.");
+    return;
+  }
+  try {
+    await saveBackendRecord("libraryAcknowledgements", {
+      id: makeId("library-ack"),
+      employeeId,
+      libraryItemId: item.id,
+      itemVersion: Number(item.version || 1),
+      acknowledgedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    showToast(error.message || "The acknowledgement could not be saved.");
+    return;
+  }
+  state.tutorialJustFinished = "";
+  render();
+  showToast(`${tutorial.title} acknowledged.`);
+}
+
+function renderHomeLearnCard() {
+  if (!guidedTours) return "";
+  const { registry } = guidedTours;
+  const roles = currentRoles();
+  const isAdmin = roles.includes("Admin");
+  const processTutorials = registry.TUTORIALS.filter((tutorial) => tutorial.kind === "process" && (isAdmin || tutorial.roles.some((role) => roles.includes(role))));
+  const sectionTours = registry.TUTORIALS.filter((tutorial) => tutorial.kind === "section" && tutorial.workspace && canAccessWorkspace(tutorial.workspace));
+  if (!processTutorials.length && !sectionTours.length) return "";
+  const statusBadge = (tutorial, status) => {
+    if (status === "current") return `<span class="risk-badge low">Done</span>`;
+    if (status === "outdated" || status === "expired") return `<span class="risk-badge high">Retake</span>`;
+    return tutorialRequiredForMe(tutorial) ? `<span class="risk-badge medium">Required</span>` : "";
+  };
+  const items = processTutorials
+    .map((tutorial) => {
+      const status = tutorialStatus(tutorial);
+      const due = tutorialRequiredForMe(tutorial) && status !== "current";
+      const justFinished = state.tutorialJustFinished === tutorial.id && status !== "current";
+      const ackButton =
+        !isTrainingCopy() && status !== "current" && tutorialLibraryItem(tutorial)
+          ? `<button class="${justFinished ? "primary-button" : "text-button"}" type="button" data-action="acknowledge-tutorial" data-tour-id="${escapeAttribute(tutorial.id)}">${justFinished ? "Acknowledge" : "I've done it"}</button>`
+          : "";
+      return `
+        <li class="home-learn-item ${due ? "is-due" : ""} ${justFinished ? "is-finished" : ""}">
+          <div>
+            <strong>${escapeHtml(tutorial.title)}${due ? `<span class="tab-alert-dot" title="Required for your role and not done yet" aria-label="Required for your role and not done yet"></span>` : ""}</strong>
+            <span>${escapeHtml(tutorial.summary)}</span>
+          </div>
+          <div class="inline-actions">
+            ${statusBadge(tutorial, status)}
+            ${renderTutorialLaunch(tutorial.id, "secondary-button")}
+            ${ackButton}
+          </div>
+        </li>`;
+    })
+    .join("");
+  const tours = sectionTours
+    .map((tutorial) => `<button class="mini-button" type="button" data-action="start-tour" data-tour-id="${escapeAttribute(tutorial.id)}">${escapeHtml(findWorkspace(tutorial.workspace)?.label || tutorial.title)}</button>`)
+    .join("");
+  const anyDue = processTutorials.some((tutorial) => tutorialRequiredForMe(tutorial) && tutorialStatus(tutorial) !== "current");
+  return `
+    <section class="home-learn ${anyDue ? "panel-needs-attention" : ""}" aria-label="Learn the app" data-tour="home-learn">
+      <div class="home-learn-head">
+        <p class="eyebrow">Learn the app</p>
+        <strong>${isTrainingCopy() ? "Practise on sample data: nothing here is real" : "Hands-on tutorials open on the training copy"}</strong>
+      </div>
+      ${items ? `<ul class="home-learn-list">${items}</ul>` : ""}
+      ${tours ? `<div class="home-learn-tours"><span class="help-text">Screen tours</span>${tours}</div>` : ""}
+    </section>
+  `;
+}
+
 // null until loadGuidedTours() succeeds; every caller treats "no tours" as a normal state.
 let guidedTours = null;
 
@@ -3465,6 +3669,11 @@ async function loadGuidedTours() {
       openTab: ({ action, tab }) => document.querySelector(`#app button[data-action="${action}"][data-tab="${tab}"]`)?.click(),
       saveProgress: (tutorialId, patch) => saveTutorialProgress(tutorialId, patch),
       onTourEnd: () => render(),
+      // Hands-on steps wait for a saved record ("created:<collection>") and then read it back.
+      recordIds: (collection) => liveRows(state.backend[collection]).map((row) => row.id),
+      getRecord: (collection, id) => liveRows(state.backend[collection]).find((row) => row.id === id) || null,
+      finishLink: (tour) => tutorialFinishLink(tour),
+      hasAnyRole: (roles) => userHasRole("Admin", ...roles),
     });
     guidedTours = { engine, registry };
   } catch (error) {
@@ -3954,7 +4163,7 @@ function renderOpportunityDetail() {
     <section class="view">
       <div class="account-detail-shell">
         ${renderOpportunityDetailHeader(opportunity)}
-        <section class="project-progress-panel">
+        <section class="project-progress-panel" data-tour="opportunity-stage-ladder">
           <div class="race-progress ${progress.tone}" aria-label="${progress.percent}% probability">
             <span style="width: ${progress.percent}%"></span>
           </div>
@@ -8590,7 +8799,7 @@ function renderProjectIntakeTab(job, ctx) {
           </div>
         </article>
 
-        <article class="panel">
+        <article class="panel" data-tour="project-paperwork">
           <div class="panel-header"><h3>Customer paperwork</h3></div>
           <div class="panel-body">
             <div class="inline-actions">
@@ -8632,7 +8841,7 @@ function renderProjectIntakeTab(job, ctx) {
 function renderEmergencyIntakePanel(job) {
   const clearedTone = job.mobilizationStatus === "Cleared to mobilize" ? "low" : "high";
   return `
-    <article class="panel">
+    <article class="panel" data-tour="project-mobilization">
       <div class="panel-header"><h3>Emergency intake</h3></div>
       <div class="panel-body">
         <div class="inline-actions">
@@ -11583,7 +11792,7 @@ function renderDispatchJobs() {
         <div class="metric"><p class="eyebrow">Blocked</p><strong>${blocking.length}</strong><span>Dispatch cannot proceed</span></div>
         <div class="metric"><p class="eyebrow">Office review</p><strong>${review.length}</strong><span>Field work returned</span></div>
       </section>
-      <article class="panel">
+      <article class="panel" data-tour="dispatch-job-register">
         <div class="panel-header">
           <div><h3>Job register</h3></div>
           <div class="toolbar">
@@ -14067,6 +14276,7 @@ function renderOfficeLibrary() {
                 <td>${item.pinnedOffline ? "Pinned" : "—"}</td>
                 <td>${item.isActive === false ? `<span class="risk-badge medium">Retired</span>` : `<span class="risk-badge low">Active</span>`}</td>
                 <td>
+                  ${item.tourId ? renderTutorialLaunch(item.tourId, "mini-button") : ""}
                   <button class="mini-button" type="button" data-action="open-library-item" data-id="${escapeAttribute(item.id)}">Edit</button>
                   <button class="mini-button" type="button" data-action="toggle-library-item-active" data-id="${escapeAttribute(item.id)}">${item.isActive === false ? "Activate" : "Retire"}</button>
                 </td>
@@ -15441,6 +15651,67 @@ function renderTimelineItem(activity, contextKey) {
 // Microsoft Entra configuration on Identity & Sync. Owner, 2026-09-25: only an Admin may change it.
 // The real configuration is the server's .env (CRM_ENTRA_TENANT_ID / CRM_ENTRA_CLIENT_ID); the fields
 // are a browser-only override for testing another registration, and they are Admin-only too.
+// Phase 24 (2026-09-28): where the training copy lives. Hands-on tutorials run there, never on live;
+// live links to it ("Open in training"). Its quick-tunnel address changes when cloudflared restarts,
+// so an Admin pastes the new one here -- no server restart needed.
+async function loadTrainingSettings() {
+  try {
+    state.trainingSettings = await apiRequest("/api/training/settings");
+  } catch {
+    state.trainingSettings = { training: isTrainingCopy(), trainingUrl: "" };
+  }
+}
+
+function trainingCopyUrl() {
+  return isTrainingCopy() ? "" : state.trainingSettings?.trainingUrl || "";
+}
+
+function renderTrainingCopyPanel() {
+  if (isTrainingCopy()) {
+    return `
+          <section class="identity-panel">
+            <h3>Training copy</h3>
+            <p class="help-text">This server <strong>is</strong> the training copy: sample data, reset every night, password sign-in only. Set its address on the live server's Identity & Sync page.</p>
+          </section>`;
+  }
+  const url = trainingCopyUrl();
+  const isAdmin = userHasRole("Admin");
+  const summary = url
+    ? `<p class="help-text">Hands-on tutorials open at <a href="${escapeAttribute(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a>.</p>`
+    : `<p class="help-text">Not set. Until it is, the "Open in training" links say the training copy is not set up yet.</p>`;
+  if (!isAdmin) {
+    return `
+          <section class="identity-panel">
+            <h3>Training copy</h3>
+            ${summary}
+          </section>`;
+  }
+  return `
+          <form class="identity-panel" data-form="training-settings">
+            <h3>Training copy</h3>
+            ${summary}
+            <p class="help-text">The training copy runs on its own quick tunnel, whose address changes whenever it restarts. <code>scripts/reset-training.mjs</code> prints the current one; paste it here.</p>
+            <label>
+              Training copy address
+              <input name="trainingUrl" type="url" value="${escapeAttribute(url)}" placeholder="https://something.trycloudflare.com" />
+            </label>
+            <div class="inline-actions">
+              <button class="primary-button" type="submit">Save address</button>
+            </div>
+          </form>`;
+}
+
+async function saveTrainingSettings(form) {
+  const trainingUrl = (new FormData(form).get("trainingUrl") || "").toString().trim();
+  try {
+    state.trainingSettings = await apiRequest("/api/training/settings", { method: "POST", body: JSON.stringify({ trainingUrl }) });
+    showToast(trainingUrl ? "Training copy address saved." : "Training copy address cleared.");
+  } catch (error) {
+    showToast(error.message || "Could not save the training copy address.");
+  }
+  render();
+}
+
 function renderEntraConfigPanel(canSignIn, redirectUri) {
   const isAdmin = userHasRole("Admin");
   const serverConfigured = Boolean(state.authProviders?.entra);
@@ -15509,6 +15780,7 @@ function renderSync() {
         <div class="identity-stack">
           ${renderCurrentUser()}
           ${renderEntraConfigPanel(canSignIn, redirectUri)}
+          ${renderTrainingCopyPanel()}
         </div>
         <article class="panel">
           <div class="panel-header">
@@ -29775,7 +30047,7 @@ function recentlyDeletedRecords() {
 function renderRecentlyDeletedPanel() {
   const rows = recentlyDeletedRecords();
   return `
-    <article class="panel">
+    <article class="panel" data-tour="sync-deleted">
       <div class="panel-header"><div><h3>Recently deleted</h3><span>Deleted records and everything that went with them. Restore puts the whole set back.</span></div></div>
       <div class="panel-body record-list">
         ${
@@ -29826,11 +30098,38 @@ async function loadAuthProviders() {
   } catch {
     state.authProviders = { entra: null, local: true, breakGlass: true };
   }
+  applyTrainingMode();
+}
+
+// Phase 24 (2026-09-28): the training copy (a server started with CRM_TRAINING=1) says so on every
+// screen -- a fixed ribbon, including over the sign-in page and the Front Line phone frame -- and in
+// the tab title, so nobody mistakes practice for the real thing.
+function isTrainingCopy() {
+  return Boolean(state.authProviders?.training);
+}
+
+function applyTrainingMode() {
+  const on = isTrainingCopy();
+  document.body.classList.toggle("training-mode", on);
+  let ribbon = document.getElementById("trainingRibbon");
+  if (on && !ribbon) {
+    ribbon = document.createElement("div");
+    ribbon.id = "trainingRibbon";
+    ribbon.className = "training-ribbon";
+    ribbon.setAttribute("role", "note");
+    ribbon.innerHTML = "<span>Training – nothing here is real</span>";
+    document.body.prepend(ribbon);
+  }
+  if (!on && ribbon) ribbon.remove();
+  const baseTitle = document.title.replace(/^\[Training\] /, "");
+  document.title = on ? `[Training] ${baseTitle}` : baseTitle;
 }
 
 // The Entra settings: from the server when configured there, else the browser-side override on
 // Identity & Sync (kept for testing against another registration).
 function entraConfig() {
+  // The training copy is password-only (Phase 24), even with a browser-side override saved.
+  if (isTrainingCopy()) return null;
   if (state.authProviders?.entra) return state.authProviders.entra;
   if (state.identityConfig?.tenantId && state.identityConfig?.clientId) return { ...state.identityConfig, scopes: state.identityConfig.scopes || defaultIdentityConfig.scopes };
   return null;
@@ -29869,7 +30168,7 @@ function renderLoginScreen() {
         <div>
           <p class="eyebrow">BioRemedy Operations Platform</p>
           <h2>Sign in</h2>
-          <p class="help-text">${entraConfig() ? "Use your bioremedy.com Microsoft account." : "Use the username or email on your BioRemedy user record."}</p>
+          <p class="help-text">${isTrainingCopy() ? "This is the training copy. Use your training password (an administrator sets it here; it is not your Microsoft password)." : entraConfig() ? "Use your bioremedy.com Microsoft account." : "Use the username or email on your BioRemedy user record."}</p>
         </div>
         ${
           entraConfig()
@@ -29903,7 +30202,7 @@ function renderLoginScreen() {
             <button class="secondary-button" type="submit">Use emergency access</button>
           </form>
         </details>
-        <p class="help-text login-foot">${entraConfig() ? "Passwords are only a fallback; your Microsoft account is the way in." : "Microsoft sign-in appears here once the server is configured for the bioremedy.com tenant."}</p>
+        <p class="help-text login-foot">${isTrainingCopy() ? "Everything here is sample data, reset every night. Practise freely." : entraConfig() ? "Passwords are only a fallback; your Microsoft account is the way in." : "Microsoft sign-in appears here once the server is configured for the bioremedy.com tenant."}</p>
       </div>
     </section>
   `;
@@ -29921,6 +30220,7 @@ async function afterSignIn(session) {
   if (!applyRouteFromHash() || !canAccessView(state.view)) state.view = getDefaultAllowedView();
   render();
   showToast(`Signed in as ${session.name}.`);
+  startPendingTutorial();
 }
 
 async function signIn(form) {
@@ -29980,7 +30280,7 @@ function renderCurrentUser() {
   const user = state.currentUser || anonymousUser;
   const initials = getInitials(user.name, "U");
   return `
-    <section class="identity-panel">
+    <section class="identity-panel" data-tour="sync-current-user">
       <h3>Signed in</h3>
       <div class="user-chip">
         <span class="avatar">${escapeHtml(initials || "U")}</span>
@@ -30051,7 +30351,7 @@ function renderUsersAndAccessPanel() {
   if (state.currentUser?.role !== "Admin") return "";
   const users = getSystemUsers();
   return `
-    <article class="panel">
+    <article class="panel" data-tour="sync-users">
       <div class="panel-header">
         <div><h3>Users &amp; access</h3><span>${entraConfig() ? "Who can sign in, and as what. People sign in with their bioremedy.com Microsoft account and get a record here on their first sign-in; the role comes from the app role assigned in Entra. Add someone ahead of time (same email) to link them to a field employee or a customer account first." : "Who can sign in, and as what. An administrator sets each person's first password here."}</span></div>
         <button class="mini-button" type="button" data-action="open-system-user">Add user</button>
@@ -30067,7 +30367,7 @@ function renderSessionsPanel() {
   if (state.currentUser?.role !== "Admin") return "";
   const sessions = state.authAdmin?.sessions || [];
   return `
-    <article class="panel">
+    <article class="panel" data-tour="sync-sessions">
       <div class="panel-header"><div><h3>Active sessions</h3><span>Revoking one signs that device out on its next request.</span></div></div>
       <div class="panel-body record-list">
         ${
@@ -30097,7 +30397,7 @@ function renderAuditPanel() {
   if (state.currentUser?.role !== "Admin") return "";
   const entries = state.authAdmin?.audit || [];
   return `
-    <article class="panel">
+    <article class="panel" data-tour="sync-audit">
       <div class="panel-header"><div><h3>Audit log</h3><span>Append-only. Who changed what, when, from where — newest first, last 100.</span></div></div>
       <div class="panel-body record-list audit-list">
         ${
@@ -35076,4 +35376,6 @@ export {
   crewMemberIds,
   getCrewProfiles,
   renderOpportunityNeedsChips,
+  // Phase 24: the library's tutorial items open on the training copy.
+  renderTutorialLaunch,
 };

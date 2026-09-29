@@ -39,12 +39,29 @@ Put machine settings in a `.env` file in the project root (gitignored; one `KEY=
 | `CRM_ENTRA_TENANT_ID` | unset | The bioremedy.com Directory (tenant) ID. With `CRM_ENTRA_CLIENT_ID` it turns on "Sign in with Microsoft"; the server verifies each ID token against the tenant's published keys. |
 | `CRM_ENTRA_CLIENT_ID` | unset | The app registration's Application (client) ID. Register `https://<host>/` (and `http://localhost:4173/`) as single-page-application redirect URIs. |
 | `CRM_LOCAL_LOGIN` | `on` | `off` retires password sign-in once everyone uses Microsoft: the password form and Set password buttons disappear and password sign-ins are refused. Break-glass always works. |
+| `CRM_TRAINING` | unset | `1` runs this server as the **training copy** (Phase 24): a TRAINING frame on every screen, password sign-in only (Microsoft off whatever `.env` says), no backups (the `.env`'s `CRM_BACKUP_DIR` is ignored), its own session cookie. Refuses to start on the live `data/` folder. Use `scripts/reset-training.mjs` rather than setting it by hand. |
 
 ### Scratch instance for testing
 
 ```powershell
 $env:PORT = 4180; $env:CRM_DATA_DIR = "C:\path\to\scratch\data"; & "<node.exe>" .\server.mjs
 ```
+
+### Training copy (hands-on tutorials)
+
+Hands-on tutorials never run on live. They run on a second copy of this server with sample data dated today, reset every night:
+
+```powershell
+& "<node.exe>" .\scripts\reset-training.mjs --tunnel     # port 4174, data-training/, prints the tunnel address
+```
+
+1. **First time:** sign in to the training copy with the break-glass password in `data-training/break-glass-password.txt`, and set a password for each trainee in *Identity & Sync › Users & access*. The nightly reset keeps them.
+2. **Paste the address** it prints into **live's** *Identity & Sync › Training copy*. The quick-tunnel address changes whenever cloudflared restarts; re-run with `--tunnel` and paste the new one. Live's Home "Learn the app" card and the Tutorials shelf then open tutorials there.
+3. **Nightly reset** (Windows Task Scheduler, 2 am):
+   `schtasks /Create /TN "BioRemedy training reset" /SC DAILY /ST 02:00 /TR "\"<node.exe>\" \"<project>\scripts\reset-training.mjs\" --tunnel"`
+4. **After updating live, restart the training copy too** (re-run the script) so the two never drift.
+
+Later, when live has a permanent address: add the training address as one more SPA redirect URI on the same Entra app registration (see `docs/roadmap/phase-24-tutorials.md`).
 
 ## Scripts
 
@@ -55,6 +72,8 @@ $env:PORT = 4180; $env:CRM_DATA_DIR = "C:\path\to\scratch\data"; & "<node.exe>" 
 | `node scripts/clean-orphans.mjs` | Referential-integrity report; `--apply` fixes it through the running server. |
 | `node scripts/reset-demo-data.mjs` | Puts the demo data set back through the API. |
 | `node scripts/import-rate-sheet.mjs` | Imports the 2026 rate sheet into the product catalog. |
+| `node scripts/reset-training.mjs` | Rebuilds and (re)starts the training copy: sample set from `data/demo-seed.json` dated today plus live's reference catalog, trainees' passwords kept. `--tunnel` also starts or finds its Cloudflare quick tunnel and prints the address. Never touches port 4173 or `data/`. |
+| `node scripts/build-user-guide.mjs` | Walks every guided tour and hands-on tutorial on a scratch training copy and writes the printed guide (`docs/user-guide/*.html` + `.pdf`, gitignored). `--check` only verifies (the smoke test runs it); `--only <ids>` for some. |
 | `node scripts/rebuild-sample-data.mjs` | Rebuilds the sample data set (2026-09-25): keeps the reference catalog, replaces every transactional collection with the sample set in `scripts/rebuild/`, converts the chosen field photos from OneDrive into `data/uploads`, regenerates `data/demo-seed.json`, and backs the previous data folder up first. `--dry-run` to check without writing. See `docs/sample-data.md`. |
 
 ## Data
