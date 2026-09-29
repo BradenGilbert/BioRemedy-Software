@@ -6,10 +6,14 @@
 - Step 3: six hands-on tutorials, the Home "Learn the app" card, and the library link-up.
 - Step 4: 14 more screen tours, and a generated printed guide that doubles as the smoke check.
 
-**Waiting on the owner (not code):**
-- start the training copy and paste its address into live;
-- register the nightly reset task;
-- set trainees' passwords.
+**Switched on 2026-09-29:**
+- the training copy is running on port 4174 (`data-training/`) behind its own quick tunnel;
+- the Windows task "BioRemedy training reset" runs `reset-training.mjs --tunnel` daily at 2 am.
+
+**Waiting on the owner:**
+- restart live, so it has the new `server.mjs`;
+- paste the training address into live's Identity & Sync › Training copy;
+- set trainees' passwords on the training copy.
 
 **Open:** the Office tour waits for Phase 23.
 
@@ -154,7 +158,7 @@ Fourteen show-only tours (`kind: "section"`):
 
 ### The printed guide and the check (`scripts/build-user-guide.mjs`)
 
-- It builds its own scratch training copy (reset script `--no-start` into a temp folder, then `CRM_TRAINING=1` on port 4319).
+- It builds its own scratch training copy (reset script `--no-start` into a temp folder, then `CRM_TRAINING=1` on a free port, so parallel smoke runs never share one).
 - It starts every tutorial through the real engine, screenshots every step, and completes hands-on steps with their `auto` actions.
 - It writes `docs/user-guide/<id>.html`, an index and PDFs. These are gitignored (about 35 MB of screenshots): regenerate rather than commit.
 - **`--check`** writes nothing and fails on:
@@ -165,10 +169,10 @@ Fourteen show-only tours (`kind: "section"`):
 
 ## Owner actions to switch it on
 
-1. **Start the training copy:** `node scripts/reset-training.mjs --tunnel`.
+1. ✅ **Start the training copy:** `node scripts/reset-training.mjs --tunnel` (done 2026-09-29).
 2. **Sign in to it** with `data-training/break-glass-password.txt` and set a password for each trainee in Identity & Sync › Users & access.
-3. **On live**, paste the printed address into Identity & Sync › Training copy.
-4. **Register the nightly reset** (`schtasks` line in `README.md`).
+3. **Restart live** so it has the new `server.mjs` (`/api/training/settings`, the tutorial library rows). Then paste the printed address into live's Identity & Sync › Training copy.
+4. ✅ **Register the nightly reset** (done 2026-09-29, as the task "BioRemedy training reset"; the `schtasks` equivalent is in `README.md`).
 5. **Restart the training copy** whenever live is restarted after an update.
 6. **Later, with a permanent address:** add the training address as an Entra SPA redirect URI and set `CRM_ENTRA_*` on the training copy.
 7. **Optionally, attach the generated PDFs** (`node scripts/build-user-guide.mjs`) to their library items.

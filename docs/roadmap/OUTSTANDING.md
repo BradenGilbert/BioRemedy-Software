@@ -56,7 +56,10 @@ One row per area. **Gap** = what a user would notice is missing or wrong; **Miss
 
 **Data and config (6):** set `CRM_BACKUP_DIR` to a OneDrive folder; enter the two permits; confirm the fuel surcharge; decide the fate of the six Recovered accounts; clear the 18 July draft dispatch jobs (`scripts/clean-orphans.mjs --july-drafts`); Q54 account lifecycle status.
 
-**Tutorials (phase-24, 4):** start the training copy (`node scripts/reset-training.mjs --tunnel`) and paste its address into live's Identity & Sync › Training copy; set each trainee's training password; register the nightly reset task (`schtasks` line in `README.md`); later, with a permanent address, add the training address as an Entra SPA redirect URI.
+**Tutorials (phase-24, 3):**
+- restart live so it has the Phase 24 server code, then paste the training copy's address into live's Identity & Sync › Training copy. The copy has been running since 2026-09-29, and the nightly task is registered.
+- set each trainee's training password.
+- later, with a permanent address: add the training address as an Entra SPA redirect URI.
 
 **Older, still open (5):** Phase 04 — does an expired customer approval block dispatch or warn; per-scope or blanket approval; who maintains the approved list. Phase 07 item 8 — template rebuild (Q34). Phase 20 — triage session for Part B (B1–B12).
 
