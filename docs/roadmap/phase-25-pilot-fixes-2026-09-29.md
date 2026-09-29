@@ -250,5 +250,9 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 - **The walk's `scheduleEvents` row does not get `projectId`** (only the report does): the project delete cascade would otherwise soft-delete the opportunity's walk, and the walk would show as scheduled project work in the chronology and client portal.
 - **The post-work report's site-map table printed `number`/`latitude`/`longitude`**, none of which exist on pins — it now prints `seq`, kind and lat/lng (the first point for a drawn shape).
 - **Walks done before Wave A have no `sketchDocumentIds`**, so the project's Site walk panel also shows `site-sketch` documents on the opportunity.
+- **The walk report is filed as HTML, not PDF**: a real PDF needs a new vendored library or server-side rendering. The snapshot keeps photo and sketch links site-relative, so it works whichever address the server is reached on.
+- **The chunked upload route accepted any client-claimed mime type, `text/html` included** (found while making stored HTML safe). It now refuses HTML/SVG.
+- **The check-in distance is measured against the facility's coordinates, else another GPS point logged at the facility** — never the check-in's own location row, which would always read 0 ft.
+- **File names use " - ", not an em dash** — the server's file-name cleaner turns "—" into "_".
 - **Quotes and estimates are records, not files**, so Files › Project documents lists them as rows with a Print button.
 - **The Dell R3 walk's check-in reads "Low GPS accuracy (±160 m)"** and the Georgetown trash-truck walk's "3.1 km from the facility" — the warning chip the owner asked for when desk GPS was used.

@@ -8126,6 +8126,19 @@ a.mini-button {
   table-layout: auto;
 }
 
+/* Keep headers and the short columns on one line; the wrapper scrolls sideways when the column is narrow. */
+.site-walk-measurements th,
+.site-walk-measurements td {
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.site-walk-measurements th,
+.site-walk-measurements td:nth-child(2),
+.site-walk-measurements td:nth-child(3) {
+  white-space: nowrap;
+}
+
 /* The map's toolbar has a wide min-content; without this the right column grows past the page. */
 .site-walk-page .detail-stack {
   grid-template-columns: minmax(0, 1fr);

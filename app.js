@@ -35284,7 +35284,7 @@ function renderSiteWalkReportPanel(opportunity) {
   const shares = (report?.shares || []).filter((share) => !share.revokedAt);
   const participants = walk ? siteWalkParticipants(walk).map((person) => person.displayName).join(", ") : "";
   // Phase 25 B.4 (2026-09-29): the walk's sketches and its filed report show here too.
-  const sketches = (report?.sketchDocumentIds || []).map(findDocument).filter((document) => document && !document.deletedAt);
+  const sketches = report ? projectWalkSketches({ report }, opportunity?.id || "") : [];
   const filedReport = walk ? siteWalkReportDocumentFor(walk.id) : null;
   return `
     <article class="panel crm-profile-grid-full site-walk-report-panel">
@@ -35427,12 +35427,13 @@ function projectWalkPhotoIds({ event, report }) {
   });
 }
 
-// The sketch(es) the walk saved (report.sketchDocumentIds since Wave A item 9), plus any site-sketch
-// document on the opportunity, for walks closed before the report kept the ids.
+// The sketch(es) the walk saved (report.sketchDocumentIds since Wave A item 9). A walk closed before
+// the report kept the ids falls back to the site-sketch documents on its opportunity; a walk that has
+// its own ids never borrows another walk's sketches.
 function projectWalkSketches({ report }, opportunityId = "") {
   const byId = new Map();
   (report?.sketchDocumentIds || []).map(findDocument).filter((document) => document && !document.deletedAt).forEach((document) => byId.set(document.id, document));
-  if (opportunityId) {
+  if (opportunityId && !byId.size) {
     latestDocumentsForEntity("opportunity", opportunityId)
       .filter((document) => findDocumentType(document.documentTypeId)?.code === "site-sketch")
       .forEach((document) => byId.set(document.id, document));
@@ -35846,7 +35847,7 @@ function renderSiteWalkPage() {
   const sectionEntries = Object.entries(report?.sections || {});
   const orderedSections = [...sections.filter((section) => report?.sections?.[section.key]).map((section) => [section.key, report.sections[section.key]]), ...sectionEntries.filter(([key]) => !sections.some((section) => section.key === key))];
   const shownSections = orderedSections.filter(([, value]) => value && (value.done || Object.values(value.fields || {}).some((fieldValue) => fieldValue !== "" && fieldValue != null && !(Array.isArray(fieldValue) && !fieldValue.length)) || (value.photoDocumentIds || []).length));
-  const sketches = (report?.sketchDocumentIds || []).map(findDocument).filter((document) => document && !document.deletedAt);
+  const sketches = projectWalkSketches({ report }, walk.opportunityId || report?.opportunityId || "");
   const sketchIds = new Set(sketches.map((document) => document.id));
   const photoLabels = new Map();
   orderedSections.forEach(([key, value]) => {
