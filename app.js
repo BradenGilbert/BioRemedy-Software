@@ -10,6 +10,8 @@ import "./field/library.js";
 import "./field/walk.js";
 // Phase 25 A.1: the Front Line status step (phone and simulator) advances through the field command.
 import { advanceJobFromField, performJobActionEffects } from "./field/job.js";
+// Phase 25 Wave F: form answers (formTemplates field display names, photos, signatures) on office pages.
+import { renderFormSubmissionAnswers } from "./field/forms.js";
 
 // Phase 24 (2026-09-28): guided tours (tutorials/engine.js draws the overlay, tutorials/registry.js
 // holds the words) are loaded by loadGuidedTours() with a dynamic import, not imported here: a
@@ -14874,7 +14876,7 @@ function renderJobFormSubmission(submission) {
     <article class="form-submission-card">
       <div>
         <span class="source-badge">Form</span><strong>${escapeHtml(submission.formName)}</strong>
-        <p>${escapeHtml(submission.summary)}</p>
+        ${submission.formTemplateId ? "" : `<p>${escapeHtml(submission.summary)}</p>`}
         ${renderSubmissionPayload(submission)}
       </div>
       <div><strong>${escapeHtml(submission.submittedBy)}</strong><span>${formatDateTime(submission.submittedAt)}</span></div>
@@ -14888,6 +14890,14 @@ function renderJobFormSubmission(submission) {
 function renderSubmissionPayload(submission) {
   const payload = submission.payload || {};
   const parts = [];
+
+  // Phase 25 Wave F: a form built in the Forms builder (or a Phase 21 standalone form) lists its answers
+  // under the template's display names; the typed job-action shapes below still render as before.
+  const formAnswers = renderFormSubmissionAnswers(submission);
+  if (formAnswers) {
+    parts.push(formAnswers);
+    if (submission.formTemplateId) return parts.join("");
+  }
 
   if (Array.isArray(payload.options) && payload.options.length) {
     parts.push(`
@@ -23588,7 +23598,7 @@ function buildPostWorkReport(project) {
   // is "safety" -- no more name-guessing regex. If neither exists for a day, the report shows a red
   // "No safety briefing recorded" line for that job/day instead of silently having nothing to print.
   // Phase 25 A.4: the seed stores the category as "Safety" -- compare case-insensitively.
-  const safetyFormNames = new Set((state.backend.formTemplates || []).filter((form) => !form.deletedAt && String(form.category || "").toLowerCase() === "safety").map((form) => form.name));
+  const safetyFormNames = new Set((state.backend.formTemplates || []).filter((form) => !form.deletedAt && String(form.category || "").toLowerCase() === "safety").flatMap((form) => [form.name, form.displayName].filter(Boolean)));
   const safetyDays = days.map((day) => ({
     date: day.date,
     jobs: day.narratives.map(({ dispatchJob }) => {
@@ -23599,6 +23609,7 @@ function buildPostWorkReport(project) {
             (submission) =>
               submission.dispatchJob.id === dispatchJob.id &&
               submission.formName &&
+              !submission.deferred &&
               safetyFormNames.has(submission.formName) &&
               dispatchRecordDay(dispatchJob, submission.submittedAt, workDaysByJob.get(dispatchJob.id)) === day.date,
           ) || null;
@@ -23976,6 +23987,7 @@ function renderPostWorkReportHtml(report) {
                 <div class="safety-block">
                   <strong>${escapeHtml(fallback.formName)} &mdash; ${escapeHtml(formatLongDate(day.date))}</strong> <small>${escapeHtml(fallback.submittedBy || "")} &middot; ${escapeHtml(formatDateTime(fallback.submittedAt))}${multipleJobs ? ` &middot; ${escapeHtml(dispatchJob.jobNumber)}` : ""}</small>
                   ${fallback.payload?.options?.length ? `<ul class="checklist">${fallback.payload.options.map((option) => `<li>${(fallback.payload.checked || []).includes(option) ? "Yes" : "<em class=\"gap\">No</em>"} &mdash; ${escapeHtml(option)}</li>`).join("")}</ul>` : ""}
+                  ${fallback.formTemplateId ? renderFormSubmissionAnswers(fallback) : ""}
                   ${fallback.summary ? `<p class="prose">${escapeHtml(fallback.summary)}</p>` : ""}
                 </div>
               `;

@@ -2534,3 +2534,365 @@ body[data-theme="dark"] .field-tool {
 .field-choice-sheet-body small {
   color: var(--muted, #5f6d63);
 }
+
+/* Wave F: the clock strip holds Break + Clock out when clocked in. */
+.field-clock-actions .field-button {
+  white-space: nowrap;
+  padding: 0 14px;
+}
+
+/* ---- Forms on the phone (Phase 25 Wave F, 2026-09-30): the full-screen form sheet ---------------- */
+
+dialog.field-form-sheet {
+  width: min(640px, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  background: var(--surface, #fff);
+  color: var(--ink, #13241b);
+}
+
+dialog.field-form-sheet::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.field-form-sheet-form {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+}
+
+.field-form-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: max(8px, env(safe-area-inset-top)) 12px 8px 4px;
+  border-bottom: 1px solid var(--border, #d7e4d8);
+}
+
+.field-form-sheet-head strong {
+  font-size: 1.05rem;
+}
+
+.field-form-sheet-body {
+  overflow-y: auto;
+  padding: 12px 16px 24px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.field-form-fields {
+  display: grid;
+  gap: 16px;
+}
+
+.field-form-sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px 16px max(10px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border, #d7e4d8);
+  background: var(--surface, #fff);
+}
+
+.field-form-defer .field-form-sheet-actions {
+  padding: 8px 0 0;
+  border-top: 0;
+}
+
+.field-form-intro {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-alt, #eef7ef);
+  font-weight: 600;
+}
+
+.field-form-summary {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border-left: 4px solid var(--field-bad);
+  background: rgba(179, 38, 30, 0.08);
+  font-weight: 600;
+}
+
+.field-form-field {
+  display: grid;
+  gap: 4px;
+}
+
+.field-form-field.has-error .field-label input,
+.field-form-field.has-error .field-label select,
+.field-form-field.has-error .field-label textarea,
+.field-form-field.has-error fieldset {
+  border-color: var(--field-bad);
+}
+
+.field-form-req {
+  color: var(--field-bad);
+  margin-left: 2px;
+}
+
+.field-form-help {
+  color: var(--muted, #5f6d63);
+}
+
+.field-form-error {
+  color: var(--field-bad);
+  font-weight: 600;
+}
+
+.field-form-error:empty,
+.field-form-warn:empty,
+.field-form-help:empty {
+  display: none;
+}
+
+.field-form-warn {
+  color: var(--field-warn);
+  font-weight: 600;
+}
+
+.field-form-choice {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #d7e4d8);
+  border-radius: 12px;
+}
+
+.field-form-choice legend {
+  padding: 0 4px;
+  font-weight: 600;
+  color: var(--muted, #5f6d63);
+}
+
+.field-form-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.field-form-chip {
+  position: relative;
+  display: inline-flex;
+}
+
+.field-form-chip input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+}
+
+.field-form-chip span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--field-tap);
+  min-width: 64px;
+  padding: 0 16px;
+  border: 1px solid var(--border, #d7e4d8);
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.field-form-chip input:checked + span {
+  background: var(--field-accent);
+  border-color: var(--field-accent);
+  color: #fff;
+}
+
+.field-form-chip input:focus-visible + span {
+  outline: 2px solid var(--field-accent);
+  outline-offset: 2px;
+}
+
+.field-form-affixed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-form-affixed input {
+  flex: 1;
+  min-width: 0;
+}
+
+.field-form-affix {
+  color: var(--muted, #5f6d63);
+  font-weight: 600;
+}
+
+.field-form-calc {
+  display: block;
+  min-height: var(--field-tap);
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-alt, #eef7ef);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.field-form-label h3 {
+  margin: 8px 0 0;
+  font-size: 1.05rem;
+}
+
+.field-form-label p {
+  margin: 0;
+}
+
+.field-form-label--note p {
+  color: var(--muted, #5f6d63);
+}
+
+.field-form-label--warning {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border-left: 4px solid var(--field-warn);
+  background: rgba(199, 119, 0, 0.1);
+}
+
+.field-form-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.field-form-photo-grid:empty {
+  display: none;
+}
+
+.field-form-photo {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 1;
+}
+
+.field-form-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.field-form-photo-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.field-form-photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.field-form-photo-actions > * {
+  flex: 1 1 140px;
+}
+
+.field-form-count {
+  color: var(--muted, #5f6d63);
+}
+
+.field-form-signature {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 1;
+  border: 1px dashed var(--border, #d7e4d8);
+  border-radius: 10px;
+  background: #fff;
+  touch-action: none;
+}
+
+.field-form-signature-saved {
+  max-width: 220px;
+  background: #fff;
+  border-radius: 6px;
+}
+
+.field-form-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-alt, #eef7ef);
+  color: var(--field-accent);
+  font-weight: 600;
+}
+
+.field-form-submission summary {
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.field-form-submission.is-deferred {
+  border-left: 4px solid var(--field-warn);
+}
+
+/* Answers: the phone's "My submissions" and the office job page's Forms and submissions panel. */
+.form-answers {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+}
+
+.form-answer-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 38%) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.form-answer-row dt {
+  color: var(--muted, #5f6d63);
+  font-size: 0.82rem;
+}
+
+.form-answer-row dd {
+  margin: 0;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.form-answer-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.form-answer-photos img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.form-answer-signature {
+  display: grid;
+  gap: 2px;
+}
+
+.form-answer-signature img {
+  max-width: 180px;
+  background: #fff;
+  border: 1px solid var(--border, #d7e4d8);
+  border-radius: 6px;
+}
+
+.form-deferred {
+  color: var(--amber, #a76116);
+}
