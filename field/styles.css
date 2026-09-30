@@ -251,6 +251,12 @@ a.field-icon-button {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
 }
 
+/* Phase 25 Wave F: "Put on hold", above the bottom bar while work is in progress. */
+.field-hold-button {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
 .field-more-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

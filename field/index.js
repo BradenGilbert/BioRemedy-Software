@@ -233,7 +233,7 @@ function renderMyDay() {
     .frontlineMyDispatchJobs(employee.id)
     .filter((job) => !["closed", "cancelled"].includes(job.status))
     .sort((a, b) => String(a.scheduledStart || "").localeCompare(String(b.scheduledStart || "")));
-  const todaysJobs = myJobs.filter((job) => jobDayKey(job) === today || ["dispatched", "acknowledged", "en_route", "on_site", "in_progress"].includes(job.status));
+  const todaysJobs = myJobs.filter((job) => jobDayKey(job) === today || ["dispatched", "acknowledged", "en_route", "on_site", "in_progress", "on_hold"].includes(job.status));
   const laterJobs = myJobs.filter((job) => !todaysJobs.includes(job));
   const standby = myStandbyToday(employee.id);
   const open = openTimeEntry(employee.id);

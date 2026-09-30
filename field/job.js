@@ -44,6 +44,7 @@ function renderJob() {
   if (tab === "close" && !lead) crm.state.fieldJobTab = "brief"; // Close is lead-only; guard a stale link.
   const activeTab = tab === "close" && !lead ? "brief" : tab;
   const nextTransition = crm.getNextDispatchTransition(job.status);
+  const holdTransition = crm.getDispatchHoldTransition ? crm.getDispatchHoldTransition(job.status) : null;
   const gate = lead ? crm.getWorkPlanGate(job) : { blocked: true, reason: "Only the field lead can advance the job." };
   const project = job.projectId ? crm.findProject(job.projectId) : null;
   const account = project?.accountId ? crm.findAccount(project.accountId) : null;
@@ -83,8 +84,18 @@ function renderJob() {
       </div>
 
       ${
+        holdTransition && lead
+          ? `<button class="field-button field-button--secondary field-hold-button" type="button" data-field-action="field-job-timer" data-timer="stop" data-id="${crm.escapeAttribute(job.id)}">${crm.escapeHtml(holdTransition.label)}</button>`
+          : ""
+      }
+      ${
+        job.status === "on_hold"
+          ? `<p class="help-text field-gap">On hold -- the job timer is stopped and the crew is clocked out. Resume work clocks everyone on site back in.</p>`
+          : ""
+      }
+      ${
         nextTransition
-          ? `<button class="field-button field-button--primary-bar" type="button" data-field-action="field-advance-job" data-id="${crm.escapeAttribute(job.id)}" data-to="${crm.escapeAttribute(nextTransition.status)}" ${gate.blocked ? "disabled" : ""}>${crm.escapeHtml(nextTransition.label)}</button>
+          ? `<button class="field-button field-button--primary-bar" type="button" data-field-action="${job.status === "on_hold" ? "field-job-timer" : "field-advance-job"}" data-timer="start" data-id="${crm.escapeAttribute(job.id)}" data-to="${crm.escapeAttribute(nextTransition.status)}" ${gate.blocked ? "disabled" : ""}>${crm.escapeHtml(nextTransition.label)}</button>
            ${gate.blocked ? `<p class="help-text field-gap" data-advance-blocked>${crm.escapeHtml(gate.reason || "")}</p>` : ""}
            ${gate.blocked && gate.viaBriefing && activeTab !== "safety" ? `<button class="mini-button" type="button" data-field-action="field-job-tab" data-tab="safety">Open the Safety tab</button>` : ""}`
           : ""
@@ -193,6 +204,125 @@ registerFieldAction("field-advance-job", async (button) => {
   if (!result.ok) crm.showToast(result.reason || "Could not advance the job.");
   else if (result.queued) crm.showToast("Offline -- the status change is queued and will sync when you're back online.");
 });
+
+// ---------------------------------------------------------------------------------------------
+// Phase 25 Wave F (2026-09-30): the job timer, and what a performed work-plan task does to the job
+// ---------------------------------------------------------------------------------------------
+
+// The client twin of server.mjs JOB_TIMER_ACTIONS (used for the offline optimistic apply only; the
+// server decides).
+const TIMER_RULES = {
+  start: { from: ["on_site", "on_hold"], to: "in_progress", dispatchStatus: "In field", completionPercent: 25, verb: "Start work" },
+  stop: { from: ["in_progress"], to: "on_hold", dispatchStatus: "On hold", completionPercent: 25, verb: "Put on hold" },
+  complete: { from: ["in_progress", "on_hold"], to: "field_complete", dispatchStatus: "Returned", completionPercent: 100, verb: "Complete job" },
+};
+
+// POST /api/field/jobs/:id/timer through the outbox. Resolves {ok, queued, blocked, reason, job,
+// opened, closed}; never throws. Offline, the status and the job's open entries are applied locally
+// (start adds provisional entries for everyone on site) and the server re-checks everything when the
+// command replays.
+export async function jobTimerFromField(jobId, timerAction, { actionId = "" } = {}) {
+  const job = crm.findDispatchJob(jobId);
+  const rule = TIMER_RULES[timerAction];
+  if (!job || !rule) return { ok: false, reason: "Unknown job timer action." };
+  if (job.status !== rule.to && !rule.from.includes(job.status)) {
+    return { ok: false, blocked: true, reason: `This job is ${crm.formatDispatchStatus(job.status)}; "${rule.verb}" needs it ${rule.from.map(crm.formatDispatchStatus).join(" or ")}.` };
+  }
+  if (timerAction === "start" && job.status !== "in_progress") {
+    const briefing = crm.briefingReadiness(job);
+    if (!briefing.ready) return { ok: false, blocked: true, viaBriefing: true, reason: briefing.reason };
+  }
+  const at = new Date().toISOString();
+  const body = { action: timerAction, actionId, at, localDate: localDateIso() };
+  const applyLocally = () => {
+    fieldPackage.mergeRow("dispatchJobs", { id: job.id, status: rule.to, dispatchStatus: rule.dispatchStatus, completionPercent: Math.max(Number(job.completionPercent || 0), rule.completionPercent) });
+    const entries = crm.state.backend.timeEntries || [];
+    if (timerAction === "start") {
+      const present = crm.briefingReadiness(job).present.filter((row) => row.employeeId);
+      for (const row of present) {
+        if (entries.some((entry) => entry.employeeId === row.employeeId && entry.dispatchJobId === job.id && !entry.endedAt && !entry.deletedAt)) continue;
+        entries.push({ id: crm.makeId("time-entry"), employeeId: row.employeeId, dispatchJobId: job.id, entryType: "Work", startedAt: at, endedAt: null, durationMinutes: null, source: "job-timer", pendingSync: true });
+      }
+    } else {
+      entries.forEach((entry, index) => {
+        if (entry.dispatchJobId !== job.id || entry.endedAt || entry.deletedAt) return;
+        if (timerAction === "stop" && String(entry.entryType || "").toLowerCase() !== "work") return;
+        entries[index] = { ...entry, endedAt: at, durationMinutes: Math.max(0, Math.round((Date.parse(at) - Date.parse(entry.startedAt)) / 60000)) };
+      });
+    }
+    crm.state.backend.timeEntries = entries;
+  };
+  try {
+    const result = await fieldPackage.fieldRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/timer`, {
+      method: "POST",
+      kind: "job-timer",
+      label: `Job timer — ${rule.verb}`,
+      body,
+      apply: applyLocally,
+    });
+    if (!result) return { ok: true, queued: true, job: crm.findDispatchJob(jobId), opened: [], closed: [] };
+    if (result.job) fieldPackage.mergeRow("dispatchJobs", result.job);
+    for (const entry of [...(result.opened || []), ...(result.closed || [])]) fieldPackage.mergeRow("timeEntries", entry);
+    if (result.statusEvent) fieldPackage.mergeRow("jobStatusEvents", result.statusEvent);
+    return { ok: true, queued: false, job: crm.findDispatchJob(jobId) || result.job, opened: result.opened || [], closed: result.closed || [], statusChanged: Boolean(result.statusChanged) };
+  } catch (error) {
+    return { ok: false, blocked: Boolean(error?.payload?.blocked), reason: error?.payload?.error || error?.message || "The job timer could not be changed." };
+  }
+}
+
+function describeTimerResult(result, timerAction) {
+  if (!result.ok) return result.reason || "The job timer could not be changed.";
+  if (result.queued) return `Offline -- "${TIMER_RULES[timerAction].verb}" is queued and will sync when you're back online.`;
+  const clock = [result.opened.length ? `${result.opened.length} clocked in` : "", result.closed.length ? `${result.closed.length} clocked out` : ""].filter(Boolean).join(", ");
+  return `Job is ${crm.formatDispatchStatus(result.job?.status)}${clock ? ` -- ${clock}` : ""}.`;
+}
+
+registerFieldAction("field-job-timer", async (button) => {
+  if (button.disabled) return;
+  button.disabled = true;
+  const timerAction = button.dataset.timer;
+  const result = await jobTimerFromField(button.dataset.id, timerAction);
+  crm.render();
+  crm.showToast(describeTimerResult(result, timerAction));
+});
+
+// What happens after a work-plan task is performed and saved (app.js frontlineCompleteAction and
+// friends call this once the action row is Complete): its Timer option runs the job timer, "Delete on
+// server" archives the job (the phone asked for confirmation before the task was submitted -- see
+// app.js confirmJobActionRemoval), and "Delete on device" drops the job from this phone. Resolves
+// {messages[], removed, archived, timer}; never throws.
+export async function performJobActionEffects(actionId) {
+  const action = crm.findJobAction(actionId);
+  const outcome = { messages: [], removed: false, archived: false, timer: null };
+  if (!action) return outcome;
+  const jobId = action.jobId;
+  if (action.timerAction && action.timerAction !== "none" && TIMER_RULES[action.timerAction]) {
+    const result = await jobTimerFromField(jobId, action.timerAction, { actionId });
+    outcome.timer = result;
+    outcome.messages.push(result.ok ? describeTimerResult(result, action.timerAction) : `The job timer did not change: ${result.reason}`);
+  }
+  if (action.deleteOnServer) {
+    try {
+      await fieldPackage.fieldRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/actions/${encodeURIComponent(actionId)}/archive`, {
+        method: "POST",
+        kind: "archive-job",
+        label: `Remove job from the server — ${action.name}`,
+        body: {},
+      });
+      outcome.archived = true;
+      outcome.removed = true;
+      outcome.messages.push("The job was removed from the server (archived; the office can restore it).");
+    } catch (error) {
+      outcome.messages.push(`The job could not be removed from the server: ${error?.payload?.error || error?.message || "refused"}`);
+    }
+  }
+  if (action.deleteOnDevice) {
+    outcome.removed = true;
+    if (!outcome.archived) outcome.messages.push("The job was removed from this device.");
+  }
+  if (outcome.removed) await fieldPackage.dropJobFromDevice(jobId);
+  return outcome;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Quick bar

@@ -9,7 +9,7 @@ import "./field/library.js";
 // evaluated first (its route table is a const), which this import order guarantees.
 import "./field/walk.js";
 // Phase 25 A.1: the Front Line status step (phone and simulator) advances through the field command.
-import { advanceJobFromField } from "./field/job.js";
+import { advanceJobFromField, performJobActionEffects } from "./field/job.js";
 
 // Phase 24 (2026-09-28): guided tours (tutorials/engine.js draws the overlay, tutorials/registry.js
 // holds the words) are loaded by loadGuidedTours() with a dynamic import, not imported here: a
@@ -2140,6 +2140,7 @@ async function dispatchClick(event) {
   if (action === "job-request-reopen") await setJobRequestStatus(id, "Submitted");
   if (action === "select-job-template") await convertJobRequest(actionButton.dataset.requestId, actionButton.dataset.templateId);
   if (action === "advance-dispatch-job") await advanceDispatchJob(id);
+  if (action === "office-job-timer") await officeJobTimer(id, actionButton.dataset.timer);
   if (action === "open-dispatch-assign-employee") openDispatchAssignEmployeeDialog(actionButton.dataset.jobId);
   if (action === "unassign-job-employee") await unassignJobEmployee(id);
   if (action === "open-dispatch-assign-equipment") openDispatchAssignEquipmentDialog(actionButton.dataset.jobId);
@@ -2337,6 +2338,7 @@ async function dispatchClick(event) {
     render();
   }
   if (action === "frontline-complete-status-action") await frontlineCompleteStatusAction(id);
+  if (action === "frontline-fill-action-form") await frontlineFillActionForm(id);
   if (action === "frontline-clear-signature") {
     state.frontlineSignatureStrokes = [];
     initializeSignaturePad();
@@ -11941,7 +11943,7 @@ function renderDispatchJobs() {
   const jobs = getFilteredDispatchJobs();
   const allJobs = getDispatchJobs();
   const blocking = allJobs.filter((job) => getJobReadiness(job).status === "Blocked");
-  const inField = allJobs.filter((job) => ["acknowledged", "en_route", "on_site", "in_progress", "paused"].includes(job.status));
+  const inField = allJobs.filter((job) => ["acknowledged", "en_route", "on_site", "in_progress", "on_hold"].includes(job.status));
   const review = allJobs.filter((job) => ["field_complete", "office_review"].includes(job.status));
   const filterAccount = state.dispatchAccountFilter ? findAccount(state.dispatchAccountFilter) : null;
 
@@ -12058,7 +12060,7 @@ function renderDispatchBoard() {
   const columns = [
     { id: "planning", label: "Planning", statuses: ["request_submitted", "dispatch_review", "draft", "ready"] },
     { id: "scheduled", label: "Scheduled", statuses: ["scheduled", "dispatched"] },
-    { id: "field", label: "In Field", statuses: ["acknowledged", "en_route", "on_site", "in_progress", "paused"] },
+    { id: "field", label: "In Field", statuses: ["acknowledged", "en_route", "on_site", "in_progress", "on_hold"] },
     { id: "review", label: "Review", statuses: ["field_complete", "office_review"] },
   ];
 
@@ -12229,6 +12231,46 @@ const TIMER_ANCHORS = [
   { value: "in_progress", label: "When work started" },
 ];
 const JOB_REQUEST_SERVICE_CATEGORIES = ["ER", "Sampling", "Scheduled", "Remediation", "Abatement"];
+
+// Phase 25 Wave F (2026-09-30): the StreetSmart task options on a template sub-task, copied onto the
+// job's jobActions row. "Timer option" -- whether performing the task starts the job timer, stops it,
+// completes the job, or leaves it alone (POST /api/field/jobs/:id/timer does the work).
+const TEMPLATE_TIMER_ACTIONS = [
+  { value: "none", label: "Not affected" },
+  { value: "start", label: "Start or resume job" },
+  { value: "stop", label: "Stop — put job on hold" },
+  { value: "complete", label: "Complete job" },
+];
+// Only these roles may tick "Delete on server" (the server enforces the same list).
+const OFFICE_TEMPLATE_ROLES = ["Admin", "Office Manager", "Operations Manager", "Scheduler"];
+
+function normalizeTaskOptions(task = {}) {
+  const source = task || {};
+  return {
+    timerAction: TEMPLATE_TIMER_ACTIONS.some((item) => item.value === source.timerAction) ? source.timerAction : "none",
+    repeatable: Boolean(source.repeatable),
+    formTemplateId: String(source.formTemplateId || ""),
+    deleteOnDevice: Boolean(source.deleteOnDevice),
+    deleteOnServer: Boolean(source.deleteOnServer),
+  };
+}
+
+// The forms a task can have attached: the active form templates. Wave F's Forms builder exposes
+// activeFormTemplates(); until that lands, read the collection here.
+function taskAttachableForms() {
+  // eslint-disable-next-line no-undef
+  const rows = typeof activeFormTemplates === "function" ? activeFormTemplates() : liveRows(state.backend.formTemplates).filter((form) => form.isActive !== false);
+  return [...(rows || [])].sort((a, b) => String(a.displayName || a.name || "").localeCompare(String(b.displayName || b.name || "")));
+}
+
+function formTemplateLabel(formTemplateId) {
+  const form = (state.backend.formTemplates || []).find((item) => item.id === formTemplateId);
+  return form ? form.displayName || form.name || "Form" : "";
+}
+
+function canSetDeleteOnServer() {
+  return userHasRole(...OFFICE_TEMPLATE_ROLES);
+}
 
 function renderDispatchTemplates() {
   const templates = getJobTypeTemplates();
@@ -12410,11 +12452,72 @@ function renderTemplateTaskEditor(task, stageIndex, taskIndex, taskCount) {
       </div>
       <p class="help-text">${escapeHtml(TEMPLATE_ASSIGNEE_SCOPE_HELP[task.assigneeScope] || TEMPLATE_ASSIGNEE_SCOPE_HELP["Any assigned worker"])}</p>
       ${renderTemplateTaskConfigEditor(task, stageIndex, taskIndex)}
+      ${renderTemplateTaskOptionsEditor(task, stageIndex, taskIndex)}
       <div class="inline-actions">
         <button class="mini-button" type="button" data-action="remove-template-task" data-stage-index="${stageIndex}" data-task-index="${taskIndex}" ${taskCount <= 1 ? "disabled" : ""}>Remove sub-task</button>
       </div>
     </article>
   `;
+}
+
+// Phase 25 Wave F: Timer option, Repeatable, Job Action form attached, Delete on device, Delete on
+// server. Addressed by the same stage+task index pair as the rest of the editor.
+function renderTemplateTaskOptionsEditor(task, stageIndex, taskIndex) {
+  const options = normalizeTaskOptions(task);
+  const scope = `data-stage-index="${stageIndex}"`;
+  const forms = taskAttachableForms();
+  // Keep the task's current form selectable even if it has since been made inactive.
+  const current = options.formTemplateId && !forms.some((form) => form.id === options.formTemplateId) ? (state.backend.formTemplates || []).find((form) => form.id === options.formTemplateId) : null;
+  const formChoices = current ? [...forms, current] : forms;
+  const officeOnly = !canSetDeleteOnServer();
+  return `
+    <fieldset class="template-task-options" data-tour="template-task-options">
+      <legend>When this task is performed</legend>
+      <div class="form-grid">
+        <label>
+          Timer option
+          <select ${scope} data-task-timer-action="${taskIndex}">
+            ${TEMPLATE_TIMER_ACTIONS.map((item) => `<option value="${item.value}" ${options.timerAction === item.value ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          Job Action form attached
+          <select ${scope} data-task-form-template="${taskIndex}">
+            <option value="">(none)</option>
+            ${formChoices.map((form) => `<option value="${escapeAttribute(form.id)}" ${options.formTemplateId === form.id ? "selected" : ""}>${escapeHtml(form.displayName || form.name || "Form")}${form.isActive === false ? " (inactive)" : ""}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="template-task-option-checks">
+        <label class="check-row">
+          <input type="checkbox" ${scope} data-task-repeatable="${taskIndex}" ${options.repeatable ? "checked" : ""} />
+          <span>Repeatable (can be performed more than once)</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" ${scope} data-task-delete-on-device="${taskIndex}" ${options.deleteOnDevice ? "checked" : ""} />
+          <span>Delete on device (the job leaves the phone once this is done)</span>
+        </label>
+        <label class="check-row">
+          <input type="checkbox" ${scope} data-task-delete-on-server="${taskIndex}" ${options.deleteOnServer ? "checked" : ""} ${officeOnly ? "disabled" : ""} />
+          <span>Delete on server</span>
+        </label>
+      </div>
+      <p class="help-text template-delete-warning">Delete on server archives the job when this action is performed (restorable from Identity &amp; Sync › Recently deleted).${officeOnly ? " Only an office role can change it." : ""}</p>
+    </fieldset>
+  `;
+}
+
+function readTaskOptionsFromDom(root, stageIndex, taskIndex, previous = {}) {
+  const field = (name) => root.querySelector(`[data-stage-index="${stageIndex}"][data-task-${name}="${taskIndex}"]`);
+  const deleteOnServerEl = field("delete-on-server");
+  return normalizeTaskOptions({
+    timerAction: field("timer-action")?.value || previous.timerAction,
+    formTemplateId: field("form-template") ? field("form-template").value || "" : previous.formTemplateId,
+    repeatable: field("repeatable") ? field("repeatable").checked : previous.repeatable,
+    deleteOnDevice: field("delete-on-device") ? field("delete-on-device").checked : previous.deleteOnDevice,
+    // A disabled box (not an office role) keeps whatever the template already had.
+    deleteOnServer: deleteOnServerEl && !deleteOnServerEl.disabled ? deleteOnServerEl.checked : previous.deleteOnServer,
+  });
 }
 
 function renderTemplateTaskConfigEditor(task, stageIndex, taskIndex) {
@@ -12589,6 +12692,7 @@ function syncTemplateDraftFromDom() {
       if (scopeEl) task.assigneeScope = scopeEl.value;
       if (requiredEl) task.required = requiredEl.checked;
       task.config = readTaskConfigFromDom(root, task.type, stageIndex, taskIndex);
+      Object.assign(task, readTaskOptionsFromDom(root, stageIndex, taskIndex, task));
     });
   });
 }
@@ -12720,6 +12824,7 @@ async function saveTemplateDraft() {
           assigneeScope: task.assigneeScope,
           required: Boolean(task.required),
           config: normalizeTaskConfig(task.type, task.config),
+          ...normalizeTaskOptions(task),
         })),
     })),
     updatedBy: state.currentUser?.name || "Local user",
@@ -12769,6 +12874,7 @@ function renderDispatchJobDetail() {
 
   const readiness = getJobReadiness(job);
   const nextTransition = getNextDispatchTransition(job.status);
+  const holdTransition = getDispatchHoldTransition(job.status);
   const gate = getWorkPlanGate(job);
   const activeTab = state.dispatchJobDetailTab || "summary";
 
@@ -12782,10 +12888,18 @@ function renderDispatchJobDetail() {
           ${job.status !== "closed" && !stepsForDispatchJob(job.id).length ? `<button class="primary-button" type="button" data-action="open-job-template-for-job" data-job-id="${job.id}">Assign work plan</button>` : ""}
           <button class="danger-button" type="button" data-action="delete-record" data-collection="dispatchJobs" data-id="${job.id}">Delete</button>
           ${job.status === "closed" ? "" : `<button class="secondary-button" type="button" data-action="open-job-schedule" data-job-id="${job.id}">Schedule</button>`}
-          ${nextTransition ? `<button class="primary-button" type="button" data-action="advance-dispatch-job" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>` : ""}
+          ${holdTransition ? `<button class="secondary-button" type="button" data-action="office-job-timer" data-timer="stop" data-id="${job.id}">${escapeHtml(holdTransition.label)}</button>` : ""}
+          ${
+            nextTransition
+              ? job.status === "on_hold"
+                ? `<button class="primary-button" type="button" data-action="office-job-timer" data-timer="start" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>`
+                : `<button class="primary-button" type="button" data-action="advance-dispatch-job" data-id="${job.id}" ${gate.blocked ? "disabled" : ""}>${escapeHtml(nextTransition.label)}</button>`
+              : ""
+          }
         </div>
       </div>
       ${gate.blocked ? `<p class="help-text">${escapeHtml(gate.reason)}</p>` : ""}
+      ${job.status === "on_hold" ? `<p class="help-text">On hold: the crew stopped the job timer${jobHoldSince(job) ? ` at ${escapeHtml(formatDateTime(jobHoldSince(job)))}` : ""}. Resume work clocks everyone on site back in.</p>` : ""}
 
       <section class="job-detail-header">
         <div>
@@ -16193,35 +16307,127 @@ function renderFrontlineJobBook() {
   `;
 }
 
+// ---- Phase 25 Wave F (2026-09-30): work-plan task options on Front Line ----------------------------
+
+function submissionsForJobAction(actionId) {
+  return (state.backend.jobFormSubmissions || []).filter((submission) => submission.actionId === actionId && !submission.deletedAt);
+}
+
+// A repeatable task that has been performed once can be performed again while the job is still in
+// the field (not once it's closed or cancelled).
+function frontlineActionRepeatable(action, job) {
+  return Boolean(action?.repeatable) && action.status === "Complete" && action.type !== "Status transition" && !isTerminalDispatchStatus(job?.status);
+}
+
+function renderFrontlineActionOptionChips(action, submissionCount) {
+  const chips = [];
+  const timer = TEMPLATE_TIMER_ACTIONS.find((item) => item.value === action.timerAction && item.value !== "none");
+  if (timer) chips.push(`Timer: ${timer.label}`);
+  if (action.repeatable) chips.push(`${submissionCount} submitted`);
+  if (action.deleteOnDevice) chips.push("Removes job from device");
+  if (action.deleteOnServer) chips.push("Removes job from server");
+  return chips.length ? `<small class="frontline-action-options">${chips.map((chip) => `<span class="tag">${escapeHtml(chip)}</span>`).join("")}</small>` : "";
+}
+
+// Asked before a "Delete on server" task is submitted (StreetSmart: the job is removed from the server;
+// here it is archived and the office can restore it).
+function confirmJobActionRemoval(action) {
+  if (!action?.deleteOnServer) return true;
+  return window.confirm(`This will remove the job from the server.\n\n"${action.name}" archives this job once it is submitted; the office can restore it from Recently deleted. Continue?`);
+}
+
+// "Fill form": F2's field/forms.js openFormForAction() renders the attached form and saves the
+// submission; this then records the task as performed. Without it (not merged yet) the task falls back
+// to the inline capture box, whose submission carries formTemplateId and repeatIndex too.
+async function frontlineFillActionForm(actionId) {
+  const action = findJobAction(actionId);
+  const job = action ? findDispatchJob(action.jobId) : null;
+  if (!action || !job) return;
+  if (!confirmJobActionRemoval(action)) return;
+  let openFormForAction = null;
+  try {
+    const module = await import("./field/forms.js");
+    if (typeof module.openFormForAction === "function") openFormForAction = module.openFormForAction;
+  } catch {
+    openFormForAction = null;
+  }
+  if (!openFormForAction) {
+    state.frontlineOpenActionId = actionId;
+    state.frontlineRemovalConfirmedActionId = actionId;
+    render();
+    return;
+  }
+  const repeatIndex = submissionsForJobAction(actionId).length;
+  let submission = null;
+  try {
+    submission = await openFormForAction({ jobId: job.id, actionId, formTemplateId: action.formTemplateId, repeatIndex });
+  } catch (error) {
+    showToast(error.message || "The form could not be opened.");
+    return;
+  }
+  if (!submission) return;
+  await frontlineFinishPerformedAction(actionId, { toast: `${formTemplateLabel(action.formTemplateId) || action.name} submitted.` });
+}
+
+// Everything after a task's own writes: mark it Complete, open the next task/step, run its Timer
+// option and Delete on device/server (performJobActionEffects, field/job.js), refresh, let the status
+// follow the plan. Shared by the capture box, "Fill form" and the Timer task.
+async function frontlineFinishPerformedAction(actionId, { toast = "Submitted." } = {}) {
+  const action = findJobAction(actionId);
+  if (!action) return;
+  const { jobId, stepId } = action;
+  await frontlineMarkActionComplete(actionId);
+  await frontlineAdvanceStepIfComplete(stepId, [actionId]);
+  const effects = await performJobActionEffects(actionId);
+  await refreshBackendState().catch(() => {});
+  if (!effects.removed) await frontlineAutoAdvanceJob(jobId, stepId);
+  state.frontlineOpenActionId = "";
+  state.frontlineRemovalConfirmedActionId = "";
+  state.frontlineSignatureStrokes = [];
+  state.frontlineGps = null;
+  render();
+  showToast([toast, ...effects.messages].join(" "));
+}
+
 function renderFrontlineWorkPlanAction(action, job, step, stepActions) {
   const done = action.status === "Complete";
   const actionable = frontlineActionUnlocked(action, stepActions);
   const open = state.frontlineOpenActionId === action.id;
   const isStatusTransition = action.type === "Status transition";
   const previousAction = stepActions[stepActions.indexOf(action) - 1];
+  // Phase 25 Wave F: a repeatable task stays performable after its first submission ("Add another"),
+  // and a task with a Job Action form attached opens that form ("Fill form") instead of the capture box.
+  const repeatAgain = frontlineActionRepeatable(action, job);
+  const hasForm = Boolean(action.formTemplateId) && !isStatusTransition;
+  const submissionCount = submissionsForJobAction(action.id).length;
 
   let control = "";
   if (actionable && isStatusTransition) {
     control = `<button class="mini-button" type="button" data-action="frontline-complete-status-action" data-id="${action.id}">${escapeHtml(action.name)}</button>`;
+  } else if ((actionable || repeatAgain) && hasForm) {
+    control = `<button class="mini-button" type="button" data-action="frontline-fill-action-form" data-id="${action.id}">${done ? "Add another" : "Fill form"}</button>`;
   } else if (actionable) {
     control = `<button class="mini-button" type="button" data-action="frontline-toggle-action" data-id="${action.id}">${open ? "Cancel" : "Complete"}</button>`;
+  } else if (repeatAgain) {
+    control = `<button class="mini-button" type="button" data-action="frontline-toggle-action" data-id="${action.id}">${open ? "Cancel" : "Add another"}</button>`;
   } else if (!done) {
     control = `<span class="frontline-action-hint">After "${escapeHtml(previousAction?.name || "the previous action")}"</span>`;
   }
 
   return `
-    <article class="frontline-action-row ${actionable || done ? "" : "locked"}">
-      <div><strong>${escapeHtml(action.name)}</strong><span>${escapeHtml(action.type)} · ${escapeHtml(action.assigneeScope)}</span></div>
+    <article class="frontline-action-row ${actionable || done ? "" : "locked"}" data-action-id="${escapeAttribute(action.id)}">
+      <div><strong>${escapeHtml(action.name)}</strong><span>${escapeHtml(action.type)} · ${escapeHtml(action.assigneeScope)}</span>${renderFrontlineActionOptionChips(action, submissionCount)}</div>
       ${renderDispatchStatusBadge(action.status)}
       ${control}
     </article>
     ${
-      open && actionable && !isStatusTransition
+      open && (actionable || repeatAgain) && !isStatusTransition
         ? `
           <form class="frontline-action-form" data-form="frontline-complete-action">
             <input type="hidden" name="jobId" value="${escapeAttribute(job.id)}" />
             <input type="hidden" name="stepId" value="${escapeAttribute(step.id)}" />
             <input type="hidden" name="actionId" value="${escapeAttribute(action.id)}" />
+            ${hasForm ? `<p class="help-text">${escapeHtml(formTemplateLabel(action.formTemplateId) || action.formName || "Form")}${action.repeatable ? ` · entry ${submissionCount + 1}` : ""}</p>` : ""}
             ${renderFrontlineTaskCapture(action, job)}
             <button class="primary-button" type="submit">Submit</button>
           </form>
@@ -17821,6 +18027,12 @@ async function frontlineCompleteAction(form) {
   const action = findJobAction(actionId);
   const job = findDispatchJob(jobId);
   if (!action || !job) return;
+  // Phase 25 Wave F: a "Delete on server" task asks before anything is written ("Fill form" asked
+  // already when it fell back to this box).
+  if (state.frontlineRemovalConfirmedActionId !== actionId && !confirmJobActionRemoval(action)) {
+    if (submitButton) submitButton.disabled = false;
+    return;
+  }
   const config = normalizeTaskConfig(action.type, action.config);
   const fieldLead = findEmployee(state.frontlineSession?.employeeId);
   const submittedBy = fieldLead?.displayName || "Front Line";
@@ -17961,19 +18173,14 @@ async function frontlineCompleteAction(form) {
         submittedAt: new Date().toISOString(),
         summary: summary || describeTaskPayload(action.type, payload),
         payload,
+        // Phase 25 Wave F: the attached form and, for a repeatable task, which submission this is.
+        ...(action.formTemplateId ? { formTemplateId: action.formTemplateId } : {}),
+        ...(action.repeatable ? { repeatIndex: submissionsForJobAction(actionId).length } : {}),
+        submittedByEmployeeId: fieldLead?.id || "",
       },
       { refresh: false },
     );
-    await frontlineMarkActionComplete(actionId);
-    await frontlineAdvanceStepIfComplete(stepId, [actionId]);
-    await refreshBackendState();
-    await frontlineAutoAdvanceJob(jobId, stepId);
-
-    state.frontlineOpenActionId = "";
-    state.frontlineSignatureStrokes = [];
-    state.frontlineGps = null;
-    render();
-    showToast("Submitted -- visible on the job's dispatch dashboard now.");
+    await frontlineFinishPerformedAction(actionId, { toast: "Submitted -- visible on the job's dispatch dashboard now." });
   } catch (error) {
     if (submitButton) submitButton.disabled = false;
     showToast(error.message || "Could not submit.");
@@ -18340,6 +18547,7 @@ async function saveSampleFromTask(action, job, data, summary, submittedBy) {
 async function frontlineCompleteStatusAction(actionId) {
   const action = findJobAction(actionId);
   if (!action) return;
+  if (!confirmJobActionRemoval(action)) return;
   const { jobId, stepId } = action;
   try {
     await frontlineMarkActionComplete(actionId);
@@ -18352,16 +18560,26 @@ async function frontlineCompleteStatusAction(actionId) {
   }
   const job = findDispatchJob(jobId);
   const transition = getNextDispatchTransition(job?.status);
+  // Phase 25 Wave F: a status task's own options (timer, delete on device/server) run after it.
+  const hasEffects = (action.timerAction && action.timerAction !== "none") || action.deleteOnDevice || action.deleteOnServer;
+  const runEffects = async () => {
+    if (!hasEffects) return "";
+    const effects = await performJobActionEffects(actionId);
+    if (!effects.removed) await refreshBackendState().catch(() => {});
+    return effects.messages.length ? ` ${effects.messages.join(" ")}` : "";
+  };
   if (transition?.status !== "acknowledged") {
+    const extra = await runEffects();
     render();
-    showToast(`${action.name} recorded.`);
+    showToast(`${action.name} recorded.${extra}`);
     return;
   }
   const result = await advanceJobFromField(jobId, transition.status);
+  const extra = await runEffects();
   render();
-  if (!result.ok) showToast(`${action.name} recorded, but the job is still ${formatDispatchStatus(job.status)}: ${result.reason || "the status change was refused."}`);
-  else if (result.queued) showToast(`${action.name} recorded -- offline, so the job will be acknowledged when the phone syncs.`);
-  else showToast(`${action.name} -- job is now ${formatDispatchStatus(result.job?.status || transition.status)}.`);
+  if (!result.ok) showToast(`${action.name} recorded, but the job is still ${formatDispatchStatus(job.status)}: ${result.reason || "the status change was refused."}${extra}`);
+  else if (result.queued) showToast(`${action.name} recorded -- offline, so the job will be acknowledged when the phone syncs.${extra}`);
+  else showToast(`${action.name} -- job is now ${formatDispatchStatus(result.job?.status || transition.status)}.${extra}`);
 }
 
 // These chain several writes without refetching between them, so they must not re-read a record
@@ -20442,8 +20660,10 @@ async function applyJobTypeTemplateToJob(job, template) {
         status,
         required: Boolean(task.required),
         assigneeScope: task.assigneeScope,
-        formName: task.type === "Status transition" ? "" : task.name,
+        formName: task.type === "Status transition" ? "" : task.formTemplateId ? formTemplateLabel(task.formTemplateId) || task.name : task.name,
         config: normalizeTaskConfig(task.type, task.config),
+        // Phase 25 Wave F: timerAction, repeatable, formTemplateId, deleteOnDevice, deleteOnServer.
+        ...normalizeTaskOptions(task),
       });
     }
   }
@@ -20816,6 +21036,34 @@ async function removeJobResource(resourceId) {
   }
 }
 
+// Phase 25 Wave F (2026-09-30): the office's Put on hold / Resume work run the same job-timer command
+// as the field (POST /api/field/jobs/:id/timer), so the crew's work clock stops and restarts with it.
+async function officeJobTimer(jobId, timerAction) {
+  const job = findDispatchJob(jobId);
+  if (!job || !["start", "stop", "complete"].includes(timerAction)) return;
+  try {
+    const result = await apiRequest(`/api/field/jobs/${encodeURIComponent(jobId)}/timer`, {
+      method: "POST",
+      body: JSON.stringify({ action: timerAction, at: new Date().toISOString(), localDate: localIsoDate(new Date()) }),
+      headers: { "X-CRM-User": currentActorName() },
+    });
+    await refreshBackendState();
+    render();
+    const clock = [result.opened?.length ? `${result.opened.length} clocked in` : "", result.closed?.length ? `${result.closed.length} clocked out` : ""].filter(Boolean).join(", ");
+    showToast(`${job.jobNumber || "Job"} is now ${formatDispatchStatus(result.job?.status || job.status)}${clock ? ` (${clock})` : ""}.`);
+  } catch (error) {
+    showToast(error.message || "The job timer could not be changed.");
+  }
+}
+
+// When the job last went on hold (its latest status event into on_hold).
+function jobHoldSince(job) {
+  const event = (state.backend.jobStatusEvents || [])
+    .filter((item) => item.jobId === job.id && item.toStatus === "on_hold" && !item.deletedAt)
+    .sort((a, b) => String(b.occurredAt).localeCompare(String(a.occurredAt)))[0];
+  return event?.occurredAt || "";
+}
+
 async function advanceDispatchJob(jobId, { silent = false } = {}) {
   const job = findDispatchJob(jobId);
   const transition = job ? getNextDispatchTransition(job.status) : null;
@@ -20904,6 +21152,7 @@ async function advanceProjectStageFromDispatchStatus(projectId, dispatchStatus) 
     en_route: "Mobilize",
     on_site: "Field Work",
     in_progress: "Field Work",
+    on_hold: "Field Work",
     // Owner 2026-09-23: a finished dispatch is finished field work, not the end of the project. A
     // sampling visit, for one, usually leads to more work. Closeout is only the explicit close.
     field_complete: "Field Work",
@@ -21091,7 +21340,7 @@ function dispatchJobOperationalDate(job) {
   return job.scheduledStart ? localIsoDate(parseDate(job.scheduledStart)) : "";
 }
 
-const FIELD_WORK_STATUSES = ["on_site", "in_progress", "field_complete", "office_review", "closed"];
+const FIELD_WORK_STATUSES = ["on_site", "in_progress", "on_hold", "field_complete", "office_review", "closed"];
 
 // A job's work days: its operational day once field work has begun, plus any day the field lead added
 // for a job that genuinely ran over several days.
@@ -21495,7 +21744,7 @@ function renderDispatchJobCloseoutTab(job) {
 
 // The field lead's side of the same record, on the Front Line job screen.
 function renderFrontlineCloseout(job) {
-  if (!["on_site", "in_progress", "field_complete"].includes(job.status)) return "";
+  if (!["on_site", "in_progress", "on_hold", "field_complete"].includes(job.status)) return "";
   const days = dispatchJobWorkDays(job);
   if (!days.length) days.push(todayIso());
   return `
@@ -32123,7 +32372,9 @@ function recentlyDeletedRecords() {
   const rows = [];
   for (const [collection, meta] of Object.entries(deletableRecordLabels)) {
     for (const record of state.backend[collection] || []) {
-      if (record.deletedAt && record.deletedVia === `${collection}:${record.id}`) rows.push({ collection, record, meta });
+      // Phase 25 Wave F: a job archived by a "Delete on server" task is a root too (deletedVia
+      // "job-action:<actionId>"; its cascade still carries "dispatchJobs:<id>").
+      if (record.deletedAt && (record.deletedVia === `${collection}:${record.id}` || String(record.deletedVia || "").startsWith("job-action:"))) rows.push({ collection, record, meta });
     }
   }
   return rows.sort((a, b) => new Date(b.record.deletedAt) - new Date(a.record.deletedAt)).slice(0, 50);
@@ -32140,7 +32391,7 @@ function renderRecentlyDeletedPanel() {
             .map(
               ({ collection, record, meta }) => `
                 <div class="detail-card">
-                  <div class="row-meta"><strong>${escapeHtml(meta.name(record) || meta.noun)}</strong><span>${escapeHtml(meta.noun)} · deleted ${formatDateTime(record.deletedAt)}${record.deletedBy ? ` by ${escapeHtml(record.deletedBy)}` : ""}</span></div>
+                  <div class="row-meta"><strong>${escapeHtml(meta.name(record) || meta.noun)}</strong><span>${escapeHtml(meta.noun)} · ${String(record.deletedVia || "").startsWith("job-action:") ? "archived by a field task" : "deleted"} ${formatDateTime(record.deletedAt)}${record.deletedBy ? ` by ${escapeHtml(record.deletedBy)}` : ""}</span></div>
                   <div class="inline-actions"><button class="mini-button" type="button" data-action="restore-record" data-collection="${escapeAttribute(collection)}" data-id="${escapeAttribute(record.id)}">Restore</button></div>
                 </div>
               `,
@@ -36459,6 +36710,7 @@ function cloneTemplateForEditing(template) {
         assigneeScope: task.assigneeScope || "Any assigned worker",
         required: task.required !== false,
         config: normalizeTaskConfig(task.type || "Checklist", task.config),
+        ...normalizeTaskOptions(task),
       })),
     })),
   };
@@ -36562,7 +36814,7 @@ function getFilteredDispatchJobs() {
   if (filter === "Open") return jobs.filter((job) => !isTerminalDispatchStatus(job.status));
   if (filter === "Planning") return jobs.filter((job) => ["request_submitted", "dispatch_review", "draft", "ready"].includes(job.status));
   if (filter === "Scheduled") return jobs.filter((job) => ["scheduled", "dispatched"].includes(job.status));
-  if (filter === "In field") return jobs.filter((job) => ["acknowledged", "en_route", "on_site", "in_progress", "paused"].includes(job.status));
+  if (filter === "In field") return jobs.filter((job) => ["acknowledged", "en_route", "on_site", "in_progress", "on_hold"].includes(job.status));
   if (filter === "Review") return jobs.filter((job) => ["field_complete", "office_review"].includes(job.status));
   if (filter === "Closed") return jobs.filter((job) => isTerminalDispatchStatus(job.status));
   return jobs;
@@ -36702,6 +36954,8 @@ function getJobReadiness(job) {
   // as "Yeady" in the field notes that reported this bug), which reads as if it still needed dispatch.
   const status = isTerminalDispatchStatus(job.status)
     ? "Completed"
+    : job.status === "on_hold"
+      ? "On hold"
     : hasBlock
       ? "Blocked"
       : hasWarning
@@ -36711,7 +36965,7 @@ function getJobReadiness(job) {
           : ["field_complete", "office_review"].includes(job.status)
             ? "Review"
             : "Ready";
-  const summary = status === "Completed" ? "Job closed out" : hasBlock ? "Resolve blocking checks before dispatch" : hasWarning ? "Dispatcher review recommended" : status === "In field" ? "Job package active in Front Line" : status === "Review" ? "Field package returned for review" : "All required dispatch checks pass";
+  const summary = status === "Completed" ? "Job closed out" : status === "On hold" ? "The crew stopped the job timer; resume from Front Line" : hasBlock ? "Resolve blocking checks before dispatch" : hasWarning ? "Dispatcher review recommended" : status === "In field" ? "Job package active in Front Line" : status === "Review" ? "Field package returned for review" : "All required dispatch checks pass";
   return { status, summary, checks };
 }
 
@@ -36730,7 +36984,7 @@ function renderDeviceSyncBadge(status) {
 
 function getReadinessTone(status) {
   if (["Ready", "Completed", "Valid", "Eligible", "Pass", "Information"].includes(status)) return "low";
-  if (["Expiring", "Warning", "Overridden", "Review", "Office"].includes(status)) return "medium";
+  if (["Expiring", "Warning", "Overridden", "Review", "Office", "On hold"].includes(status)) return "medium";
   return "high";
 }
 
@@ -36767,6 +37021,7 @@ function normalizeCssToken(value) {
 }
 
 function formatDispatchStatus(status) {
+  if (status === "on_hold") return "On hold";
   return String(status || "not_set")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -36849,10 +37104,19 @@ function getNextDispatchTransition(status) {
     en_route: { status: "on_site", label: "Mark on site", dispatchStatus: "On site", completionPercent: 20 },
     on_site: { status: "in_progress", label: "Start work", dispatchStatus: "In field", completionPercent: 25 },
     in_progress: { status: "field_complete", label: "Field complete", dispatchStatus: "Returned", completionPercent: 100 },
+    // Phase 25 Wave F: the job timer's stopped state. Its alternative from in_progress is
+    // getDispatchHoldTransition() ("Put on hold").
+    on_hold: { status: "in_progress", label: "Resume work", dispatchStatus: "In field", completionPercent: 25 },
     field_complete: { status: "office_review", label: "Start office review", dispatchStatus: "Returned", completionPercent: 100 },
     office_review: { status: "closed", label: "Close job", dispatchStatus: "Closed", completionPercent: 100 },
   };
   return transitions[status] || null;
+}
+
+// Phase 25 Wave F (2026-09-30): the one sideways move off the ladder -- a job at work can be put on
+// hold (the job timer's "stop"); "Resume work" is on_hold's ordinary next transition above.
+function getDispatchHoldTransition(status) {
+  return status === "in_progress" ? { status: "on_hold", label: "Put on hold", dispatchStatus: "On hold", completionPercent: 25 } : null;
 }
 
 function getOfficeAlerts() {
@@ -38533,4 +38797,13 @@ export {
   renderOpportunityNeedsChips,
   // Phase 24: the library's tutorial items open on the training copy.
   renderTutorialLaunch,
+  // Phase 25 Wave F: work-plan task options + the job timer.
+  getDispatchHoldTransition,
+  renderFrontlineWorkPlanAction,
+  frontlineFinishPerformedAction,
+  confirmJobActionRemoval,
+  submissionsForJobAction,
+  frontlineActionRepeatable,
+  normalizeTaskOptions,
+  isTerminalDispatchStatus,
 };

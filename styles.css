@@ -3646,6 +3646,51 @@ textarea {
   background: #b17a1d;
 }
 
+/* Phase 25 Wave F (2026-09-30): the job timer's stopped state. */
+.readiness-badge.on-hold,
+.dispatch-status-badge.on-hold,
+.dispatch-status-badge.on_hold {
+  border-color: rgba(84, 96, 160, 0.3);
+  background: #f1f3fb;
+  color: #3d4a8a;
+}
+
+.readiness-badge.on-hold > span {
+  background: #5460a0;
+}
+
+.template-task-options {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(19, 36, 27, 0.14);
+  border-radius: 8px;
+}
+
+.template-task-options legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.template-task-options:has([data-task-delete-on-server]:checked) .template-delete-warning {
+  color: #9b332c;
+  font-weight: 600;
+}
+
+.template-task-option-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+}
+
+.frontline-action-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
 .readiness-badge.blocked,
 .dispatch-status-badge.blocked,
 .dispatch-status-badge.failed,

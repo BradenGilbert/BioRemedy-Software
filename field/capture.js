@@ -97,7 +97,8 @@ function renderStepForRole(step, allSteps, job, isLead) {
   `;
 }
 
-// renderFrontlineWorkPlanAction isn't exported (it's an internal building block of
+// Fallback only: app.js exports renderFrontlineWorkPlanAction since Phase 25 Wave F (it draws the task
+// options -- Fill form, Add another, timer chips -- for crew too). Originally: renderFrontlineWorkPlanAction isn't exported (an internal building block of
 // renderFrontlineWorkPlanStep) — this is the same shape, scoped to what a crew member is allowed to
 // act on.
 function renderCrewAction(action, job, step, stepActions) {
@@ -159,11 +160,14 @@ registerFieldForm("field-complete-timer", async (form) => {
   if (submitButton) submitButton.disabled = true;
   const data = new FormData(form);
   const jobId = data.get("jobId").toString();
-  const stepId = data.get("stepId").toString();
   const actionId = data.get("actionId").toString();
   const summary = (data.get("summary") || "").toString().trim();
   const action = crm.findJobAction(actionId);
   if (!action) return;
+  if (!crm.confirmJobActionRemoval(action)) {
+    if (submitButton) submitButton.disabled = false;
+    return;
+  }
   const fieldLead = crm.findEmployee(crm.state.frontlineSession?.employeeId);
   const submittedBy = fieldLead?.displayName || "Front Line";
   const payload = {
@@ -184,16 +188,13 @@ registerFieldForm("field-complete-timer", async (form) => {
         submittedAt: new Date().toISOString(),
         summary: summary || `${payload.hours} hours logged.`,
         payload,
+        ...(action.repeatable ? { repeatIndex: crm.submissionsForJobAction(actionId).length } : {}),
       },
       { kind: "timer-submission", label: `${action.name} — hours` },
     );
-    await crm.frontlineMarkActionComplete(actionId);
-    await crm.frontlineAdvanceStepIfComplete(stepId, [actionId]);
-    await crm.refreshBackendState().catch(() => {});
-    await crm.frontlineAutoAdvanceJob(jobId, stepId).catch(() => {});
-    crm.state.frontlineOpenActionId = "";
-    crm.render();
-    crm.showToast("Hours logged.");
+    // Phase 25 Wave F: marks it done, opens the next task, runs its Timer option / Delete on device /
+    // Delete on server, refreshes, and lets the status follow the plan (app.js).
+    await crm.frontlineFinishPerformedAction(actionId, { toast: "Hours logged." });
   } catch (error) {
     if (submitButton) submitButton.disabled = false;
     crm.showToast(error.message || "Could not submit.");
