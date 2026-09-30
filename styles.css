@@ -4315,6 +4315,73 @@ textarea {
   font-weight: 700;
 }
 
+/* Phase 25 Wave C (2026-09-29): a request waiting on its requester carries the red outline on its
+   card (intake queue and the project's dispatch panel), per the red-dot rule. */
+.job-request-card.panel-needs-attention,
+.project-dispatch-card.panel-needs-attention {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px rgba(196, 60, 60, 0.25);
+}
+
+.request-head p.request-title {
+  margin: 2px 0 4px;
+  color: var(--ink);
+  font-size: 1.08rem;
+}
+
+.request-head p.request-title .muted-text {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* Needs prefilled from the project arrive one per line. */
+.request-notes-grid strong {
+  white-space: pre-line;
+}
+
+/* The dispatcher's note, read-only, at the top of the request dialog while it needs information. */
+.job-request-needs-info-callout {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  background: rgba(196, 60, 60, 0.07);
+}
+
+.job-request-needs-info-callout p {
+  margin: 0;
+}
+
+.job-request-needs-info-callout[hidden],
+.job-request-onfile[hidden] {
+  display: none;
+}
+
+.job-request-needs-info-callout .checkbox-row {
+  margin-top: 6px;
+  font-weight: 700;
+}
+
+/* What the office already holds for this project (Phase 13 documents, the project's quote). */
+.job-request-onfile {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-alt);
+  font-size: 0.86rem;
+}
+
+.job-request-onfile > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .project-dispatch-card .inline-actions {
   display: inline-flex;
   flex-wrap: wrap;
