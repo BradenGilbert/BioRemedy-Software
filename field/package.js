@@ -441,6 +441,7 @@ export async function refreshFieldPackage() {
       const pkg = await crm.apiRequest(`/api/field/package${query}`, { method: "GET" });
       await fieldTransaction("fieldPackages", "readwrite", (store) => requestToPromise(store.put({ ...pkg, fetchedAt: Date.now() }, "package")));
       if (pkg?.backend) Object.assign(crm.state.backend, pkg.backend);
+      await applyRemovedJobs();
       return pkg;
     } catch (error) {
       if (error?.status !== 404) console.warn("field package fetch failed, falling back", error);
@@ -450,6 +451,7 @@ export async function refreshFieldPackage() {
   if (isOnline()) {
     try {
       await crm.refreshBackendState();
+      await applyRemovedJobs();
       await fieldTransaction("fieldPackages", "readwrite", (store) =>
         requestToPromise(store.put({ backend: crm.state.backend, fetchedAt: Date.now() }, "package")),
       );
@@ -461,7 +463,83 @@ export async function refreshFieldPackage() {
   // Offline: load whatever was cached last time into state.backend so screens render.
   const cached = await fieldTransaction("fieldPackages", "readonly", (store) => requestToPromise(store.get("package")));
   if (cached?.backend) Object.assign(crm.state.backend, cached.backend);
+  await applyRemovedJobs();
   return cached || null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 25 Wave F (2026-09-30): "Delete on device" -- a performed task removes its job from this phone
+// ---------------------------------------------------------------------------------------------
+//
+// The server leaves such a job out of every field package once the task's save reaches it
+// (server.mjs deviceRemovedJobIds). Until then -- offline, or a refresh racing the outbox -- the phone
+// keeps its own list (in the fieldPackages store, key "removedJobIds") and applies it to the cached
+// package, crm.state.backend and every refresh below. Office screens never read this list.
+const REMOVED_JOBS_KEY = "removedJobIds";
+let removedJobIds = null;
+
+async function loadRemovedJobIds() {
+  if (removedJobIds) return removedJobIds;
+  try {
+    const stored = await fieldTransaction("fieldPackages", "readonly", (store) => requestToPromise(store.get(REMOVED_JOBS_KEY)));
+    removedJobIds = new Set(Array.isArray(stored) ? stored : []);
+  } catch {
+    removedJobIds = new Set();
+  }
+  return removedJobIds;
+}
+
+// Collections whose rows belong to one dispatch job (by jobId or dispatchJobId).
+const JOB_CHILD_COLLECTIONS = ["jobSteps", "jobActions", "jobAssignments", "jobResources", "jobStatusEvents", "jobTaskAttachments", "jobFormSubmissions", "jobSafetyBriefings", "jobEquipmentUsage", "jobMileageEntries", "messages", "sampleRecords", "weatherSnapshots", "wasteRecords"];
+
+function withoutJobs(backend, ids) {
+  if (!backend || !ids?.size) return backend;
+  if (Array.isArray(backend.dispatchJobs)) backend.dispatchJobs = backend.dispatchJobs.filter((row) => !ids.has(row.id));
+  for (const collection of JOB_CHILD_COLLECTIONS) {
+    if (Array.isArray(backend[collection])) backend[collection] = backend[collection].filter((row) => !ids.has(row.jobId) && !ids.has(row.dispatchJobId));
+  }
+  return backend;
+}
+
+export function isJobRemovedFromDevice(jobId) {
+  return Boolean(removedJobIds && removedJobIds.has(jobId));
+}
+
+// A real field login (a sign-on link, or someone whose every role is Field Lead/Crew) -- not an office
+// user previewing Front Line in the desktop simulator, whose state.backend is the office's own.
+function isFieldLogin() {
+  if (crm.state.session?.kind === "dispatch-link") return true;
+  const roles = crm.currentRoles();
+  return roles.length > 0 && roles.every((role) => role === "Field Lead" || role === "Crew");
+}
+
+export async function dropJobFromDevice(jobId) {
+  if (!jobId) return;
+  if (crm.state.frontlineSelectedJobId === jobId) {
+    crm.state.frontlineSelectedJobId = "";
+    if (String(crm.state.view || "").startsWith("field-")) crm.state.view = "field-home";
+  }
+  if (!isFieldLogin()) return;
+  const ids = await loadRemovedJobIds();
+  ids.add(jobId);
+  try {
+    await fieldTransaction("fieldPackages", "readwrite", (store) => requestToPromise(store.put([...ids], REMOVED_JOBS_KEY)));
+    const cached = await fieldTransaction("fieldPackages", "readonly", (store) => requestToPromise(store.get("package")));
+    if (cached) {
+      withoutJobs(cached.backend || cached, new Set([jobId]));
+      await fieldTransaction("fieldPackages", "readwrite", (store) => requestToPromise(store.put(cached, "package")));
+    }
+  } catch (error) {
+    console.warn("could not update the cached package", error);
+  }
+  withoutJobs(crm.state.backend, new Set([jobId]));
+}
+
+// Applied after every package refresh (online or from the cache).
+export async function applyRemovedJobs() {
+  if (!isFieldLogin()) return;
+  const ids = await loadRemovedJobIds();
+  withoutJobs(crm.state.backend, ids);
 }
 
 // ---------------------------------------------------------------------------------------------

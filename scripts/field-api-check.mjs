@@ -560,6 +560,153 @@ await step("Travel clock-in sent in lower case is stored as Travel", async () =>
   await fieldPost(adminCookie, "/api/field/clock", { employeeId, action: "out" });
 });
 
+// ---- 14. Phase 25 Wave F (2026-09-30): the job timer + work-plan task options ------------------
+// A throwaway on-site job (lead + crew, both arrived and signed today's briefing), with a two-step plan:
+// step 1 "Start work" (timer start), step 2 "Finish" (timer complete), plus tasks carrying delete on
+// device / delete on server on their own throwaway jobs.
+const timerJobId = `field-api-check-timer-${Date.now()}`;
+let timerReady = false;
+let timerLeadCookie = "";
+async function makeTimerJob(id, { briefing = true, status = "on_site" } = {}) {
+  const start = new Date();
+  const created = await adminPost("dispatchJobs", {
+    id, jobNumber: `CHECK-${id.slice(-6)}`, jobName: "field-api-check job timer", status, dispatchStatus: "On site",
+    scheduledStart: start.toISOString(), scheduledEnd: new Date(start.getTime() + 8 * 3600 * 1000).toISOString(), fieldLeadEmployeeId: guardLeadId, completionPercent: 20,
+  });
+  const leadRow = await adminPost("jobAssignments", { id: `${id}-lead`, jobId: id, employeeId: guardLeadId, isFieldLead: true, status: "Assigned" });
+  const crewRow = await adminPost("jobAssignments", { id: `${id}-crew`, jobId: id, employeeId: guardCrewId, isFieldLead: false, status: "Assigned" });
+  if (!(created.response.ok && leadRow.response.ok && crewRow.response.ok)) return false;
+  if (!briefing) return true;
+  const at = new Date().toISOString();
+  const arrived = await fieldPost(adminCookie, `/api/field/jobs/${id}/briefing`, { rollCall: [{ employeeId: guardLeadId, arrivedAt: at }, { employeeId: guardCrewId, arrivedAt: at }] });
+  if (!arrived.response.ok) return false;
+  for (const employeeId of [guardLeadId, guardCrewId]) {
+    const ack = await fieldPost(adminCookie, `/api/field/jobs/${id}/briefing/acknowledge`, { employeeId });
+    if (!ack.response.ok) return false;
+  }
+  return true;
+}
+const openEntriesOn = async (jobId) => (await adminGet("timeEntries")).filter((entry) => entry.dispatchJobId === jobId && !entry.endedAt && !entry.deletedAt);
+if (guardLeadId && guardCrewId) {
+  timerReady = await makeTimerJob(timerJobId);
+  if (timerReady) {
+    const step1 = await adminPost("jobSteps", { id: `${timerJobId}-s1`, jobId: timerJobId, key: "mobilize", name: "Mobilize", sequence: 1, status: "Available", required: true });
+    const step2 = await adminPost("jobSteps", { id: `${timerJobId}-s2`, jobId: timerJobId, key: "work", name: "Work", sequence: 2, status: "Not started", required: true });
+    const startAction = await adminPost("jobActions", { id: `${timerJobId}-a1`, jobId: timerJobId, stepId: `${timerJobId}-s1`, key: "start", name: "Start work", sequence: 1, type: "Checklist", status: "Available", required: true, assigneeScope: "Field Lead", timerAction: "start" });
+    const finishAction = await adminPost("jobActions", { id: `${timerJobId}-a2`, jobId: timerJobId, stepId: `${timerJobId}-s2`, key: "finish", name: "Finish", sequence: 1, type: "Checklist", status: "Not started", required: true, assigneeScope: "Field Lead", timerAction: "complete" });
+    timerReady = step1.response.ok && step2.response.ok && startAction.response.ok && finishAction.response.ok;
+    if (timerReady) timerLeadCookie = await linkSession(guardLeadId, timerJobId);
+  }
+}
+
+await step("job timer: stop refused before work starts; start refused without the briefing", async () => {
+  if (!timerReady) return "skip";
+  const stop = await fieldPost(timerLeadCookie, `/api/field/jobs/${timerJobId}/timer`, { action: "stop" });
+  assert(stop.response.status === 409 && stop.payload.blocked, `stop from on_site -> ${stop.response.status} (want 409 blocked)`);
+  const bad = await fieldPost(timerLeadCookie, `/api/field/jobs/${timerJobId}/timer`, { action: "pause" });
+  assert(bad.response.status === 400, `unknown timer action -> ${bad.response.status} (want 400)`);
+  const bareJobId = `${timerJobId}-bare`;
+  if (!(await makeTimerJob(bareJobId, { briefing: false }))) return "skip";
+  const gated = await fieldPost(adminCookie, `/api/field/jobs/${bareJobId}/timer`, { action: "start" });
+  assert(gated.response.status === 409 && gated.payload.blocked && /briefing/i.test(gated.payload.error || ""), `start with no briefing -> ${gated.response.status} ${gated.payload.error || ""} (want 409, briefing)`);
+  assert((await openEntriesOn(bareJobId)).length === 0, "a refused start still clocked someone in");
+  await fetch(`${baseUrl}/api/backend/dispatchJobs/${bareJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+});
+
+await step("job timer: start clocks in everyone on site; replay is idempotent; a second start opens nothing", async () => {
+  if (!timerReady) return "skip";
+  const commandId = `fac-timer-${Date.now()}`;
+  const send = () =>
+    fetch(`${baseUrl}/api/field/jobs/${timerJobId}/timer`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: timerLeadCookie, "X-Client-Command-Id": commandId }, body: JSON.stringify({ action: "start", actionId: `${timerJobId}-a1` }) }).then(async (response) => ({ response, payload: await j(response) }));
+  const first = await send();
+  assert(first.response.ok && first.payload.job?.status === "in_progress", `start -> ${first.response.status} ${first.payload.error || first.payload.job?.status}`);
+  assert(first.payload.opened.length === 2 && first.payload.opened.every((entry) => entry.entryType === "Work" && entry.source === "job-timer"), `start opened ${first.payload.opened?.length} entries (want 2 Work entries)`);
+  const replay = await send();
+  assert(replay.response.ok && replay.payload.statusEvent?.id === first.payload.statusEvent?.id, "replaying the same command id did not return the original response");
+  assert((await openEntriesOn(timerJobId)).length === 2, "the replay opened more entries");
+  const again = await fieldPost(timerLeadCookie, `/api/field/jobs/${timerJobId}/timer`, { action: "start" });
+  assert(again.response.ok && again.payload.statusChanged === false && again.payload.opened.length === 0, `second start -> ${again.response.status} statusChanged=${again.payload.statusChanged} opened=${again.payload.opened?.length}`);
+  const events = (await adminGet("jobStatusEvents")).filter((event) => event.jobId === timerJobId && event.toStatus === "in_progress");
+  assert(events.length === 1 && events[0].timerAction === "start", `want one in_progress status event from the timer, got ${events.length}`);
+});
+
+await step("job timer: stop -> on hold and clocked out; resume -> clocked back in; complete -> field complete, nothing open", async () => {
+  if (!timerReady) return "skip";
+  const stop = await fieldPost(timerLeadCookie, `/api/field/jobs/${timerJobId}/timer`, { action: "stop" });
+  assert(stop.response.ok && stop.payload.job?.status === "on_hold" && stop.payload.job?.dispatchStatus === "On hold", `stop -> ${stop.response.status} ${stop.payload.error || stop.payload.job?.status}`);
+  assert(stop.payload.closed.length === 2 && (await openEntriesOn(timerJobId)).length === 0, "stop did not close both work entries");
+  const advanceFromHold = await fieldPost(adminCookie, `/api/field/jobs/${timerJobId}/advance`, { toStatus: "field_complete" });
+  assert(advanceFromHold.response.status === 409, `advance on_hold -> field_complete skipped the ladder (${advanceFromHold.response.status})`);
+  const resume = await fieldPost(timerLeadCookie, `/api/field/jobs/${timerJobId}/timer`, { action: "start" });
+  assert(resume.response.ok && resume.payload.job?.status === "in_progress" && resume.payload.opened.length === 2, `resume -> ${resume.response.status} ${resume.payload.error || ""} opened=${resume.payload.opened?.length}`);
+  // Complete is refused while the plan is open, unless the task performing it is the plan's "complete" task.
+  const early = await fieldPost(timerLeadCookie, `/api/field/jobs/${timerJobId}/timer`, { action: "complete" });
+  assert(early.response.status === 409 && /step/.test(early.payload.error || ""), `complete with open steps and no task -> ${early.response.status} ${early.payload.error || ""}`);
+  const done = await fieldPost(timerLeadCookie, `/api/field/jobs/${timerJobId}/timer`, { action: "complete", actionId: `${timerJobId}-a2` });
+  assert(done.response.ok && done.payload.job?.status === "field_complete", `complete -> ${done.response.status} ${done.payload.error || done.payload.job?.status}`);
+  assert((await openEntriesOn(timerJobId)).length === 0, "complete left an open time entry on the job");
+  const holdEvent = (await adminGet("jobStatusEvents")).find((event) => event.jobId === timerJobId && event.toStatus === "on_hold");
+  assert(holdEvent?.timerAction === "stop", "no on_hold status event recorded for the stop");
+});
+
+await step("task options: a field save can't set them; delete on device drops the job from field packages only", async () => {
+  if (!timerReady) return "skip";
+  // A field session can't switch on "Delete on server" (or any option) through a plain jobActions save.
+  const actions = await adminGet("jobActions");
+  const finish = actions.find((item) => item.id === `${timerJobId}-a2`);
+  const sneaky = await fetch(`${baseUrl}/api/backend/jobActions`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: timerLeadCookie }, body: JSON.stringify({ ...finish, deleteOnServer: true, timerAction: "none" }) });
+  const sneakyBody = await j(sneaky);
+  assert(sneaky.ok && !sneakyBody.deleteOnServer && sneakyBody.timerAction === "complete", `field jobActions save changed task options (deleteOnServer=${sneakyBody.deleteOnServer}, timerAction=${sneakyBody.timerAction})`);
+  // Delete on device: once the task is Complete, the job leaves the field package; the office keeps it.
+  const deviceJobId = `${timerJobId}-device`;
+  if (!(await makeTimerJob(deviceJobId, { briefing: false }))) return "skip";
+  const deviceAction = await adminPost("jobActions", { id: `${deviceJobId}-a1`, jobId: deviceJobId, stepId: "", key: "cancel", name: "Cancel job", sequence: 1, type: "Checklist", status: "Available", required: true, assigneeScope: "Field Lead", deleteOnDevice: true });
+  assert(deviceAction.response.ok, `create delete-on-device task -> ${deviceAction.response.status}`);
+  const leadCookie = await linkSession(guardLeadId, deviceJobId);
+  const before = await (await fetch(`${baseUrl}/api/field/package`, { headers: { Cookie: leadCookie } })).json();
+  assert(before.dispatchJobs.some((job) => job.id === deviceJobId), "the job is missing from the package before the task");
+  const performed = await fetch(`${baseUrl}/api/backend/jobActions`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: leadCookie }, body: JSON.stringify({ ...deviceAction.payload, status: "Complete" }) });
+  assert(performed.ok, `field marks the task done -> ${performed.status}`);
+  const after = await (await fetch(`${baseUrl}/api/field/package`, { headers: { Cookie: leadCookie } })).json();
+  assert(!after.dispatchJobs.some((job) => job.id === deviceJobId) && !after.jobActions.some((item) => item.jobId === deviceJobId), "the job (or its tasks) is still in the field package after Delete on device");
+  const officeJobs = await adminGet("dispatchJobs");
+  assert(officeJobs.some((job) => job.id === deviceJobId && !job.deletedAt), "Delete on device removed the job from the office");
+  // Commands for the removed job still work (a queued write replaying after the removal).
+  const clock = await fieldPost(leadCookie, "/api/field/clock", { employeeId: guardLeadId, dispatchJobId: deviceJobId, action: "in" });
+  assert(clock.response.ok, `a command for the removed job was refused -> ${clock.response.status} ${clock.payload.error || ""}`);
+  await fieldPost(leadCookie, "/api/field/clock", { employeeId: guardLeadId, dispatchJobId: deviceJobId, action: "out" });
+  await fetch(`${baseUrl}/api/backend/dispatchJobs/${deviceJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+});
+
+await step("delete on server: archived (soft-deleted via the task), refused until performed, restorable", async () => {
+  if (!timerReady) return "skip";
+  const serverJobId = `${timerJobId}-server`;
+  if (!(await makeTimerJob(serverJobId, { briefing: false }))) return "skip";
+  const created = await adminPost("jobActions", { id: `${serverJobId}-a1`, jobId: serverJobId, stepId: "", key: "archive", name: "Close out and archive", sequence: 1, type: "Checklist", status: "Available", required: true, assigneeScope: "Field Lead", deleteOnServer: true });
+  assert(created.response.ok && created.payload.deleteOnServer === true, `office sets Delete on server on a task -> ${created.response.status} ${created.payload.error || ""}`);
+  const leadCookie = await linkSession(guardLeadId, serverJobId);
+  const archivePath = `/api/field/jobs/${serverJobId}/actions/${serverJobId}-a1/archive`;
+  const early = await fieldPost(leadCookie, archivePath, {});
+  assert(early.response.status === 409, `archive before the task is performed -> ${early.response.status} (want 409)`);
+  await fetch(`${baseUrl}/api/backend/jobActions`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: leadCookie }, body: JSON.stringify({ ...created.payload, status: "Complete" }) });
+  const archived = await fieldPost(leadCookie, archivePath, {});
+  assert(archived.response.ok && archived.payload.archived, `archive -> ${archived.response.status} ${archived.payload.error || ""}`);
+  const again = await fieldPost(leadCookie, archivePath, {});
+  assert(again.response.ok && again.payload.already, `archive twice -> ${again.response.status} (want 200, already)`);
+  const job = (await adminGet("dispatchJobs")).find((item) => item.id === serverJobId);
+  assert(job?.deletedAt && job.deletedVia === `job-action:${serverJobId}-a1`, `job deletedVia = ${job?.deletedVia} (want job-action:<id>)`);
+  const assignment = (await adminGet("jobAssignments")).find((item) => item.id === `${serverJobId}-lead`);
+  assert(assignment?.deletedAt && assignment.deletedVia === `dispatchJobs:${serverJobId}`, "the job's cascade was not soft-deleted with it");
+  const restore = await fetch(`${baseUrl}/api/backend/dispatchJobs/${serverJobId}/restore`, { method: "POST", headers: adminHeaders, body: "{}" });
+  const restored = await j(restore);
+  assert(restore.ok && restored.total >= 3, `restore -> ${restore.status} total=${restored.total}`);
+  const back = (await adminGet("dispatchJobs")).find((item) => item.id === serverJobId);
+  assert(back && !back.deletedAt, "the archived job did not come back on Restore");
+  await fetch(`${baseUrl}/api/backend/dispatchJobs/${serverJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+});
+
+if (timerReady) await fetch(`${baseUrl}/api/backend/dispatchJobs/${timerJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+
 console.log("");
 const failed = results.filter((item) => item.status === "FAIL").length;
 const skipped = results.filter((item) => item.status === "SKIP").length;

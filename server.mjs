@@ -3198,11 +3198,15 @@ function pickFields(row, fields) {
 // Everything a field session's rows are judged against: which jobs are mine (narrowed to one for a
 // dispatch-link session), and the projects/facilities/accounts/opportunities/walks that follow from
 // them. Built fresh per request -- cheap at this scale, and it can never go stale.
-function buildFieldContext(session, data) {
+// `forPackage` (Phase 25 Wave F): what the phone is sent leaves out jobs a "Delete on device" task has
+// removed from the device (deviceRemovedJobIds); access checks for commands keep them, so writes the
+// phone queued before the removal still replay.
+function buildFieldContext(session, data, { forPackage = false } = {}) {
   const employeeId = session.employeeId || "";
   const liveAssignments = (data.jobAssignments || []).filter((item) => !item.deletedAt && item.employeeId === employeeId && item.status !== "Cancelled");
   let myJobIds = new Set(liveAssignments.map((item) => item.jobId));
   if (session.dispatchJobId) myJobIds = new Set([session.dispatchJobId]);
+  if (forPackage) for (const jobId of deviceRemovedJobIds(data)) myJobIds.delete(jobId);
   const myJobs = (data.dispatchJobs || []).filter((job) => myJobIds.has(job.id));
   const myProjectIds = new Set(myJobs.map((job) => job.projectId).filter(Boolean));
   const myProjects = (data.projects || []).filter((project) => myProjectIds.has(project.id));
@@ -3367,7 +3371,7 @@ function fieldSessionRoles(session) {
 // Runs fieldProjections over every collection defaultBackend knows about, for GET /api/backend (the
 // single-shot full read) as well as GET /api/backend/{collection} (which used to bypass all of this).
 function applyFieldProjection(session, data) {
-  const ctx = buildFieldContext(session, data);
+  const ctx = buildFieldContext(session, data, { forPackage: true });
   const out = {};
   for (const collection of Object.keys(defaultBackend)) {
     const projection = fieldProjections[collection];
@@ -6112,6 +6116,11 @@ async function handleApi(request, response, pathname) {
         record = merged;
       }
     }
+    // Phase 25 Wave F (2026-09-30): a work-plan task's options are the office's to set.
+    if (collection === "jobTypeTemplates" || collection === "jobActions") {
+      const refusal = guardJobActionOptions(collection, record, stored, request);
+      if (refusal) return json(response, 403, { error: refusal });
+    }
     // Phase 11 (2026-09-23): manual onHand edits (the only other path that changes stock) get a
     // ledger row too, so the ledger stays the complete explanation for every onHand change. `body`
     // is the raw payload (pre-whitelist) so the transient adjustmentNote survives to here even though
@@ -6616,6 +6625,9 @@ const FIELD_DISPATCH_TRANSITIONS = {
   en_route: { status: "on_site", dispatchStatus: "On site", completionPercent: 20 },
   on_site: { status: "in_progress", dispatchStatus: "In field", completionPercent: 25 },
   in_progress: { status: "field_complete", dispatchStatus: "Returned", completionPercent: 100 },
+  // Phase 25 Wave F (2026-09-30): "On hold" is the job timer's stopped state; the ladder's next rung
+  // from it is back to work (the job timer's "start" also clocks the crew in -- fieldJobTimer below).
+  on_hold: { status: "in_progress", dispatchStatus: "In field", completionPercent: 25 },
   field_complete: { status: "office_review", dispatchStatus: "Returned", completionPercent: 100 },
   office_review: { status: "closed", dispatchStatus: "Closed", completionPercent: 100 },
 };
@@ -6624,7 +6636,7 @@ const FIELD_POST_JOB_REVIEW_KEYS = ["accidents", "nearMisses", "injuries"];
 const FIELD_PROJECT_STAGES = ["Intake", "Plan", "Mobilize", "Field Work", "Closeout"];
 const FIELD_PROJECT_STAGE_FOR_STATUS = {
   draft: "Plan", ready: "Plan", scheduled: "Mobilize", dispatched: "Mobilize", acknowledged: "Mobilize", en_route: "Mobilize",
-  on_site: "Field Work", in_progress: "Field Work", field_complete: "Field Work", office_review: "Field Work", closed: "Field Work",
+  on_site: "Field Work", in_progress: "Field Work", on_hold: "Field Work", field_complete: "Field Work", office_review: "Field Work", closed: "Field Work",
 };
 
 async function fieldAdvanceJob(request, jobId) {
@@ -6742,6 +6754,230 @@ async function fieldAdvanceJob(request, jobId) {
   await audit(request, { action: "field-advance", collection: "dispatchJobs", recordId: job.id, summary: `${job.jobNumber || job.id} → ${transition.status}` });
   if (transition.status === "on_site" || transition.status === "in_progress") captureResponseWeatherInBackground(job.id);
   return { status: 200, body: updated };
+}
+
+// ---- POST /api/field/jobs/:id/timer (Phase 25 Wave F, 2026-09-30) ----
+// The job timer a work-plan task drives through its `timerAction` (StreetSmart's "Timer option"):
+//   start    on_site | on_hold -> in_progress  (the Wave A briefing gate applies) + a Work time entry
+//            opened for everyone on site on today's roll call who isn't already clocked in on this job
+//   stop     in_progress -> on_hold            + this job's open Work entries closed
+//   complete in_progress | on_hold -> field_complete + every open entry on this job closed
+// A job already at the target status is not an error (a task performed twice, or the auto-advance got
+// there first): the clock side still runs, and no status event is written. `actionId` names the
+// work-plan task performing it; when that stored task carries the same timerAction, its template has
+// already said this is where work starts/ends, so the positional work-plan checks the plain advance
+// makes (first step complete, every required step complete) are not repeated -- the briefing gate is.
+const JOB_TIMER_ACTIONS = {
+  start: { from: ["on_site", "on_hold"], to: "in_progress", dispatchStatus: "In field", completionPercent: 25 },
+  stop: { from: ["in_progress"], to: "on_hold", dispatchStatus: "On hold", completionPercent: 25 },
+  complete: { from: ["in_progress", "on_hold"], to: "field_complete", dispatchStatus: "Returned", completionPercent: 100 },
+};
+
+function advanceFieldProjectStage(data, job, status) {
+  const project = job.projectId ? (data.projects || []).find((item) => item.id === job.projectId && !item.deletedAt) : null;
+  const targetStage = FIELD_PROJECT_STAGE_FOR_STATUS[status];
+  if (project && targetStage && FIELD_PROJECT_STAGES.indexOf(targetStage) > FIELD_PROJECT_STAGES.indexOf(project.projectStage || "Intake")) {
+    const projectIndex = data.projects.findIndex((item) => item.id === project.id);
+    data.projects[projectIndex] = touchRecord({ ...project, projectStage: targetStage, activePhase: targetStage }, project);
+  }
+}
+
+async function fieldJobTimer(request, jobId) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const role = getRoles(request);
+  const data = await loadBackend();
+  const job = (data.dispatchJobs || []).find((item) => item.id === jobId && !item.deletedAt);
+  if (!job) throw requestError("Job not found.", 404);
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+  } else if (!canAccess(role, "dispatch")) {
+    throw requestError("Dispatch role required.", 403);
+  }
+  const timerAction = String(body.action || "");
+  const rule = JOB_TIMER_ACTIONS[timerAction];
+  if (!rule) throw requestError('The timer action must be "start", "stop" or "complete".', 400);
+  if (job.status === "cancelled") throw Object.assign(requestError("This job was cancelled.", 409), { blocked: true });
+  const action = body.actionId ? (data.jobActions || []).find((item) => item.id === body.actionId && item.jobId === job.id && !item.deletedAt) : null;
+  if (body.actionId && !action) throw requestError("That work-plan task is not on this job.", 404);
+  const templateSaysSo = Boolean(action && action.timerAction === timerAction);
+  const alreadyThere = job.status === rule.to;
+  if (!alreadyThere && !rule.from.includes(job.status)) {
+    const verb = timerAction === "start" ? "start the job timer" : timerAction === "stop" ? "put the job on hold" : "complete the job";
+    throw Object.assign(requestError(`This job is ${job.status.replace(/_/g, " ")}; it can't ${verb} from there.`, 409), { blocked: true });
+  }
+  if (!alreadyThere) {
+    const steps = (data.jobSteps || []).filter((item) => item.jobId === job.id && !item.deletedAt && !item.adHoc).sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0));
+    if (rule.to === "in_progress") {
+      if (!templateSaysSo && job.status === "on_site" && steps.length && steps[0].status !== "Complete") {
+        throw Object.assign(requestError(`Finish the "${steps[0].name}" step before starting work.`, 409), { blocked: true });
+      }
+      const reason = briefingGateReason(todaysBriefingForJob(data, job));
+      if (reason) throw Object.assign(requestError(reason, 409), { blocked: true });
+    }
+    if (rule.to === "field_complete" && !templateSaysSo) {
+      const outstanding = steps.filter((item) => item.required !== false && item.status !== "Complete");
+      if (outstanding.length) throw Object.assign(requestError(`${outstanding.length} work plan step${outstanding.length === 1 ? "" : "s"} still open.`, 409), { blocked: true });
+    }
+  }
+  const occurredAt = body.at && !Number.isNaN(Date.parse(body.at)) ? new Date(body.at).toISOString() : new Date().toISOString();
+  const localDate = typeof body.localDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.localDate) ? body.localDate : "";
+  let updated = job;
+  let statusEvent = null;
+  if (!alreadyThere) {
+    updated = {
+      ...job,
+      status: rule.to,
+      dispatchStatus: rule.dispatchStatus,
+      operationalDate: rule.to === "in_progress" && !job.operationalDate ? localDate || occurredAt.slice(0, 10) : job.operationalDate || "",
+      completionPercent: Math.max(Number(job.completionPercent || 0), rule.completionPercent),
+    };
+    touchRecord(updated, job);
+    data.dispatchJobs[data.dispatchJobs.findIndex((item) => item.id === job.id)] = updated;
+    statusEvent = touchRecord({ id: makeId("job-status-event"), jobId: job.id, fromStatus: job.status, toStatus: rule.to, occurredAt, by: body.by || attribution(request), timerAction, actionId: action?.id || "" });
+    data.jobStatusEvents.push(statusEvent);
+    advanceFieldProjectStage(data, job, rule.to);
+  }
+  // The clock side. Opened entries are Work entries (the timer is the job's work clock); stop closes
+  // only Work entries (a travel leg carries on), complete closes everything left open on the job.
+  const opened = [];
+  const closed = [];
+  const entries = data.timeEntries || (data.timeEntries = []);
+  if (timerAction === "start") {
+    const briefing = todaysBriefingForJob(data, updated);
+    const onSite = briefingPresentRows(briefing).filter((row) => row.employeeId);
+    for (const row of onSite) {
+      if (entries.some((item) => item.employeeId === row.employeeId && item.dispatchJobId === job.id && !item.endedAt && !item.deletedAt)) continue;
+      const entry = touchRecord({
+        id: makeId("time-entry"),
+        employeeId: row.employeeId,
+        dispatchJobId: job.id,
+        entryType: "Work",
+        startedAt: occurredAt,
+        endedAt: null,
+        durationMinutes: null,
+        notes: action ? `Job timer: ${action.name}` : "Job timer started",
+        source: "job-timer",
+        enteredByEmployeeId: row.employeeId === session?.employeeId ? "" : session?.employeeId || "",
+      });
+      entries.push(entry);
+      opened.push(entry);
+    }
+  } else {
+    entries.forEach((item, index) => {
+      if (item.dispatchJobId !== job.id || item.endedAt || item.deletedAt) return;
+      if (timerAction === "stop" && item.entryType !== "Work") return;
+      const durationMinutes = Math.max(0, Math.round((new Date(occurredAt).getTime() - new Date(item.startedAt).getTime()) / 60000));
+      const closedEntry = touchRecord({ ...item, endedAt: occurredAt, durationMinutes }, item);
+      entries[index] = closedEntry;
+      closed.push(closedEntry);
+    });
+  }
+  if (!statusEvent && !opened.length && !closed.length) return { status: 200, body: { job: updated, statusChanged: false, opened, closed, statusEvent: null } };
+  await saveBackend(data);
+  await audit(request, {
+    action: "field-job-timer",
+    collection: "dispatchJobs",
+    recordId: job.id,
+    summary: `${job.jobNumber || job.id} timer ${timerAction}${statusEvent ? ` → ${rule.to}` : ""} · ${opened.length} in, ${closed.length} out`,
+  });
+  if (statusEvent && rule.to === "in_progress") captureResponseWeatherInBackground(job.id);
+  return { status: 200, body: { job: updated, statusChanged: Boolean(statusEvent), opened, closed, statusEvent } };
+}
+
+// ---- POST /api/field/jobs/:id/actions/:actionId/archive (Phase 25 Wave F, 2026-09-30) ----
+// StreetSmart's "Delete on server": once the task is performed, the job is removed from the server.
+// Here that is an archive, never a hard delete (Phase 20): the job and its cascade are soft-deleted
+// exactly as DELETE /api/backend/dispatchJobs/:id does, except the root's deletedVia names the task
+// ("job-action:<actionId>") -- the cascade rows keep "dispatchJobs:<id>", so Restore in Identity &
+// Sync › Recently deleted puts the whole set back. Only a task whose stored row carries
+// deleteOnServer (set by an office template save; field sessions can't write the flag) and which is
+// already Complete may do it.
+async function fieldArchiveJobByAction(request, jobId, actionId) {
+  const session = request.session;
+  const role = getRoles(request);
+  const data = await loadBackend();
+  const job = (data.dispatchJobs || []).find((item) => item.id === jobId);
+  if (!job) throw requestError("Job not found.", 404);
+  const via = `job-action:${actionId}`;
+  if (job.deletedAt) {
+    if (job.deletedVia === via) return { status: 200, body: { archived: true, already: true, jobId: job.id } };
+    throw requestError("That job was already deleted.", 409);
+  }
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+  } else if (!canAccess(role, "dispatch")) {
+    throw requestError("Dispatch role required.", 403);
+  }
+  const action = (data.jobActions || []).find((item) => item.id === actionId && item.jobId === job.id && !item.deletedAt);
+  if (!action) throw requestError("That work-plan task is not on this job.", 404);
+  if (!action.deleteOnServer) throw requestError("That task does not remove the job from the server.", 409);
+  if (action.status !== "Complete") throw requestError("Perform the task before the job is archived.", 409);
+  const { root, affected } = collectCascade(data, "dispatchJobs", job.id);
+  const now = new Date().toISOString();
+  const actor = attribution(request);
+  const rootKey = `dispatchJobs:${job.id}`;
+  for (const [, bucket] of affected) {
+    for (const record of bucket.values()) {
+      record.deletedAt = now;
+      record.deletedBy = actor;
+      record.deletedVia = record === root ? via : rootKey;
+      touchRecord(record);
+    }
+  }
+  const summary = cascadeSummary(affected);
+  await saveBackend(data);
+  await audit(request, { action: "delete", collection: "dispatchJobs", recordId: job.id, summary: `${recordSummary(job)} (archived by task "${action.name}")`, via, cascade: summary.counts, total: summary.total });
+  return { status: 200, body: { archived: true, jobId: job.id, deleted: summary.counts, total: summary.total } };
+}
+
+// Phase 25 Wave F: the five work-plan task options (template task -> jobActions row). A field session
+// never changes them on a jobActions save (it only marks tasks done), and "Delete on server" -- which
+// archives a job -- may only be switched on by an office role (Admin, Office Manager, Operations
+// Manager, Scheduler), on a template or directly on a job's task.
+const JOB_ACTION_OPTION_FIELDS = ["timerAction", "repeatable", "formTemplateId", "deleteOnDevice", "deleteOnServer"];
+const OFFICE_TEMPLATE_ROLES = ["Admin", "Office Manager", "Operations Manager", "Scheduler"];
+
+function isOfficeTemplateWriter(request) {
+  return !isFieldSession(request.session) && getRoles(request).some((item) => OFFICE_TEMPLATE_ROLES.includes(item));
+}
+
+function guardJobActionOptions(collection, record, stored, request) {
+  if (collection === "jobActions") {
+    if (isFieldSession(request.session)) {
+      for (const key of JOB_ACTION_OPTION_FIELDS) {
+        if (stored && stored[key] !== undefined) record[key] = stored[key];
+        else delete record[key];
+      }
+      return "";
+    }
+    if (record.deleteOnServer && !stored?.deleteOnServer && !isOfficeTemplateWriter(request)) return 'Only an office role can set "Delete on server" on a task.';
+    return "";
+  }
+  if (isOfficeTemplateWriter(request)) return "";
+  const storedFlags = new Set();
+  for (const stage of stored?.stages || []) for (const task of stage.tasks || []) if (task.deleteOnServer) storedFlags.add(`${stage.key}/${task.key}`);
+  for (const stage of record.stages || []) {
+    for (const task of stage.tasks || []) {
+      if (task.deleteOnServer && !storedFlags.has(`${stage.key}/${task.key}`)) return 'Only an office role can set "Delete on server" on a template task.';
+    }
+  }
+  return "";
+}
+
+// Phase 25 Wave F: the job ids a field package leaves out -- any job with a performed task that says
+// "Delete on device" (StreetSmart: once the action is performed, the job is removed from the mobile
+// device). Every field session's package drops it, not just the phone that performed it: jobs are
+// packaged per person, and the owner's definition is about the job, not the handset. Office views,
+// and the field commands' own access checks, are unaffected (buildFieldContext's default).
+function deviceRemovedJobIds(data) {
+  const ids = new Set();
+  for (const action of data.jobActions || []) {
+    if (action.deleteOnDevice && action.status === "Complete" && !action.deletedAt && action.jobId) ids.add(action.jobId);
+  }
+  return ids;
 }
 
 // The response-weather twin of app.js captureWeatherInBackground(): fired without blocking the
@@ -7783,6 +8019,12 @@ async function handleFieldApi(request, response, pathname) {
 
   const advanceMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/advance$/);
   if (advanceMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldAdvanceJob(request, advanceMatch[1]));
+
+  const timerMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/timer$/);
+  if (timerMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldJobTimer(request, timerMatch[1]));
+
+  const archiveMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/actions\/([^/]+)\/archive$/);
+  if (archiveMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldArchiveJobByAction(request, archiveMatch[1], archiveMatch[2]));
 
   const briefingAckMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/briefing\/acknowledge$/);
   if (briefingAckMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldAcknowledgeBriefing(request, briefingAckMatch[1]));
