@@ -188,6 +188,79 @@ Wave F (job action forms, StreetSmart model) is recorded here too, and gets its 
    - Timesheet-action forms open on clock in/out.
    - `deleteOnDevice`/`deleteOnServer` govern the cached package and the retained submission.
 
+
+### Wave F — detailed plan (2026-09-30)
+
+**Owner definitions (2026-09-30, from StreetSmart's manual):**
+- *Delete on device* — once the action is performed, the job is removed from the mobile device.
+- *Delete on server* — once the action is performed, the job is removed from the server. **Here that means archived** (soft-deleted, `deletedVia: "job-action:<actionId>"`), not destroyed: the app never hard-deletes (Phase 20), and an admin can restore it from Recently deleted.
+- *Timer option* — whether performing the action starts the timer, stops it, completes/terminates the job, or does not affect it.
+- *Forms* — Active (can be attached to job actions and completed by workers); Available on Forms Menu (an ad hoc form completed any time without a job — daily safety checklist, incident report, vehicle inspection); associated with a timesheet action (workers must complete it when they start/end a shift or break; **only one form per timesheet action**); available to selected groups.
+
+**Data model (fixed here so the three workers can build in parallel):**
+
+`formTemplates` (existing collection, extended):
+```
+{ id, key, name, displayName, description, category,
+  isActive, availableOnFormsMenu,
+  timesheetAction: "" | "shift_start" | "shift_end" | "break_start" | "break_end",   // unique across active forms
+  groups: { crewIds: [], roles: [] },            // empty = everyone; crewIds = crewProfiles ids
+  fields: [ { id, displayName, fieldRef, type, required, helpText, defaultValue, config } ],
+  version, updatedAt, updatedBy }
+```
+- `displayName` is what the phone shows; `name` is internal. `fieldRef` is generated from the display name (lower snake case, unique in the form), editable, and is the key in submissions and exports.
+- Field `type` and its `config`:
+  - `calculation`: `{ expression, decimals }`. The expression uses other fields' `fieldRef`s with + − × ÷ and parentheses, and is evaluated by a small parser (never `eval`).
+  - `cascadingList`: `{ levels: ["Category", "Item", …], rows: [["Hydrocarbon", "Diesel"], …] }`, imported from CSV in the builder.
+  - `checkbox`: `{ defaultChecked }`.
+  - `date`, `time`: `{ autoCapture }` (fills now, can be edited).
+  - `label`: `{ text, style: heading|note|warning }`, no value.
+  - `money`, `number`: `{ min, max, decimals, unit }`.
+  - `selectList`, `multiSelect`: `{ options: [] }`.
+  - `odometer`: `{}`; the value is `{ vehicleId, reading }`, with the vehicle picked from fleet assets.
+  - `picture`: `{ min, max, allowGallery }`; the value is `[documentId]`.
+  - `signature`: `{ signerNameRequired }`; the value is `{ documentId, signerName }`.
+  - `text`: `{ maxLength, multiline }`.
+  - `url`: `{}`.
+- Legacy types are read, not rewritten: `yesno` is shown as `selectList` [Yes, No], `checklist` as `multiSelect`, and `photo` as `picture`. The six seeded forms keep working.
+
+`jobFormSubmissions` gains `formTemplateId`, `formVersion`, `repeatIndex`, `timesheetAction`, `timeEntryId`. `payload` is keyed by `fieldRef`.
+
+Job template task (`jobTypeTemplates.stages[].tasks[]`, copied onto `jobActions`) gains:
+```
+timerAction: "none" | "start" | "stop" | "complete",
+repeatable, formTemplateId, deleteOnDevice, deleteOnServer
+```
+- A task with `formTemplateId` opens that form inline, and the task completes when the form is submitted.
+- A repeatable task accepts any number of submissions (`repeatIndex`).
+
+Timer (`dispatchJobs`):
+- A new status, `on_hold` ("On hold").
+- `start` moves the job from `on_site`/`on_hold` to `in_progress`, subject to the briefing gate from Wave A, and opens a work time entry for everyone on site on the roll call.
+- `stop` moves it from `in_progress` to `on_hold` and closes the open work entries for the job.
+- `complete` moves it to `field_complete` and closes every open entry.
+- All three run through one server command (`POST /api/field/jobs/:id/timer`) with `jobStatusEvents` rows, and work through the offline outbox.
+
+**Build split:**
+1. **Forms builder** (office). A Forms screen beside Job Templates, which is also where forms are listed and made Active.
+   - The header, the ordered field list (add, reorder, duplicate, delete) and a per-type config editor.
+   - The CSV import for cascading lists.
+   - The deploy options, with the one-form-per-timesheet-action rule enforced on client and server.
+   - A live phone preview.
+   - The server normaliser, validation and the version bump.
+2. **Field forms.**
+   - `field/forms.js` renders all 15 types, with required checks, the calculation evaluator, cascading selects, odometer, multi-photo and signature uploads to documents.
+   - The Forms menu lists active `availableOnFormsMenu` forms filtered by the worker's crew or role.
+   - Timesheet-action forms open on that worker's own clock-in, clock-out and break start/end. The clock action waits for the form. A form can be deferred with a reason, which is recorded.
+   - Submissions carry the new fields.
+3. **Work plans.**
+   - The template editor gains the five task options.
+   - They are copied onto `jobActions`.
+   - Attached forms open from the Work tab; repeatable tasks accept more submissions.
+   - The timer command and the `on_hold` status are used everywhere statuses are listed: board, register, calendar, filters, the bottom field button and the office job page.
+   - Delete on device: the job drops out of that worker's field package and cache once the action syncs.
+   - Delete on server: the job is archived, after a confirmation on the phone. Only office roles can tick this option in a template.
+
 ---
 
 ## Still open for the owner (recorded in the phase doc, not blocking)
