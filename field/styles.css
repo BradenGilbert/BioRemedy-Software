@@ -2512,3 +2512,19 @@ body[data-theme="dark"] .field-tool {
   display: block;
   margin-top: 4px;
 }
+
+/* Phase 25 D.2 (2026-09-29): the check-in GPS question and other plain choice sheets. */
+.field-choice-sheet-body {
+  display: grid;
+  gap: 4px;
+  padding: 0 16px 8px;
+}
+
+.field-choice-sheet-body p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.field-choice-sheet-body small {
+  color: var(--muted, #5f6d63);
+}

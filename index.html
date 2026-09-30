@@ -2920,6 +2920,10 @@
           </label>
         </div>
         <label>
+          Facility
+          <select name="facilityId"></select>
+        </label>
+        <label>
           Address
           <input name="addressText" maxlength="160" placeholder="Street address or cross streets" />
         </label>
@@ -5851,6 +5855,29 @@
             <input name="countryOrRegion" maxlength="60" placeholder="USA" />
           </label>
         </div>
+        <fieldset class="facility-coordinates" data-role="facility-coordinates">
+          <legend>GPS coordinates</legend>
+          <input name="coordinatesSource" type="hidden" />
+          <input name="coordinatesAccuracyM" type="hidden" />
+          <input name="coordinatesCapturedAt" type="hidden" />
+          <div class="form-grid">
+            <label>
+              Latitude
+              <input name="latitude" inputmode="decimal" autocomplete="off" maxlength="20" placeholder="30.486889" />
+            </label>
+            <label>
+              Longitude
+              <input name="longitude" inputmode="decimal" autocomplete="off" maxlength="20" placeholder="-97.663794" />
+            </label>
+          </div>
+          <div class="inline-actions">
+            <button class="mini-button" type="button" data-role="facility-coords-device">Use my location</button>
+            <button class="mini-button" type="button" data-role="facility-coords-pick">Pick on map</button>
+            <button class="mini-button" type="button" data-role="facility-coords-clear">Clear</button>
+          </div>
+          <small class="help-text" data-role="facility-coords-status"></small>
+          <div class="facility-coords-map" data-role="facility-coords-map" hidden></div>
+        </fieldset>
         <div class="form-grid">
           <label>
             Phone

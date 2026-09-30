@@ -3252,6 +3252,11 @@ function normalizeRecord(collection, payload, data) {
       reportedByEmployeeId: payload.reportedByEmployeeId || "",
       // Phase 18 item 4: a ping from a personal phone names the consent that authorised it.
       consentId: payload.consentId || "",
+      // Phase 25 D (2026-09-29): a facility's own point (locationType "Facility", isPrimary) and when/how
+      // well any fix was taken -- capturedAt is the device's fix time, distinct from the save time.
+      isPrimary: Boolean(payload.isPrimary),
+      capturedAt: payload.capturedAt || "",
+      accuracyM: payload.accuracyM === "" || payload.accuracyM == null || !Number.isFinite(Number(payload.accuracyM)) ? "" : Number(payload.accuracyM),
     };
   }
 
