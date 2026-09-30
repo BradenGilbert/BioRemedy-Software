@@ -137,6 +137,12 @@ try {
   if (aamvaCheck.status !== 0) console.log(aamvaCheck.stdout || aamvaCheck.stderr || "");
   check(aamvaCheck.status === 0, "scripts/aamva-parse-check.mjs");
 
+  // ---- 3e. form calculations, legacy field mapping, cascading lists (Phase 25 Wave F) -----------
+  console.log("\nForm calculations");
+  const formCalcCheck = spawnSync(process.execPath, ["scripts/form-calc-check.mjs"], { cwd: projectRoot, encoding: "utf8" });
+  if (formCalcCheck.status !== 0) console.log(formCalcCheck.stdout || formCalcCheck.stderr || "");
+  check(formCalcCheck.status === 0, "scripts/form-calc-check.mjs");
+
   // ---- 4. browser sweep -----------------------------------------------------------------------
   if (!noBrowser) {
     console.log("\nBrowser sweep");

@@ -3049,7 +3049,11 @@ const fieldProjections = {
         ),
   },
   inventoryItems: { fields: ["id", "materialType", "name", "unit", "onHand", "productId", "category"], where: () => true },
-  equipmentAssets: { fields: ["id", "assetTag", "name", "category", "status"], where: () => true },
+  // Phase 25 Wave F (2026-09-30): `equipment` (the asset's name) and `specs` (mileage) for a form's
+  // odometer field -- the vehicle picker and the "lower than the last reading" warning.
+  equipmentAssets: { fields: ["id", "assetTag", "name", "equipment", "category", "status", "specs"], where: () => true },
+  // Wave F: a form's `groups.crewIds` match the worker's home crew or an extra crew membership.
+  workforceTeamMemberships: { fields: ["id", "employeeId", "crewId", "teamId", "status"], where: (row, ctx) => row.employeeId === ctx.employeeId },
   frontlineDevices: { fields: "*", where: (row, ctx) => row.employeeId === ctx.employeeId },
   libraryItems: { fields: "*", where: () => true },
   libraryAcknowledgements: { fields: "*", where: (row, ctx) => row.employeeId === ctx.employeeId },
@@ -6289,7 +6293,13 @@ async function fieldClock(request) {
     throw requestError("Dispatch role required.", 403);
   }
   // Phase 25 A.4: the phone sends "travel"/"work" in lower case; store the canonical spelling.
-  const entryType = String(body.entryType || "").toLowerCase() === "travel" ? "Travel" : "Work";
+  // Phase 25 Wave F: a break is its own entry ("Break"), started/ended from the phone's clock strip.
+  const entryType = { travel: "Travel", break: "Break" }[String(body.entryType || "").toLowerCase()] || "Work";
+  // Wave F: the phone may choose the new entry's id, so a timesheet form filled offline can point at
+  // the entry before it syncs. A replay with the same id is caught by the command receipt; an id already
+  // used by another row is refused.
+  const proposedEntryId = String(body.timeEntryId || "");
+  if (proposedEntryId && !/^time-entry-[a-z0-9-]{4,60}$/i.test(proposedEntryId)) throw requestError("Invalid time entry id.", 400);
   const at = body.at || new Date().toISOString();
   let record;
   if (body.action === "out") {
@@ -6305,8 +6315,9 @@ async function fieldClock(request) {
     if ((data.timeEntries || []).some((item) => item.employeeId === targetEmployeeId && (item.dispatchJobId || null) === jobId && !item.endedAt && !item.deletedAt)) {
       throw requestError(job ? "Already clocked in on this job." : "Already clocked in.", 409);
     }
+    if (proposedEntryId && (data.timeEntries || []).some((item) => item.id === proposedEntryId)) throw requestError("That time entry id is already in use.", 409);
     record = touchRecord({
-      id: makeId("time-entry"),
+      id: proposedEntryId || makeId("time-entry"),
       employeeId: targetEmployeeId,
       dispatchJobId: jobId,
       entryType,

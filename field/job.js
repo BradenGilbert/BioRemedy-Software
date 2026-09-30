@@ -9,6 +9,7 @@ import { registerFieldRoute, registerFieldAction, registerFieldForm, currentFiel
 import * as fieldPackage from "./package.js";
 import { renderSafetyTab, afterSafetyRender } from "./safety.js";
 import { renderWorkTab, afterCaptureRender } from "./capture.js";
+import { withTimesheetForm } from "./forms.js";
 
 function currentJob() {
   return crm.findDispatchJob(crm.state.frontlineSelectedJobId);
@@ -355,38 +356,55 @@ registerFieldAction("field-crew-clock-all", async (button) => {
   const assignments = crm.dispatchAssignmentsForJob(jobId);
   const openEntries = crm.getTimeEntries().filter((e) => !e.endedAt && assignments.some((a) => a.employeeId === e.employeeId) && e.dispatchJobId === jobId);
   const toClockIn = assignments.filter((a) => !openEntries.some((e) => e.employeeId === a.employeeId));
-  for (const assignment of toClockIn) {
-    const record = { id: crm.makeId("time-entry"), employeeId: assignment.employeeId, dispatchJobId: jobId, entryType: "work", startedAt: new Date().toISOString(), endedAt: null, durationMinutes: null, notes: "", source: "field-crew-clock" };
-    await fieldPackage
-      .fieldRequest("/api/field/clock", {
-        method: "POST",
-        kind: "clock",
-        label: `Clock in — ${crm.findEmployee(assignment.employeeId)?.displayName || "crew"}`,
-        body: { employeeId: assignment.employeeId, dispatchJobId: jobId, entryType: "work", action: "in", enteredByEmployeeId: employee?.id },
-        apply: () => (crm.state.backend.timeEntries = [...(crm.state.backend.timeEntries || []), record]),
-      })
-      .catch(async (error) => {
-        if (/does not have clock yet/.test(error.message || "")) await fieldPackage.saveFieldRecord("timeEntries", record, { kind: "clock" });
-      });
-  }
-  for (const entry of openEntries) {
-    const endedAt = new Date().toISOString();
-    const durationMinutes = Math.max(0, Math.round((new Date(endedAt) - new Date(entry.startedAt)) / 60000));
-    const updated = { ...entry, endedAt, durationMinutes };
-    await fieldPackage
-      .fieldRequest("/api/field/clock", {
-        method: "POST",
-        kind: "clock",
-        label: `Clock out — ${crm.findEmployee(entry.employeeId)?.displayName || "crew"}`,
-        body: { employeeId: entry.employeeId, dispatchJobId: jobId, entryType: entry.entryType, action: "out", enteredByEmployeeId: employee?.id },
-        apply: () => (crm.state.backend.timeEntries = (crm.state.backend.timeEntries || []).map((item) => (item.id === entry.id ? updated : item))),
-      })
-      .catch(async (error) => {
-        if (/does not have clock yet/.test(error.message || "")) await fieldPackage.saveFieldRecord("timeEntries", updated, { kind: "clock" });
-      });
-  }
+  // Phase 25 Wave F: the lead's own clock in/out here is their shift start/end too, so the timesheet
+  // form (if the office attached one) opens first; the crew's entries follow once it is done.
+  const ownId = crm.makeId("time-entry");
+  const ownOpen = openEntries.find((e) => e.employeeId === employee?.id);
+  const ownIn = toClockIn.some((a) => a.employeeId === employee?.id);
+  const ran = await withTimesheetForm(ownOpen ? "shift_end" : ownIn ? "shift_start" : "", {
+    jobId,
+    timeEntryId: ownOpen ? ownOpen.id : ownId,
+    perform: () => clockCrew(),
+  });
+  if (!ran) return;
+  // Online, the clock commands wrote the rows server-side (the optimistic apply only runs when queued);
+  // pull them so a second tap sees the crew as clocked in.
+  if (fieldPackage.isOnline()) await crm.refreshBackendState().catch(() => {});
   crm.showToast(toClockIn.length ? "Crew clocked in." : "Crew clocked out.");
   crm.render();
+
+  async function clockCrew() {
+    for (const assignment of toClockIn) {
+      const record = { id: assignment.employeeId === employee?.id ? ownId : crm.makeId("time-entry"), employeeId: assignment.employeeId, dispatchJobId: jobId, entryType: "work", startedAt: new Date().toISOString(), endedAt: null, durationMinutes: null, notes: "", source: "field-crew-clock" };
+      await fieldPackage
+        .fieldRequest("/api/field/clock", {
+          method: "POST",
+          kind: "clock",
+          label: `Clock in — ${crm.findEmployee(assignment.employeeId)?.displayName || "crew"}`,
+          body: { employeeId: assignment.employeeId, dispatchJobId: jobId, entryType: "work", action: "in", timeEntryId: record.id, enteredByEmployeeId: employee?.id },
+          apply: () => (crm.state.backend.timeEntries = [...(crm.state.backend.timeEntries || []), record]),
+        })
+        .catch(async (error) => {
+          if (/does not have clock yet/.test(error.message || "")) await fieldPackage.saveFieldRecord("timeEntries", record, { kind: "clock" });
+        });
+    }
+    for (const entry of openEntries) {
+      const endedAt = new Date().toISOString();
+      const durationMinutes = Math.max(0, Math.round((new Date(endedAt) - new Date(entry.startedAt)) / 60000));
+      const updated = { ...entry, endedAt, durationMinutes };
+      await fieldPackage
+        .fieldRequest("/api/field/clock", {
+          method: "POST",
+          kind: "clock",
+          label: `Clock out — ${crm.findEmployee(entry.employeeId)?.displayName || "crew"}`,
+          body: { employeeId: entry.employeeId, dispatchJobId: jobId, entryType: entry.entryType, action: "out", enteredByEmployeeId: employee?.id },
+          apply: () => (crm.state.backend.timeEntries = (crm.state.backend.timeEntries || []).map((item) => (item.id === entry.id ? updated : item))),
+        })
+        .catch(async (error) => {
+          if (/does not have clock yet/.test(error.message || "")) await fieldPackage.saveFieldRecord("timeEntries", updated, { kind: "clock" });
+        });
+    }
+  }
 });
 
 // ---------------------------------------------------------------------------------------------

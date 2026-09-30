@@ -15,6 +15,7 @@ const APP_SHELL = [
   "./field/aamva.js",
   "./field/capture.js",
   "./field/forms.js",
+  "./field/form-calc.js",
 
   "./field/walk.js",
   "./field/map.js",

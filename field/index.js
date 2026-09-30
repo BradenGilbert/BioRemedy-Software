@@ -18,7 +18,7 @@ import * as crm from "../app.js";
 import * as fieldPackage from "./package.js";
 // Side-effect imports: these register their own field-* routes at import time.
 import "./job.js";
-import "./forms.js";
+import { withTimesheetForm } from "./forms.js";
 
 // The route table. scripts/smoke-browser.py parses the keys out of this file, so keep one route per
 // line in the form `"field-xxx": {`.
@@ -239,9 +239,12 @@ function renderMyDay() {
   const open = openTimeEntry(employee.id);
   const unread = crm.frontlineUnreadTotal(employee.id);
   const emergencyPhone = dispatchPhone();
-  const clockLine = open
-    ? `Clocked in since ${crm.escapeHtml(crm.formatShortTime(open.startedAt))}${open.entryType ? ` · ${crm.escapeHtml(open.entryType)}` : ""}`
-    : "Not clocked in";
+  const onBreak = open && isBreakEntry(open);
+  const clockLine = !open
+    ? "Not clocked in"
+    : onBreak
+      ? `On break since ${crm.escapeHtml(crm.formatShortTime(open.startedAt))}`
+      : `Clocked in since ${crm.escapeHtml(crm.formatShortTime(open.startedAt))}${open.entryType ? ` · ${crm.escapeHtml(open.entryType)}` : ""}`;
 
   return `
     <section class="field-clock ${open ? "is-open" : ""}">
@@ -251,7 +254,14 @@ function renderMyDay() {
       </div>
       ${
         open
-          ? `<button class="field-button field-button--secondary" type="button" data-field-action="field-clock-out" data-entry-id="${crm.escapeAttribute(open.id)}">Clock out</button>`
+          ? `<div class="field-clock-actions">
+              ${
+                onBreak
+                  ? `<button class="field-button field-button--secondary" type="button" data-field-action="field-break-end" data-entry-id="${crm.escapeAttribute(open.id)}">End break</button>`
+                  : `<button class="field-button field-button--ghost" type="button" data-field-action="field-break-start" data-entry-id="${crm.escapeAttribute(open.id)}">Break</button>`
+              }
+              <button class="field-button field-button--secondary" type="button" data-field-action="field-clock-out" data-entry-id="${crm.escapeAttribute(open.id)}">Clock out</button>
+            </div>`
           : `<div class="field-clock-actions">
               <button class="field-button field-button--secondary" type="button" data-field-action="field-clock-in" data-entry-type="work">Clock in</button>
               <button class="field-button field-button--ghost" type="button" data-field-action="field-clock-in" data-entry-type="travel">Travel</button>
@@ -385,70 +395,140 @@ registerFieldAction("field-open-walk", (button) => {
   crm.render();
 });
 
-registerFieldAction("field-clock-in", async (button) => {
-  const employee = currentFieldEmployee();
-  if (!employee) return;
-  const entryType = button.dataset.entryType || "work";
-  const now = new Date().toISOString();
+// ---- The clock (Phase 25 Wave F, 2026-09-30) --------------------------------------------------
+// Four timesheet actions, each run behind its form (forms.js withTimesheetForm) when the office has
+// attached one: Clock in = shift_start, Clock out = shift_end, Break / End break = break_start /
+// break_end. A break is its own timeEntries row (entryType "Break", no job -- a break is not billable
+// work on the job); starting one closes the running entry, ending one reopens the same job and type.
+// The phone chooses each new entry's id (timeEntryId) so a form filled offline can point at it.
+
+function isBreakEntry(entry) {
+  return String(entry?.entryType || "").toLowerCase() === "break";
+}
+
+// The entry a break interrupted: the employee's latest closed non-break entry.
+function lastClosedWorkEntry(employeeId) {
+  return (
+    crm
+      .getTimeEntries()
+      .filter((entry) => entry.employeeId === employeeId && entry.endedAt && !entry.deletedAt && !isBreakEntry(entry))
+      .sort((a, b) => String(b.endedAt).localeCompare(String(a.endedAt)))[0] || null
+  );
+}
+
+// One clock command through the outbox. action "in" opens a row with `id`; "out" closes `entry`.
+async function clockCommand({ action, employeeId, dispatchJobId = null, entryType = "work", entry = null, id = "", label = "" }) {
+  if (action === "out") {
+    const endedAt = new Date().toISOString();
+    const durationMinutes = Math.max(0, Math.round((new Date(endedAt) - new Date(entry.startedAt)) / 60000));
+    const updated = { ...entry, endedAt, durationMinutes };
+    await fieldPackage
+      .fieldRequest("/api/field/clock", {
+        method: "POST",
+        kind: "clock",
+        label: label || "Clock out",
+        body: { employeeId: entry.employeeId, dispatchJobId: entry.dispatchJobId || null, entryType: entry.entryType, action: "out", at: endedAt },
+        apply: () => {
+          crm.state.backend.timeEntries = (crm.state.backend.timeEntries || []).map((item) => (item.id === entry.id ? updated : item));
+        },
+      })
+      .catch(async (error) => {
+        if (/does not have clock yet/.test(error.message || "")) await fieldPackage.saveFieldRecord("timeEntries", updated, { kind: "clock", label: label || "Clock out" });
+        else throw error;
+      });
+    return updated;
+  }
   const record = {
-    id: crm.makeId("time-entry"),
-    employeeId: employee.id,
-    dispatchJobId: crm.state.frontlineSelectedJobId || null,
+    id: id || crm.makeId("time-entry"),
+    employeeId,
+    dispatchJobId: dispatchJobId || null,
     entryType,
-    startedAt: now,
+    startedAt: new Date().toISOString(),
     endedAt: null,
     durationMinutes: null,
     notes: "",
     source: "field-app",
   };
-  await fieldPackage.fieldRequest("/api/field/clock", {
-    method: "POST",
-    kind: "clock",
-    label: `Clock in (${entryType})`,
-    body: { employeeId: employee.id, dispatchJobId: record.dispatchJobId, entryType, action: "in" },
-    apply: () => {
-      crm.state.backend.timeEntries = [...(crm.state.backend.timeEntries || []), record];
-    },
-  }).catch(async (error) => {
-    if (/does not have clock yet/.test(error.message || "")) {
-      await fieldPackage.saveFieldRecord("timeEntries", record, { kind: "clock", label: `Clock in (${entryType})` });
-    } else {
-      throw error;
-    }
-  });
-  // The command created the row server-side; pull it before drawing the clock strip.
-  await crm.refreshBackendState().catch(() => {});
-  crm.showToast("Clocked in.");
-  crm.render();
-});
-
-registerFieldAction("field-clock-out", async (button) => {
-  const entryId = button.dataset.entryId;
-  const entry = crm.getTimeEntries().find((item) => item.id === entryId);
-  if (!entry) return;
-  const endedAt = new Date().toISOString();
-  const durationMinutes = Math.max(0, Math.round((new Date(endedAt) - new Date(entry.startedAt)) / 60000));
-  const updated = { ...entry, endedAt, durationMinutes };
   await fieldPackage
     .fieldRequest("/api/field/clock", {
       method: "POST",
       kind: "clock",
-      label: "Clock out",
-      body: { employeeId: entry.employeeId, dispatchJobId: entry.dispatchJobId, entryType: entry.entryType, action: "out", at: endedAt },
+      label: label || `Clock in (${entryType})`,
+      body: { employeeId, dispatchJobId: record.dispatchJobId, entryType, action: "in", timeEntryId: record.id, at: record.startedAt },
       apply: () => {
-        crm.state.backend.timeEntries = (crm.state.backend.timeEntries || []).map((item) => (item.id === entryId ? updated : item));
+        crm.state.backend.timeEntries = [...(crm.state.backend.timeEntries || []), record];
       },
     })
     .catch(async (error) => {
-      if (/does not have clock yet/.test(error.message || "")) {
-        await fieldPackage.saveFieldRecord("timeEntries", updated, { kind: "clock", label: "Clock out" });
-      } else {
-        throw error;
-      }
+      if (/does not have clock yet/.test(error.message || "")) await fieldPackage.saveFieldRecord("timeEntries", record, { kind: "clock", label: label || `Clock in (${entryType})` });
+      else throw error;
     });
-  await crm.refreshBackendState().catch(() => {});
-  crm.showToast(`Clocked out — ${crm.formatDuration(durationMinutes)} logged.`);
+  return record;
+}
+
+async function afterClock(message) {
+  // Online, the command wrote the row server-side; pull it before drawing the clock strip.
+  if (fieldPackage.isOnline()) await crm.refreshBackendState().catch(() => {});
+  crm.showToast(message);
   crm.render();
+}
+
+registerFieldAction("field-clock-in", async (button) => {
+  const employee = currentFieldEmployee();
+  if (!employee) return;
+  const entryType = button.dataset.entryType || "work";
+  const dispatchJobId = crm.state.frontlineSelectedJobId || null;
+  const id = crm.makeId("time-entry");
+  const ran = await withTimesheetForm("shift_start", {
+    jobId: dispatchJobId || "",
+    timeEntryId: id,
+    perform: () => clockCommand({ action: "in", employeeId: employee.id, dispatchJobId, entryType, id }),
+  });
+  if (ran) await afterClock("Clocked in.");
+});
+
+registerFieldAction("field-clock-out", async (button) => {
+  const entry = crm.getTimeEntries().find((item) => item.id === button.dataset.entryId);
+  if (!entry) return;
+  const ran = await withTimesheetForm("shift_end", {
+    jobId: entry.dispatchJobId || "",
+    timeEntryId: entry.id,
+    perform: () => clockCommand({ action: "out", entry, label: "Clock out" }),
+  });
+  if (!ran) return;
+  // formatDuration() reads 0 as "not estimated", so a short shift is spelled out here.
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(entry.startedAt)) / 60000));
+  await afterClock(`Clocked out — ${Math.floor(minutes / 60)}h ${minutes % 60}m logged.`);
+});
+
+registerFieldAction("field-break-start", async (button) => {
+  const entry = crm.getTimeEntries().find((item) => item.id === button.dataset.entryId);
+  if (!entry || isBreakEntry(entry)) return;
+  const breakId = crm.makeId("time-entry");
+  const ran = await withTimesheetForm("break_start", {
+    jobId: entry.dispatchJobId || "",
+    timeEntryId: breakId,
+    perform: async () => {
+      await clockCommand({ action: "out", entry, label: "Clock out for break" });
+      await clockCommand({ action: "in", employeeId: entry.employeeId, dispatchJobId: null, entryType: "break", id: breakId, label: "Break started" });
+    },
+  });
+  if (ran) await afterClock("Break started.");
+});
+
+registerFieldAction("field-break-end", async (button) => {
+  const entry = crm.getTimeEntries().find((item) => item.id === button.dataset.entryId);
+  if (!entry || !isBreakEntry(entry)) return;
+  const resume = lastClosedWorkEntry(entry.employeeId);
+  const ran = await withTimesheetForm("break_end", {
+    jobId: resume?.dispatchJobId || "",
+    timeEntryId: entry.id,
+    perform: async () => {
+      await clockCommand({ action: "out", entry, label: "Break ended" });
+      await clockCommand({ action: "in", employeeId: entry.employeeId, dispatchJobId: resume?.dispatchJobId || null, entryType: String(resume?.entryType || "work").toLowerCase(), label: "Back from break" });
+    },
+  });
+  if (ran) await afterClock("Break ended — clocked back in.");
 });
 
 // ---------------------------------------------------------------------------------------------
