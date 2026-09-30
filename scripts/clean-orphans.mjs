@@ -64,6 +64,12 @@ const parents = {
   // library item it acknowledges.
   walkEventId: "scheduleEvents",
   libraryItemId: "libraryItems",
+  // Phase 25 D (2026-09-29): who hired us for a project/dispatch job, and the GPS-point links the
+  // location merge tool repoints.
+  hiredByAccountId: "accounts",
+  locationId: "locations",
+  siteLocationId: "locations",
+  anchorLocationId: "locations",
 };
 // Link rows: a dangling one carries no history worth keeping.
 const linkCollections = new Set([
@@ -71,6 +77,7 @@ const linkCollections = new Set([
   "opportunityLocations",
   "opportunityAssignments",
   "facilityContacts",
+  "facilityParties",
   "accountIndustries",
   "accountApprovedSubcontractors",
   "jobAssignments",

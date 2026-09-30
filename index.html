@@ -1628,6 +1628,20 @@
             </select>
           </label>
         </div>
+        <div class="form-grid">
+          <div class="lookup-field">
+            <span>Hired by (blank: the project's account)</span>
+            <div class="record-lookup" data-lookup-types="account" data-lookup-name="hiredByAccountId">
+              <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search accounts, e.g. a spill broker" />
+              <input type="hidden" name="hiredByAccountId" />
+              <div class="record-lookup-results" hidden></div>
+            </div>
+          </div>
+          <label>
+            Or a new account, if it isn't listed
+            <input name="hiredByNewAccountName" maxlength="120" placeholder="e.g. the spill broker's company" />
+          </label>
+        </div>
         <div class="help-text" data-role="project-intake-legacy-site-photos" hidden></div>
 
         <fieldset class="doc-line-items-fieldset" data-role="project-intake-mobilization-fieldset" hidden>
@@ -4160,6 +4174,50 @@
           </div>
         </fieldset>
 
+        <fieldset class="doc-line-items-fieldset" data-role="intake-parties">
+          <legend>Who hired us, and whose site (optional)</legend>
+          <p class="help-text">A spill broker or contractor who sent us goes under "who hired us". The building's owner or tenant, if you know it, is recorded against the facility.</p>
+          <div class="form-grid">
+            <div class="lookup-field">
+              <span>Who called us / hired us (blank: the account above)</span>
+              <div class="record-lookup" data-lookup-types="account" data-lookup-name="hiredByAccountId">
+                <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search accounts, e.g. a spill broker" />
+                <input type="hidden" name="hiredByAccountId" />
+                <div class="record-lookup-results" hidden></div>
+              </div>
+            </div>
+            <label>
+              Or a new account, if it isn't listed
+              <input name="hiredByNewAccountName" maxlength="120" placeholder="e.g. the spill broker's company" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <div class="lookup-field">
+              <span>Facility owner / tenant, if known</span>
+              <div class="record-lookup" data-lookup-types="account" data-lookup-name="siteOwnerAccountId">
+                <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search accounts" />
+                <input type="hidden" name="siteOwnerAccountId" />
+                <div class="record-lookup-results" hidden></div>
+              </div>
+            </div>
+            <label>
+              Or a new account, if it isn't listed
+              <input name="siteOwnerNewAccountName" maxlength="120" />
+            </label>
+          </div>
+          <div class="form-grid">
+            <label>
+              Their role at the site
+              <select name="siteOwnerRole">
+                <option>Owner</option>
+                <option>Tenant / occupant</option>
+                <option>Property manager</option>
+                <option>Other</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
         <fieldset class="doc-line-items-fieldset">
           <legend>The spill</legend>
           <div class="form-grid">
@@ -5956,6 +6014,116 @@
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit">Save note</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="facilityPartyDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="facility-party">
+        <input name="id" type="hidden" />
+        <input name="facilityId" type="hidden" />
+        <div class="modal-header">
+          <h2>Site party</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">Who owns, occupies or manages this site. Who hired us for a job is recorded on the project, not here.</p>
+        <div class="form-grid">
+          <div class="lookup-field">
+            <span>Account</span>
+            <div class="record-lookup" data-lookup-types="account" data-lookup-name="partyAccountId">
+              <input type="search" class="record-lookup-input" autocomplete="off" placeholder="Search accounts" />
+              <input type="hidden" name="partyAccountId" />
+              <div class="record-lookup-results" hidden></div>
+            </div>
+          </div>
+          <label>
+            Or a new account, if it isn't listed
+            <input name="partyNewAccountName" maxlength="120" placeholder="e.g. Dell Technologies" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Role
+            <select name="role">
+              <option>Owner</option>
+              <option>Tenant / occupant</option>
+              <option>Property manager</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label>
+            Role detail (optional)
+            <input name="roleNote" maxlength="120" placeholder="e.g. landlord, sub-tenant, HOA" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <label>
+            Since (optional)
+            <input name="since" type="date" />
+          </label>
+          <label>
+            Until (optional)
+            <input name="until" type="date" />
+          </label>
+        </div>
+        <label>
+          Notes (optional)
+          <textarea name="notes" maxlength="2000"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Save party</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="attachLocationsDialog" class="modal">
+      <form method="dialog" class="modal-panel wide-modal-panel" data-form="attach-locations">
+        <input name="facilityId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" data-role="attach-locations-facility"></p>
+            <h2>Attach GPS points</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text" data-role="attach-locations-note"></p>
+        <label>
+          Filter
+          <input name="attachSearch" type="search" maxlength="80" placeholder="Label, address or type" />
+        </label>
+        <div class="record-list attach-location-list" data-role="attach-location-list"></div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Attach selected</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="mergeRecordDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="merge-record">
+        <input name="kind" type="hidden" />
+        <input name="fromId" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" data-role="merge-from"></p>
+            <h2 data-role="merge-title">Merge into…</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text" data-role="merge-help"></p>
+        <label>
+          Search
+          <input name="mergeSearch" type="search" maxlength="80" placeholder="Name or address" />
+        </label>
+        <label>
+          Keep this one
+          <select name="intoId" size="6"></select>
+        </label>
+        <div class="merge-preview" data-role="merge-preview"></div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="danger-button" type="submit" data-role="merge-submit" disabled>Merge</button>
         </menu>
       </form>
     </dialog>
