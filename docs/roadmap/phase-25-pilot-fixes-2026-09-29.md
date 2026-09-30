@@ -1,6 +1,6 @@
 # Phase 25 — Pilot fixes (feedback pass 2026-09-29)
 
-**Status:** 🟡 In progress. **Waves A–E built 2026-09-29/30** on branch `p25-wave-a` (smoke green; cross-worker flows click-tested on a copy of live data), **not yet on main or live** — waiting on the owner for the merge and live-server restart. Wave F (job action forms) planned, not built.
+**Status:** 🟢 **All six waves (A–F) built 2026-09-29/30** on branch `p25-wave-a` (smoke green; cross-worker flows click-tested on a copy of live data), **not yet on main or live** — waiting on the owner for the merge and live-server restart, and for the owner decisions listed under Build record.
 
 **Depends on:** Phase 21 (Front Line 2), Phase 13 (documents), Phase 15 (project workspace), Phase 16 (emergency intake) — all shipped.
 
@@ -292,6 +292,10 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 
 **Waves C–E — built 2026-09-29/30.** Four more workers (dispatch requests; facility GPS/check-in/duplicates; merge tools + facility parties; paperwork). Integrated on `p25-wave-a`; smoke green; cross-checks on a live-data copy: Hired by reaches the Work Authorization, the request dialog prefills from the project, the review queue shows (10/10), and the Wave B walk flow still passes (16/16).
 
+**Wave F — built 2026-09-30.** Three workers (Forms builder, phone forms, task options + job timer). Integrated on `p25-wave-a`; smoke green; a form built to the builder's shape, attached to a repeatable task, filled twice on the phone as a real field login (12/12); A–E click-tests still pass.
+
+**Owner decisions waiting (2026-09-30):** Work Authorization wording (`WORK_AUTHORIZATION_TEXT`, DRAFT until `WORK_AUTHORIZATION_APPROVED`); whether the packet's "Work Authorization / Service Agreement" is the MSA; the return address for signed paperwork; whether Sales may see/send job requests and write facility GPS points; field logins seeing all active employees' names and titles.
+
 **Going live needs, in order:** merge `p25-wave-a` into main → restart the live server (client and server changed together) → run `node scripts/merge-site-walk-activities.mjs --password <break-glass>` as a dry run, then with `--apply`, to fold the two pre-fix duplicate walk activities (Dell R3, Georgetown trash-truck walk) → the same for `scripts/consolidate-msa-requirements.mjs` (moves the AIRCO MSA from the Dell spill project to the account) → attach the loose Dell points with the facility page's "Attach GPS points" (see `scripts/report-duplicate-places.mjs`).
 
 ## Corrections found during implementation
@@ -347,3 +351,13 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 - **Duplicate MSAs were not actually being created** — an account-wide check already stopped a second one. The real faults were the MSA being filed on the project and an expired MSA never being renewed.
 - **The review queue lives on the Office Manager page**, which only Admin and Office Manager can open. Sales and Operations Managers (also review roles) get the notification and review on the record.
 - **Approving a signed quote or work authorization does not write "Signed" into the legacy dropdowns**; the gate and the panel read the requirement.
+
+**Wave F (2026-09-30)**
+- **No office form editor existed** (Phase 21's doc said the office edits forms on the Job Templates screen; nothing wrote `formTemplates`). Wave F built the first one (Jobs & Dispatch › Forms).
+- **Breaks had no representation**: only the legacy Time tile could write a lowercase "break", and `fieldClock` stored everything as Work or Travel. A break is now its own job-less "Break" entry.
+- **Timesheet forms are answered before the clock action runs; the submission is saved after it**, so `timeEntryId` is known. If the clock action fails, the form is still saved with an empty `timeEntryId`.
+- **Crew "clock all" never refreshed when online**, so a second tap tried to clock the crew in again (silent 409). Fixed.
+- **Calculations accept typed × ÷ −** as well as + - * /, may use odometer readings and other calculations, and are evaluated with a pass limit so a loop ends blank (the server also rejects loops).
+- **Delete on device removes the job from every field session on it**, not only the phone that performed the task.
+- **A "complete" timer task skips the positional work-plan checks** (the briefing gate always applies); without an `actionId`, `complete` is refused while plan steps are open.
+- **Still open:** the bottom-bar "Field complete" uses the plain advance and does not close open time entries (only a Complete timer task does); there is no office view of ad hoc or deferred submissions that have no job (natural home: the Forms screen); an odometer answer does not update the fleet asset's `specs.mileage`; the Field Ref lock is enforced in the editor only.
