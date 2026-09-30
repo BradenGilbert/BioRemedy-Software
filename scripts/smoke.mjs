@@ -111,6 +111,13 @@ try {
   if (fieldCheck.stderr?.trim()) console.log(fieldCheck.stderr.trim());
   check(fieldCheck.status === 0, "scripts/field-api-check.mjs");
 
+  // ---- 3b2. merge tools (Phase 25 D.4): role gate, dry-run counts, idempotence, restore ----------
+  console.log("\nMerge tools");
+  const mergeCheck = spawnSync(process.execPath, ["scripts/merge-check.mjs", "--url", base, "--password", smokePassword], { cwd: projectRoot, encoding: "utf8" });
+  console.log(mergeCheck.stdout || "");
+  if (mergeCheck.stderr?.trim()) console.log(mergeCheck.stderr.trim());
+  check(mergeCheck.status === 0, "scripts/merge-check.mjs");
+
   // ---- 3c. guided tours (Phase 24) --------------------------------------------------------------
   // Every tour and hands-on tutorial in tutorials/registry.js, walked end to end on its own scratch
   // training copy (sample data, CRM_TRAINING=1): fails on a missing highlight target, a hands-on step

@@ -238,6 +238,8 @@ const collectionAccess = {
   facilities: "sales",
   facilityContacts: "sales",
   facilityComments: "sales",
+  // Phase 25 D.5 (2026-09-29): who owns / occupies / manages a facility, with dates (site parties).
+  facilityParties: "sales",
   salesTasks: "sales",
   accountRelationshipExtensions: "sales",
   accountComments: "sales",
@@ -2102,6 +2104,7 @@ const defaultBackend = {
   accountRelationshipExtensions: [],
   accountComments: [],
   facilityComments: [],
+  facilityParties: [],
   accountDivisions: [],
   contactEmploymentHistory: [],
   subcontractorTypes: [
@@ -2317,11 +2320,14 @@ const cascadeRules = {
     ["projects", "accountId"],
     ["jobRequests", "accountId"],
     ["dispatchJobs", "accountId"],
+    // Phase 25 D.5: an account's party links to other accounts' sites (owner, tenant, manager).
+    ["facilityParties", "accountId"],
   ],
   facilities: [
     ["facilityContacts", "facilityId"],
     ["facilityComments", "facilityId"],
     ["opportunityLocations", "facilityId"],
+    ["facilityParties", "facilityId"],
   ],
   contacts: [
     ["facilityContacts", "contactId"],
@@ -2898,6 +2904,7 @@ function filterBackendForRoleUnstripped(data, role, session = null) {
     accountRelationshipExtensions: canAccess(role, "sales") ? data.accountRelationshipExtensions : [],
     accountComments: canAccess(role, "sales") ? data.accountComments : [],
     facilityComments: canAccess(role, "sales") ? data.facilityComments : [],
+    facilityParties: canAccess(role, "sales") ? data.facilityParties : [],
     accountDivisions: canAccess(role, "sales") ? data.accountDivisions : [],
     contactEmploymentHistory: canAccess(role, "sales") ? data.contactEmploymentHistory : [],
     subcontractorTypes: canAccess(role, "salesDocuments") ? data.subcontractorTypes : [],
@@ -3252,6 +3259,26 @@ function normalizeRecord(collection, payload, data) {
       reportedByEmployeeId: payload.reportedByEmployeeId || "",
       // Phase 18 item 4: a ping from a personal phone names the consent that authorised it.
       consentId: payload.consentId || "",
+    };
+  }
+
+  // Phase 25 D.5 (2026-09-29): a site party -- an account that owns, occupies or manages a facility
+  // for a while. The facility's own accountId stays its "primary account"; who hired us for a job is
+  // projects/dispatchJobs.hiredByAccountId, not a party.
+  if (collection === "facilityParties") {
+    return {
+      id,
+      facilityId: String(payload.facilityId || ""),
+      accountId: String(payload.accountId || ""),
+      role: FACILITY_PARTY_ROLES.includes(payload.role) ? payload.role : "Other",
+      roleNote: String(payload.roleNote || "").slice(0, 120),
+      since: String(payload.since || ""),
+      until: String(payload.until || ""),
+      notes: String(payload.notes || "").slice(0, 2000),
+      source: String(payload.source || ""),
+      createdAt: payload.createdAt || now,
+      createdBy: String(payload.createdBy || ""),
+      deletedAt: payload.deletedAt || "",
     };
   }
 
@@ -5567,6 +5594,11 @@ async function handleApi(request, response, pathname) {
   if (pathname === "/api/tutorial/progress") return handleTutorialProgress(request, response);
   if (pathname === "/api/training/settings") return handleTrainingSettings(request, response);
 
+  // Phase 25 D.4 (2026-09-29): merge tools (Admin / Office Manager).
+  if (pathname === "/api/admin/merge-facility" && request.method === "POST") return handleMergeCommand(request, response, "facility");
+  if (pathname === "/api/admin/merge-location" && request.method === "POST") return handleMergeCommand(request, response, "location");
+  if (pathname === "/api/admin/attach-locations" && request.method === "POST") return handleAttachLocations(request, response);
+
   if (pathname === "/api/backend" && request.method === "GET") {
     if (!canAccess(role, "identity")) return json(response, 403, { error: "Role is not allowed to read backend data." });
     const data = await loadBackend();
@@ -5743,6 +5775,11 @@ async function handleApi(request, response, pathname) {
       if (!hasLatitude && !String(record.addressText || "").trim()) {
         return json(response, 400, { error: "A location needs an address or a GPS point." });
       }
+    }
+    if (collection === "facilityParties") {
+      if (!record.facilityId || !(data.facilities || []).some((item) => item.id === record.facilityId)) return json(response, 400, { error: "A site party needs a facility." });
+      if (!record.accountId || !(data.accounts || []).some((item) => item.id === record.accountId)) return json(response, 400, { error: "A site party needs an account." });
+      if (record.since && record.until && record.until < record.since) return json(response, 400, { error: "The end date is before the start date." });
     }
     if (collection === "vendorProfiles") {
       const conflict = data.vendorProfiles.find(
@@ -5921,6 +5958,216 @@ async function handleTrainingSettings(request, response) {
   await saveBackend(data);
   await audit(request, { action: "training-url", summary: trainingUrl || "(cleared)" });
   return json(response, 200, { training: trainingMode, trainingUrl });
+}
+
+// ---- Phase 25 D.4 (2026-09-29): merge tools -------------------------------------------------------
+//
+// "There is no way to merge locations into a facility" (owner). Three commands, Admin and Office
+// Manager only, each one load/save (atomic) and one audit line:
+//   POST /api/admin/attach-locations {facilityId, locationIds[]}  -- GPS points -> a facility
+//   POST /api/admin/merge-facility {fromId, intoId} [?dryRun=1]    -- duplicate facility -> survivor
+//   POST /api/admin/merge-location {fromId, intoId} [?dryRun=1]    -- duplicate GPS point -> survivor
+// A merge repoints every reference to the loser, found by scanning every collection rather than a
+// fixed list (a new collection with a facilityId is covered without touching this code): top-level
+// key fields, documents/requirements by entityType+entityId, "Regarding" relatedRecords entries and a
+// site-walk report's checkIn.locationId. Each changed record's version is bumped. A link row that
+// would then duplicate one the survivor already has (the same contact, opportunity or party) is
+// soft-deleted instead, tagged deletedVia "merge:<collection>:<fromId>". The loser is soft-deleted
+// with mergedIntoId and deletedVia "<collection>:<id>", so it shows under Recently deleted and
+// Restore brings it back (empty -- the references stay on the survivor). Running the same merge
+// again is a no-op that reports alreadyMerged.
+const FACILITY_PARTY_ROLES = ["Owner", "Tenant / occupant", "Property manager", "Other"];
+const MERGE_ROLES = ["Admin", "Office Manager"];
+// Append-only records a merge never rewrites; they keep the loser's id, which still resolves.
+const MERGE_IMMUTABLE_COLLECTIONS = new Set(["weatherSnapshots", "gpsConsents", "inventoryMovements"]);
+const mergeKinds = {
+  facility: {
+    collection: "facilities",
+    noun: "facility",
+    refKeys: ["facilityId"],
+    entityTypes: ["facility"],
+    nested: [],
+    // Keys that identify "the same link" once both rows point at the survivor.
+    dedupe: {
+      facilityContacts: (row) => row.contactId || null,
+      opportunityLocations: (row) => (row.opportunityId ? `${row.opportunityId}|${row.locationId || ""}` : null),
+      facilityParties: (row) => (row.until ? null : `${row.accountId}|${row.role}`),
+    },
+  },
+  location: {
+    collection: "locations",
+    noun: "location",
+    // weatherSnapshots.anchorLocationId is deliberately not here: snapshots are immutable (Q41) and
+    // keep naming the point they were taken at, which still resolves after the soft delete.
+    refKeys: ["locationId", "siteLocationId"],
+    entityTypes: ["location"],
+    nested: [["checkIn", "locationId"]],
+    dedupe: {
+      opportunityLocations: (row) => (row.opportunityId ? `${row.opportunityId}|${row.facilityId || ""}` : null),
+    },
+  },
+};
+
+function mayUseMergeTools(roles) {
+  return roles.some((role) => MERGE_ROLES.includes(role));
+}
+
+function recordReferences(kind, record, id) {
+  if (kind.refKeys.some((key) => record[key] === id)) return true;
+  if (kind.nested.some(([parent, key]) => record[parent] && typeof record[parent] === "object" && record[parent][key] === id)) return true;
+  if (kind.entityTypes.includes(record.entityType) && record.entityId === id) return true;
+  return Array.isArray(record.relatedRecords) && record.relatedRecords.some((item) => item && kind.entityTypes.includes(item.type) && item.id === id);
+}
+
+function repointRecord(kind, record, fromId, intoId) {
+  for (const key of kind.refKeys) if (record[key] === fromId) record[key] = intoId;
+  for (const [parent, key] of kind.nested) {
+    if (record[parent] && typeof record[parent] === "object" && record[parent][key] === fromId) record[parent] = { ...record[parent], [key]: intoId };
+  }
+  if (kind.entityTypes.includes(record.entityType) && record.entityId === fromId) record.entityId = intoId;
+  if (Array.isArray(record.relatedRecords)) {
+    const seen = new Set();
+    record.relatedRecords = record.relatedRecords
+      .map((item) => (item && kind.entityTypes.includes(item.type) && item.id === fromId ? { ...item, id: intoId } : item))
+      .filter((item) => {
+        const key = `${item?.type}:${item?.id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+}
+
+// What a merge would do, without doing it. Throws requestError for a merge that must be refused.
+function planMerge(data, kindName, fromId, intoId) {
+  const kind = mergeKinds[kindName];
+  if (!fromId || !intoId) throw requestError("fromId and intoId are required.", 400);
+  if (fromId === intoId) throw requestError(`Pick a different ${kind.noun} to merge into.`, 400);
+  const rows = data[kind.collection] || [];
+  const from = rows.find((row) => row.id === fromId);
+  const into = rows.find((row) => row.id === intoId);
+  if (!from || !into) throw requestError(`That ${kind.noun} was not found.`, 404);
+  if (into.deletedAt) throw requestError(`The ${kind.noun} to keep has been deleted. Restore it first.`, 409);
+  if (from.deletedAt) {
+    if (from.mergedIntoId === intoId) return { kind, from, into, alreadyMerged: true, moves: [], duplicates: new Set() };
+    throw requestError(`That ${kind.noun} is already deleted.`, 409);
+  }
+  const moves = [];
+  for (const [collection, list] of Object.entries(data)) {
+    if (!Array.isArray(list) || MERGE_IMMUTABLE_COLLECTIONS.has(collection)) continue;
+    for (const record of list) {
+      if (!record || typeof record !== "object" || (collection === kind.collection && record.id === fromId)) continue;
+      if (recordReferences(kind, record, fromId)) moves.push({ collection, record });
+    }
+  }
+  // A moved live link row that the survivor already has (or that another moved row already brings).
+  const duplicates = new Set();
+  for (const [collection, keyOf] of Object.entries(kind.dedupe)) {
+    const seen = new Set(
+      (data[collection] || [])
+        .filter((row) => !row.deletedAt && recordReferences(kind, row, intoId))
+        .map(keyOf)
+        .filter(Boolean),
+    );
+    for (const move of moves) {
+      if (move.collection !== collection || move.record.deletedAt) continue;
+      const key = keyOf(move.record);
+      if (!key) continue;
+      if (seen.has(key)) duplicates.add(move.record);
+      else seen.add(key);
+    }
+  }
+  return { kind, from, into, alreadyMerged: false, moves, duplicates };
+}
+
+function summarizeMerge(plan) {
+  const counts = {};
+  const duplicates = {};
+  let total = 0;
+  let deletedRowsRepointed = 0;
+  for (const { collection, record } of plan.moves) {
+    if (record.deletedAt) {
+      deletedRowsRepointed += 1;
+      continue;
+    }
+    counts[collection] = (counts[collection] || 0) + 1;
+    total += 1;
+    if (plan.duplicates.has(record)) duplicates[collection] = (duplicates[collection] || 0) + 1;
+  }
+  return {
+    from: { id: plan.from.id, name: recordSummary(plan.from) },
+    into: { id: plan.into.id, name: recordSummary(plan.into) },
+    counts,
+    total,
+    duplicates,
+    deletedRowsRepointed,
+    alreadyMerged: plan.alreadyMerged,
+  };
+}
+
+async function handleMergeCommand(request, response, kindName) {
+  const role = getRoles(request);
+  if (!mayUseMergeTools(role)) return json(response, 403, { error: "Only an administrator or the office manager can merge records." });
+  const requestUrl = new URL(request.url ?? "/", "http://localhost");
+  const dryRun = requestUrl.searchParams.get("dryRun") === "1";
+  const body = await readJsonBody(request);
+  const data = await loadBackend();
+  const plan = planMerge(data, kindName, String(body.fromId || ""), String(body.intoId || ""));
+  const summary = summarizeMerge(plan);
+  if (dryRun || plan.alreadyMerged) return json(response, 200, { ...summary, dryRun });
+  const now = new Date().toISOString();
+  const actor = attribution(request);
+  const collection = plan.kind.collection;
+  for (const { record } of plan.moves) {
+    repointRecord(plan.kind, record, plan.from.id, plan.into.id);
+    if (plan.duplicates.has(record)) {
+      record.deletedAt = now;
+      record.deletedBy = actor;
+      record.deletedVia = `merge:${collection}:${plan.from.id}`;
+    }
+    touchRecord(record);
+  }
+  plan.from.deletedAt = now;
+  plan.from.deletedBy = actor;
+  plan.from.deletedVia = `${collection}:${plan.from.id}`;
+  plan.from.mergedIntoId = plan.into.id;
+  plan.from.mergedAt = now;
+  plan.from.mergedBy = actor;
+  touchRecord(plan.from);
+  await saveBackend(data);
+  await audit(request, { action: "merge", collection, recordId: plan.from.id, intoId: plan.into.id, summary: `${summary.from.name} → ${summary.into.name}`, counts: summary.counts, total: summary.total, duplicates: summary.duplicates });
+  return json(response, 200, { ...summary, dryRun: false, merged: true });
+}
+
+async function handleAttachLocations(request, response) {
+  const role = getRoles(request);
+  if (!mayUseMergeTools(role)) return json(response, 403, { error: "Only an administrator or the office manager can attach GPS points." });
+  const body = await readJsonBody(request);
+  const data = await loadBackend();
+  const facility = (data.facilities || []).find((item) => item.id === body.facilityId && !item.deletedAt);
+  if (!facility) return json(response, 404, { error: "Facility not found." });
+  const ids = [...new Set((Array.isArray(body.locationIds) ? body.locationIds : []).map(String))];
+  if (!ids.length) return json(response, 400, { error: "Pick at least one GPS point." });
+  const attached = [];
+  const unchanged = [];
+  for (const id of ids) {
+    const location = (data.locations || []).find((item) => item.id === id && !item.deletedAt);
+    if (!location) return json(response, 404, { error: `GPS point ${id} was not found.` });
+    if (location.facilityId === facility.id) {
+      unchanged.push(id);
+      continue;
+    }
+    location.previousFacilityId = location.facilityId || "";
+    location.facilityId = facility.id;
+    if (!location.accountId) location.accountId = facility.accountId || "";
+    touchRecord(location);
+    attached.push(location);
+  }
+  if (attached.length) {
+    await saveBackend(data);
+    await audit(request, { action: "attach-locations", collection: "locations", recordId: facility.id, summary: `${attached.length} GPS point${attached.length === 1 ? "" : "s"} → ${recordSummary(facility)}`, locationIds: attached.map((item) => item.id) });
+  }
+  return json(response, 200, { facilityId: facility.id, attached: attached.length, unchanged: unchanged.length, locations: attached });
 }
 
 async function handleSoftDelete(request, response, collection, id, restore) {

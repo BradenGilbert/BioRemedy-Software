@@ -1878,6 +1878,12 @@ async function dispatchClick(event) {
   if (action === "open-facility") openFacilityDialog(actionButton.dataset.accountId, id);
   if (action === "open-facility-contact") openFacilityContactDialog(actionButton.dataset.facilityId, actionButton.dataset.accountId, id);
   if (action === "remove-facility-contact") await removeFacilityContact(id);
+  // Phase 25 D.4/D.5: site parties and merge tools.
+  if (action === "open-facility-party") openFacilityPartyDialog(actionButton.dataset.facilityId, id);
+  if (action === "end-facility-party") await endFacilityParty(id);
+  if (action === "remove-facility-party") await removeFacilityParty(id);
+  if (action === "open-attach-locations") openAttachLocationsDialog(actionButton.dataset.facilityId);
+  if (action === "open-merge-record") openMergeRecordDialog(actionButton.dataset.kind, id);
   if (action === "view-facility") viewFacility(id);
   if (action === "toggle-quick-filter") {
     const list = actionButton.dataset.list;
@@ -2458,6 +2464,9 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "account-facility") await saveFacility(form);
   if (form.dataset.form === "facility-contact") await saveFacilityContact(form);
   if (form.dataset.form === "facility-comment") await saveFacilityComment(form);
+  if (form.dataset.form === "facility-party") await saveFacilityParty(form);
+  if (form.dataset.form === "attach-locations") await submitAttachLocations(form);
+  if (form.dataset.form === "merge-record") await submitMergeRecord(form);
   if (form.dataset.form === "service-agreement") await saveServiceAgreement(form);
   if (form.dataset.form === "approved-subcontractor") await saveApprovedSubcontractor(form);
   if (form.dataset.form === "subcontractor-assignment") await saveSubcontractorAssignment(form);
@@ -2777,6 +2786,20 @@ function handleInputInner(event) {
 
   if (event.target.matches("#emergencyIntakeDialog select[name='accountId']")) {
     syncEmergencyIntakeFacilityField(event.target.form);
+  }
+
+  // Phase 25 D.4: the attach-GPS-points and merge dialogs.
+  if (event.type === "input" && event.target.matches("#attachLocationsDialog input[name='attachSearch']")) {
+    renderAttachLocationList(event.target.form);
+  }
+  if (event.type === "input" && event.target.matches("#mergeRecordDialog input[name='mergeSearch']")) {
+    const form = event.target.form;
+    const before = form.elements.intoId.value;
+    renderMergeCandidateOptions(form);
+    if (form.elements.intoId.value !== before) previewMergeRecord(form);
+  }
+  if (event.type === "change" && event.target.matches("#mergeRecordDialog select[name='intoId']")) {
+    previewMergeRecord(event.target.form);
   }
 
   if (event.target.matches("#emergencyIntakeDialog select[name='callerRelationship']")) {
@@ -6806,6 +6829,7 @@ function renderAccountFacilitiesTab(account) {
           ${facilities.map(renderFacilityCard).join("") || `<div class="empty-state">No facilities for this account yet.</div>`}
         </div>
       </article>
+      ${renderAccountSitePartiesPanel(account)}
       <article class="panel">
         <div class="panel-header">
           <h3>Addresses</h3>
@@ -7126,8 +7150,10 @@ function renderFacilityDetail() {
         <section class="crm-profile-grid">
           <div class="detail-stack">
             ${renderFacilityLocationPanel(facility)}
+            ${renderFacilityPartiesPanel(facility)}
             ${renderFacilityContactsPanel(facility)}
             ${renderFacilityNotesPanel(facility)}
+            ${renderFacilityMergeToolsPanel(facility)}
           </div>
           <div class="detail-stack">
             ${renderFacilityMapPanel(facility)}
@@ -7437,6 +7463,7 @@ function renderGpsLocationCard(location) {
         ${location.isTemporary ? `<span class="tag">Temporary${location.retainUntil ? ` until ${formatDate(location.retainUntil)}` : ""}</span>` : ""}
         <button class="mini-button" type="button" data-action="open-map-location" data-id="${escapeAttribute(location.id)}">Edit</button>
         ${renderPromoteLocationButton(location)}
+        ${renderMergeLocationButton(location)}
       </div>
     </article>
   `;
@@ -7472,6 +7499,10 @@ async function linkPromotedLocation(locationId, facility) {
   await saveBackendRecord("locations", { ...location, facilityId: facility.id, accountId: location.accountId || facility.accountId }, { refresh: false });
   const projects = state.projects.filter((project) => !project.facilityId && (project.siteLocationId === location.id || (project.id === location.projectId && projectSiteLocation(project)?.id === location.id)));
   for (const project of projects) await saveBackendRecord("projects", { ...project, facilityId: facility.id }, { refresh: false });
+  // Phase 25 D.5: an owner/tenant named on a spill call with no facility becomes a party now.
+  for (const project of projects) {
+    if (project.siteOwnerAccountId) await addFacilityPartyIfNew(facility.id, project.siteOwnerAccountId, project.siteOwnerRole || "Owner", "promoted-location");
+  }
 }
 
 function renderProjectCard(project) {
@@ -8752,6 +8783,7 @@ function renderProjectDetail() {
           <div class="inline-actions">
             <span class="risk-badge ${progress.tone}">${progress.percent}% complete</span>
             <span class="stage-badge">${escapeHtml(job.status)}</span>
+            ${renderProjectHiredByTag(job)}
             ${projectNextStep(job) ? `<span class="risk-badge medium">${escapeHtml(projectNextStep(job))}</span>` : ""}
             <span class="tag">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
             ${job.notToExceed ? `<span class="risk-badge medium">NTE ${money(job.notToExceed)}</span>` : `<span class="tag">Budget ${money(job.budget)}</span>`}
@@ -8901,6 +8933,7 @@ function renderProjectIntakeTab(job, ctx) {
             <dl class="detail-list">
               <div><dt>Generator</dt><dd>${escapeHtml(generator.name)}</dd></div>
               <div><dt>Site</dt><dd>${renderProjectSiteValue(job, generator)}</dd></div>
+              <div><dt>Hired by</dt><dd>${escapeHtml(findAccount(projectHiredByAccountId(job))?.name || "Not set")}${job.hiredByAccountId && job.hiredByAccountId !== job.accountId ? "" : ` <small class="muted-text">(the project's account)</small>`}</dd></div>
               <div><dt>Contact</dt><dd>${escapeHtml(generator.contactName)}${generator.contactPhone ? ` - ${escapeHtml(formatPhoneNumber(generator.contactPhone))}` : ""}</dd></div>
               <div><dt>EPA ID</dt><dd>${escapeHtml(generator.epaId)}</dd></div>
               <div><dt>TCEQ ID</dt><dd>${escapeHtml(generator.tceqId)}</dd></div>
@@ -19767,6 +19800,8 @@ async function convertJobRequest(requestId, templateId = "") {
     jobRequestId: request.id,
     jobTypeTemplateId: template?.id || "",
     accountId: request.accountId || accountForJobRequest(request)?.id || "",
+    // Phase 25 D.5: the job inherits who hired us from its project (blank reads as the account).
+    hiredByAccountId: project ? projectHiredByAccountId(project) : "",
     projectId: project?.id || "",
     projectName: project?.name || `${request.customerName} ${jobType.name}`,
     customerName: request.customerName,
@@ -20076,6 +20111,14 @@ async function submitEmergencyIntake(form) {
     const mobilization = computeEmergencyMobilization(data, hasExistingAccount);
     const siteLocationId = makeId("loc-gps");
 
+    // Phase 25 D.5 (2026-09-29): who called us in (a spill broker, a contractor -- blank means the
+    // account above) and, if known, the site's owner or tenant. The owner/tenant becomes a party on
+    // the facility; with no facility picked it waits on the project until the spot is promoted.
+    const hiredByAccountId = (await resolveAccountPick((data.get("hiredByAccountId") || "").toString(), (data.get("hiredByNewAccountName") || "").toString())) || account.id;
+    const siteOwnerAccountId = await resolveAccountPick((data.get("siteOwnerAccountId") || "").toString(), (data.get("siteOwnerNewAccountName") || "").toString());
+    const siteOwnerRoleRaw = (data.get("siteOwnerRole") || "").toString();
+    const siteOwnerRole = FACILITY_PARTY_ROLES.includes(siteOwnerRoleRaw) ? siteOwnerRoleRaw : "Owner";
+
     const project = buildCoreProjectRecord({
       id: makeId("proj"),
       accountId: account.id,
@@ -20096,6 +20139,9 @@ async function submitEmergencyIntake(form) {
       callerName: data.get("callerName").toString().trim(),
       callerPhone: data.get("callerPhone").toString().trim(),
       callerRelationship: (data.get("callerRelationship") || "").toString(),
+      hiredByAccountId,
+      siteOwnerAccountId: facilityId ? "" : siteOwnerAccountId,
+      siteOwnerRole: facilityId || !siteOwnerAccountId ? "" : siteOwnerRole,
       // The spill
       spillMaterial: data.get("spillMaterial").toString().trim(),
       spillQuantity: data.get("spillQuantity").toString().trim(),
@@ -20134,6 +20180,7 @@ async function submitEmergencyIntake(form) {
       incidentLongitude: gpsPin?.longitude ?? "",
     });
     await saveBackendRecord("projects", project, { refresh: false });
+    if (facilityId && siteOwnerAccountId) await addFacilityPartyIfNew(facilityId, siteOwnerAccountId, siteOwnerRole, "emergency-intake");
 
     await saveBackendRecord(
       "locations",
@@ -20187,6 +20234,7 @@ async function submitEmergencyIntake(form) {
       jobNumber: `JOB-${now.getFullYear()}-${localIsoDate(now).replaceAll("-", "").slice(4)}-${String(sequence).padStart(2, "0")}`,
       jobTypeTemplateId: template?.id || "",
       accountId: account.id,
+      hiredByAccountId,
       projectId: project.id,
       projectName: project.name,
       customerName: account.name,
@@ -24572,6 +24620,9 @@ function openProjectIntakeDialog(jobId) {
   form.elements.serviceProfile.value = job.serviceProfile || "";
   form.elements.jobClass.value = job.jobClass || "Scheduled Work";
   form.elements.siteWalkStatus.value = job.siteWalkStatus || "Incomplete";
+  // Phase 25 D.5: who hired us; blank means the project's own account.
+  setAccountLookup(form, "hiredByAccountId", job.hiredByAccountId && job.hiredByAccountId !== job.accountId ? job.hiredByAccountId : "");
+  if (form.elements.hiredByNewAccountName) form.elements.hiredByNewAccountName.value = "";
   // Phase 25 item 14 (2026-09-29) — the free-text sitePhotos field is gone; the Site photos count on
   // the Intake tab now counts real photo documents (projectIntakePhotoCount). Any sitePhotoRefs a
   // project already has from the old field are shown read-only here so the text isn't lost, but this
@@ -24664,6 +24715,18 @@ async function saveProjectIntake(form) {
   }
 
   try {
+    // Phase 25 D.5: "Hired by" (blank = the project's account). Its dispatch jobs follow unless one
+    // was set to someone else on its own.
+    const previousHiredBy = projectHiredByAccountId(job);
+    const hiredByAccountId = (await resolveAccountPick((data.get("hiredByAccountId") || "").toString(), (data.get("hiredByNewAccountName") || "").toString())) || updated.accountId || "";
+    updated = { ...updated, hiredByAccountId };
+    for (const dispatchJobRecord of dispatchJobsForProject(updated.id)) {
+      if (dispatchJobRecord.hiredByAccountId && dispatchJobRecord.hiredByAccountId !== previousHiredBy) continue;
+      if (dispatchJobRecord.hiredByAccountId === hiredByAccountId) continue;
+      const pending = jobsToSave.find((item) => item.id === dispatchJobRecord.id);
+      if (pending) pending.hiredByAccountId = hiredByAccountId;
+      else jobsToSave.push({ ...dispatchJobRecord, hiredByAccountId });
+    }
     await saveBackendRecord("projects", updated, { refresh: false });
     for (const dispatchJobRecord of jobsToSave) {
       await saveBackendRecord("dispatchJobs", dispatchJobRecord, { refresh: false });
@@ -29066,6 +29129,555 @@ async function saveFacilityContact(form) {
   }
 }
 
+// ---- Phase 25 D.4/D.5 (2026-09-29): site parties, "hired by", merge tools -------------------------
+//
+// Owner: "the owner is different than the tenant, and also different than the party that is hiring
+// us". A facility keeps its accountId as the *primary account*; facilityParties rows record who owns,
+// occupies or manages it (with dates); projects/dispatchJobs.hiredByAccountId records who hired us
+// for that engagement (a spill broker, a contractor), defaulting to the project's account.
+const FACILITY_PARTY_ROLES = ["Owner", "Tenant / occupant", "Property manager", "Other"];
+
+function facilityPartiesForFacility(facilityId) {
+  return liveRows(state.backend.facilityParties).filter((party) => party.facilityId === facilityId);
+}
+
+function facilityPartiesForAccount(accountId) {
+  return liveRows(state.backend.facilityParties).filter((party) => party.accountId === accountId);
+}
+
+function isCurrentFacilityParty(party) {
+  return !party.until || party.until >= todayIso();
+}
+
+function formatFacilityPartyRole(party) {
+  return party.roleNote ? `${party.role} · ${party.roleNote}` : party.role || "Other";
+}
+
+function formatFacilityPartyDates(party) {
+  if (party.since && party.until) return `${formatDate(party.since)} to ${formatDate(party.until)}`;
+  if (party.since) return `Since ${formatDate(party.since)}`;
+  if (party.until) return `Until ${formatDate(party.until)}`;
+  return "";
+}
+
+function sortFacilityParties(parties) {
+  return parties
+    .slice()
+    .sort((a, b) => FACILITY_PARTY_ROLES.indexOf(a.role) - FACILITY_PARTY_ROLES.indexOf(b.role) || String(b.since || "").localeCompare(String(a.since || "")));
+}
+
+// Who hired us: the project's own pick, else its account (the default).
+function projectHiredByAccountId(project) {
+  return project?.hiredByAccountId || project?.accountId || "";
+}
+
+// "Hired by" earns a place in the project header when it is not simply the customer or the site's
+// primary account.
+function renderProjectHiredByTag(project) {
+  const hiredById = projectHiredByAccountId(project);
+  if (!hiredById) return "";
+  const siteAccountId = findFacility(project.facilityId)?.accountId || "";
+  if (hiredById === project.accountId && (!siteAccountId || hiredById === siteAccountId)) return "";
+  const account = findAccount(hiredById);
+  return `<span class="tag" data-role="project-hired-by" title="Who hired us for this project">Hired by ${escapeHtml(account?.name || "unknown account")}</span>`;
+}
+
+// Distinct accounts that hired us for projects at this facility, with how many projects each.
+function facilityHiredByAccounts(facility) {
+  const counts = new Map();
+  for (const project of projectsForFacility(facility.id)) {
+    const id = projectHiredByAccountId(project);
+    if (id) counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  return [...counts.entries()].map(([accountId, count]) => ({ accountId, count }));
+}
+
+// An account picked with the record lookup ([data-lookup-name] = the field), or a new name typed
+// beside it. Sets the lookup's value after a dialog opens.
+function setAccountLookup(form, fieldName, accountId = "") {
+  const container = form.querySelector(`.record-lookup[data-lookup-name="${fieldName}"]`);
+  if (container) setRecordLookupValue(container, accountId || "");
+}
+
+// The picked account's id; else a new name typed beside the lookup, reusing an account with that
+// exact name or creating a provisional one (the office tidies provisional accounts, as for a spill
+// caller). Blank when neither was given.
+async function resolveAccountPick(value, newName = "") {
+  const picked = (value || "").toString();
+  if (picked && findAccount(picked)) return picked;
+  const name = (newName || "").toString().trim();
+  if (!name) return "";
+  const existing = state.accounts.find((account) => String(account.name || "").trim().toLowerCase() === name.toLowerCase());
+  if (existing) return existing.id;
+  const account = buildCoreAccountRecord({ id: makeId("acct"), name, classification: "Prospect", isProvisional: true });
+  const saved = await saveBackendRecord("accounts", account, { refresh: false });
+  return (saved || account).id;
+}
+
+// Adds a current party row unless the same account already holds the same role there now.
+async function addFacilityPartyIfNew(facilityId, accountId, role, source = "") {
+  if (!facilityId || !accountId) return null;
+  const partyRole = FACILITY_PARTY_ROLES.includes(role) ? role : "Other";
+  const duplicate = facilityPartiesForFacility(facilityId).some((party) => party.accountId === accountId && party.role === partyRole && isCurrentFacilityParty(party));
+  if (duplicate) return null;
+  return saveBackendRecord(
+    "facilityParties",
+    { id: makeId("facility-party"), facilityId, accountId, role: partyRole, roleNote: "", since: "", until: "", notes: "", source, createdAt: new Date().toISOString(), createdBy: currentActorName() },
+    { refresh: false },
+  );
+}
+
+function renderFacilityPartyCard(party, facility, { past = false } = {}) {
+  const account = findAccount(party.accountId);
+  const dates = formatFacilityPartyDates(party);
+  return `
+    <article class="detail-card" data-party-id="${escapeAttribute(party.id)}">
+      <button class="link-button account-name" type="button" data-action="view-account" data-id="${escapeAttribute(party.accountId)}">${escapeHtml(account?.name || "Unknown account")}</button>
+      <div class="row-meta">
+        <span class="tag">${escapeHtml(formatFacilityPartyRole(party))}</span>
+        ${dates ? `<span>${escapeHtml(dates)}</span>` : ""}
+      </div>
+      ${party.notes ? `<p class="help-text">${escapeHtml(party.notes)}</p>` : ""}
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-action="open-facility-party" data-facility-id="${escapeAttribute(facility.id)}" data-id="${escapeAttribute(party.id)}">Edit</button>
+        ${past ? "" : `<button class="mini-button" type="button" data-action="end-facility-party" data-id="${escapeAttribute(party.id)}">End</button>`}
+        <button class="mini-button" type="button" data-action="remove-facility-party" data-id="${escapeAttribute(party.id)}">Remove</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderFacilityPartiesPanel(facility) {
+  const parties = sortFacilityParties(facilityPartiesForFacility(facility.id));
+  const current = parties.filter(isCurrentFacilityParty);
+  const past = parties.filter((party) => !isCurrentFacilityParty(party));
+  const primary = findAccount(facility.accountId);
+  const hiredBy = facilityHiredByAccounts(facility);
+  return `
+    <article class="panel" data-role="facility-parties">
+      <div class="panel-header">
+        <div><h3>Parties</h3><span>Who owns, occupies or manages this site, and who hires us here</span></div>
+        <button class="mini-button" type="button" data-action="open-facility-party" data-facility-id="${escapeAttribute(facility.id)}">Add party</button>
+      </div>
+      <div class="panel-body record-list">
+        <article class="detail-card">
+          ${primary ? `<button class="link-button account-name" type="button" data-action="view-account" data-id="${escapeAttribute(primary.id)}">${escapeHtml(primary.name)}</button>` : `<strong>No account</strong>`}
+          <div class="row-meta"><span class="tag">Primary account</span></div>
+        </article>
+        ${current.map((party) => renderFacilityPartyCard(party, facility)).join("") || `<div class="empty-state compact">No owner, tenant or manager recorded. Add one when it is not the primary account.</div>`}
+        ${
+          hiredBy.length
+            ? `<div class="facility-hired-by" data-role="facility-hired-by">
+                <p class="eyebrow">Hired us here</p>
+                ${hiredBy
+                  .map(
+                    ({ accountId, count }) => `<div class="row-meta"><button class="link-button" type="button" data-action="view-account" data-id="${escapeAttribute(accountId)}">${escapeHtml(findAccount(accountId)?.name || "Unknown account")}</button><span>${count} project${count === 1 ? "" : "s"}</span></div>`,
+                  )
+                  .join("")}
+              </div>`
+            : ""
+        }
+        ${past.length ? `<details class="facility-parties-past"><summary>Past parties (${past.length})</summary>${past.map((party) => renderFacilityPartyCard(party, facility, { past: true })).join("")}</details>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+// Account page: the sites this account is a party to, and where it hired us for someone else's site.
+function renderAccountSitePartiesPanel(account) {
+  const parties = sortFacilityParties(facilityPartiesForAccount(account.id)).filter((party) => findFacility(party.facilityId) && !findFacility(party.facilityId).deletedAt);
+  const hiredFor = state.projects.filter((project) => project.hiredByAccountId === account.id && project.accountId !== account.id);
+  if (!parties.length && !hiredFor.length) return "";
+  return `
+    <article class="panel" data-role="account-site-parties">
+      <div class="panel-header"><div><h3>Sites this account is party to</h3><span>Owner, tenant or manager of another account's facility, or who hired us there</span></div></div>
+      <div class="panel-body record-list">
+        ${parties
+          .map((party) => {
+            const facility = findFacility(party.facilityId);
+            const dates = formatFacilityPartyDates(party);
+            return `
+              <article class="detail-card">
+                <button class="link-button account-name" type="button" data-action="view-facility" data-id="${escapeAttribute(facility.id)}">${escapeHtml(facility.name)}</button>
+                <div class="row-meta">
+                  <span class="tag">${escapeHtml(formatFacilityPartyRole(party))}</span>
+                  ${isCurrentFacilityParty(party) ? "" : `<span>Past</span>`}
+                  ${dates ? `<span>${escapeHtml(dates)}</span>` : ""}
+                  <span>${escapeHtml(findAccount(facility.accountId)?.name || "")}</span>
+                </div>
+              </article>
+            `;
+          })
+          .join("")}
+        ${hiredFor
+          .map(
+            (project) => `
+              <article class="detail-card">
+                <button class="link-button account-name" type="button" data-action="view-project" data-id="${escapeAttribute(project.id)}">${escapeHtml(project.name)}</button>
+                <div class="row-meta"><span class="tag">Hired us</span><span>for ${escapeHtml(findAccount(project.accountId)?.name || "another account")}</span>${projectSite(project).name ? `<span>at ${escapeHtml(projectSite(project).name)}</span>` : ""}</div>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    </article>
+  `;
+}
+
+function openFacilityPartyDialog(facilityId = "", partyId = "") {
+  const dialog = document.querySelector("#facilityPartyDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  const party = partyId ? facilityPartiesForFacility(facilityId).find((item) => item.id === partyId) : null;
+  form.elements.id.value = party?.id || "";
+  form.elements.facilityId.value = facilityId;
+  setAccountLookup(form, "partyAccountId", party?.accountId || "");
+  form.elements.partyNewAccountName.value = "";
+  form.elements.role.value = FACILITY_PARTY_ROLES.includes(party?.role) ? party.role : "Owner";
+  form.elements.roleNote.value = party?.roleNote || "";
+  form.elements.since.value = party?.since || "";
+  form.elements.until.value = party?.until || "";
+  form.elements.notes.value = party?.notes || "";
+  dialog.querySelector(".modal-header h2").textContent = party ? "Edit site party" : "Add site party";
+  dialog.showModal();
+}
+
+async function saveFacilityParty(form) {
+  const data = new FormData(form);
+  const facilityId = (data.get("facilityId") || "").toString();
+  const pick = (data.get("partyAccountId") || "").toString();
+  const newName = (data.get("partyNewAccountName") || "").toString().trim();
+  if (!pick && !newName) {
+    showToast("Pick the account, or type a new account's name.");
+    return;
+  }
+  const id = (data.get("id") || "").toString();
+  const existing = id ? (state.backend.facilityParties || []).find((item) => item.id === id) : null;
+  const role = (data.get("role") || "Other").toString();
+  const since = (data.get("since") || "").toString();
+  const until = (data.get("until") || "").toString();
+  if (since && until && until < since) {
+    showToast("The end date is before the start date.");
+    return;
+  }
+  try {
+    const accountId = await resolveAccountPick(pick, newName);
+    if (!accountId) {
+      showToast("Pick the account.");
+      return;
+    }
+    const duplicate = facilityPartiesForFacility(facilityId).find((party) => party.id !== id && party.accountId === accountId && party.role === role && isCurrentFacilityParty(party) && !until);
+    if (duplicate) {
+      showToast(`${findAccount(accountId)?.name || "That account"} is already recorded as ${role} here.`);
+      return;
+    }
+    await saveBackendRecord("facilityParties", {
+      ...(existing || {}),
+      id: id || makeId("facility-party"),
+      facilityId,
+      accountId,
+      role,
+      roleNote: (data.get("roleNote") || "").toString().trim(),
+      since,
+      until,
+      notes: (data.get("notes") || "").toString().trim(),
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      createdBy: existing?.createdBy || currentActorName(),
+    });
+    closeDialogs();
+    await refreshState();
+    render();
+    showToast(existing ? "Site party updated." : "Site party added.");
+  } catch (error) {
+    if (await handleSaveConflict(error)) return;
+    showToast(error.message || "Site party could not be saved.");
+  }
+}
+
+async function endFacilityParty(id) {
+  const party = (state.backend.facilityParties || []).find((item) => item.id === id);
+  if (!party) return;
+  if (!confirm(`End ${findAccount(party.accountId)?.name || "this account"} as ${party.role} here as of today? It moves to past parties.`)) return;
+  try {
+    await saveBackendRecord("facilityParties", { ...party, until: todayIso() });
+    render();
+    showToast("Party ended.");
+  } catch (error) {
+    if (await handleSaveConflict(error)) return;
+    showToast(error.message || "Party could not be updated.");
+  }
+}
+
+async function removeFacilityParty(id) {
+  const party = (state.backend.facilityParties || []).find((item) => item.id === id);
+  if (!party) return;
+  if (!confirm("Remove this party from the facility? Use End instead if they were a real party that has since changed.")) return;
+  try {
+    await saveBackendRecord("facilityParties", { ...party, deletedAt: new Date().toISOString() });
+    render();
+    showToast("Party removed.");
+  } catch (error) {
+    if (await handleSaveConflict(error)) return;
+    showToast(error.message || "Party could not be removed.");
+  }
+}
+
+// ---- merge tools (Admin / Office Manager; the server enforces it too) ----
+function mayUseMergeTools() {
+  return userHasRole("Admin", "Office Manager");
+}
+
+function renderFacilityMergeToolsPanel(facility) {
+  if (!mayUseMergeTools()) return "";
+  const attached = liveRows(state.backend.locations).filter((location) => location.facilityId === facility.id).length;
+  return `
+    <article class="panel" data-role="facility-merge-tools">
+      <div class="panel-header"><div><h3>Clean up duplicates</h3><span>Office manager and admin</span></div></div>
+      <div class="panel-body">
+        <p class="help-text">${attached} GPS point${attached === 1 ? " is" : "s are"} attached to this facility. Attach stray check-ins and spill points, or merge a duplicate facility into the one to keep.</p>
+        <div class="inline-actions">
+          <button class="secondary-button" type="button" data-action="open-attach-locations" data-facility-id="${escapeAttribute(facility.id)}">Attach GPS points</button>
+          <button class="secondary-button" type="button" data-action="open-merge-record" data-kind="facility" data-id="${escapeAttribute(facility.id)}">Merge into…</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderMergeLocationButton(location) {
+  if (!mayUseMergeTools() || !location || location.deletedAt) return "";
+  return `<button class="mini-button" type="button" data-action="open-merge-record" data-kind="location" data-id="${escapeAttribute(location.id)}">Merge into…</button>`;
+}
+
+function placeSearchTokens(...parts) {
+  return new Set(
+    parts
+      .join(" ")
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]+/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 3),
+  );
+}
+
+function sharedTokenCount(a, b) {
+  let count = 0;
+  for (const token of a) if (b.has(token)) count += 1;
+  return count;
+}
+
+// Candidate GPS points for a facility: every live location not already on it, nearest first when the
+// facility has coordinates, else by shared words with its name and address.
+function attachLocationCandidates(facility) {
+  const site = facilityCoordinates(facility);
+  const facilityTokens = placeSearchTokens(facility.name || "", facility.street1 || facility.address || "", facility.city || "");
+  return liveRows(state.backend.locations)
+    .filter((location) => location.facilityId !== facility.id)
+    .map((location) => ({
+      location,
+      distanceM: site && hasGpsCoordinates(location) ? siteWalkDistanceMeters(site, { lat: Number(location.latitude), lng: Number(location.longitude) }) : null,
+      score: sharedTokenCount(facilityTokens, placeSearchTokens(location.label || "", location.addressText || "")),
+    }))
+    .sort((a, b) => {
+      if (a.distanceM != null || b.distanceM != null) {
+        if (a.distanceM == null) return 1;
+        if (b.distanceM == null) return -1;
+        return a.distanceM - b.distanceM;
+      }
+      return b.score - a.score || String(b.location.lastPingAt || b.location.createdAt || "").localeCompare(String(a.location.lastPingAt || a.location.createdAt || ""));
+    });
+}
+
+function formatMergeDistance(meters) {
+  if (meters == null) return "";
+  return meters < 1000 ? `${Math.round(meters)} m away` : `${(meters / 1000).toFixed(1)} km away`;
+}
+
+function openAttachLocationsDialog(facilityId) {
+  const facility = findFacility(facilityId);
+  if (!facility) return;
+  const dialog = document.querySelector("#attachLocationsDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.facilityId.value = facility.id;
+  dialog.querySelector('[data-role="attach-locations-facility"]').textContent = facility.name || "Facility";
+  dialog.querySelector('[data-role="attach-locations-note"]').textContent = facilityCoordinates(facility)
+    ? "GPS points not yet on this facility, nearest first. Tick the ones that belong here."
+    : "This facility has no coordinates yet, so points are listed by how well their label and address match its name and address.";
+  renderAttachLocationList(form);
+  dialog.showModal();
+}
+
+function renderAttachLocationList(form) {
+  const facility = findFacility(form.elements.facilityId.value);
+  const list = form.querySelector('[data-role="attach-location-list"]');
+  if (!facility || !list) return;
+  const checked = new Set([...form.querySelectorAll("input[name='locationIds']:checked")].map((input) => input.value));
+  const query = (form.elements.attachSearch.value || "").trim().toLowerCase();
+  const candidates = attachLocationCandidates(facility).filter(({ location }) => !query || [location.label, location.addressText, location.locationType].join(" ").toLowerCase().includes(query));
+  list.innerHTML =
+    candidates
+      .slice(0, 60)
+      .map(({ location, distanceM }) => {
+        const elsewhere = location.facilityId ? findFacility(location.facilityId) : null;
+        return `
+          <label class="check-row attach-location-row">
+            <input type="checkbox" name="locationIds" value="${escapeAttribute(location.id)}" ${checked.has(location.id) ? "checked" : ""} />
+            <span>
+              <strong>${escapeHtml(location.label || location.addressText || "Location")}</strong>
+              <span class="row-meta">
+                <span>${escapeHtml(location.locationType || "Location")}</span>
+                ${distanceM != null ? `<span>${escapeHtml(formatMergeDistance(distanceM))}</span>` : ""}
+                ${location.addressText && location.addressText !== location.label ? `<span>${escapeHtml(location.addressText)}</span>` : ""}
+                ${location.lastPingAt ? `<span>${escapeHtml(formatDateTime(location.lastPingAt))}</span>` : ""}
+                ${elsewhere ? `<span class="risk-badge medium">On ${escapeHtml(elsewhere.name)}</span>` : ""}
+              </span>
+            </span>
+          </label>
+        `;
+      })
+      .join("") || `<div class="empty-state compact">No other GPS points${query ? " match" : ""}.</div>`;
+}
+
+async function submitAttachLocations(form) {
+  const facilityId = form.elements.facilityId.value;
+  const locationIds = [...form.querySelectorAll("input[name='locationIds']:checked")].map((input) => input.value);
+  if (!locationIds.length) {
+    showToast("Tick at least one GPS point.");
+    return;
+  }
+  try {
+    const result = await apiRequest("/api/admin/attach-locations", { method: "POST", body: JSON.stringify({ facilityId, locationIds }), headers: { "X-CRM-User": currentActorName() } });
+    closeDialogs();
+    await refreshBackendState();
+    render();
+    showToast(`${result.attached} GPS point${result.attached === 1 ? "" : "s"} attached.`);
+  } catch (error) {
+    showToast(error.message || "GPS points could not be attached.");
+  }
+}
+
+function mergeCandidateRecords(kind, from) {
+  if (kind === "facility") {
+    const fromTokens = placeSearchTokens(from.name || "", from.street1 || from.address || "", from.city || "");
+    return state.facilities
+      .filter((facility) => facility.id !== from.id)
+      .map((facility) => ({
+        record: facility,
+        label: `${facility.name}${facility.street1 || facility.address ? ` — ${facility.street1 || facility.address}` : ""}${findAccount(facility.accountId) ? ` (${findAccount(facility.accountId).name})` : ""}`,
+        rank: (facility.accountId === from.accountId ? 1 : 0) + sharedTokenCount(fromTokens, placeSearchTokens(facility.name || "", facility.street1 || facility.address || "", facility.city || "")),
+        distanceM: null,
+      }))
+      .sort((a, b) => b.rank - a.rank || String(a.record.name || "").localeCompare(String(b.record.name || "")));
+  }
+  const origin = hasGpsCoordinates(from) ? { lat: Number(from.latitude), lng: Number(from.longitude) } : null;
+  return liveRows(state.backend.locations)
+    .filter((location) => location.id !== from.id)
+    .map((location) => {
+      const distanceM = origin && hasGpsCoordinates(location) ? siteWalkDistanceMeters(origin, { lat: Number(location.latitude), lng: Number(location.longitude) }) : null;
+      return {
+        record: location,
+        label: `${location.label || location.addressText || "Location"}${location.locationType ? ` · ${location.locationType}` : ""}${distanceM != null ? ` · ${formatMergeDistance(distanceM)}` : ""}`,
+        rank: 0,
+        distanceM,
+      };
+    })
+    .sort((a, b) => (a.distanceM ?? Infinity) - (b.distanceM ?? Infinity) || String(a.label).localeCompare(String(b.label)));
+}
+
+function openMergeRecordDialog(kind, fromId) {
+  const from = kind === "facility" ? findFacility(fromId) : findGpsLocation(fromId);
+  if (!from || from.deletedAt) return;
+  const dialog = document.querySelector("#mergeRecordDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.kind.value = kind;
+  form.elements.fromId.value = from.id;
+  const noun = kind === "facility" ? "facility" : "GPS point";
+  dialog.querySelector('[data-role="merge-from"]').textContent = `Merging ${kind === "facility" ? from.name : from.label || from.addressText || "this GPS point"}`;
+  dialog.querySelector('[data-role="merge-title"]').textContent = `Merge this ${noun} into…`;
+  dialog.querySelector('[data-role="merge-help"]').textContent =
+    kind === "facility"
+      ? "Pick the facility to keep. Every opportunity, project, contact, party, note, document, walk and GPS point on this one moves to it, then this one is deleted (an administrator can restore it)."
+      : "Pick the GPS point to keep. Every project, opportunity site and walk check-in that uses this one moves to it, then this one is deleted (weather snapshots keep the point they were taken at).";
+  renderMergeCandidateOptions(form);
+  dialog.querySelector('[data-role="merge-preview"]').innerHTML = "";
+  dialog.querySelector('[data-role="merge-submit"]').disabled = true;
+  dialog.showModal();
+}
+
+function renderMergeCandidateOptions(form) {
+  const kind = form.elements.kind.value;
+  const from = kind === "facility" ? findFacility(form.elements.fromId.value) : findGpsLocation(form.elements.fromId.value);
+  if (!from) return;
+  const query = (form.elements.mergeSearch.value || "").trim().toLowerCase();
+  const current = form.elements.intoId.value;
+  const candidates = mergeCandidateRecords(kind, from).filter((item) => !query || item.label.toLowerCase().includes(query));
+  form.elements.intoId.innerHTML = candidates.slice(0, 100).map((item) => `<option value="${escapeAttribute(item.record.id)}">${escapeHtml(item.label)}</option>`).join("");
+  if (current && candidates.some((item) => item.record.id === current)) form.elements.intoId.value = current;
+  else form.elements.intoId.value = "";
+}
+
+function describeMergeCounts(counts) {
+  return Object.entries(counts || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([collection, count]) => `${count} ${cascadeCollectionLabels[collection] || collection}`);
+}
+
+async function previewMergeRecord(form) {
+  const kind = form.elements.kind.value;
+  const intoId = (form.elements.intoId.value || "").toString();
+  const preview = form.querySelector('[data-role="merge-preview"]');
+  const submit = form.querySelector('[data-role="merge-submit"]');
+  submit.disabled = true;
+  if (!intoId) {
+    preview.innerHTML = "";
+    return;
+  }
+  preview.innerHTML = `<p class="help-text">Checking what would move…</p>`;
+  try {
+    const result = await apiRequest(`/api/admin/merge-${kind}?dryRun=1`, { method: "POST", body: JSON.stringify({ fromId: form.elements.fromId.value, intoId }) });
+    if (form.elements.intoId.value !== intoId) return;
+    const moves = describeMergeCounts(result.counts);
+    const duplicates = describeMergeCounts(result.duplicates);
+    preview.innerHTML = `
+      <div class="merge-preview-body" data-merge-total="${Number(result.total) || 0}">
+        <p><strong>${escapeHtml(result.from?.name || "This record")}</strong> → <strong>${escapeHtml(result.into?.name || "the one to keep")}</strong></p>
+        ${moves.length ? `<ul>${moves.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` : `<p class="help-text">Nothing references it; it is simply deleted.</p>`}
+        ${duplicates.length ? `<p class="help-text">Already on the one to keep, so the copies are removed: ${escapeHtml(duplicates.join(", "))}.</p>` : ""}
+      </div>
+    `;
+    submit.disabled = false;
+  } catch (error) {
+    preview.innerHTML = `<p class="help-text">${escapeHtml(error.message || "Could not check this merge.")}</p>`;
+  }
+}
+
+async function submitMergeRecord(form) {
+  const kind = form.elements.kind.value;
+  const fromId = form.elements.fromId.value;
+  const intoId = (form.elements.intoId.value || "").toString();
+  if (!intoId) {
+    showToast("Pick the one to keep.");
+    return;
+  }
+  const into = kind === "facility" ? findFacility(intoId) : findGpsLocation(intoId);
+  if (!confirm(`Merge into "${kind === "facility" ? into?.name : into?.label || "that GPS point"}"? The references move and this one is deleted.`)) return;
+  try {
+    const result = await apiRequest(`/api/admin/merge-${kind}`, { method: "POST", body: JSON.stringify({ fromId, intoId }), headers: { "X-CRM-User": currentActorName() } });
+    closeDialogs();
+    await refreshBackendState();
+    if (kind === "facility") {
+      state.selectedFacilityId = intoId;
+      state.view = "facility-detail";
+    }
+    render();
+    showToast(`Merged — ${result.total} record${result.total === 1 ? "" : "s"} moved.`);
+  } catch (error) {
+    showToast(error.message || "The merge did not go through.");
+  }
+}
+
 function openAccountDivisionDialog(accountId = "") {
   const dialog = document.querySelector("#accountDivisionDialog");
   const form = dialog.querySelector("form");
@@ -30728,6 +31340,15 @@ const cascadeCollectionLabels = {
   messages: "messages",
   timeEntries: "time entries",
   jobMileageEntries: "trips",
+  // Phase 25 D (2026-09-29): what a merge preview can list.
+  facilityParties: "site parties",
+  locations: "GPS points",
+  activities: "timeline activities",
+  documents: "documents",
+  documentRequirements: "paperwork requirements",
+  siteWalkReports: "site walk reports",
+  siteWalkObservations: "site walk pins",
+  siteReferenceLayers: "reference layers",
 };
 
 async function deleteBackendRecord(collection, id, { dryRun = false } = {}) {
@@ -33138,12 +33759,13 @@ function findGpsLocation(locationId) {
 
 function locationsForAccount(accountId) {
   const projectIds = new Set(projectsForAccount(accountId).map((project) => project.id));
-  return (state.backend.locations || []).filter((location) => location.accountId === accountId || projectIds.has(location.projectId));
+  // Phase 25 D.4: a GPS point merged into another is soft-deleted; lists skip it, findGpsLocation still resolves it.
+  return liveRows(state.backend.locations).filter((location) => location.accountId === accountId || projectIds.has(location.projectId));
 }
 
 function locationsForFacility(facilityId) {
   const projectIds = new Set(projectsForFacility(facilityId).map((project) => project.id));
-  return (state.backend.locations || []).filter((location) => location.facilityId === facilityId || projectIds.has(location.projectId));
+  return liveRows(state.backend.locations).filter((location) => location.facilityId === facilityId || projectIds.has(location.projectId));
 }
 
 // A location needs GPS or an address (owner, 2026-09-25) — so latitude can be blank, and
