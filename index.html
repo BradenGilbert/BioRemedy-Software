@@ -4594,6 +4594,20 @@
           </div>
           <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
         </div>
+        <div class="job-request-needs-info-callout" data-job-request-needs-info hidden>
+          <p class="eyebrow">Dispatch needs information</p>
+          <p data-job-request-needs-info-note></p>
+          <small class="field-help" data-job-request-needs-info-meta></small>
+          <label class="checkbox-row">
+            <input name="resolvesNeedsInfo" type="checkbox" />
+            This edit answers dispatch's request — clear Needs information
+          </label>
+        </div>
+        <label>
+          Title
+          <input name="title" maxlength="120" placeholder="e.g. Confirmation Sampling" />
+          <small class="field-help">A short name for this visit or stage. It becomes the dispatch job's name.</small>
+        </label>
         <div class="form-grid">
           <label>
             Customer account
@@ -4730,9 +4744,32 @@
             </select>
           </label>
         </div>
+        <div class="job-request-onfile" data-job-request-onfile hidden></div>
         <menu class="modal-actions">
           <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
           <button class="primary-button" type="submit" data-job-request-submit>Send to dispatch</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="jobRequestNeedsInfoDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="job-request-needs-info">
+        <input name="id" type="hidden" />
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow" data-needs-info-eyebrow>Job request</p>
+            <h2>What does dispatch need?</h2>
+          </div>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">The person who sent the request is notified and sees this note when they open it.</p>
+        <label>
+          Note to the requester
+          <textarea name="note" rows="4" required maxlength="600"></textarea>
+        </label>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-action="close-dialog">Cancel</button>
+          <button class="primary-button" type="submit">Mark needs information</button>
         </menu>
       </form>
     </dialog>

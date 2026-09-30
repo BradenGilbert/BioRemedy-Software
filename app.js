@@ -2124,7 +2124,7 @@ async function dispatchClick(event) {
   if (action === "job-request-off") showToast("New job request is turned off for testing.");
   if (action === "open-job-template-for-job") openJobTemplateSelectDialogForJob(actionButton.dataset.jobId);
   if (action === "assign-job-template") await assignJobTemplate(actionButton.dataset.jobId, actionButton.dataset.templateId);
-  if (action === "job-request-needs-info") await markJobRequestNeedsInfo(id);
+  if (action === "job-request-needs-info") markJobRequestNeedsInfo(id);
   if (action === "job-request-ready") await setJobRequestStatus(id, "Submitted");
   if (action === "job-request-decline") await closeJobRequest(id, "Declined");
   if (action === "job-request-cancel") await closeJobRequest(id, "Cancelled");
@@ -2485,6 +2485,7 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "sample-lab") await saveSampleLabInfo(form);
   if (form.dataset.form === "sample-result") await saveSampleResult(form);
   if (form.dataset.form === "job-request") await saveJobRequest(form);
+  if (form.dataset.form === "job-request-needs-info") await saveJobRequestNeedsInfo(form);
   if (form.dataset.form === "dispatch-schedule") await saveDispatchSchedule(form);
   if (form.dataset.form === "activity") await saveActivity(form);
   if (form.dataset.form === "note") await saveActivity(form);
@@ -8565,7 +8566,7 @@ function renderAllProjectsTable(jobs) {
       const scheduled = dispatchJobsForProject(job.id).length > 0;
       const started = dispatchWorkHasStarted(job.id);
       const openAlerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved").length;
-      const rowAlert = [openAlerts ? `${openAlerts} open field alert${openAlerts === 1 ? "" : "s"}` : "", projectWasteAlertTitle(job.id), projectWeatherAlertTitle(job)].filter(Boolean).join("; ");
+      const rowAlert = [openAlerts ? `${openAlerts} open field alert${openAlerts === 1 ? "" : "s"}` : "", projectWasteAlertTitle(job.id), projectWeatherAlertTitle(job), projectNeedsInfoAlertTitle(job.id)].filter(Boolean).join("; ");
       return `
         <tr>
           <td><button class="link-button" type="button" data-action="view-project" data-id="${escapeAttribute(job.id)}">${rowAlert ? withTrailingAlertDot(job.name, rowAlert) : escapeHtml(job.name)}</button></td>
@@ -8806,7 +8807,7 @@ function renderProjectDetail() {
       <div class="account-detail-shell">
         <div class="account-detail-tabs-row">
           ${renderProjectDetailTabs(activeTab, {
-            live: [alerts.length ? `${alerts.length} open field alert${alerts.length === 1 ? "" : "s"}` : "", projectWasteAlertTitle(job.id)].filter(Boolean).join("; "),
+            live: [alerts.length ? `${alerts.length} open field alert${alerts.length === 1 ? "" : "s"}` : "", projectWasteAlertTitle(job.id), projectNeedsInfoAlertTitle(job.id)].filter(Boolean).join("; "),
             intake: projectWeatherAlertTitle(job),
           })}
         </div>
@@ -9051,9 +9052,9 @@ function renderProjectLiveTab(job, ctx) {
             : `<article class="panel"><div class="panel-header"><h3>Field alerts</h3></div><div class="panel-body"><div class="empty-state">No open alerts.</div></div></article>`
         }
 
-        <article class="panel">
+        <article class="panel ${projectRequestsNeedingInfo(job.id).length ? "panel-needs-attention" : ""}">
           <div class="panel-header">
-            <div><h3>Dispatch jobs</h3><span>${projectDispatchJobs.length} total · ${activeDispatchJobs.length} active · ${completedDispatchJobs.length} completed</span></div>
+            <div><h3>Dispatch jobs</h3><span>${projectDispatchJobs.length} total · ${activeDispatchJobs.length} active · ${completedDispatchJobs.length} completed${pendingRequests.length ? ` · ${pendingRequests.length} request${pendingRequests.length === 1 ? "" : "s"} waiting` : ""}</span></div>
             <button class="mini-button" type="button" data-action="open-job-request" data-account-id="${escapeAttribute(job.accountId)}" data-project-id="${escapeAttribute(job.id)}">New job request</button>
           </div>
           <div class="panel-body">
@@ -9235,16 +9236,18 @@ function renderProjectBillingPanel(job) {
 
 function renderPendingJobRequestCard(request) {
   const canConvert = !request.convertedJobId && !["Converted", "Needs information", "Declined", "Cancelled"].includes(request.status);
+  const needsInfo = request.status === "Needs information";
   return `
-    <article class="dispatch-board-card project-dispatch-card">
+    <article class="dispatch-board-card project-dispatch-card ${needsInfo ? "panel-needs-attention" : ""}">
       <div class="dispatch-card-head">
-        <span class="job-number">${escapeHtml(request.requestNumber || "Job request")}</span>
-        <span class="risk-badge medium">Needs scheduling</span>
+        <span class="job-number">${escapeHtml(request.requestNumber || "Job request")}${needsInfo ? renderAlertDot(`Dispatch needs information: ${request.statusNote || "see the request"}`) : ""}</span>
+        <span class="risk-badge ${needsInfo ? "high" : "medium"}">${needsInfo ? "Needs information" : "Needs scheduling"}</span>
       </div>
-      <strong>${escapeHtml(request.description || request.serviceCategory || "Untitled request")}</strong>
+      ${request.title ? `<strong>${escapeHtml(request.title)}</strong>` : ""}
+      <${request.title ? "span" : "strong"}>${escapeHtml(request.description || request.serviceCategory || "Untitled request")}</${request.title ? "span" : "strong"}>
       <span>${escapeHtml(request.serviceCategory || "")} · ${escapeHtml(request.requestedTimeText || "No preferred time set")}</span>
       <div class="dispatch-card-time">
-        <span>${escapeHtml(request.status)}${request.status === "Needs information" && request.statusNote ? ` · missing ${escapeHtml(request.statusNote)}` : ""}</span>
+        <span>${escapeHtml(request.status)}${request.status === "Needs information" && request.statusNote ? ` · ${escapeHtml(request.statusNote)}` : ""}</span>
         <span class="inline-actions">${renderJobRequestActions(request, findDispatchJob(request.convertedJobId), canConvert, { compact: true })}</span>
       </div>
     </article>
@@ -11757,13 +11760,16 @@ function renderJobRequestCard(request) {
   const documents = documentsForJobRequest(request.id);
   const customerPacketDocuments = documents.filter((document) => document.documentRole === "customer_packet");
   const quoteDocuments = documents.filter((document) => document.documentRole === "quote");
+  const needsInfo = request.status === "Needs information" && !convertedJob;
+  const project = request.projectId ? findProject(request.projectId) : null;
   return `
-    <article class="job-request-card ${request.priority === "Emergency" ? "emergency" : ""}">
+    <article class="job-request-card ${request.priority === "Emergency" ? "emergency" : ""} ${needsInfo ? "panel-needs-attention" : ""}" data-job-request-id="${escapeAttribute(request.id)}">
       <div class="request-priority-rail"></div>
       <div class="request-main">
         <div class="request-head">
           <div>
-            <p class="eyebrow">${escapeHtml(request.requestNumber)} · ${formatDateTime(request.receivedAt)}</p>
+            <p class="eyebrow">${escapeHtml(request.requestNumber)} · ${formatDateTime(request.receivedAt)}${needsInfo ? renderAlertDot("Waiting on the requester for information") : ""}</p>
+            ${request.title ? `<p class="request-title"><strong>${escapeHtml(request.title)}</strong>${project ? ` <span class="muted-text">· ${escapeHtml(project.name)}</span>` : ""}</p>` : ""}
             <h3>
               ${
                 account
@@ -11797,7 +11803,7 @@ function renderJobRequestCard(request) {
       </div>
       <aside class="request-side">
         <div><span>Customer packet</span><strong>${customerPacketDocuments.length ? `${customerPacketDocuments.length} uploaded` : escapeHtml(request.customerPacketStatus || "Missing")}</strong></div>
-        <div><span>Quote</span><strong>${quoteDocuments.length ? `${quoteDocuments.length} uploaded` : escapeHtml(request.quoteStatus || "Missing")}</strong></div>
+        <div><span>Quote</span><strong>${quoteDocuments.length ? `${quoteDocuments.length} uploaded` : escapeHtml(request.quoteStatus || "Missing")}${request.quoteReference ? ` · ${escapeHtml(request.quoteReference)}` : ""}</strong></div>
         <div><span>Customer PO</span><strong>${escapeHtml(request.customerPoNumber || "Not provided")}</strong></div>
         <div><span>BioRemedy PO</span><strong>${escapeHtml(request.bioremedyPoNumber || "Not assigned")}</strong></div>
         ${documents.length ? `<div class="request-document-list"><span>Request documents</span>${documents.map(renderJobRequestDocument).join("")}</div>` : ""}
@@ -12073,12 +12079,19 @@ function renderDispatchCalendarDay(day) {
   `;
 }
 
+// Phase 25 Wave C item 1: a job made from a titled request shows its name on the calendar (the job's
+// own jobName, so a later rename wins). Jobs from untitled requests display as before.
+function dispatchJobRequestTitle(job) {
+  const request = job.jobRequestId ? getJobRequests().find((item) => item.id === job.jobRequestId) : null;
+  return request?.title ? job.jobName || request.title : "";
+}
+
 function renderDispatchCalendarCard(job) {
   const lead = findEmployee(job.fieldLeadEmployeeId);
   return `
     <button class="dispatch-calendar-card" type="button" data-action="view-dispatch-job" data-id="${job.id}">
       <span class="calendar-time">${formatShortTime(job.scheduledStart)}</span>
-      <span><strong>${escapeHtml(job.jobNumber)}</strong><small>${escapeHtml(job.customerName)}</small></span>
+      <span><strong>${escapeHtml(job.jobNumber)}</strong><small>${escapeHtml([dispatchJobRequestTitle(job), job.customerName].filter(Boolean).join(" · "))}</small></span>
       <span><strong>${escapeHtml(lead?.displayName || "Unassigned")}</strong><small>${escapeHtml(job.jobType)}</small></span>
       ${renderReadinessBadge(getJobReadiness(job).status)}
     </button>
@@ -19428,11 +19441,26 @@ async function saveJobRequest(form) {
   const requestedValue = data.get("requestedServiceAt").toString();
   const existingId = (data.get("id") || "").toString();
   const existing = existingId ? getJobRequests().find((item) => item.id === existingId) : null;
+  const title = (data.get("title") || "").toString().trim();
+  if (!title && !existing?.title && !existing) {
+    showToast("Give the request a title, e.g. Confirmation Sampling.");
+    return;
+  }
+  const projectId = (data.get("projectId") || "").toString();
+  // The quote reference is recorded on a new request so dispatch (which cannot read quotes) sees it.
+  const quoteLink = (() => {
+    if (existing) return { quoteId: existing.quoteId || "", quoteReference: existing.quoteReference || "" };
+    const project = projectId ? findProject(projectId) : null;
+    const quote = jobRequestPaperworkOnFile(account.id, project, project?.opportunityId ? findOpportunity(project.opportunityId) : null).quote;
+    return { quoteId: quote?.id || "", quoteReference: quote ? quote.quoteNumber || quote.name || "" : "" };
+  })();
   const request = {
     ...(existing || {}),
     id: existing?.id || makeId("req"),
     requestNumber: existing?.requestNumber || `REQ-${now.getFullYear()}-${localIsoDate(now).replaceAll("-", "").slice(4)}-${String(getJobRequests().length + 1).padStart(2, "0")}`,
-    projectId: data.get("projectId").toString(),
+    title: title || existing?.title || "",
+    projectId,
+    ...quoteLink,
     receivedAt: existing?.receivedAt || now.toISOString(),
     requestedServiceAt: requestedValue ? new Date(requestedValue).toISOString() : "",
     requestedTimeText: (data.get("priority") || "").toString() === "Emergency" ? "ASAP" : requestedValue ? formatDateTime(requestedValue) : "Date not confirmed",
@@ -19460,17 +19488,42 @@ async function saveJobRequest(form) {
     quoteStatus: (data.get("quoteStatus") || "").toString(),
     convertedJobId: existing?.convertedJobId || "",
     receivedBy: existing?.receivedBy || state.currentUser?.name || "Local user",
+    // Phase 25 Wave C: who to tell when dispatch needs more (a notification's recipientUserId).
+    requestedByUserId: existing ? existing.requestedByUserId || "" : state.session?.systemUserId || "",
   };
-  // The return loop (B11): once the missing pieces are filled in, the request goes back to the queue.
-  if (existing?.status === "Needs information" && jobRequestIsComplete(request)) {
-    request.status = "Submitted";
-    request.statusNote = "";
-    request.statusChangedAt = now.toISOString();
-    request.statusChangedBy = currentActorName();
+  // The return loop (B11), made explicit in Phase 25 Wave C item 4 (owner, 2026-09-29): an edit no
+  // longer silently sends a "Needs information" request back to the queue once the date, contact and
+  // address are filled in — the requester says so with the checkbox. Unticked, the edit is saved,
+  // the request stays with its requester, and the edit is logged. (There is no Draft status; the
+  // old auto-flip existed only for this.)
+  let answeredDispatch = false;
+  if (existing?.status === "Needs information") {
+    const answered = data.get("resolvesNeedsInfo") === "on";
+    const entry = { at: now.toISOString(), by: currentActorName(), action: answered ? "answered" : "edited", note: answered ? `Answered: ${existing.statusNote || "request from dispatch"}` : "Edited; still needs information" };
+    request.history = [...(existing.history || []), entry];
+    if (answered) {
+      answeredDispatch = true;
+      request.status = "Submitted";
+      request.statusNote = "";
+      request.statusChangedAt = now.toISOString();
+      request.statusChangedBy = currentActorName();
+      request.infoResolvedAt = now.toISOString();
+      request.infoResolvedBy = currentActorName();
+    }
   }
 
   try {
     await saveBackendRecord("jobRequests", request);
+    if (answeredDispatch) {
+      await raiseNotification({
+        key: `job-request-${request.id}-answered-${request.infoResolvedAt}`,
+        title: `Request updated: ${jobRequestLabel(request)}`,
+        body: `${request.requestNumber} · ${request.customerName || ""} — ${request.infoResolvedBy} answered: ${existing.statusNote || "the request for information"}`,
+        severity: "info",
+        audienceRoles: DISPATCH_NOTIFY_ROLES,
+        link: `#view=dispatch-intake`,
+      });
+    }
     const uploads = [
       ...customerPacketFiles.map((file) => uploadJobRequestDocument(request.id, "customer_packet", file)),
       ...quoteFiles.map((file) => uploadJobRequestDocument(request.id, "quote", file)),
@@ -19484,7 +19537,13 @@ async function saveJobRequest(form) {
     if (failedUploads.length) {
       showToast(`Job request saved. ${failedUploads.length} document${failedUploads.length === 1 ? "" : "s"} could not be uploaded.`);
     } else if (existing) {
-      showToast(request.status !== existing.status ? `${request.requestNumber} updated and back in the working queue.` : `${request.requestNumber} updated.`);
+      showToast(
+        answeredDispatch
+          ? `${request.requestNumber} updated and back in the working queue — dispatch has been told.`
+          : request.status === "Needs information"
+            ? `${request.requestNumber} updated; it still needs information for dispatch.`
+            : `${request.requestNumber} updated.`,
+      );
     } else {
       showToast(uploads.length ? `Job request sent with ${uploads.length} document${uploads.length === 1 ? "" : "s"}.` : "Job request sent to dispatch.");
     }
@@ -19711,7 +19770,9 @@ async function convertJobRequest(requestId, templateId = "") {
     projectId: project?.id || "",
     projectName: project?.name || `${request.customerName} ${jobType.name}`,
     customerName: request.customerName,
-    jobName: request.description.split(/[.!?]/)[0].slice(0, 90) || `${request.customerName} service`,
+    // Phase 25 Wave C item 1: the request's title is the job's name; untitled (older) requests keep
+    // the first sentence of the description.
+    jobName: request.title || String(request.description || "").split(/[.!?]/)[0].slice(0, 90) || `${request.customerName} service`,
     jobType: jobType.name,
     jobTypeCode: jobType.code,
     jobTypeVersion: 1,
@@ -22554,11 +22615,22 @@ const OFFICE_NOTIFY_ROLES = ["Admin", "Office Manager"];
 // saveProjectAlert has always recorded notified: ["Project Manager", "Sales Lead"] without telling
 // anyone. Those aren't roles in this app; these are the roles that hold those jobs.
 const FIELD_ALERT_NOTIFY_ROLES = ["Admin", "Office Manager", "Operations Manager", "Sales Manager", "Account Manager"];
+// Phase 25 Wave C: job request traffic. Dispatch hears when a requester answers; a requester whose
+// login cannot be resolved is reached through the roles that send requests.
+const DISPATCH_NOTIFY_ROLES = ["Admin", "Office Manager", "Operations Manager", "Scheduler"];
+const JOB_REQUESTER_NOTIFY_ROLES = ["Admin", "Office Manager", "Sales Manager", "Account Manager"];
 
+// A notification with a recipientUserId (Phase 25 Wave C) is that person's alone (admins see it
+// too); the server applies the same rule before rows leave it.
 function notificationsForCurrentUser() {
   const roles = currentRoles();
+  const userId = state.session?.systemUserId || "";
   return (state.backend.notifications || [])
-    .filter((notification) => !notification.deletedAt && (roles.includes("Admin") || !notification.audienceRoles?.length || notification.audienceRoles.some((role) => roles.includes(role))))
+    .filter((notification) => {
+      if (notification.deletedAt) return false;
+      if (notification.recipientUserId) return roles.includes("Admin") || notification.recipientUserId === userId;
+      return roles.includes("Admin") || !notification.audienceRoles?.length || notification.audienceRoles.some((role) => roles.includes(role));
+    })
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
@@ -22568,10 +22640,10 @@ function notificationIsUnread(notification) {
 
 // Ids are derived from the condition, so raising is idempotent: a condition already announced is
 // skipped, and two clients racing to announce it write the same row.
-async function raiseNotification({ key, title, body = "", severity = "warning", audienceRoles = OFFICE_NOTIFY_ROLES, link = "" }) {
+async function raiseNotification({ key, title, body = "", severity = "warning", audienceRoles = OFFICE_NOTIFY_ROLES, recipientUserId = "", link = "" }) {
   const id = `notif-${String(key).toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 140)}`;
   if ((state.backend.notifications || []).some((notification) => notification.id === id)) return null;
-  const record = { id, dedupeKey: key, title, body, severity, audienceRoles, recipientUserId: "", link, createdAt: new Date().toISOString(), readBy: [] };
+  const record = { id, dedupeKey: key, title, body, severity, audienceRoles, recipientUserId, link, createdAt: new Date().toISOString(), readBy: [] };
   state.backend.notifications = [...(state.backend.notifications || []), record];
   try {
     await saveBackendRecord("notifications", record, { refresh: false });
@@ -23032,8 +23104,11 @@ async function openNotification(id) {
   ROUTE_ID_FIELDS.forEach((field) => {
     if (params.has(field)) state[field] = params.get(field);
   });
+  // Phase 25 Wave C: a job request notification lands on the project's tab and opens the request.
+  if (params.get("projectDetailTab")) state.projectDetailTab = params.get("projectDetailTab");
   closeDialogs();
   render();
+  if (params.get("openJobRequest")) openJobRequestEditDialog(params.get("openJobRequest"));
 }
 
 // ============================================================================================
@@ -29998,13 +30073,19 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
   const form = dialog.querySelector("form");
   form.reset();
   setJobRequestDialogMode(dialog, null);
+  setJobRequestNeedsInfoCallout(dialog, null);
   populateAccountSelect(dialog, "Select a customer account");
   populateEmployeeSelect(dialog, "requestedEmployeeId", "No requested lead");
   form.elements.requestedServiceAt.value = toLocalDateTimeInput(new Date());
   form.elements.projectId.value = projectId || "";
+  form.elements.pricingNotes.placeholder = "Enter pricing for this specific request.";
 
   const project = projectId ? findProject(projectId) : null;
   const opportunity = opportunityId ? findOpportunity(opportunityId) : project?.opportunityId ? findOpportunity(project.opportunityId) : null;
+  // Phase 25 Wave C item 1: every request is named ("Confirmation Sampling"); the name becomes the
+  // dispatch job's name. The placeholder offers the project's current stage as a starting point.
+  form.elements.title.required = true;
+  form.elements.title.placeholder = project?.activePhase ? `e.g. ${project.activePhase}` : "e.g. Confirmation Sampling";
 
   // Live bug report follow-up (2026-09-17): "each new job request asks for the same customer packet
   // and quote info" — every job request dialog defaulted customerPacketStatus/quoteStatus to
@@ -30051,18 +30132,14 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
     // field. That reused figure prices the whole original scope of work, not whatever this specific
     // follow-on request covers, but nothing distinguished it from a real per-request price — it just
     // silently looked like this request's pricing. For the project's first job request that reused
-    // figure is the right and only pricing reference available, so it still prefills the value. For
-    // any later request on the same project, the value is left blank (so nothing false-looking gets
-    // submitted) and the original figure is offered only as a placeholder/reference via `title`.
+    // figure is the right and only pricing reference available, so it still prefills the value. Later
+    // requests on the same project were left blank until Phase 25 Wave C (see below).
+    // Phase 25 Wave C item 2 (owner, 2026-09-29): "pricing on every request, not only the first" —
+    // the reference is prefilled on later requests too, labelled as the original pricing so it is
+    // not mistaken for a per-request price (the 2026-09-17 concern above).
     const originalPricingReference = (project.opportunityId && pricingSourceForOpportunity(project.opportunityId)) || (project.budget ? `${money(project.budget)} project budget.` : "");
-    if (priorRequests.length) {
-      form.elements.pricingNotes.value = "";
-      form.elements.pricingNotes.placeholder = originalPricingReference
-        ? `Original opportunity: ${originalPricingReference} — enter pricing for this specific request.`
-        : "Enter pricing for this specific request.";
-    } else {
-      form.elements.pricingNotes.value = originalPricingReference;
-    }
+    form.elements.pricingNotes.placeholder = "Enter pricing for this specific request.";
+    form.elements.pricingNotes.value = (priorRequests.length && originalPricingReference ? `Original quote: ${originalPricingReference}` : originalPricingReference).slice(0, 240);
     form.elements.description.value = [project.name, project.activePhase].filter(Boolean).join(" — ");
     if (project.jobClass === "Scheduled Work") {
       form.elements.requestedServiceAt.value = toLocalDateTimeInput(new Date(Date.now() + 3 * 86400000));
@@ -30082,7 +30159,98 @@ function openJobRequestDialog(accountId = "", opportunityId = "", projectId = ""
   } else if (accountId) {
     form.elements.accountId.value = accountId;
   }
+
+  // Phase 25 Wave C item 2: what the project (or its opportunity) already says it needs, and what
+  // paperwork the office already holds. Only a new request is prefilled; editing keeps stored values.
+  if (project || opportunity) {
+    const needs = jobRequestNeedsFromProject(project, opportunity);
+    form.elements.equipmentNotes.value = needs.equipmentNotes;
+    form.elements.laborNotes.value = needs.laborNotes;
+    form.elements.vendorNotes.value = needs.vendorNotes;
+    const paperwork = jobRequestPaperworkOnFile(form.elements.accountId.value, project, opportunity);
+    if (paperwork.packetApproved) {
+      form.elements.customerPacketStatus.value = "On file";
+      priorPacketNote.textContent = "Approved by the office (Phase 13 paperwork) — no need to attach it again.";
+      priorPacketNote.hidden = false;
+    }
+    if (paperwork.quoteStatus && !(paperwork.quoteStatus === "Draft" && form.elements.quoteStatus.value === "Approved")) {
+      form.elements.quoteStatus.value = paperwork.quoteStatus;
+      priorQuoteNote.textContent = paperwork.quote ? `${paperwork.quoteLabel} is linked to this project — see below.` : priorQuoteNote.textContent;
+      priorQuoteNote.hidden = !priorQuoteNote.textContent;
+    }
+  }
+  renderJobRequestOnFile(dialog, form.elements.accountId.value, project, opportunity);
   dialog.showModal();
+}
+
+// Phase 25 Wave C item 2 — a project's needs lists ({name, note} rows, edited on the opportunity and
+// copied to the project at creation) as readable lines. The project wins; its opportunity fills in
+// any list the project lacks. Trimmed to the dialog fields' maxlength.
+function jobRequestNeedsFromProject(project, opportunity) {
+  const list = (field) => (project?.[field]?.length ? project[field] : opportunity?.[field] || []);
+  const lines = (field, separator, max) =>
+    list(field)
+      .filter((item) => item?.name)
+      .map((item) => [String(item.name).trim(), String(item.note || "").trim()].filter(Boolean).join(" — "))
+      .join(separator)
+      .slice(0, max);
+  return {
+    equipmentNotes: lines("equipmentNeeds", "\n", 400),
+    laborNotes: lines("resourceNeeds", "\n", 400),
+    vendorNotes: lines("vendorNeeds", "; ", 240),
+  };
+}
+
+// The paperwork the office already holds for this request's account/project: the approved customer
+// packet (Phase 13 requirement, Approved or Waived), and the project's quote (project.quoteId, else the
+// opportunity's current quote). A quote counts as approved when it is Won/Accepted or a signed quote is
+// approved for the account; any other linked quote reads as Draft.
+function jobRequestPaperworkOnFile(accountId, project, opportunity) {
+  const opportunityId = opportunity?.id || project?.opportunityId || "";
+  const packetApproved = Boolean(accountId) && paperworkApproved(accountId, "customer-packet", opportunityId);
+  const satisfiedDocuments = (code) => {
+    const type = accountId ? documentTypeByCode(code) : null;
+    if (!type) return [];
+    return requirementsForAccount(accountId)
+      .filter((requirement) => requirement.documentTypeId === type.id && requirementIsSatisfied(requirement) && (requirement.entityType !== "opportunity" || !opportunityId || requirement.entityId === opportunityId))
+      .map(requirementCurrentDocument)
+      .filter((document) => document && !document.deletedAt);
+  };
+  const quoteId = project?.quoteId || opportunity?.quoteId || "";
+  const quote = quoteId ? (state.backend.quotes || []).find((item) => item.id === quoteId && !item.deletedAt) || null : null;
+  const signedQuoteDocuments = satisfiedDocuments("signed-quote");
+  const quoteApproved = Boolean(quote) && (["Won", "Accepted", "Approved"].includes(quote.statusCode) || signedQuoteDocuments.length > 0);
+  return {
+    packetApproved,
+    packetDocuments: satisfiedDocuments("customer-packet"),
+    quote,
+    quoteLabel: quote ? `Quote ${quote.quoteNumber || quote.name || ""}`.trim() : "",
+    quoteStatus: quote ? (quoteApproved ? "Approved" : "Draft") : "",
+    signedQuoteDocuments,
+  };
+}
+
+// "On file: <document>" lines under the upload fields, so dispatch sees what already exists without
+// anything being attached to the request itself.
+function renderJobRequestOnFile(dialog, accountId, project, opportunity, request = null) {
+  const slot = dialog.querySelector("[data-job-request-onfile]");
+  if (!slot) return;
+  const paperwork = project || opportunity ? jobRequestPaperworkOnFile(accountId, project, opportunity) : null;
+  const documentLine = (label, document) =>
+    `<div><span class="muted-text">${escapeHtml(label)}</span><a href="/api/documents/${encodeURIComponent(document.id)}/view" target="_blank" rel="noopener">On file: ${escapeHtml(document.fileName || "document")}</a></div>`;
+  const quoteOpportunityId = paperwork?.quote?.opportunityId || opportunity?.id || project?.opportunityId || "";
+  const rows = [
+    ...(paperwork?.packetDocuments || []).map((document) => documentLine("Customer packet", document)),
+    paperwork?.quote
+      ? `<div><span class="muted-text">Quote</span><strong>${escapeHtml(paperwork.quoteLabel)}</strong><span class="tag">${escapeHtml(paperwork.quote.statusCode || "Draft")}</span>${quoteOpportunityId ? `<button class="mini-button" type="button" data-action="print-opportunity-quote" data-opportunity-id="${escapeAttribute(quoteOpportunityId)}" data-id="${escapeAttribute(paperwork.quote.id)}">Print</button>` : ""}</div>`
+      : // Dispatch logins cannot read quotes; the quote number stored on the request stands in.
+        request?.quoteReference
+        ? `<div><span class="muted-text">Quote</span><strong>${escapeHtml(request?.quoteReference)}</strong>${request.quoteStatus ? `<span class="tag">${escapeHtml(request.quoteStatus)}</span>` : ""}</div>`
+        : "",
+    ...(paperwork?.signedQuoteDocuments || []).map((document) => documentLine("Signed quote", document)),
+  ].filter(Boolean);
+  slot.innerHTML = rows.join("");
+  slot.hidden = !rows.length;
 }
 
 function setJobRequestDialogMode(dialog, request) {
@@ -30113,6 +30281,11 @@ function openJobRequestEditDialog(requestId) {
   dialog.querySelector(".prior-packet-note").hidden = true;
   dialog.querySelector(".prior-quote-note").hidden = true;
   setJobRequestDialogMode(dialog, request);
+  // Requests from before Phase 25 Wave C have no title; they can be saved without one.
+  form.elements.title.required = Boolean(request.title);
+  form.elements.title.placeholder = "e.g. Confirmation Sampling";
+  form.elements.title.value = request.title || "";
+  form.elements.pricingNotes.placeholder = "Enter pricing for this specific request.";
   form.elements.projectId.value = request.projectId || "";
   form.elements.accountId.value = request.accountId || "";
   form.elements.serviceCategory.value = request.serviceCategory || "Scheduled";
@@ -30135,7 +30308,64 @@ function openJobRequestEditDialog(requestId) {
   form.elements.description.value = request.description || "";
   form.elements.customerPacketStatus.value = request.customerPacketStatus || "Missing";
   form.elements.quoteStatus.value = request.quoteStatus || "Missing";
+  setJobRequestNeedsInfoCallout(dialog, request);
+  const project = request.projectId ? findProject(request.projectId) : null;
+  renderJobRequestOnFile(dialog, request.accountId || "", project, project?.opportunityId ? findOpportunity(project.opportunityId) : null, request);
   dialog.showModal();
+}
+
+// Phase 25 Wave C item 4: while dispatch is waiting on the requester, the dialog opens with
+// dispatch's note on top and the choice to clear it with this save.
+function setJobRequestNeedsInfoCallout(dialog, request) {
+  const callout = dialog.querySelector("[data-job-request-needs-info]");
+  if (!callout) return;
+  const waiting = request?.status === "Needs information";
+  callout.hidden = !waiting;
+  const checkbox = dialog.querySelector("form").elements.resolvesNeedsInfo;
+  checkbox.checked = false;
+  checkbox.disabled = !waiting;
+  if (!waiting) return;
+  callout.querySelector("[data-job-request-needs-info-note]").textContent = request.statusNote || "No note was left.";
+  callout.querySelector("[data-job-request-needs-info-meta]").textContent = [
+    request.statusChangedBy ? `Asked by ${request.statusChangedBy}` : "",
+    request.statusChangedAt ? formatDateTime(request.statusChangedAt) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// The requester of a job request as a system user: the id stored when it was sent (Phase 25 Wave C),
+// else the sender's name matched to a user, or to an employee linked to a user (Scheduler logins
+// cannot read systemUsers, but can read employees). "" when it cannot be resolved.
+function jobRequestRequesterUserId(request) {
+  if (request?.requestedByUserId) return request.requestedByUserId;
+  const name = String(request?.receivedBy || "").trim().toLowerCase();
+  if (!name) return "";
+  const user = (state.backend.systemUsers || []).find((item) => !item.deletedAt && String(item.fullName || "").trim().toLowerCase() === name);
+  if (user) return user.id;
+  const employee = getEmployees().find((item) => item.systemUserId && [item.displayName, [item.firstName, item.lastName].filter(Boolean).join(" ")].some((value) => String(value || "").trim().toLowerCase() === name));
+  return employee?.systemUserId || "";
+}
+
+function jobRequestLabel(request) {
+  return request?.title || request?.requestNumber || "Job request";
+}
+
+// Where a request's notification lands: its project's Live tab (where the project's requests and
+// dispatch jobs are), else the intake queue; either way the request's dialog opens.
+function jobRequestLink(request) {
+  const open = `openJobRequest=${encodeURIComponent(request.id)}`;
+  return request.projectId ? `#view=project-detail&selectedProjectId=${encodeURIComponent(request.projectId)}&projectDetailTab=live&${open}` : `#view=dispatch-intake&${open}`;
+}
+
+// Red-dot rule: requests on a project that are waiting on their requester.
+function projectRequestsNeedingInfo(projectId) {
+  return jobRequestsForProject(projectId).filter((request) => request.status === "Needs information" && !request.convertedJobId);
+}
+
+function projectNeedsInfoAlertTitle(projectId) {
+  const count = projectRequestsNeedingInfo(projectId).length;
+  return count ? `${count} job request${count === 1 ? "" : "s"} waiting on information for dispatch` : "";
 }
 
 function jobRequestIsComplete(request) {
@@ -30156,8 +30386,24 @@ async function setJobRequestStatus(requestId, status, note = "") {
     statusChangedAt: new Date().toISOString(),
     statusChangedBy: currentActorName(),
   };
+  if (status === "Needs information") {
+    updated.history = [...(request.history || []), { at: updated.statusChangedAt, by: updated.statusChangedBy, action: "needs-information", note }];
+  }
   try {
     await saveBackendRecord("jobRequests", updated);
+    // Phase 25 Wave C item 3: the requester is told, by name when their login is known.
+    if (status === "Needs information") {
+      const recipientUserId = jobRequestRequesterUserId(request);
+      await raiseNotification({
+        key: `job-request-${request.id}-needs-info-${updated.statusChangedAt}`,
+        title: `Dispatch needs information: ${jobRequestLabel(request)}`,
+        body: `${request.requestNumber} · ${request.customerName || ""} — ${note}${updated.statusChangedBy ? ` (${updated.statusChangedBy})` : ""}`,
+        severity: "warning",
+        audienceRoles: recipientUserId ? [] : JOB_REQUESTER_NOTIFY_ROLES,
+        recipientUserId,
+        link: jobRequestLink(request),
+      });
+    }
     render();
     showToast(
       status === "Submitted"
@@ -30171,7 +30417,8 @@ async function setJobRequestStatus(requestId, status, note = "") {
   }
 }
 
-async function markJobRequestNeedsInfo(requestId) {
+// Phase 25 Wave C item 3: a small dialog (note required) instead of window.prompt.
+function markJobRequestNeedsInfo(requestId) {
   const request = getJobRequests().find((item) => item.id === requestId);
   if (!request) return;
   const missing = [
@@ -30179,9 +30426,25 @@ async function markJobRequestNeedsInfo(requestId) {
     !request.onsiteContactName ? "onsite contact" : "",
     !request.addressText ? "address" : "",
   ].filter(Boolean);
-  const note = window.prompt("What is missing before dispatch can create the job?", request.statusNote || missing.join(", "));
-  if (note === null) return;
-  await setJobRequestStatus(requestId, "Needs information", note.trim());
+  const dialog = document.querySelector("#jobRequestNeedsInfoDialog");
+  const form = dialog.querySelector("form");
+  form.reset();
+  form.elements.id.value = request.id;
+  form.elements.note.value = request.statusNote || (missing.length ? `Missing: ${missing.join(", ")}` : "");
+  dialog.querySelector("[data-needs-info-eyebrow]").textContent = `${request.requestNumber || "Job request"} · ${jobRequestLabel(request)}`;
+  dialog.showModal();
+  form.elements.note.focus();
+}
+
+async function saveJobRequestNeedsInfo(form) {
+  const data = new FormData(form);
+  const note = (data.get("note") || "").toString().trim();
+  if (!note) {
+    showToast("Say what dispatch needs before sending it back.");
+    return;
+  }
+  closeDialogs();
+  await setJobRequestStatus((data.get("id") || "").toString(), "Needs information", note);
 }
 
 async function closeJobRequest(requestId, status) {

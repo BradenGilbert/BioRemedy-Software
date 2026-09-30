@@ -610,10 +610,11 @@ TUTORIALS.push({
     {
       target: "dialog:jobRequestDialog",
       title: "What's needed",
-      do: "Set when the service is wanted, the onsite contact and their phone, check the address, describe the work, and press Send to dispatch.",
+      do: "Give the request a title (it becomes the dispatch job's name), set when the service is wanted, the onsite contact and their phone, check the address, describe the work, and press Send to dispatch.",
       why: "Dispatch can't create a job without a time, a person to meet on site, and an address.",
       waitFor: "created:jobRequests",
       auto: [
+        { fill: ["sel:#jobRequestDialog [name=title]", `${PRACTICE}: Confirmation Sampling`] },
         { fill: ["sel:#jobRequestDialog [name=requestedServiceAt]", "@todayT08:00"] },
         { fill: ["sel:#jobRequestDialog [name=onsiteContactName]", `${PRACTICE} contact`] },
         { fill: ["sel:#jobRequestDialog [name=onsiteContactPhone]", "512-555-0101"] },

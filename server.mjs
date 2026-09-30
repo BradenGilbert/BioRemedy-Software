@@ -2855,7 +2855,7 @@ function filterBackendForRoleUnstripped(data, role, session = null) {
     permits: canAccess(role, "operations") || canAccess(role, "inventory") || canAccess(role, "finance") ? data.permits : [],
     // Finance reads waste records because disposal cost feeds the project P&L.
     wasteRecords: canAccess(role, "operations") || canAccess(role, "finance") ? data.wasteRecords : [],
-    notifications: canAccess(role, "customerDirectory") ? data.notifications : [],
+    notifications: canAccess(role, "customerDirectory") ? visibleNotifications(data, session, role) : [],
     invoices: canAccess(role, "finance") ? data.invoices : [],
     qboSettings: canAccess(role, "finance") ? data.qboSettings : { connectionStatus: "Restricted", realmId: "", lastExportAt: "" },
     qboExports: canAccess(role, "finance") ? data.qboExports : [],
@@ -5053,6 +5053,17 @@ function ensureItMessageAssignments(data) {
     }
   }
   return changed;
+}
+
+// Phase 25 Wave C (2026-09-29): a notification addressed to one person (recipientUserId, e.g. "dispatch
+// needs information on your job request") reaches only that person and administrators. Role-addressed
+// notifications are unchanged.
+function visibleNotifications(data, session, roles) {
+  const list = Array.isArray(roles) ? roles : [roles];
+  const rows = data.notifications || [];
+  if (list.includes("Admin")) return rows;
+  const userId = session?.systemUserId || "";
+  return rows.filter((row) => !row.recipientUserId || (userId && row.recipientUserId === userId));
 }
 
 function visibleItMessages(data, session, roles) {
