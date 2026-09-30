@@ -320,6 +320,8 @@ const workspaceModules = {
     { view: "dispatch-calendar", label: "Schedule" },
     { view: "dispatch-conflicts", label: "Conflicts" },
     { view: "dispatch-templates", label: "Job Templates" },
+    // Phase 25 Wave F: the Forms builder, beside the job templates that attach its forms.
+    { view: "dispatch-forms", label: "Forms" },
   ],
   workforce: [
     { view: "workforce-directory", label: "Directory" },
@@ -391,6 +393,8 @@ const viewWorkspace = {
   "dispatch-job-detail": "dispatch",
   "dispatch-templates": "dispatch",
   "dispatch-template-editor": "dispatch",
+  "dispatch-forms": "dispatch",
+  "dispatch-form-editor": "dispatch",
   "workforce-directory": "workforce",
   "workforce-credentials": "workforce",
   "workforce-credential-type": "workforce",
@@ -1073,6 +1077,12 @@ const state = {
   selectedFrontlineDeviceId: "",
   selectedTemplateId: "",
   templateDraft: null,
+  // Phase 25 Wave F: the Forms builder.
+  formDraft: null,
+  formsFilter: "active",
+  formEditorOpenFieldId: "",
+  formBuilderAddType: "text",
+  selectedFormTemplateId: "",
   workforceSearch: "",
   dispatchJobFilter: "Open",
   pipelineAccountFilter: "",
@@ -3016,6 +3026,8 @@ function render() {
   if (state.view === "dispatch-job-detail") renderDispatchJobDetail();
   if (state.view === "dispatch-templates") renderDispatchTemplates();
   if (state.view === "dispatch-template-editor") renderTemplateEditor();
+  if (state.view === "dispatch-forms") renderDispatchForms();
+  if (state.view === "dispatch-form-editor") renderFormEditor();
   if (state.view === "workforce-directory") renderWorkforceDirectory();
   if (state.view === "workforce-credentials") renderWorkforceCredentials();
   if (state.view === "workforce-credential-type") renderWorkforceCredentialTypeDetail();
@@ -3090,6 +3102,7 @@ const ROUTE_ID_FIELDS = [
   "selectedConsumableId",
   "selectedEquipmentAssetTag",
   "selectedTemplateId",
+  "selectedFormTemplateId",
   "accountDetailTab",
   "contactDetailTab",
   "frontlineSelectedJobId",
@@ -3364,6 +3377,7 @@ function isActiveModule(moduleView) {
   if (moduleView === "contacts" && state.view === "contact-detail") return true;
   if (moduleView === "ops-projects" && ["project-detail", "sample-detail"].includes(state.view)) return true;
   if (moduleView === "dispatch-jobs" && state.view === "dispatch-job-detail") return true;
+  if (moduleView === "dispatch-forms" && state.view === "dispatch-form-editor") return true;
   if (moduleView === "workforce-directory" && state.view === "employee-detail") return true;
   if (moduleView === "client-spills" && state.view === "client-spill-detail") return true;
   if (moduleView === "inventory-consumables" && state.view === "inventory-consumable-detail") return true;
@@ -12746,6 +12760,1387 @@ async function toggleTemplateActive(templateId) {
     showToast(template.isActive === false ? "Template reactivated." : "Template deactivated.");
   } catch (error) {
     showToast(error.message || "Template could not be updated.");
+  }
+}
+
+// ---- Phase 25 Wave F (2026-09-30): the office Forms builder (StreetSmart-style job action forms) ----
+//
+// Builds `formTemplates` rows: a header (name, display name, description, category), an ordered list
+// of fields of 15 types with a config editor per type, and the deploy options -- Active, Available on
+// Forms Menu, one timesheet action per active form, crew/role groups. The shape is fixed in
+// phase-25-pilot-fixes-2026-09-29.md "Wave F -- detailed plan"; the server (normalizeFormTemplateWrite)
+// enforces the same rules. The phone renders and evaluates forms (field/forms.js); the preview here is
+// a read-only sketch of the same layout. Legacy fields ({key, label, type} with yesno / checklist /
+// photo) open mapped to the new shape and are saved in it.
+
+const FORM_FIELD_TYPE_OPTIONS = [
+  { value: "calculation", label: "Calculation", help: "Works a number out from other number fields." },
+  { value: "cascadingList", label: "Cascading list", help: "Linked pick lists (e.g. Category, then Item), imported from a CSV." },
+  { value: "checkbox", label: "Checkbox", help: "A single tick box." },
+  { value: "date", label: "Date", help: "A calendar date; can fill in today automatically." },
+  { value: "label", label: "Label", help: "Text on the form -- a heading, note or warning. Takes no answer." },
+  { value: "money", label: "Money", help: "A dollar amount." },
+  { value: "multiSelect", label: "Multi select list", help: "Tick any number of options." },
+  { value: "number", label: "Number", help: "A number, with optional limits and a unit." },
+  { value: "odometer", label: "Odometer", help: "A vehicle from the fleet and its odometer reading." },
+  { value: "picture", label: "Picture capture", help: "One or more photos." },
+  { value: "selectList", label: "Select list", help: "Pick one option." },
+  { value: "signature", label: "Signature", help: "A signature, optionally with the signer's printed name." },
+  { value: "text", label: "Text", help: "Free text, one line or several." },
+  { value: "time", label: "Time", help: "A time of day; can fill in the current time automatically." },
+  { value: "url", label: "URL", help: "A web link." },
+];
+const FORM_FIELD_TYPES = FORM_FIELD_TYPE_OPTIONS.map((option) => option.value);
+const FORM_LEGACY_FIELD_TYPES = { yesno: "selectList", checklist: "multiSelect", photo: "picture" };
+// Fields a calculation may use (an odometer contributes its reading).
+const FORM_NUMERIC_FIELD_TYPES = ["number", "money", "calculation", "odometer"];
+// Fields that take a typed default value (date/time use "fill in automatically" instead).
+const FORM_DEFAULT_VALUE_TYPES = ["money", "number", "selectList", "text", "url"];
+const FORM_TIMESHEET_ACTIONS = [
+  { value: "shift_start", label: "Shift start" },
+  { value: "shift_end", label: "Shift end" },
+  { value: "break_start", label: "Break start" },
+  { value: "break_end", label: "Break end" },
+];
+const FORM_LABEL_STYLES = [
+  { value: "heading", label: "Heading" },
+  { value: "note", label: "Note" },
+  { value: "warning", label: "Warning" },
+];
+// Mirrors who can edit Job Templates (server: FORM_TEMPLATE_WRITE_ROLES).
+const FORM_TEMPLATE_WRITE_ROLES = ["Admin", "Office Manager", "Operations Manager", "Scheduler"];
+const FORM_CATEGORY_SUGGESTIONS = ["Safety", "Vehicle", "Incident", "Job", "Timesheet", "General"];
+
+function getFormTemplates() {
+  return liveRows(state.backend.formTemplates);
+}
+
+function findFormTemplate(formId) {
+  return (state.backend.formTemplates || []).find((form) => form.id === formId) || null;
+}
+
+function formTemplateTitle(form) {
+  return String(form?.displayName || form?.name || "Untitled form");
+}
+
+// Wave F3 (Job Templates "Job Action form attached" picker): the forms a task can attach -- active,
+// not archived, sorted by the name workers see.
+function activeFormTemplates() {
+  return getFormTemplates()
+    .filter((form) => form.isActive !== false)
+    .sort((a, b) => formTemplateTitle(a).localeCompare(formTemplateTitle(b)));
+}
+
+function canEditFormTemplates() {
+  return userHasRole(...FORM_TEMPLATE_WRITE_ROLES);
+}
+
+// Forms seeded before Wave F never had the flag and were always on the phone's Forms menu.
+function formOnFormsMenu(form) {
+  return form?.availableOnFormsMenu ?? true;
+}
+
+function formFieldTypeLabel(type) {
+  return FORM_FIELD_TYPE_OPTIONS.find((option) => option.value === type)?.label || type || "Field";
+}
+
+function formTimesheetActionLabel(value) {
+  return FORM_TIMESHEET_ACTIONS.find((option) => option.value === value)?.label || "";
+}
+
+// The active form (other than `exceptId`) that already holds a timesheet action.
+function formTimesheetHolder(action, exceptId) {
+  if (!action) return null;
+  return getFormTemplates().find((form) => form.id !== exceptId && form.isActive !== false && form.timesheetAction === action) || null;
+}
+
+function formGroupRoleOptions() {
+  const roles = SYSTEM_USER_ROLES.filter((role) => role !== "Client Portal");
+  const leadIndex = roles.indexOf("Field Lead");
+  if (!roles.includes("Crew")) roles.splice(leadIndex >= 0 ? leadIndex + 1 : roles.length, 0, "Crew");
+  return roles;
+}
+
+function formGroupsSummary(groups) {
+  const crewIds = groups?.crewIds || [];
+  const roles = groups?.roles || [];
+  if (!crewIds.length && !roles.length) return "Everyone";
+  const crews = crewIds.map((crewId) => findCrewProfile(crewId)?.name || "").filter(Boolean);
+  const crewText = crews.length === crewIds.length ? crews.join(", ") : `${crewIds.length} crew${crewIds.length === 1 ? "" : "s"}`;
+  return [crewIds.length ? crewText : "", roles.join(", ")].filter(Boolean).join(" · ");
+}
+
+// Submissions already stored for a form: new ones carry formTemplateId; older standalone ones only
+// the form's name.
+function formTemplateSubmissionCount(form) {
+  if (!form?.id) return 0;
+  return liveRows(state.backend.jobFormSubmissions).filter(
+    (submission) => submission.formTemplateId === form.id || (!submission.formTemplateId && submission.standalone && submission.formName && (submission.formName === form.name || submission.formName === form.displayName)),
+  ).length;
+}
+
+function formFieldRefSlug(value) {
+  const slug = String(value || "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+  return /^[0-9]/.test(slug) ? `f_${slug}`.slice(0, 60) : slug;
+}
+
+function uniqueFormFieldRef(base, fields, exceptFieldId) {
+  const taken = new Set(fields.filter((field) => field.id !== exceptFieldId).map((field) => String(field.fieldRef || "").toLowerCase()));
+  const root = base || "field";
+  let ref = root;
+  let suffix = 2;
+  while (taken.has(ref.toLowerCase())) {
+    ref = `${root}_${suffix}`;
+    suffix += 1;
+  }
+  return ref;
+}
+
+function formFieldDefaultConfig(type) {
+  if (type === "calculation") return { expression: "", decimals: 2 };
+  if (type === "cascadingList") return { levels: [], rows: [] };
+  if (type === "checkbox") return { defaultChecked: false };
+  if (type === "date" || type === "time") return { autoCapture: false };
+  if (type === "label") return { text: "", style: "note" };
+  if (type === "money") return { min: null, max: null, decimals: 2, unit: "" };
+  if (type === "number") return { min: null, max: null, decimals: null, unit: "" };
+  if (type === "selectList" || type === "multiSelect") return { options: [] };
+  if (type === "picture") return { min: 0, max: 10, allowGallery: true };
+  if (type === "signature") return { signerNameRequired: false };
+  if (type === "text") return { maxLength: null, multiline: false };
+  return {};
+}
+
+// A stored field (new shape, or a legacy {key, label, type, options}) as the editor holds it.
+function formFieldForEditor(field) {
+  const raw = field && typeof field === "object" ? field : {};
+  const isLegacyShape = !raw.fieldRef && !raw.displayName && Boolean(raw.key || raw.label);
+  const legacyType = FORM_LEGACY_FIELD_TYPES[raw.type] ? raw.type : "";
+  const type = FORM_LEGACY_FIELD_TYPES[raw.type] || (FORM_FIELD_TYPES.includes(raw.type) ? raw.type : "text");
+  const config = { ...formFieldDefaultConfig(type), ...(raw.config && typeof raw.config === "object" ? structuredClone(raw.config) : {}) };
+  if (!raw.config) {
+    if (legacyType === "yesno") config.options = ["Yes", "No"];
+    if (legacyType === "checklist") config.options = Array.isArray(raw.options) ? raw.options.map((option) => String(option)) : [];
+    if (legacyType === "photo") config.min = raw.required ? 1 : 0;
+    if (isLegacyShape && raw.type === "text") config.multiline = true;
+  }
+  return {
+    id: String(raw.id || "") || makeId("fld"),
+    displayName: String(raw.displayName ?? raw.label ?? ""),
+    fieldRef: String(raw.fieldRef ?? raw.key ?? ""),
+    type,
+    required: type === "label" ? false : Boolean(raw.required),
+    helpText: String(raw.helpText || ""),
+    defaultValue: String(raw.defaultValue ?? ""),
+    config,
+    _legacyType: legacyType || (isLegacyShape ? String(raw.type || "") : ""),
+    _refAuto: false,
+    _isNew: false,
+  };
+}
+
+function formDraftFromTemplate(form) {
+  const fields = (form.fields || []).map(formFieldForEditor);
+  return {
+    id: form.id,
+    key: form.key || "",
+    name: form.name || "",
+    displayName: form.displayName || form.name || "",
+    description: form.description || "",
+    category: form.category || "General",
+    requiresJob: Boolean(form.requiresJob),
+    isActive: form.isActive !== false,
+    availableOnFormsMenu: formOnFormsMenu(form),
+    timesheetAction: form.timesheetAction || "",
+    groups: { crewIds: [...(form.groups?.crewIds || [])], roles: [...(form.groups?.roles || [])] },
+    fields,
+    version: form.version,
+    hasLegacyFields: fields.some((field) => field._legacyType),
+    _isNew: false,
+    _dirty: false,
+    _refsUnlocked: false,
+  };
+}
+
+function blankFormDraft() {
+  return {
+    id: "",
+    key: "",
+    name: "",
+    displayName: "",
+    description: "",
+    category: "General",
+    requiresJob: false,
+    isActive: true,
+    availableOnFormsMenu: false,
+    timesheetAction: "",
+    groups: { crewIds: [], roles: [] },
+    fields: [],
+    version: undefined,
+    hasLegacyFields: false,
+    _isNew: true,
+    _dirty: false,
+    _refsUnlocked: false,
+  };
+}
+
+// The calculation grammar -- the same parser as the server's parseFormExpression. It only checks the
+// expression; evaluating it is the phone's job (field/forms.js), and nothing here ever calls eval.
+function formExpressionParse(expression) {
+  const source = String(expression || "");
+  const tokens = [];
+  let index = 0;
+  while (index < source.length) {
+    const char = source[index];
+    if (/\s/.test(char)) {
+      index += 1;
+      continue;
+    }
+    const number = /^(\d+(\.\d*)?|\.\d+)/.exec(source.slice(index));
+    if (number) {
+      tokens.push({ kind: "number", text: number[0] });
+      index += number[0].length;
+      continue;
+    }
+    const ident = /^[A-Za-z_][A-Za-z0-9_]*/.exec(source.slice(index));
+    if (ident) {
+      tokens.push({ kind: "ref", text: ident[0] });
+      index += ident[0].length;
+      continue;
+    }
+    const op = { "+": "+", "-": "-", "−": "-", "*": "*", "×": "*", "/": "/", "÷": "/", "(": "(", ")": ")" }[char];
+    if (op) {
+      tokens.push({ kind: op, text: char });
+      index += 1;
+      continue;
+    }
+    return { error: `Unexpected "${char}" at position ${index + 1}.` };
+  }
+  if (!tokens.length) return { error: "The expression is empty." };
+  let position = 0;
+  const refs = [];
+  const peek = () => tokens[position];
+  const fail = (message) => {
+    throw new Error(message);
+  };
+  const factor = () => {
+    const token = peek();
+    if (!token) fail("The expression ends too soon.");
+    if (token.kind === "+" || token.kind === "-") {
+      position += 1;
+      factor();
+      return;
+    }
+    if (token.kind === "number") {
+      position += 1;
+      return;
+    }
+    if (token.kind === "ref") {
+      refs.push(token.text);
+      position += 1;
+      return;
+    }
+    if (token.kind === "(") {
+      position += 1;
+      expr();
+      if (peek()?.kind !== ")") fail('A "(" is never closed.');
+      position += 1;
+      return;
+    }
+    fail(`Unexpected "${token.text}".`);
+  };
+  const term = () => {
+    factor();
+    while (peek() && (peek().kind === "*" || peek().kind === "/")) {
+      position += 1;
+      factor();
+    }
+  };
+  const expr = () => {
+    term();
+    while (peek() && (peek().kind === "+" || peek().kind === "-")) {
+      position += 1;
+      term();
+    }
+  };
+  try {
+    expr();
+    if (position < tokens.length) fail(`Unexpected "${tokens[position].text}".`);
+  } catch (error) {
+    return { error: error.message };
+  }
+  return { refs: [...new Set(refs)] };
+}
+
+// { refs } when the calculation can be saved, else { error } in words for the builder.
+function validateFormCalculation(draft, field) {
+  const expression = String(field.config?.expression || "").trim();
+  if (!expression) return { error: "Enter an expression, e.g. miles_end - miles_start." };
+  const parsed = formExpressionParse(expression);
+  if (parsed.error) return parsed;
+  const byRef = new Map(draft.fields.map((item) => [item.fieldRef, item]));
+  for (const ref of parsed.refs) {
+    const target = byRef.get(ref);
+    if (!target) return { error: `"${ref}" is not a field ref in this form.` };
+    if (target === field) return { error: "A calculation cannot use itself." };
+    if (!FORM_NUMERIC_FIELD_TYPES.includes(target.type)) return { error: `"${ref}" is a ${formFieldTypeLabel(target.type).toLowerCase()} field -- only number, money, odometer and calculation fields can be used.` };
+  }
+  // A calculation may use another calculation, but never in a loop back to itself.
+  const seen = new Set();
+  const reaches = (ref) => {
+    if (seen.has(ref)) return false;
+    seen.add(ref);
+    const target = byRef.get(ref);
+    if (!target || target.type !== "calculation") return false;
+    const inner = formExpressionParse(target.config?.expression || "");
+    return (inner.refs || []).some((next) => next === field.fieldRef || reaches(next));
+  };
+  if (parsed.refs.some((ref) => reaches(ref))) return { error: "This calculation loops back to itself through another calculation." };
+  return { refs: parsed.refs };
+}
+
+// Everything that stops a save, each tied to the field it is about (if any).
+function formDraftProblems(draft) {
+  const problems = [];
+  if (!draft.name.trim() && !draft.displayName.trim()) problems.push({ text: "Give the form a name." });
+  if (!draft.fields.length) problems.push({ text: "Add at least one field." });
+  const refs = new Map();
+  draft.fields.forEach((field, index) => {
+    const label = `Field ${index + 1}${field.displayName.trim() ? ` ("${field.displayName.trim()}")` : ""}`;
+    const add = (text) => problems.push({ fieldId: field.id, text: `${label}: ${text}` });
+    if (!field.displayName.trim() && field.type !== "label") add("needs a display name.");
+    const ref = String(field.fieldRef || "");
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,59}$/.test(ref)) add("the field ref must start with a letter and use only letters, numbers and underscores.");
+    else if (refs.has(ref.toLowerCase())) add(`uses the same field ref as ${refs.get(ref.toLowerCase())}.`);
+    else refs.set(ref.toLowerCase(), label);
+    const config = field.config || {};
+    if ((field.type === "selectList" || field.type === "multiSelect") && !(config.options || []).length) add("needs at least one option.");
+    if (field.type === "selectList" && field.defaultValue && !(config.options || []).includes(field.defaultValue)) add("the default value is not one of the options.");
+    if (field.type === "cascadingList" && !(config.levels || []).length) add("needs level names -- import a CSV.");
+    else if (field.type === "cascadingList" && !(config.rows || []).length) add("has no list rows -- import a CSV.");
+    if ((field.type === "number" || field.type === "money") && config.min !== null && config.max !== null && config.min !== undefined && config.max !== undefined && Number(config.min) > Number(config.max)) add("the minimum is above the maximum.");
+    if (field.type === "picture" && Number(config.min || 0) > Number(config.max || 0)) add("the minimum number of pictures is above the maximum.");
+    if (field.type === "label" && !String(config.text || "").trim() && !field.displayName.trim()) add("a label needs some text.");
+    if (field.type === "calculation") {
+      const result = validateFormCalculation(draft, field);
+      if (result.error) add(result.error);
+    }
+  });
+  const holder = draft.isActive ? formTimesheetHolder(draft.timesheetAction, draft.id) : null;
+  if (holder) problems.push({ text: `"${formTemplateTitle(holder)}" is already the ${formTimesheetActionLabel(draft.timesheetAction).toLowerCase()} form. Only one active form per timesheet action -- pick another action, or clear it on that form first.` });
+  return problems;
+}
+
+// CSV (RFC 4180-ish: quoted cells, doubled quotes, CRLF or LF) -> rows of trimmed cells.
+function parseCsvText(text) {
+  const source = String(text || "").replace(/^﻿/, "");
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    if (quoted) {
+      if (char === '"' && source[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') quoted = false;
+      else cell += char;
+    } else if (char === '"') quoted = true;
+    else if (char === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (char === "\n" || char === "\r") {
+      if (char === "\r" && source[index + 1] === "\n") index += 1;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else cell += char;
+  }
+  if (cell !== "" || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows.map((cells) => cells.map((value) => value.trim())).filter((cells) => cells.some(Boolean));
+}
+
+function formCsvCell(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function cascadingListToCsv(config) {
+  if (!(config?.levels || []).length) return "";
+  return [config.levels, ...(config.rows || [])].map((cells) => cells.map(formCsvCell).join(",")).join("\n");
+}
+
+// First row = level names; each later row is one path through the levels (a shorter row stops early).
+function cascadingListFromCsv(text) {
+  const table = parseCsvText(text);
+  if (table.length < 2) return { error: "The CSV needs a first row of level names and at least one row under it." };
+  const header = [...table[0]];
+  while (header.length && !header[header.length - 1]) header.pop();
+  if (!header.length || header.some((name) => !name)) return { error: "Every column in the first row needs a level name (e.g. Category,Item)." };
+  if (header.length > 6) return { error: "A cascading list can have at most 6 levels." };
+  const rows = [];
+  const seen = new Set();
+  for (const [offset, cells] of table.slice(1).entries()) {
+    const path = header.map((_, level) => cells[level] || "");
+    while (path.length && !path[path.length - 1]) path.pop();
+    if (!path.length) continue;
+    if (path.some((value) => !value)) return { error: `Row ${offset + 2} skips a level -- fill the levels in order, left to right.` };
+    const key = path.join("\u0001");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push(path);
+  }
+  if (!rows.length) return { error: "The CSV has level names but no rows." };
+  return { levels: header, rows };
+}
+
+function cascadingListTree(rows) {
+  const root = new Map();
+  for (const path of rows || []) {
+    let node = root;
+    for (const value of path) {
+      if (!node.has(value)) node.set(value, new Map());
+      node = node.get(value);
+    }
+  }
+  return root;
+}
+
+function renderCascadingTree(config) {
+  let budget = 150;
+  const renderNode = (node) => {
+    const items = [];
+    for (const [value, children] of node) {
+      if (budget <= 0) break;
+      budget -= 1;
+      items.push(`<li>${escapeHtml(value)}${children.size ? renderNode(children) : ""}</li>`);
+    }
+    return `<ul>${items.join("")}</ul>`;
+  };
+  const tree = cascadingListTree(config.rows);
+  if (!tree.size) return `<div class="empty-state compact">No rows yet -- paste or choose a CSV and import it.</div>`;
+  const html = renderNode(tree);
+  return `<div class="fb-tree" aria-label="List preview">${html}${budget <= 0 ? `<p class="help-text">Preview shows the first 150 entries.</p>` : ""}</div>`;
+}
+
+// ---- Forms list ----
+
+function renderDispatchForms() {
+  state.formDraft = null;
+  state.selectedFormTemplateId = "";
+  const all = getFormTemplates().sort((a, b) => formTemplateTitle(a).localeCompare(formTemplateTitle(b)));
+  const filter = state.formsFilter === "all" ? "all" : "active";
+  const rows = filter === "all" ? all : all.filter((form) => form.isActive !== false);
+  const canEdit = canEditFormTemplates();
+  const active = all.filter((form) => form.isActive !== false);
+  app.innerHTML = `
+    <section class="view dispatch-view" id="formsListRoot">
+      ${renderWorkspaceHeader(
+        "dispatch",
+        "Forms",
+        "Forms the crew fills in on the phone: attached to a job action in a job template, opened any time from the Forms menu, or required when they start or end a shift or break.",
+        canEdit ? `<button class="primary-button" type="button" data-fb="new-form">New form</button>` : "",
+      )}
+      <section class="metric-strip" aria-label="Form metrics">
+        <div class="metric"><p class="eyebrow">Forms</p><strong>${all.length}</strong><span>${active.length} active</span></div>
+        <div class="metric"><p class="eyebrow">On the Forms menu</p><strong>${active.filter(formOnFormsMenu).length}</strong><span>active forms</span></div>
+        <div class="metric"><p class="eyebrow">Timesheet actions</p><strong>${FORM_TIMESHEET_ACTIONS.filter((action) => formTimesheetHolder(action.value, "")).length}</strong><span>of ${FORM_TIMESHEET_ACTIONS.length} have a form</span></div>
+      </section>
+      <section class="panel">
+        <div class="panel-header">
+          <div><h3>${filter === "all" ? "All forms" : "Active forms"}</h3><span>${rows.length} form${rows.length === 1 ? "" : "s"}${canEdit ? "" : " · view only for your role"}</span></div>
+          <label class="fb-inline-filter">Show
+            <select data-fb-filter>
+              <option value="active" ${filter === "active" ? "selected" : ""}>Active</option>
+              <option value="all" ${filter === "all" ? "selected" : ""}>All (incl. inactive)</option>
+            </select>
+          </label>
+        </div>
+        <div class="panel-body data-table-scroll">
+          <table class="data-table fb-forms-table">
+            <thead>
+              <tr><th>Name</th><th>Display name</th><th>Fields</th><th>Active</th><th>Forms menu</th><th>Timesheet action</th><th>Groups</th><th>Updated</th><th></th></tr>
+            </thead>
+            <tbody>
+              ${rows.map((form) => renderFormTemplateRow(form, canEdit)).join("") || `<tr><td colspan="9"><div class="empty-state">${filter === "all" ? "No forms yet." : "No active forms."}${canEdit ? " Press New form to build one." : ""}</div></td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  `;
+  bindFormsListEvents();
+}
+
+function renderFormTemplateRow(form, canEdit) {
+  const fieldCount = (form.fields || []).length;
+  return `
+    <tr data-form-row="${escapeAttribute(form.id)}">
+      <td data-label="Name"><strong>${escapeHtml(form.name || "Untitled form")}</strong><div class="table-subtext">${escapeHtml(form.category || "General")}</div></td>
+      <td data-label="Display name">${escapeHtml(formTemplateTitle(form))}</td>
+      <td data-label="Fields">${fieldCount}</td>
+      <td data-label="Active"><span class="risk-badge ${form.isActive === false ? "medium" : "low"}">${form.isActive === false ? "Inactive" : "Active"}</span></td>
+      <td data-label="Forms menu">${formOnFormsMenu(form) ? "Yes" : "No"}</td>
+      <td data-label="Timesheet action">${escapeHtml(formTimesheetActionLabel(form.timesheetAction) || "None")}</td>
+      <td data-label="Groups">${escapeHtml(formGroupsSummary(form.groups))}</td>
+      <td data-label="Updated">${form.updatedAt ? escapeHtml(formatDateTime(form.updatedAt)) : "Seeded"}${form.updatedBy ? `<div class="table-subtext">${escapeHtml(form.updatedBy)}</div>` : ""}</td>
+      <td data-label="Actions">
+        <div class="inline-actions">
+          <button class="mini-button" type="button" data-fb="edit-form" data-id="${escapeAttribute(form.id)}">${canEdit ? "Edit" : "View"}</button>
+          ${canEdit ? `<button class="mini-button" type="button" data-fb="duplicate-form" data-id="${escapeAttribute(form.id)}">Duplicate</button>` : ""}
+          ${canEdit ? `<button class="mini-button" type="button" data-fb="archive-form" data-id="${escapeAttribute(form.id)}">Archive</button>` : ""}
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function bindFormsListEvents() {
+  const root = document.querySelector("#formsListRoot");
+  if (!root) return;
+  root.addEventListener("change", (event) => {
+    if (!event.target.matches("[data-fb-filter]")) return;
+    state.formsFilter = (event.target.value || "active").toString();
+    renderDispatchForms();
+  });
+  root.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-fb]");
+    if (!button) return;
+    const formId = button.dataset.id || "";
+    if (button.dataset.fb === "new-form") openFormEditor("");
+    if (button.dataset.fb === "edit-form") openFormEditor(formId);
+    if (button.dataset.fb === "duplicate-form") duplicateFormTemplate(formId);
+    if (button.dataset.fb === "archive-form") await archiveFormTemplate(formId);
+  });
+}
+
+function openFormEditor(formId) {
+  const form = formId ? findFormTemplate(formId) : null;
+  state.formDraft = form ? formDraftFromTemplate(form) : blankFormDraft();
+  state.selectedFormTemplateId = form?.id || "";
+  state.formEditorOpenFieldId = "";
+  state.view = "dispatch-form-editor";
+  render();
+  window.scrollTo(0, 0);
+}
+
+function duplicateFormTemplate(formId) {
+  const form = findFormTemplate(formId);
+  if (!form) return;
+  const draft = formDraftFromTemplate(form);
+  draft.id = "";
+  draft.key = "";
+  draft.version = undefined;
+  draft.name = `${form.name || formTemplateTitle(form)} (copy)`;
+  draft.displayName = `${formTemplateTitle(form)} (copy)`;
+  // Only one active form per timesheet action: the copy starts without one.
+  draft.timesheetAction = "";
+  draft.fields.forEach((field) => {
+    field.id = makeId("fld");
+  });
+  draft._isNew = true;
+  draft._dirty = true;
+  state.formDraft = draft;
+  state.selectedFormTemplateId = "";
+  state.formEditorOpenFieldId = "";
+  state.view = "dispatch-form-editor";
+  render();
+  window.scrollTo(0, 0);
+  showToast("Copy made -- it is not saved until you press Save form.");
+}
+
+async function archiveFormTemplate(formId) {
+  const form = findFormTemplate(formId);
+  if (!form) return;
+  const message = [
+    `Archive the form "${formTemplateTitle(form)}"?`,
+    "Workers stop seeing it, and job templates can no longer attach it. Submissions already made are kept.",
+    "An administrator can restore it from Identity & Sync › Recently deleted.",
+  ].join("\n\n");
+  if (!window.confirm(message)) return;
+  try {
+    await deleteBackendRecord("formTemplates", form.id);
+    await refreshBackendState();
+    render();
+    showToast(`Archived ${formTemplateTitle(form)}.`);
+  } catch (error) {
+    showToast(error.message || "Could not archive that form.");
+  }
+}
+
+// ---- Form editor ----
+
+function renderFormEditor() {
+  if (!state.formDraft && state.selectedFormTemplateId && findFormTemplate(state.selectedFormTemplateId) && !findFormTemplate(state.selectedFormTemplateId).deletedAt) {
+    state.formDraft = formDraftFromTemplate(findFormTemplate(state.selectedFormTemplateId));
+  }
+  const draft = state.formDraft;
+  if (!draft) {
+    state.view = "dispatch-forms";
+    renderDispatchForms();
+    return;
+  }
+  const scrollY = window.scrollY;
+  const canEdit = canEditFormTemplates();
+  const stored = draft.id ? findFormTemplate(draft.id) : null;
+  const submissionCount = draft._isNew ? 0 : formTemplateSubmissionCount(stored);
+  const refsLocked = submissionCount > 0 && !draft._refsUnlocked;
+  const openFieldId = state.formEditorOpenFieldId || "";
+  app.innerHTML = `
+    <section class="view dispatch-view form-builder ${canEdit ? "" : "is-readonly"}" id="formEditorRoot">
+      <div class="detail-topline">
+        <button class="back-button" type="button" data-fb="back">Back to forms</button>
+        <div class="inline-actions">
+          ${canEdit ? `<button class="primary-button" type="button" data-fb="save-form">Save form</button>` : `<span class="help-text">View only -- your role cannot edit forms.</span>`}
+        </div>
+      </div>
+      <section class="employee-detail-header">
+        <div>
+          <p class="eyebrow">${draft._isNew ? "New form" : "Editing form"}${draft.version ? ` · version ${escapeHtml(String(draft.version))}` : ""}${submissionCount ? ` · ${submissionCount} submission${submissionCount === 1 ? "" : "s"}` : ""}</p>
+          <h2 data-fb-title>${escapeHtml(draft.displayName || draft.name || "Untitled form")}</h2>
+          <p>Build the form the crew fills in on the phone. Fields run top to bottom; the preview on the right shows how it will look.</p>
+          ${draft.hasLegacyFields ? `<p class="fb-legacy-note">This form was made before the Forms builder. Its fields are shown in the new types (Yes/No questions as select lists, checklists as multi select lists, photos as picture capture) and are saved that way when you press Save form. Field refs are unchanged, so earlier answers still line up.</p>` : ""}
+        </div>
+      </section>
+
+      <section class="form-builder-layout">
+        <div class="form-builder-main">
+          <article class="panel">
+            <div class="panel-header"><h3>Form details</h3></div>
+            <div class="panel-body">
+              <div class="form-grid">
+                <label>Name <span class="help-text">(internal)</span>
+                  <input data-fd="name" maxlength="120" placeholder="Vehicle inspection" value="${escapeAttribute(draft.name)}" />
+                </label>
+                <label>Display name <span class="help-text">(what the phone shows)</span>
+                  <input data-fd="displayName" maxlength="120" placeholder="Vehicle inspection" value="${escapeAttribute(draft.displayName)}" />
+                </label>
+                <label>Category
+                  <input data-fd="category" maxlength="60" list="formCategoryOptions" value="${escapeAttribute(draft.category)}" />
+                  <datalist id="formCategoryOptions">${FORM_CATEGORY_SUGGESTIONS.map((category) => `<option value="${escapeAttribute(category)}"></option>`).join("")}</datalist>
+                </label>
+              </div>
+              <label>Description
+                <textarea data-fd="description" rows="2" maxlength="1000" placeholder="What the form is for and when to fill it in.">${escapeHtml(draft.description)}</textarea>
+              </label>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div><h3>Fields</h3><span>${draft.fields.length} field${draft.fields.length === 1 ? "" : "s"}</span></div>
+              ${
+                submissionCount > 0
+                  ? draft._refsUnlocked
+                    ? `<span class="fb-lock-note is-unlocked">Field refs unlocked</span>`
+                    : `<button class="mini-button" type="button" data-fb="unlock-refs" title="${submissionCount} submission${submissionCount === 1 ? "" : "s"} store answers under these refs">Unlock field refs</button>`
+                  : ""
+              }
+            </div>
+            <div class="panel-body">
+              <div class="fb-field-list">
+                ${draft.fields.map((field, index) => renderFormBuilderField(draft, field, index, { open: field.id === openFieldId, refsLocked: refsLocked && !field._isNew })).join("") || `<div class="empty-state compact">No fields yet. Pick a type below and press Add field.</div>`}
+              </div>
+              <div class="fb-add-row">
+                <label>Field type
+                  <select data-fb-add-type>
+                    ${FORM_FIELD_TYPE_OPTIONS.map((option) => `<option value="${option.value}" ${option.value === (state.formBuilderAddType || "text") ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+                  </select>
+                </label>
+                <button class="secondary-button" type="button" data-fb="add-field">Add field</button>
+                <span class="help-text" data-fb-add-help>${escapeHtml(FORM_FIELD_TYPE_OPTIONS.find((option) => option.value === (state.formBuilderAddType || "text"))?.help || "")}</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header"><h3>Deploy</h3></div>
+            <div class="panel-body">
+              <label class="check-row"><input type="checkbox" data-fd="isActive" ${draft.isActive ? "checked" : ""} /><span><strong>Active</strong> -- workers can complete it and job templates can attach it to a job action.</span></label>
+              <label class="check-row"><input type="checkbox" data-fd="availableOnFormsMenu" ${draft.availableOnFormsMenu ? "checked" : ""} /><span><strong>Available on Forms Menu</strong> -- an ad hoc form workers can fill in any time, without a job (daily safety checklist, incident report, vehicle inspection).</span></label>
+              <label class="check-row fb-indent"><input type="checkbox" data-fd="requiresJob" ${draft.requiresJob ? "checked" : ""} /><span>From the Forms menu, ask which job it is for</span></label>
+              <label>Timesheet action
+                <select data-fd="timesheetAction">
+                  <option value="" ${draft.timesheetAction ? "" : "selected"}>None</option>
+                  ${FORM_TIMESHEET_ACTIONS.map((action) => {
+                    const holder = formTimesheetHolder(action.value, draft.id);
+                    return `<option value="${action.value}" ${draft.timesheetAction === action.value ? "selected" : ""}>${escapeHtml(action.label)}${holder ? ` -- held by ${escapeHtml(formTemplateTitle(holder))}` : ""}</option>`;
+                  }).join("")}
+                </select>
+              </label>
+              <p class="help-text" data-fb-timesheet-note>${renderFormTimesheetNote(draft)}</p>
+              <div class="fb-groups">
+                <fieldset>
+                  <legend>Crews</legend>
+                  ${getCrewProfiles().map((crew) => `<label class="check-row"><input type="checkbox" data-group-crew value="${escapeAttribute(crew.id)}" ${draft.groups.crewIds.includes(crew.id) ? "checked" : ""} /><span>${escapeHtml(crew.name || crew.code || crew.id)}</span></label>`).join("") || `<p class="help-text">No crews on file.</p>`}
+                </fieldset>
+                <fieldset>
+                  <legend>Roles</legend>
+                  ${formGroupRoleOptions().map((role) => `<label class="check-row"><input type="checkbox" data-group-role value="${escapeAttribute(role)}" ${draft.groups.roles.includes(role) ? "checked" : ""} /><span>${escapeHtml(role)}</span></label>`).join("")}
+                </fieldset>
+              </div>
+              <p class="help-text" data-fb-groups-note>${escapeHtml(formGroupsNote(draft.groups))}</p>
+            </div>
+          </article>
+        </div>
+
+        <aside class="form-builder-side">
+          <div class="fb-problems" data-fb-problems>${renderFormDraftProblems(draft)}</div>
+          <div class="fb-preview-wrap">
+            <p class="eyebrow">Phone preview</p>
+            <div class="fb-phone" data-fb-preview>${renderFormPhonePreview(draft)}</div>
+          </div>
+        </aside>
+      </section>
+    </section>
+  `;
+  // View only (e.g. a Field Lead): every control is disabled, but fields still open to be read.
+  if (!canEdit) app.querySelectorAll("#formEditorRoot .form-builder-main :is(input, select, textarea)").forEach((control) => (control.disabled = true));
+  bindFormEditorEvents();
+  window.scrollTo(0, scrollY);
+}
+
+function formGroupsNote(groups) {
+  const summary = formGroupsSummary(groups);
+  return summary === "Everyone" ? "Nobody ticked: every worker gets this form." : `Only these workers get it: ${summary}. A worker in any ticked crew or holding any ticked role qualifies.`;
+}
+
+function renderFormTimesheetNote(draft) {
+  if (!draft.timesheetAction) return "Tie the form to a timesheet action and workers must complete it when they start or end a shift or break. Only one active form per action.";
+  const holder = formTimesheetHolder(draft.timesheetAction, draft.id);
+  const label = formTimesheetActionLabel(draft.timesheetAction).toLowerCase();
+  if (holder && draft.isActive) return `<span class="fb-bad">"${escapeHtml(formTemplateTitle(holder))}" already holds ${escapeHtml(label)}. Clear it there, or make this form inactive, before saving.</span>`;
+  return `Workers complete this form at ${escapeHtml(label)}.${draft.isActive ? "" : " (Only while the form is active.)"}`;
+}
+
+function renderFormDraftProblems(draft) {
+  const problems = formDraftProblems(draft);
+  if (!problems.length) return `<p class="fb-ready">Ready to save.</p>`;
+  return `
+    <p class="eyebrow">Needs attention before saving</p>
+    <ul>
+      ${problems
+        .slice(0, 12)
+        .map((problem) => `<li>${problem.fieldId ? `<button type="button" class="link-button" data-fb="open-field" data-field-id="${escapeAttribute(problem.fieldId)}">${escapeHtml(problem.text)}</button>` : escapeHtml(problem.text)}</li>`)
+        .join("")}
+    </ul>
+  `;
+}
+
+function renderFormBuilderField(draft, field, index, { open, refsLocked }) {
+  const count = draft.fields.length;
+  const id = escapeAttribute(field.id);
+  return `
+    <article class="fb-field ${open ? "is-open" : ""}" data-field-id="${id}">
+      <div class="fb-field-head">
+        <button type="button" class="fb-field-toggle" data-fb="toggle-field" aria-expanded="${open ? "true" : "false"}">
+          <span class="fb-field-index">${index + 1}</span>
+          <span class="fb-field-name" data-fb-field-title>${escapeHtml(field.displayName || (field.type === "label" ? "Label" : "Untitled field"))}</span>
+          <span class="tag">${escapeHtml(formFieldTypeLabel(field.type))}</span>
+          <code class="fb-field-ref" data-fb-field-ref-chip>${escapeHtml(field.fieldRef || "no ref")}</code>
+          ${field.required ? `<span class="fb-required">Required</span>` : ""}
+        </button>
+        <div class="inline-actions fb-field-tools">
+          <button class="mini-button" type="button" data-fb="move-field" data-direction="up" ${index === 0 ? "disabled" : ""} aria-label="Move up" title="Move up">↑</button>
+          <button class="mini-button" type="button" data-fb="move-field" data-direction="down" ${index === count - 1 ? "disabled" : ""} aria-label="Move down" title="Move down">↓</button>
+          <button class="mini-button" type="button" data-fb="duplicate-field">Duplicate</button>
+          <button class="mini-button" type="button" data-fb="delete-field">Delete</button>
+        </div>
+      </div>
+      ${open ? renderFormBuilderFieldBody(draft, field, refsLocked) : ""}
+    </article>
+  `;
+}
+
+function renderFormBuilderFieldBody(draft, field, refsLocked) {
+  const hasValue = field.type !== "label";
+  return `
+    <div class="fb-field-body">
+      <div class="form-grid">
+        <label>Display name
+          <input data-fp="displayName" maxlength="120" value="${escapeAttribute(field.displayName)}" placeholder="${field.type === "label" ? "Optional heading" : "Miles at start"}" />
+        </label>
+        <label>Field ref ${refsLocked ? `<span class="help-text">(locked -- submissions use it)</span>` : `<span class="help-text">(${field._refAuto ? "follows the display name" : "key in submissions and exports"})</span>`}
+          <input data-fp="fieldRef" maxlength="60" value="${escapeAttribute(field.fieldRef)}" ${refsLocked ? "readonly" : ""} spellcheck="false" />
+        </label>
+        <label>Field type
+          <select data-fp="type">
+            ${FORM_FIELD_TYPE_OPTIONS.map((option) => `<option value="${option.value}" ${option.value === field.type ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      ${field._legacyType ? `<p class="help-text">Was a "${escapeHtml(field._legacyType)}" field; shown as ${escapeHtml(formFieldTypeLabel(field.type).toLowerCase())}.</p>` : ""}
+      ${
+        hasValue
+          ? `<div class="form-grid">
+              ${field.type === "calculation" ? "" : `<label class="check-row"><input type="checkbox" data-fp="required" ${field.required ? "checked" : ""} /><span>Required</span></label>`}
+              ${FORM_DEFAULT_VALUE_TYPES.includes(field.type) ? `<label>Default value<input data-fp="defaultValue" maxlength="500" value="${escapeAttribute(field.defaultValue)}" ${field.type === "number" || field.type === "money" ? 'inputmode="decimal"' : ""} /></label>` : ""}
+            </div>
+            <label>Help text<input data-fp="helpText" maxlength="500" value="${escapeAttribute(field.helpText)}" placeholder="Shown under the field on the phone" /></label>`
+          : ""
+      }
+      <div class="fb-config">${renderFormFieldConfigEditor(draft, field)}</div>
+    </div>
+  `;
+}
+
+function formConfigNumberValue(value) {
+  return value === null || value === undefined || value === "" ? "" : String(value);
+}
+
+function renderFormFieldConfigEditor(draft, field) {
+  const config = field.config || {};
+  const numberInput = (key, label, extra = "") => `<label>${label}<input type="number" data-fc="${key}" data-kind="number" value="${escapeAttribute(formConfigNumberValue(config[key]))}" ${extra} /></label>`;
+  const check = (key, label) => `<label class="check-row"><input type="checkbox" data-fc="${key}" data-kind="bool" ${config[key] ? "checked" : ""} /><span>${label}</span></label>`;
+  if (field.type === "calculation") {
+    const usable = draft.fields.filter((item) => item.id !== field.id && FORM_NUMERIC_FIELD_TYPES.includes(item.type) && item.fieldRef);
+    return `
+      <label>Expression
+        <input class="fb-expression" data-fc="expression" data-kind="text" maxlength="500" value="${escapeAttribute(config.expression || "")}" placeholder="miles_end - miles_start" spellcheck="false" />
+      </label>
+      <div class="fb-chips">
+        <span class="help-text">Fields you can use:</span>
+        ${usable.map((item) => `<button type="button" class="chip-button" data-fb="insert-ref" data-ref="${escapeAttribute(item.fieldRef)}" title="${escapeAttribute(item.displayName)}">${escapeHtml(item.fieldRef)}</button>`).join("") || `<span class="help-text">none yet -- add a number, money, odometer or calculation field first.</span>`}
+      </div>
+      <div class="fb-chips">
+        <span class="help-text">Operators:</span>
+        ${[
+          ["+", "+"],
+          ["-", "−"],
+          ["*", "×"],
+          ["/", "÷"],
+          ["(", "("],
+          [")", ")"],
+        ]
+          .map(([op, label]) => `<button type="button" class="chip-button" data-fb="insert-op" data-op="${escapeAttribute(op)}">${label}</button>`)
+          .join("")}
+      </div>
+      <div class="form-grid">
+        ${numberInput("decimals", "Decimal places", 'min="0" max="6" step="1"')}
+      </div>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-fb="validate-calc">Validate</button>
+        <span class="fb-calc-result" data-fb-calc-result></span>
+      </div>
+      <p class="help-text">Use field refs with + − × ÷ and parentheses. The phone works the answer out as the worker fills the form in.</p>
+    `;
+  }
+  if (field.type === "cascadingList") {
+    const levels = config.levels || [];
+    return `
+      ${
+        levels.length
+          ? `<div class="form-grid">${levels.map((level, levelIndex) => `<label>Level ${levelIndex + 1} name<input data-level-index="${levelIndex}" maxlength="60" value="${escapeAttribute(level)}" /></label>`).join("")}</div>`
+          : ""
+      }
+      <label>CSV -- first row is the level names, then one row per path
+        <textarea data-fb-csv rows="6" spellcheck="false" placeholder="Category,Item&#10;Hydrocarbon,Diesel&#10;Hydrocarbon,Gasoline&#10;Chemical,Ethylene glycol">${escapeHtml(cascadingListToCsv(config))}</textarea>
+      </label>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-fb="csv-import">Import CSV</button>
+        <label class="mini-button fb-file-button">Choose CSV file<input type="file" accept=".csv,text/csv,text/plain" data-fb-csv-file hidden /></label>
+        <span class="help-text">${levels.length} level${levels.length === 1 ? "" : "s"} · ${(config.rows || []).length} row${(config.rows || []).length === 1 ? "" : "s"}</span>
+      </div>
+      ${renderCascadingTree(config)}
+    `;
+  }
+  if (field.type === "checkbox") return check("defaultChecked", "Ticked to start with");
+  if (field.type === "date") return check("autoCapture", "Fill in today's date automatically (the worker can change it)");
+  if (field.type === "time") return check("autoCapture", "Fill in the current time automatically (the worker can change it)");
+  if (field.type === "label") {
+    return `
+      <label>Text<textarea data-fc="text" data-kind="text" rows="3" maxlength="2000" placeholder="Walk around the vehicle before you start.">${escapeHtml(config.text || "")}</textarea></label>
+      <label>Style
+        <select data-fc="style" data-kind="text">
+          ${FORM_LABEL_STYLES.map((style) => `<option value="${style.value}" ${config.style === style.value ? "selected" : ""}>${style.label}</option>`).join("")}
+        </select>
+      </label>
+    `;
+  }
+  if (field.type === "money" || field.type === "number") {
+    return `
+      <div class="form-grid">
+        ${numberInput("min", "Minimum", 'step="any"')}
+        ${numberInput("max", "Maximum", 'step="any"')}
+        ${numberInput("decimals", "Decimal places", 'min="0" max="6" step="1"')}
+        <label>Unit<input data-fc="unit" data-kind="text" maxlength="20" value="${escapeAttribute(config.unit || "")}" placeholder="${field.type === "money" ? "USD" : "gal"}" /></label>
+      </div>
+    `;
+  }
+  if (field.type === "selectList" || field.type === "multiSelect") {
+    return `
+      <label>Options -- one per line
+        <textarea data-fc="options" data-kind="lines" rows="${Math.min(10, Math.max(3, (config.options || []).length + 1))}" maxlength="20000">${escapeHtml((config.options || []).join("\n"))}</textarea>
+      </label>
+    `;
+  }
+  if (field.type === "odometer") return `<p class="help-text">The worker picks a vehicle from the fleet (Inventory › Equipment) and enters its odometer reading. Calculations use the reading.</p>`;
+  if (field.type === "picture") {
+    return `
+      <div class="form-grid">
+        ${numberInput("min", "At least (pictures)", 'min="0" step="1"')}
+        ${numberInput("max", "At most (pictures)", 'min="1" step="1"')}
+      </div>
+      ${check("allowGallery", "Allow choosing from the phone's gallery (otherwise camera only)")}
+    `;
+  }
+  if (field.type === "signature") return check("signerNameRequired", "Ask for the signer's printed name");
+  if (field.type === "text") {
+    return `
+      <div class="form-grid">
+        ${numberInput("maxLength", "Maximum length (characters)", 'min="1" step="1"')}
+      </div>
+      ${check("multiline", "Several lines (a paragraph box)")}
+    `;
+  }
+  if (field.type === "url") return `<p class="help-text">The worker types or pastes a web address.</p>`;
+  return "";
+}
+
+// ---- Phone preview (read-only; the phone's own renderer is field/forms.js) ----
+
+function renderFormPhonePreview(draft) {
+  return `
+    <div class="fb-phone-screen">
+      <header class="fb-phone-header">
+        <strong>${escapeHtml(draft.displayName || draft.name || "Untitled form")}</strong>
+        ${draft.description ? `<small>${escapeHtml(draft.description)}</small>` : ""}
+      </header>
+      <div class="fb-phone-body">
+        ${draft.fields.map(renderFormPreviewField).join("") || `<p class="help-text">Add fields to see them here.</p>`}
+      </div>
+      <button class="primary-button fb-phone-submit" type="button" disabled>Submit</button>
+    </div>
+  `;
+}
+
+function renderFormPreviewField(field) {
+  const config = field.config || {};
+  const name = escapeHtml(field.displayName || "");
+  const required = field.required ? `<span class="fb-required-mark" aria-label="required">*</span>` : "";
+  const help = field.helpText ? `<small class="fb-preview-help">${escapeHtml(field.helpText)}</small>` : "";
+  const wrap = (control) => `<div class="fb-preview-field"><span class="fb-preview-label">${name}${required}</span>${control}${help}</div>`;
+  if (field.type === "label") {
+    const text = escapeHtml(config.text || "");
+    if (config.style === "heading") return `<div class="fb-preview-heading">${name && name !== "Label" ? `<strong>${name}</strong>` : ""}${text ? `<span>${text}</span>` : ""}</div>`;
+    return `<div class="fb-preview-note ${config.style === "warning" ? "is-warning" : ""}">${name && name !== "Label" ? `<strong>${name}</strong> ` : ""}${text}</div>`;
+  }
+  if (field.type === "text") {
+    return wrap(config.multiline ? `<textarea rows="3" disabled placeholder="${escapeAttribute(field.defaultValue || "")}"></textarea>` : `<input disabled placeholder="${escapeAttribute(field.defaultValue || "")}" />`);
+  }
+  if (field.type === "number" || field.type === "money") {
+    const unit = config.unit || (field.type === "money" ? "$" : "");
+    const range = [config.min !== null && config.min !== undefined && config.min !== "" ? `min ${config.min}` : "", config.max !== null && config.max !== undefined && config.max !== "" ? `max ${config.max}` : ""].filter(Boolean).join(", ");
+    return wrap(`<span class="fb-preview-affix">${field.type === "money" ? `<em>${escapeHtml(unit)}</em>` : ""}<input disabled inputmode="decimal" placeholder="${escapeAttribute(field.defaultValue || (range || "0"))}" />${field.type === "number" && unit ? `<em>${escapeHtml(unit)}</em>` : ""}</span>`);
+  }
+  if (field.type === "calculation") return wrap(`<output class="fb-preview-calc">= ${escapeHtml(config.expression || "…")}</output>`);
+  if (field.type === "checkbox") return `<div class="fb-preview-field"><label class="check-row"><input type="checkbox" disabled ${config.defaultChecked ? "checked" : ""} /><span>${name}${required}</span></label>${help}</div>`;
+  if (field.type === "date") return wrap(`<input type="date" disabled value="${config.autoCapture ? todayIso() : ""}" />`);
+  if (field.type === "time") return wrap(`<input type="time" disabled value="${config.autoCapture ? new Date().toTimeString().slice(0, 5) : ""}" />`);
+  if (field.type === "selectList") {
+    return wrap(`<select disabled><option>${escapeHtml(field.defaultValue || "Choose…")}</option>${(config.options || []).map((option) => `<option>${escapeHtml(option)}</option>`).join("")}</select>`);
+  }
+  if (field.type === "multiSelect") {
+    return wrap(`<div class="fb-preview-options">${(config.options || []).map((option) => `<label class="check-row"><input type="checkbox" disabled /><span>${escapeHtml(option)}</span></label>`).join("") || `<small class="fb-preview-help">No options yet.</small>`}</div>`);
+  }
+  if (field.type === "cascadingList") {
+    const tree = cascadingListTree(config.rows);
+    const levels = config.levels || [];
+    const first = [...tree.keys()];
+    return wrap(
+      levels
+        .map((level, levelIndex) => `<select class="fb-preview-cascade" disabled><option>${escapeHtml(level)}${levelIndex === 0 && first.length ? ` (${first.length})` : ""}…</option>${levelIndex === 0 ? first.slice(0, 50).map((value) => `<option>${escapeHtml(value)}</option>`).join("") : ""}</select>`)
+        .join("") || `<small class="fb-preview-help">Import a CSV to fill this list.</small>`,
+    );
+  }
+  if (field.type === "odometer") return wrap(`<select disabled><option>Vehicle…</option></select><input disabled inputmode="numeric" placeholder="Odometer reading" />`);
+  if (field.type === "picture") {
+    const min = Number(config.min || 0);
+    const max = Number(config.max || 1);
+    return wrap(`<div class="fb-preview-box">📷 ${config.allowGallery === false ? "Take picture" : "Take or choose picture"}<small>${min ? `at least ${min}, ` : ""}up to ${max}</small></div>`);
+  }
+  if (field.type === "signature") return wrap(`<div class="fb-preview-box fb-preview-signature">Sign here</div>${config.signerNameRequired ? `<input disabled placeholder="Printed name" />` : ""}`);
+  if (field.type === "url") return wrap(`<input type="url" disabled placeholder="${escapeAttribute(field.defaultValue || "https://")}" />`);
+  return wrap(`<input disabled />`);
+}
+
+// ---- Editor events ----
+
+function formDraftField(fieldId) {
+  return state.formDraft?.fields.find((field) => field.id === fieldId) || null;
+}
+
+// Redraws the parts of the editor that follow the draft without rebuilding the inputs (keeps focus).
+function refreshFormEditorLive() {
+  const draft = state.formDraft;
+  const root = document.querySelector("#formEditorRoot");
+  if (!draft || !root) return;
+  const preview = root.querySelector("[data-fb-preview]");
+  if (preview) preview.innerHTML = renderFormPhonePreview(draft);
+  const problems = root.querySelector("[data-fb-problems]");
+  if (problems) problems.innerHTML = renderFormDraftProblems(draft);
+  const title = root.querySelector("[data-fb-title]");
+  if (title) title.textContent = draft.displayName || draft.name || "Untitled form";
+  const timesheetNote = root.querySelector("[data-fb-timesheet-note]");
+  if (timesheetNote) timesheetNote.innerHTML = renderFormTimesheetNote(draft);
+  const groupsNote = root.querySelector("[data-fb-groups-note]");
+  if (groupsNote) groupsNote.textContent = formGroupsNote(draft.groups);
+  for (const card of root.querySelectorAll(".fb-field[data-field-id]")) {
+    const field = formDraftField(card.dataset.fieldId);
+    if (!field) continue;
+    const name = card.querySelector("[data-fb-field-title]");
+    if (name) name.textContent = field.displayName || (field.type === "label" ? "Label" : "Untitled field");
+    const chip = card.querySelector("[data-fb-field-ref-chip]");
+    if (chip) chip.textContent = field.fieldRef || "no ref";
+  }
+}
+
+function readFormConfigInput(input) {
+  const kind = input.dataset.kind || "text";
+  if (kind === "bool") return input.checked;
+  if (kind === "number") return numberOrNull(input.value);
+  if (kind === "lines") {
+    return input.value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line, index, lines) => line && lines.indexOf(line) === index);
+  }
+  return input.value;
+}
+
+function handleFormEditorInput(event) {
+  const draft = state.formDraft;
+  const target = event.target;
+  if (!draft || target.closest("[data-fb-preview]")) return;
+  if (target.matches("[data-fb-add-type]")) {
+    state.formBuilderAddType = (target.value || "text").toString();
+    const help = document.querySelector("[data-fb-add-help]");
+    if (help) help.textContent = FORM_FIELD_TYPE_OPTIONS.find((option) => option.value === state.formBuilderAddType)?.help || "";
+    return;
+  }
+  if (target.matches("[data-fb-csv-file]")) {
+    if (event.type === "change") importCascadingCsvFile(target);
+    return;
+  }
+  if (target.matches("[data-fb-csv]")) return;
+  const card = target.closest(".fb-field[data-field-id]");
+  const field = card ? formDraftField(card.dataset.fieldId) : null;
+  if (target.dataset.fd) {
+    const key = target.dataset.fd;
+    draft[key] = target.type === "checkbox" ? target.checked : (target.value || "").toString();
+    // A new form's display name follows its name until someone types a different one.
+    if (key === "name" && draft._isNew && (!draft.displayName || draft.displayName === draft._autoDisplayName)) {
+      draft.displayName = draft.name;
+      draft._autoDisplayName = draft.name;
+      const displayInput = document.querySelector('#formEditorRoot [data-fd="displayName"]');
+      if (displayInput) displayInput.value = draft.displayName;
+    }
+  } else if (target.matches("[data-group-crew]") || target.matches("[data-group-role]")) {
+    const list = target.matches("[data-group-crew]") ? draft.groups.crewIds : draft.groups.roles;
+    const value = target.value;
+    const at = list.indexOf(value);
+    if (target.checked && at < 0) list.push(value);
+    if (!target.checked && at >= 0) list.splice(at, 1);
+  } else if (field && target.dataset.fp) {
+    const key = target.dataset.fp;
+    if (key === "type") {
+      if (event.type !== "change") return;
+      changeFormFieldType(field, (target.value || "text").toString());
+      draft._dirty = true;
+      renderFormEditor();
+      return;
+    }
+    if (key === "required") field.required = target.checked;
+    else if (key === "fieldRef") {
+      field.fieldRef = target.value.trim();
+      field._refAuto = false;
+    } else field[key] = target.value;
+    if (key === "displayName" && field._refAuto) {
+      field.fieldRef = uniqueFormFieldRef(formFieldRefSlug(field.displayName) || "field", draft.fields, field.id);
+      const refInput = card.querySelector('[data-fp="fieldRef"]');
+      if (refInput) refInput.value = field.fieldRef;
+    }
+  } else if (field && target.dataset.fc) {
+    field.config[target.dataset.fc] = readFormConfigInput(target);
+    if (target.dataset.fc === "expression") {
+      const result = card.querySelector("[data-fb-calc-result]");
+      if (result) {
+        result.textContent = "";
+        result.className = "fb-calc-result";
+      }
+    }
+  } else if (field && target.dataset.levelIndex !== undefined) {
+    field.config.levels[Number(target.dataset.levelIndex)] = target.value.trim();
+  } else return;
+  draft._dirty = true;
+  refreshFormEditorLive();
+}
+
+function changeFormFieldType(field, type) {
+  if (!FORM_FIELD_TYPES.includes(type) || field.type === type) return;
+  const keepOptions = ["selectList", "multiSelect"].includes(field.type) && ["selectList", "multiSelect"].includes(type) ? field.config.options : null;
+  field.type = type;
+  field.config = formFieldDefaultConfig(type);
+  if (keepOptions) field.config.options = keepOptions;
+  if (type === "label" || type === "calculation") field.required = false;
+  if (!FORM_DEFAULT_VALUE_TYPES.includes(type)) field.defaultValue = "";
+  field._legacyType = "";
+}
+
+function newFormField(type, draft) {
+  const option = FORM_FIELD_TYPE_OPTIONS.find((item) => item.value === type) || FORM_FIELD_TYPE_OPTIONS.find((item) => item.value === "text");
+  const displayName = option.value === "label" ? "" : option.label;
+  return {
+    id: makeId("fld"),
+    displayName,
+    fieldRef: uniqueFormFieldRef(formFieldRefSlug(displayName) || option.value.toLowerCase(), draft.fields, ""),
+    type: option.value,
+    required: false,
+    helpText: "",
+    defaultValue: "",
+    config: formFieldDefaultConfig(option.value),
+    _legacyType: "",
+    _refAuto: true,
+    _isNew: true,
+  };
+}
+
+function insertIntoFormExpression(card, text) {
+  const input = card?.querySelector('[data-fc="expression"]');
+  const field = card ? formDraftField(card.dataset.fieldId) : null;
+  if (!input || !field) return;
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  const before = input.value.slice(0, start);
+  const after = input.value.slice(end);
+  const spacer = before && !/\s$/.test(before) ? " " : "";
+  const insert = `${spacer}${text} `;
+  input.value = `${before}${insert}${after}`;
+  const caret = before.length + insert.length;
+  input.focus();
+  input.setSelectionRange(caret, caret);
+  field.config.expression = input.value;
+  state.formDraft._dirty = true;
+  refreshFormEditorLive();
+}
+
+function applyCascadingCsv(card, text) {
+  const field = card ? formDraftField(card.dataset.fieldId) : null;
+  if (!field) return;
+  const result = cascadingListFromCsv(text);
+  if (result.error) {
+    showToast(result.error);
+    return;
+  }
+  field.config.levels = result.levels;
+  field.config.rows = result.rows;
+  state.formDraft._dirty = true;
+  renderFormEditor();
+  showToast(`Imported ${result.rows.length} row${result.rows.length === 1 ? "" : "s"} across ${result.levels.length} level${result.levels.length === 1 ? "" : "s"}.`);
+}
+
+function importCascadingCsvFile(input) {
+  const file = input.files?.[0];
+  const card = input.closest(".fb-field[data-field-id]");
+  if (!file || !card) return;
+  if (file.size > 2 * 1024 * 1024) {
+    showToast("That CSV is over 2 MB -- split it or trim it first.");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => applyCascadingCsv(card, String(reader.result || ""));
+  reader.onerror = () => showToast("Could not read that file.");
+  reader.readAsText(file);
+}
+
+async function handleFormEditorClick(event) {
+  const button = event.target.closest("[data-fb]");
+  const draft = state.formDraft;
+  if (!button || !draft) return;
+  const action = button.dataset.fb;
+  const card = button.closest(".fb-field[data-field-id]");
+  const field = card ? formDraftField(card.dataset.fieldId) : null;
+  const index = field ? draft.fields.indexOf(field) : -1;
+  if (action === "back") {
+    if (draft._dirty && canEditFormTemplates() && !window.confirm("Leave without saving? Your changes to this form will be lost.")) return;
+    state.formDraft = null;
+    state.selectedFormTemplateId = "";
+    state.view = "dispatch-forms";
+    render();
+    return;
+  }
+  if (action === "save-form") {
+    await saveFormDraft();
+    return;
+  }
+  if (action === "unlock-refs") {
+    const stored = findFormTemplate(draft.id);
+    const count = formTemplateSubmissionCount(stored);
+    const ok = window.confirm(
+      `${count} submission${count === 1 ? "" : "s"} already store answers under these field refs.\n\nIf you change a ref, those answers stay under the old ref: reports and exports will show them as a different column from new answers. Only unlock to fix a mistake.\n\nUnlock field refs?`,
+    );
+    if (!ok) return;
+    draft._refsUnlocked = true;
+    renderFormEditor();
+    return;
+  }
+  if (action === "open-field") {
+    state.formEditorOpenFieldId = button.dataset.fieldId || "";
+    renderFormEditor();
+    document.querySelector(`#formEditorRoot .fb-field[data-field-id="${CSS.escape(state.formEditorOpenFieldId)}"]`)?.scrollIntoView({ block: "center" });
+    return;
+  }
+  if (!canEditFormTemplates() && action !== "toggle-field") return;
+  if (action === "add-field") {
+    const type = (document.querySelector("#formEditorRoot [data-fb-add-type]")?.value || state.formBuilderAddType || "text").toString();
+    const created = newFormField(type, draft);
+    draft.fields.push(created);
+    draft._dirty = true;
+    state.formEditorOpenFieldId = created.id;
+    renderFormEditor();
+    const input = document.querySelector(`#formEditorRoot .fb-field[data-field-id="${CSS.escape(created.id)}"] [data-fp="displayName"]`);
+    input?.scrollIntoView({ block: "center" });
+    input?.focus();
+    input?.select();
+    return;
+  }
+  if (!field) return;
+  if (action === "toggle-field") {
+    state.formEditorOpenFieldId = state.formEditorOpenFieldId === field.id ? "" : field.id;
+    renderFormEditor();
+    return;
+  }
+  if (action === "move-field") {
+    const target = button.dataset.direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= draft.fields.length) return;
+    draft.fields.splice(index, 1);
+    draft.fields.splice(target, 0, field);
+    draft._dirty = true;
+    renderFormEditor();
+    return;
+  }
+  if (action === "duplicate-field") {
+    const copy = structuredClone(field);
+    copy.id = makeId("fld");
+    copy.displayName = field.displayName ? `${field.displayName} (copy)` : "";
+    copy.fieldRef = uniqueFormFieldRef(field.fieldRef || formFieldRefSlug(copy.displayName) || "field", draft.fields, "");
+    copy._refAuto = false;
+    copy._isNew = true;
+    draft.fields.splice(index + 1, 0, copy);
+    draft._dirty = true;
+    state.formEditorOpenFieldId = copy.id;
+    renderFormEditor();
+    return;
+  }
+  if (action === "delete-field") {
+    const usedBy = draft.fields.filter((item) => item.type === "calculation" && item !== field && (formExpressionParse(item.config?.expression || "").refs || []).includes(field.fieldRef));
+    const message = [`Delete the field "${field.displayName || formFieldTypeLabel(field.type)}"?`, usedBy.length ? `The calculation${usedBy.length === 1 ? "" : "s"} ${usedBy.map((item) => `"${item.displayName}"`).join(", ")} use${usedBy.length === 1 ? "s" : ""} it and will need fixing.` : "", !field._isNew && formTemplateSubmissionCount(findFormTemplate(draft.id)) ? "Answers already submitted for it are kept on those submissions." : ""]
+      .filter(Boolean)
+      .join("\n\n");
+    if (!window.confirm(message)) return;
+    draft.fields.splice(index, 1);
+    draft._dirty = true;
+    if (state.formEditorOpenFieldId === field.id) state.formEditorOpenFieldId = "";
+    renderFormEditor();
+    return;
+  }
+  if (action === "insert-ref") insertIntoFormExpression(card, button.dataset.ref || "");
+  if (action === "insert-op") insertIntoFormExpression(card, button.dataset.op || "");
+  if (action === "validate-calc") {
+    const result = validateFormCalculation(draft, field);
+    const output = card.querySelector("[data-fb-calc-result]");
+    if (output) {
+      output.textContent = result.error ? result.error : `Valid -- uses ${result.refs.length ? result.refs.join(", ") : "numbers only"}.`;
+      output.className = `fb-calc-result ${result.error ? "fb-bad" : "fb-good"}`;
+    }
+    return;
+  }
+  if (action === "csv-import") applyCascadingCsv(card, card.querySelector("[data-fb-csv]")?.value || "");
+}
+
+function bindFormEditorEvents() {
+  const root = document.querySelector("#formEditorRoot");
+  if (!root) return;
+  root.addEventListener("input", handleFormEditorInput);
+  root.addEventListener("change", (event) => {
+    // Text inputs already updated the draft on "input"; selects, checkboxes and files report here.
+    if (event.target.matches("select, input[type=checkbox], input[type=file]")) handleFormEditorInput(event);
+  });
+  root.addEventListener("click", handleFormEditorClick);
+}
+
+function formFieldConfigForSave(field) {
+  const defaults = formFieldDefaultConfig(field.type);
+  const config = {};
+  for (const key of Object.keys(defaults)) config[key] = field.config?.[key] ?? defaults[key];
+  return config;
+}
+
+async function saveFormDraft() {
+  const draft = state.formDraft;
+  if (!draft || !canEditFormTemplates()) return;
+  const problems = formDraftProblems(draft);
+  if (problems.length) {
+    if (problems[0].fieldId) state.formEditorOpenFieldId = problems[0].fieldId;
+    renderFormEditor();
+    showToast(problems[0].text);
+    return;
+  }
+  const name = draft.name.trim() || draft.displayName.trim();
+  const record = {
+    id: draft.id || makeId("form"),
+    key: draft.key || "",
+    name,
+    displayName: draft.displayName.trim() || name,
+    description: draft.description.trim(),
+    category: draft.category.trim() || "General",
+    requiresJob: Boolean(draft.requiresJob),
+    isActive: Boolean(draft.isActive),
+    availableOnFormsMenu: Boolean(draft.availableOnFormsMenu),
+    timesheetAction: draft.timesheetAction || "",
+    groups: { crewIds: [...draft.groups.crewIds], roles: [...draft.groups.roles] },
+    fields: draft.fields.map((field) => ({
+      id: field.id,
+      displayName: field.displayName.trim() || (field.type === "label" ? "Label" : ""),
+      fieldRef: field.fieldRef.trim(),
+      type: field.type,
+      required: field.type === "label" || field.type === "calculation" ? false : Boolean(field.required),
+      helpText: field.helpText.trim(),
+      defaultValue: FORM_DEFAULT_VALUE_TYPES.includes(field.type) ? field.defaultValue : "",
+      config: formFieldConfigForSave(field),
+    })),
+    updatedBy: currentActorName(),
+  };
+  if (draft.version !== undefined) record.version = draft.version;
+  const openFieldId = state.formEditorOpenFieldId;
+  try {
+    const saved = await saveBackendRecord("formTemplates", record);
+    state.formDraft = formDraftFromTemplate(saved);
+    state.selectedFormTemplateId = saved.id;
+    state.formEditorOpenFieldId = openFieldId;
+    if (state.view === "dispatch-form-editor") render();
+    showToast(`Saved ${formTemplateTitle(saved)}.`);
+  } catch (error) {
+    if (error.conflict) {
+      // Someone else saved the form meanwhile: reopen it as it now stands.
+      const current = findFormTemplate(record.id);
+      if (current) state.formDraft = formDraftFromTemplate(current);
+      render();
+      showToast(error.message);
+      return;
+    }
+    showToast(error.message || "The form could not be saved.");
   }
 }
 
@@ -31984,6 +33379,7 @@ function openActivityTaskDialog(accountId = "", contactId = "", opportunityId = 
 // on everything the server's cascade table says belongs to it; ?dryRun=1 only reports what would go,
 // which is what the confirm shows. Lists hide deleted rows; find* still resolves them for history.
 const deletableRecordLabels = {
+  formTemplates: { noun: "form", name: (record) => record.displayName || record.name, after: () => ({ view: "dispatch-forms", formDraft: null, selectedFormTemplateId: "" }) },
   itMessages: { noun: "message to IT", name: (record) => `${record.authorName || ""}: ${String(record.body || "").slice(0, 60)}`, after: () => ({}) },
   accounts: { noun: "account", name: (record) => record.name, after: () => ({ view: "accounts", selectedAccountId: "" }) },
   contacts: { noun: "contact", name: (record) => record.name, after: () => ({ view: "contacts", selectedContactId: "" }) },
@@ -38533,4 +39929,13 @@ export {
   renderOpportunityNeedsChips,
   // Phase 24: the library's tutorial items open on the training copy.
   renderTutorialLaunch,
+  // Phase 25 Wave F: the Forms builder's shared pieces (the phone renders; F3's template picker lists).
+  activeFormTemplates,
+  getFormTemplates,
+  findFormTemplate,
+  formOnFormsMenu,
+  formFieldForEditor,
+  formExpressionParse,
+  FORM_FIELD_TYPE_OPTIONS,
+  FORM_TIMESHEET_ACTIONS,
 };

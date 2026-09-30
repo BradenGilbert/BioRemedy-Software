@@ -2233,6 +2233,265 @@ const FORM_TEMPLATE_SEED = [
   },
 ];
 
+// ---- Phase 25 Wave F (2026-09-30): the office Forms builder's server rules -------------------------
+// The shape is fixed in phase-25-pilot-fixes-2026-09-29.md "Wave F -- detailed plan". A save from
+// the builder is normalised here: every field gets the new shape ({id, displayName, fieldRef, type,
+// required, helpText, defaultValue, config}), legacy field types are mapped (yesno -> selectList
+// [Yes, No], checklist -> multiSelect, photo -> picture), fieldRefs must be unique in the form, a
+// calculation may only use other numeric fields, and only one ACTIVE form may hold each timesheet
+// action (a second is refused with 409). Seeded rows that were never edited keep their legacy shape
+// ("read, not rewritten"); the phone maps them the same way.
+const FORM_FIELD_TYPES = ["calculation", "cascadingList", "checkbox", "date", "label", "money", "multiSelect", "number", "odometer", "picture", "selectList", "signature", "text", "time", "url"];
+const LEGACY_FORM_FIELD_TYPES = { yesno: "selectList", checklist: "multiSelect", photo: "picture" };
+// Fields a calculation may use: the value is a number (odometer: its reading).
+const FORM_NUMERIC_FIELD_TYPES = new Set(["number", "money", "calculation", "odometer"]);
+const FORM_TIMESHEET_ACTIONS = ["shift_start", "shift_end", "break_start", "break_end"];
+const FORM_TIMESHEET_ACTION_LABELS = { shift_start: "Shift start", shift_end: "Shift end", break_start: "Break start", break_end: "Break end" };
+const FORM_LABEL_STYLES = ["heading", "note", "warning"];
+// Mirrors who can edit Job Templates: the office dispatch roles. Field sessions never write here.
+const FORM_TEMPLATE_WRITE_ROLES = ["Admin", "Office Manager", "Operations Manager", "Scheduler"];
+
+function formFieldRefSlug(value) {
+  const slug = String(value || "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+  return /^[0-9]/.test(slug) ? `f_${slug}`.slice(0, 60) : slug;
+}
+
+// The calculation grammar (evaluation is the phone's job, never eval):
+//   expr := term (("+" | "-") term)* ; term := factor (("*" | "/") factor)*
+//   factor := ("+" | "-") factor | number | fieldRef | "(" expr ")"
+// The builder's buttons type the symbols as they read (×, ÷, −); they parse as *, / and -.
+// Returns { refs } or { error }. app.js has the same parser (formExpressionParse) for the builder.
+function parseFormExpression(expression) {
+  const source = String(expression || "");
+  const tokens = [];
+  let index = 0;
+  while (index < source.length) {
+    const char = source[index];
+    if (/\s/.test(char)) { index += 1; continue; }
+    const number = /^(\d+(\.\d*)?|\.\d+)/.exec(source.slice(index));
+    if (number) { tokens.push({ kind: "number", text: number[0] }); index += number[0].length; continue; }
+    const ident = /^[A-Za-z_][A-Za-z0-9_]*/.exec(source.slice(index));
+    if (ident) { tokens.push({ kind: "ref", text: ident[0] }); index += ident[0].length; continue; }
+    const op = { "+": "+", "-": "-", "−": "-", "*": "*", "×": "*", "/": "/", "÷": "/", "(": "(", ")": ")" }[char];
+    if (op) { tokens.push({ kind: op, text: char }); index += 1; continue; }
+    return { error: `Unexpected "${char}" at position ${index + 1}.` };
+  }
+  if (!tokens.length) return { error: "The expression is empty." };
+  let position = 0;
+  const refs = [];
+  const peek = () => tokens[position];
+  const fail = (message) => { throw new Error(message); };
+  const factor = () => {
+    const token = peek();
+    if (!token) fail("The expression ends too soon.");
+    if (token.kind === "+" || token.kind === "-") { position += 1; factor(); return; }
+    if (token.kind === "number") { position += 1; return; }
+    if (token.kind === "ref") { refs.push(token.text); position += 1; return; }
+    if (token.kind === "(") {
+      position += 1;
+      expr();
+      if (peek()?.kind !== ")") fail("A \"(\" is never closed.");
+      position += 1;
+      return;
+    }
+    fail(`Unexpected "${token.text}".`);
+  };
+  const term = () => {
+    factor();
+    while (peek() && (peek().kind === "*" || peek().kind === "/")) { position += 1; factor(); }
+  };
+  const expr = () => {
+    term();
+    while (peek() && (peek().kind === "+" || peek().kind === "-")) { position += 1; term(); }
+  };
+  try {
+    expr();
+    if (position < tokens.length) fail(`Unexpected "${tokens[position].text}".`);
+  } catch (error) {
+    return { error: error.message };
+  }
+  return { refs: [...new Set(refs)] };
+}
+
+function formNumberOrNull(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formStringList(values, limit = 500) {
+  const seen = new Set();
+  const list = [];
+  for (const raw of Array.isArray(values) ? values : []) {
+    const value = String(raw ?? "").trim().slice(0, 200);
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    list.push(value);
+    if (list.length >= limit) break;
+  }
+  return list;
+}
+
+function normalizeFormFieldConfig(type, config, legacy) {
+  const source = config && typeof config === "object" ? config : {};
+  const decimals = (value, fallback) => {
+    const number = formNumberOrNull(value);
+    return number === null ? fallback : Math.min(6, Math.max(0, Math.round(number)));
+  };
+  if (type === "calculation") return { expression: String(source.expression || "").trim().slice(0, 500), decimals: decimals(source.decimals, 2) };
+  if (type === "cascadingList") {
+    const levels = (Array.isArray(source.levels) ? source.levels : []).map((level) => String(level ?? "").trim().slice(0, 60)).filter(Boolean).slice(0, 6);
+    const rows = (Array.isArray(source.rows) ? source.rows : [])
+      .map((row) => (Array.isArray(row) ? row : []).slice(0, levels.length).map((cell) => String(cell ?? "").trim().slice(0, 120)))
+      .filter((row) => row.length && row[0])
+      .slice(0, 5000);
+    return { levels, rows };
+  }
+  if (type === "checkbox") return { defaultChecked: Boolean(source.defaultChecked) };
+  if (type === "date" || type === "time") return { autoCapture: Boolean(source.autoCapture) };
+  if (type === "label") return { text: String(source.text || "").slice(0, 2000), style: FORM_LABEL_STYLES.includes(source.style) ? source.style : "note" };
+  if (type === "money" || type === "number") {
+    return { min: formNumberOrNull(source.min), max: formNumberOrNull(source.max), decimals: decimals(source.decimals, type === "money" ? 2 : null), unit: String(source.unit || "").trim().slice(0, 20) };
+  }
+  if (type === "selectList" || type === "multiSelect") {
+    const legacyOptions = legacy?.type === "yesno" ? ["Yes", "No"] : legacy?.options;
+    return { options: formStringList(source.options ?? legacyOptions) };
+  }
+  if (type === "picture") {
+    const min = formNumberOrNull(source.min ?? (legacy?.type === "photo" ? (legacy.required ? 1 : 0) : 0));
+    const max = formNumberOrNull(source.max ?? 10);
+    return { min: Math.max(0, Math.round(min ?? 0)), max: Math.max(1, Math.round(max ?? 10)), allowGallery: source.allowGallery !== false };
+  }
+  if (type === "signature") return { signerNameRequired: Boolean(source.signerNameRequired) };
+  if (type === "text") {
+    const maxLength = formNumberOrNull(source.maxLength);
+    return { maxLength: maxLength && maxLength > 0 ? Math.round(maxLength) : null, multiline: legacy?.type === "text" && source.multiline === undefined ? true : Boolean(source.multiline) };
+  }
+  return {};
+}
+
+// One field in the new shape. Throws a 400 requestError when the field cannot be saved as sent.
+function normalizeFormField(field, position) {
+  const raw = field && typeof field === "object" ? field : {};
+  const isLegacyShape = !raw.fieldRef && !raw.displayName && Boolean(raw.key || raw.label);
+  const type = LEGACY_FORM_FIELD_TYPES[raw.type] || raw.type;
+  const where = `Field ${position + 1}`;
+  if (!FORM_FIELD_TYPES.includes(type)) throw requestError(`${where}: unknown field type "${raw.type}".`);
+  const displayName = String(raw.displayName ?? raw.label ?? "").trim().slice(0, 120);
+  if (!displayName && type !== "label") throw requestError(`${where} needs a display name.`);
+  const fieldRef = String(raw.fieldRef ?? raw.key ?? "").trim() || formFieldRefSlug(displayName || `label_${position + 1}`);
+  if (!/^[A-Za-z][A-Za-z0-9_]{0,59}$/.test(fieldRef)) throw requestError(`${where} ("${displayName}"): the field ref "${fieldRef}" must start with a letter and use only letters, numbers and underscores.`);
+  const legacy = isLegacyShape || LEGACY_FORM_FIELD_TYPES[raw.type] ? { type: raw.type, options: raw.options, required: raw.required } : null;
+  const config = normalizeFormFieldConfig(type, raw.config, legacy);
+  const noValue = type === "label";
+  // Date/time use config.autoCapture and checkbox config.defaultChecked instead of a typed default.
+  const noDefault = !["money", "number", "selectList", "text", "url"].includes(type);
+  if ((type === "selectList" || type === "multiSelect") && !config.options.length) throw requestError(`${where} ("${displayName}") needs at least one option.`);
+  if (type === "cascadingList" && !config.levels.length) throw requestError(`${where} ("${displayName}") needs at least one level.`);
+  if (type === "cascadingList" && !config.rows.length) throw requestError(`${where} ("${displayName}") has no list rows -- import a CSV.`);
+  if ((type === "number" || type === "money") && config.min !== null && config.max !== null && config.min > config.max) throw requestError(`${where} ("${displayName}"): the minimum is above the maximum.`);
+  if (type === "picture" && config.min > config.max) throw requestError(`${where} ("${displayName}"): at least ${config.min} pictures but at most ${config.max}.`);
+  if (type === "label" && !config.text.trim() && !displayName) throw requestError(`${where}: a label needs some text.`);
+  return {
+    id: String(raw.id || "").trim().slice(0, 60) || `fld-${Math.random().toString(36).slice(2, 10)}`,
+    displayName: displayName || "Label",
+    fieldRef,
+    type,
+    required: noValue ? false : Boolean(raw.required),
+    helpText: String(raw.helpText || "").trim().slice(0, 500),
+    defaultValue: noDefault ? "" : String(raw.defaultValue ?? "").slice(0, 500),
+    config,
+    // Compatibility mirrors for readers written before Wave F (they read key/label).
+    key: fieldRef,
+    label: displayName || "Label",
+  };
+}
+
+// Returns { record } or { status, error }.
+function normalizeFormTemplateWrite(data, body, stored, actor) {
+  let fields;
+  try {
+    fields = (Array.isArray(body.fields) ? body.fields : []).slice(0, 200).map(normalizeFormField);
+  } catch (error) {
+    return { status: error.status || 400, error: error.message };
+  }
+  const name = String(body.name || body.displayName || "").trim().slice(0, 120);
+  if (!name) return { status: 400, error: "A form needs a name." };
+  const seenRefs = new Map();
+  for (const field of fields) {
+    const lower = field.fieldRef.toLowerCase();
+    if (seenRefs.has(lower)) return { status: 400, error: `Two fields use the field ref "${field.fieldRef}" ("${seenRefs.get(lower)}" and "${field.displayName}"). Field refs must be unique in a form.` };
+    seenRefs.set(lower, field.displayName);
+  }
+  const byRef = new Map(fields.map((field) => [field.fieldRef, field]));
+  const calcRefs = new Map();
+  for (const field of fields.filter((item) => item.type === "calculation")) {
+    if (!field.config.expression) return { status: 400, error: `The calculation "${field.displayName}" has no expression.` };
+    const parsed = parseFormExpression(field.config.expression);
+    if (parsed.error) return { status: 400, error: `The calculation "${field.displayName}": ${parsed.error}` };
+    for (const ref of parsed.refs) {
+      const target = byRef.get(ref);
+      if (!target) return { status: 400, error: `The calculation "${field.displayName}" uses "${ref}", which is not a field ref in this form.` };
+      if (ref === field.fieldRef) return { status: 400, error: `The calculation "${field.displayName}" uses itself.` };
+      if (!FORM_NUMERIC_FIELD_TYPES.has(target.type)) return { status: 400, error: `The calculation "${field.displayName}" uses "${ref}", which is not a number, money, odometer or calculation field.` };
+    }
+    calcRefs.set(field.fieldRef, parsed.refs);
+  }
+  // Calculations may use other calculations, but never in a loop.
+  const done = new Set();
+  const visiting = new Set();
+  const loops = (ref) => {
+    if (done.has(ref)) return false;
+    if (visiting.has(ref)) return true;
+    visiting.add(ref);
+    const found = (calcRefs.get(ref) || []).some((next) => calcRefs.has(next) && loops(next));
+    visiting.delete(ref);
+    done.add(ref);
+    return found;
+  };
+  const loop = fields.find((field) => field.type === "calculation" && loops(field.fieldRef));
+  if (loop) return { status: 400, error: `The calculation "${loop.displayName}" refers back to itself through another calculation.` };
+
+  const timesheetAction = FORM_TIMESHEET_ACTIONS.includes(body.timesheetAction) ? body.timesheetAction : "";
+  if (body.timesheetAction && !timesheetAction) return { status: 400, error: `Unknown timesheet action "${body.timesheetAction}".` };
+  const id = String(body.id || "").trim() || makeId("form");
+  const isActive = body.isActive !== false;
+  if (timesheetAction && isActive && !stored?.deletedAt) {
+    const holder = (data.formTemplates || []).find((form) => form.id !== id && !form.deletedAt && form.isActive !== false && form.timesheetAction === timesheetAction);
+    if (holder) {
+      return { status: 409, error: `"${holder.displayName || holder.name}" is already the ${FORM_TIMESHEET_ACTION_LABELS[timesheetAction].toLowerCase()} form. Only one active form can be tied to each timesheet action -- clear it there first.`, holderId: holder.id };
+    }
+  }
+  const crewIds = formStringList(body.groups?.crewIds).filter((crewId) => (data.crewProfiles || []).some((crew) => crew.id === crewId));
+  const roles = formStringList(body.groups?.roles).filter((role) => KNOWN_ROLES.includes(role) && role !== "Client Portal");
+  const record = {
+    id,
+    key: String(body.key || stored?.key || "").trim().slice(0, 80) || formFieldRefSlug(name).replace(/_/g, "-") || id,
+    name,
+    displayName: String(body.displayName || "").trim().slice(0, 120) || name,
+    description: String(body.description || "").trim().slice(0, 1000),
+    category: String(body.category || "").trim().slice(0, 60) || "General",
+    requiresJob: Boolean(body.requiresJob ?? stored?.requiresJob ?? false),
+    isActive,
+    availableOnFormsMenu: Boolean(body.availableOnFormsMenu),
+    timesheetAction,
+    groups: { crewIds, roles },
+    fields,
+    updatedBy: String(actor || "").slice(0, 120),
+    createdAt: stored?.createdAt || body.createdAt || new Date().toISOString(),
+    createdBy: stored?.createdBy || String(body.createdBy || actor || "").slice(0, 120),
+  };
+  // A save never undeletes: archive and restore go through the soft-delete route.
+  for (const key of ["deletedAt", "deletedBy", "deletedVia", "restoredAt", "restoredBy"]) if (stored?.[key]) record[key] = stored[key];
+  return { record };
+}
+
 // One pilot jurisdiction: Georgetown TX. Layer ids are documented placeholders (owner, 2026-09-25):
 // inspecting https://gis.georgetowntexas.gov/arcgis/rest/services/PublicWebMaps/Utility_Information_WebMap/MapServer?f=json
 // fills in the real layer ids for Pressurized Mains / Gravity Mains / Manholes. This build
@@ -5762,6 +6021,15 @@ async function handleApi(request, response, pathname) {
       if (result.error) return json(response, result.status, { error: result.error });
       record = result.record;
     }
+    if (collection === "formTemplates") {
+      // Phase 25 Wave F: the Forms builder. Office dispatch roles only (a Field Lead reads forms but
+      // never edits them); normalised, validated and checked for the one-form-per-timesheet-action rule.
+      if (!role.some((item) => FORM_TEMPLATE_WRITE_ROLES.includes(item))) return json(response, 403, { error: "Only Admin, Office Manager, Operations Manager or Scheduler can edit forms." });
+      const storedForm = (data.formTemplates || []).find((item) => item.id === body.id);
+      const result = normalizeFormTemplateWrite(data, body, storedForm, attribution(request));
+      if (result.error) return json(response, result.status, { error: result.error, ...(result.holderId ? { holderId: result.holderId } : {}) });
+      record = result.record;
+    }
     if (collection === "itMessages") {
       const storedMessage = (data.itMessages || []).find((item) => item.id === body.id);
       const result = normalizeItMessageWrite(data, request, body, storedMessage);
@@ -6186,6 +6454,10 @@ async function handleSoftDelete(request, response, collection, id, restore) {
   // Phase 21: a walk participant may remove that walk's own rows (a pin, a check-in point).
   const walkRow = !restore && !canAccess(role, domain) ? (data[collection] || []).find((record) => record.id === id) : null;
   if (!canAccess(role, domain) && !walkParticipantMayDelete(request, collection, walkRow, data)) return json(response, 403, { error: `${domain} role required.` });
+  // Phase 25 Wave F: archiving or restoring a form is the builder's job -- office dispatch roles only.
+  if (collection === "formTemplates" && (isFieldSession(request.session) || !role.some((item) => FORM_TEMPLATE_WRITE_ROLES.includes(item)))) {
+    return json(response, 403, { error: "Only Admin, Office Manager, Operations Manager or Scheduler can archive forms." });
+  }
   if (collection === "itMessages" && !role.includes("Admin")) {
     const row = (data.itMessages || []).find((item) => item.id === id);
     if (!row || row.threadKey !== itThreadKeyForSession(request.session)) return json(response, 403, { error: "Not your conversation." });
@@ -6213,6 +6485,11 @@ async function handleSoftDelete(request, response, collection, id, restore) {
         counts[targetCollection] = (counts[targetCollection] || 0) + 1;
         total += 1;
       }
+    }
+    // Phase 25 Wave F: a restored form gives up its timesheet action if another active form took it
+    // while it was archived (one active form per timesheet action).
+    if (collection === "formTemplates" && root.timesheetAction && (data.formTemplates || []).some((form) => form.id !== root.id && !form.deletedAt && form.isActive !== false && form.timesheetAction === root.timesheetAction)) {
+      root.timesheetAction = "";
     }
     await saveBackend(data);
     await audit(request, { action: "restore", collection, recordId: id, summary: recordSummary(root), total });
