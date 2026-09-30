@@ -90,8 +90,10 @@ const STAGE_REQUIRED_FIELDS = {
   ],
   Won: [
     { key: "accountPaperworkStatus", label: "New account paperwork signed", validate: (opportunity) => opportunity.accountPaperworkStatus === "Signed" },
-    { key: "quoteSignedStatus", label: "Quote signed", validate: (opportunity) => opportunity.quoteSignedStatus === "Signed" },
-    { key: "workAuthorizationStatus", label: "Work authorization signed", validate: (opportunity) => opportunity.workAuthorizationStatus === "Signed" },
+    // Phase 25 Wave E (2026-09-29): the legacy sign-off dropdown, or the signed copy itself — an
+    // Approved/Waived signed-quote / work-authorization requirement for this deal (or its project).
+    { key: "quoteSignedStatus", label: "Quote signed", validate: (opportunity) => opportunity.quoteSignedStatus === "Signed" || opportunityPaperworkSatisfied(opportunity, "signed-quote") },
+    { key: "workAuthorizationStatus", label: "Work authorization signed", validate: (opportunity) => opportunity.workAuthorizationStatus === "Signed" || opportunityPaperworkSatisfied(opportunity, "work-authorization") },
   ],
 };
 
@@ -2286,6 +2288,18 @@ async function dispatchClick(event) {
     if (requirement) openDocumentUploadDialog({ entityType: requirement.entityType, entityId: requirement.entityId, requirementId: requirement.id });
   }
   if (action === "open-requirement-review") openRequirementReviewDialog(id);
+  // Phase 25 Wave E (2026-09-29): the office review queue, the work authorization, the account MSA line.
+  if (action === "open-requirement-record") openRequirementRecord(id);
+  if (action === "filter-paperwork-queue") {
+    state.paperworkQueueTypeId = actionButton.dataset.typeId || "";
+    render();
+  }
+  if (action === "print-work-authorization") printWorkAuthorization({ opportunityId: actionButton.dataset.opportunityId || "", projectId: actionButton.dataset.projectId || "" });
+  if (action === "view-account-files") {
+    viewAccount(id);
+    state.accountDetailTab = "files";
+    render();
+  }
   if (action === "open-requirement-waive") openRequirementWaiveDialog(id);
   if (action === "open-requirement-form") openRequirementFormDialog(id);
   if (action === "start-microsoft-signin") await startMicrosoftSignIn();
@@ -3125,12 +3139,19 @@ function renderNav() {
     .map(
       (module) => `
         <button type="button" class="nav-item ${module.sub ? "nav-item--sub" : ""} ${isActiveModule(module.view) ? "active" : ""}" data-view="${module.view}">
-          <span>${escapeHtml(module.label)}</span>
+          <span>${escapeHtml(module.label)}${renderNavPaperworkBadge(module.view)}</span>
           <small>${escapeHtml(findWorkspace(activeWorkspace)?.label || "App")}</small>
         </button>
       `,
     )
     .join("");
+}
+
+// Phase 25 Wave E: the Office Manager overview carries the review queue's count and the red dot.
+function renderNavPaperworkBadge(view) {
+  if (view !== "office" || !canReviewPaperwork()) return "";
+  const count = paperworkAwaitingReview().length;
+  return count ? ` <span class="nav-count" data-paperwork-count title="${count} paperwork item${count === 1 ? "" : "s"} waiting for review">${count}</span>${renderAlertDot("Paperwork waiting for review")}` : "";
 }
 
 function renderQuickActions() {
@@ -3391,7 +3412,7 @@ function renderHomeLauncher(workspace, index, total) {
       style="--angle: ${angle}deg;"
     >
       <span class="app-launch-icon">${escapeHtml(getWorkspaceInitials(workspace.label))}</span>
-      <strong>${escapeHtml(workspace.label)}</strong>
+      <strong>${escapeHtml(workspace.label)}${workspace.id === "office" ? renderNavPaperworkBadge("office") : ""}</strong>
       <small>${escapeHtml(metrics)}</small>
     </button>
   `;
@@ -3412,7 +3433,10 @@ function getHomeLauncherMetrics(workspaceId) {
   if (workspaceId === "dispatch") return `${getDispatchJobs().filter((job) => !isTerminalDispatchStatus(job.status)).length} open jobs`;
   if (workspaceId === "workforce") return `${getEmployees().filter((employee) => employee.employmentStatus === "Active").length} active employees`;
   if (workspaceId === "inventory") return `${getConsumableStatus().filter((item) => item.status !== "Healthy").length} stock alerts`;
-  if (workspaceId === "office") return `${getOfficeAlerts().length} cross-team alerts`;
+  if (workspaceId === "office") {
+    const review = canReviewPaperwork() ? paperworkAwaitingReview().length : 0;
+    return `${getOfficeAlerts().length} cross-team alerts${review ? ` · ${review} to review` : ""}`;
+  }
   if (workspaceId === "finance") return `${money(getFinanceSummary().pastDue)} past due`;
   if (workspaceId === "client") return `${getClientVisibleJobs().length} active spills`;
   return getWorkspaceAccessLabel(workspaceId);
@@ -4702,16 +4726,22 @@ function renderOpportunityProposalDocumentsTab(opportunity, missingFields = []) 
       <article class="panel ${panelNeedsAttention(missingFields, "negotiation-signoff") ? "panel-needs-attention" : ""}">
         <div class="panel-header">
           <h3>Negotiation sign-off</h3>
-          <button class="mini-button" type="button" data-action="open-opportunity-negotiation" data-id="${opportunity.id}">Edit</button>
+          <span class="inline-actions">
+            <button class="mini-button" type="button" data-action="print-work-authorization" data-opportunity-id="${opportunity.id}">Print work authorization</button>
+            <button class="mini-button" type="button" data-action="open-opportunity-negotiation" data-id="${opportunity.id}">Edit</button>
+          </span>
         </div>
         <div class="panel-body">
           <dl class="detail-list">
             <div><dt>New account paperwork</dt><dd>${escapeHtml(opportunity.accountPaperworkStatus || "Not started")}</dd></div>
-            <div><dt>Quote</dt><dd>${escapeHtml(opportunity.quoteSignedStatus || "Not started")}</dd></div>
-            <div><dt>Work authorization</dt><dd>${escapeHtml(opportunity.workAuthorizationStatus || "Not started")}</dd></div>
+            <div><dt>Quote</dt><dd>${escapeHtml(describeSignoffState(opportunity, "quoteSignedStatus", "signed-quote"))}</dd></div>
+            <div><dt>Work authorization</dt><dd>${escapeHtml(describeSignoffState(opportunity, "workAuthorizationStatus", "work-authorization"))}</dd></div>
           </dl>
+          <p class="help-text">Print the quote (its last section is the customer's acceptance block) and the work authorization, send them, and upload the signed copies below. An approved signed copy counts as Signed for the Won gate.</p>
         </div>
       </article>
+
+      ${renderRequirementsPanel({ entityType: "opportunity", entityId: opportunity.id, accountId: opportunity.accountId, counterparty: "customer", title: "Signed quote & work authorization", subtitle: "The customer's signed copies — an approved one satisfies the Won gate", panelClass: panelNeedsAttention(missingFields, "negotiation-signoff") ? "panel-needs-attention" : "", quickCodes: ["signed-quote", "work-authorization"], codes: ["signed-quote", "work-authorization"] })}
 
       ${renderRequirementsPanel({ entityType: "opportunity", entityId: opportunity.id, accountId: opportunity.accountId, counterparty: "customer", stageGate: "Negotiation", title: "Paperwork that gates Negotiation", subtitle: "Sent to the customer, returned signed, approved by the office — then the deal can move", panelClass: panelNeedsAttention(missingFields, "paperwork") ? "panel-needs-attention" : "", quickCodes: ["customer-packet", "waste-authorization"] })}
     </section>
@@ -8890,6 +8920,7 @@ function renderProjectIntakeTab(job, ctx) {
               <span class="risk-badge ${paperwork.tone}">${escapeHtml(paperwork.status)}</span>
             </div>
             <p class="help-text">${escapeHtml(paperwork.note)}</p>
+            ${job.accountId ? `<p class="help-text" data-msa-summary>${escapeHtml(accountMsaSummary(job.accountId))}</p>` : ""}
           </div>
         </article>
 
@@ -14201,6 +14232,7 @@ function renderOfficeManager() {
         "Office Manager Overview",
         "One place to see whether sales, operations, inventory, labor, scheduling, and finance have issues that need follow-up.",
       )}
+      ${renderPaperworkReviewQueue()}
       <section class="metric-strip" aria-label="Office manager metrics">
         <div class="metric">
           <p class="eyebrow">Open alerts</p>
@@ -22991,6 +23023,11 @@ async function openNotification(id) {
   await markNotificationsRead([id]);
   const params = new URLSearchParams(String(notification.link).replace(/^#/, ""));
   if (!params.get("view")) return;
+  // Phase 25 Wave E: "Paperwork to review" lands on the record's paperwork tab.
+  if (params.get("requirementId")) {
+    closeDialogs();
+    if (openRequirementRecord(params.get("requirementId"))) return;
+  }
   state.view = params.get("view");
   ROUTE_ID_FIELDS.forEach((field) => {
     if (params.has(field)) state[field] = params.get(field);
@@ -26456,8 +26493,269 @@ function renderPrintableDocHtml({ docType, doc, lines, opportunity, account, isC
               : ""
           }
           ${doc.notes ? `<div class="print-doc-notes"><strong>Notes:</strong><br />${escapeHtml(doc.notes)}</div>` : ""}
+          ${docType === "Quote" ? renderQuoteAcceptanceBlock(doc) : ""}
     `,
+    extraStyles: docType === "Quote" ? PRINT_SIGNATURE_STYLES : "",
   });
+}
+
+// ==== PAPERWORK WORDING (Phase 25 Wave E, 2026-09-29) — owner review ==========================
+// Every sentence printed on the quote's acceptance block and on the generated Work Authorization is
+// in this block, so the wording can be read and edited in one place. {placeholders} are filled from
+// the record. The language follows BioRemedy's own New Customer Packet (docs/uploaded files: the
+// "Work Authorization / Service Agreement", Net 30 terms, the third-party waste authorization).
+// While WORK_AUTHORIZATION_APPROVED is false, every printed work authorization carries a
+// "DRAFT — wording pending owner review" banner and watermark. Set it to true once Braden has
+// approved the wording.
+const WORK_AUTHORIZATION_APPROVED = false;
+
+// BioRemedy's own details, as printed on the New Customer Packet (the app keeps no company record).
+const BIOREMEDY_COMPANY = {
+  legalName: "BioRemedy Services, LLC",
+  dba: "BioRemedy",
+  street: "3200 N IH 35, Suite 5",
+  cityStateZip: "Round Rock, TX 78681",
+  dispatchPhone: "844-808-8000",
+  accountsPayablePhone: "512-309-8000",
+  email: "ER@BioRemedy.com",
+  website: "www.BioRemedy.com",
+  paymentTerms: "Net 30",
+};
+
+const QUOTE_ACCEPTANCE_TEXT = {
+  heading: "Acceptance",
+  statement:
+    "By signing below, the Customer accepts the scope of work and the pricing in this quote and authorizes BioRemedy Services, LLC to schedule the work with its next available crew. The work is performed under BioRemedy's Work Authorization / Service Agreement terms (New Customer Packet), or the master service agreement between the Customer and BioRemedy if one is on file, with payment terms of {paymentTerms}. Prices do not include state or local sales or use taxes unless shown. Changes to the scope, and delays or interruptions beyond BioRemedy's control, are billed as an equitable adjustment. Optional / write-in items are not included unless initialed.",
+  validity: "This quote is valid until {validUntil}. After that date BioRemedy may revise the pricing.",
+  validityNoDate: "This quote is valid for 30 days from the date prepared unless stated otherwise.",
+  copies: "A signed scan, photo or emailed PDF of this page is accepted as an original.",
+  fields: ["Accepted by (print name)", "Title", "Signature", "Date", "Customer PO #"],
+  returnLine: "Return the signed quote to {email} or call {dispatchPhone}.",
+};
+
+const WORK_AUTHORIZATION_TEXT = {
+  title: "Work Authorization",
+  subtitle: "Authorization to mobilize and perform work",
+  draftBanner: "DRAFT — wording pending owner review. Not for customer use until approved.",
+  intro:
+    "{customer} (the \"Customer\") authorizes BioRemedy Services, LLC dba BioRemedy (\"BioRemedy\") to perform the work described below at the site named on this form. This authorization covers this job only. It is made under BioRemedy's Work Authorization / Service Agreement terms (New Customer Packet), or the master service agreement between the Customer and BioRemedy if one is on file, which control if anything here conflicts with them.",
+  partiesHeading: "Parties and site",
+  customerLabel: "Customer / responsible party",
+  hiredByLabel: "Hired by",
+  siteLabel: "Work site",
+  bioremedyLabel: "Contractor",
+  hiredByNote: "BioRemedy was engaged for this work by {hiredBy} on the Customer's behalf. Unless a separate written agreement says otherwise, the Customer named above is the responsible party for payment.",
+  scopeHeading: "1. Scope of work",
+  scopeIntro: "BioRemedy will furnish the labor, materials, equipment and services reasonably necessary to perform the following work{scopeReference}:",
+  scopeReferenceQuote: ", as further described in quote {quoteRef}",
+  scopeEmpty: "Scope to be described in the attached proposal.",
+  pricingHeading: "2. Pricing",
+  pricingQuote: "Priced per BioRemedy quote {quoteRef} dated {quoteDate}, total {quoteTotal}, attached and incorporated. The quote's line items, minimums, fuel surcharge and fees apply.",
+  pricingTimeAndMaterials: "Time and materials, priced at BioRemedy's 2026 Time and Materials Rate Schedule, attached and incorporated. Time and materials pricing has no guaranteed maximum or not-to-exceed amount unless one is agreed in writing and signed by both parties.",
+  pricingNotToExceed: "Not-to-exceed amount agreed for this job: {notToExceed}.",
+  pricingEmergency: "Emergency response: call-outs are billed at the OT & Emergency rate tier and are subject to the minimum call-out quantities on the rate schedule (the minimum is billed when less is worked), plus the fuel surcharge and the energy, security & insurance fee.",
+  pricingChanges: "Changes the Customer requests, and delays or interruptions beyond BioRemedy's control, are billed as an equitable adjustment. Prices do not include state or local sales or use taxes; any such taxes are the Customer's obligation.",
+  authorizationHeading: "3. Authorization to mobilize",
+  authorization: "By signing, the Customer authorizes BioRemedy to mobilize and begin the work with its next available crew, and the signer confirms they have authority to bind the Customer and to grant BioRemedy access to the site.",
+  accessHeading: "4. Site access and conditions",
+  access: "The Customer will provide safe access to the work areas for the duration of the work, tell BioRemedy in advance about site rules, badging or security requirements, and remains responsible for the safety and security of its property. BioRemedy is not responsible for conditions or contamination present before its work began, including concealed or hidden conditions.",
+  accessNotes: "Access notes on file: {accessNotes}",
+  wasteHeading: "5. Waste handling and disposal",
+  waste: "The Customer (or the generator named on the waste profile) is the generator of record for all waste removed from the site and is responsible for complying with hazardous waste generator regulations. BioRemedy acts as the generator's authorized agent under the Third-Party Authorization for Special Waste Disposal and is never a co-generator of the waste. Transportation and disposal are billed per the pricing above.",
+  wasteGenerator: "Generator of record: {generator}.",
+  paymentHeading: "6. Payment",
+  payment: "The Customer is responsible for payment on BioRemedy's terms of {paymentTerms} from the invoice date. BioRemedy may require a deposit before mobilizing, and progress payments on work lasting more than one week; if a payment is late BioRemedy may stop work and the schedule extends accordingly. Interest accrues on payments more than fifteen (15) days past due at the lesser of 18% per annum or 1.5% per month. Invoice disputes must be raised in writing within ten (10) days of receiving the invoice.",
+  paymentInsurance: "Where insurance coverage has been identified, the Customer directs its insurer to pay BioRemedy directly and authorizes BioRemedy to invoice the insurer or adjuster. The Customer remains fully responsible for any amount the insurer does not pay when due.",
+  paymentInsuranceClaim: "Insurance on file: {insurance}.",
+  paymentDeposit: "Deposit received: {deposit}.",
+  signatureHeading: "7. Signatures",
+  signatureNote: "A signed scan, photo or emailed PDF of this form is accepted as an original.",
+  customerSignatureLabel: "Authorized representative of the Customer",
+  bioremedySignatureLabel: "For BioRemedy Services, LLC",
+  signatureFields: ["Print name", "Title", "Signature", "Date"],
+  returnLine: "Return the signed form to {email} · 24/7 dispatch {dispatchPhone} · Accounts payable {accountsPayablePhone}",
+};
+// ==== end of paperwork wording ==================================================================
+
+function fillPaperworkText(template, values) {
+  return String(template || "").replace(/\{(\w+)\}/g, (match, key) => (values[key] !== undefined && values[key] !== null ? String(values[key]) : match));
+}
+
+const PRINT_SIGNATURE_STYLES = `
+    .print-acceptance { margin-top: 24px; padding-top: 12px; border-top: 2px solid #1a1f26; break-inside: avoid; page-break-inside: avoid; }
+    .print-acceptance p, .print-wa p, .print-wa li { font-size: 0.86rem; line-height: 1.4; margin: 4px 0; }
+    .print-sign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; margin-top: 14px; }
+    .print-sign-field { border-bottom: 1px solid #1a1f26; min-height: 34px; display: flex; align-items: flex-end; font-size: 0.75rem; color: #555; padding-bottom: 2px; }
+    .print-sign-field.wide { grid-column: 1 / -1; }
+    .print-return-line { margin-top: 12px; font-size: 0.85rem; font-weight: 600; }
+    .print-company { font-size: 0.8rem; color: #444; line-height: 1.35; }
+    .print-wa h2 { font-size: 0.95rem; margin: 14px 0 4px; }
+    .print-wa ul { margin: 4px 0 4px 18px; padding: 0; }
+    .print-wa .print-doc-parties { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); font-size: 0.86rem; }
+    .print-wa-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; break-inside: avoid; page-break-inside: avoid; }
+    .print-wa-signatures .print-sign-grid { grid-template-columns: 1fr; gap: 12px; }
+    .print-draft-banner { border: 2px solid #b42318; color: #b42318; background: #fff4f2; font-weight: 700; text-align: center; padding: 8px; margin-bottom: 14px; letter-spacing: 0.02em; }
+    .print-draft-watermark { position: fixed; top: 45%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg); font-size: 6rem; font-weight: 800; color: rgba(180, 35, 24, 0.09); pointer-events: none; z-index: 0; white-space: nowrap; }
+    @media print { .print-draft-banner { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  `;
+
+function renderSignatureFields(fields) {
+  return fields.map((label, index) => `<div class="print-sign-field${fields.length % 2 && index === fields.length - 1 ? " wide" : ""}">${escapeHtml(label)}</div>`).join("");
+}
+
+function paperworkCompanyValues() {
+  return { ...BIOREMEDY_COMPANY };
+}
+
+// The customer's acceptance at the end of a printed quote (owner, 2026-09-29: "We ask for a signed
+// quote, is there a line item for them to sign and return?").
+function renderQuoteAcceptanceBlock(quote) {
+  const values = { ...paperworkCompanyValues(), validUntil: quote.effectiveTo ? formatDate(quote.effectiveTo) : "" };
+  return `
+    <section class="print-acceptance" data-print-acceptance>
+      <h3>${escapeHtml(QUOTE_ACCEPTANCE_TEXT.heading)}</h3>
+      <p>${escapeHtml(fillPaperworkText(QUOTE_ACCEPTANCE_TEXT.statement, values))}</p>
+      <p><strong>${escapeHtml(quote.effectiveTo ? fillPaperworkText(QUOTE_ACCEPTANCE_TEXT.validity, values) : QUOTE_ACCEPTANCE_TEXT.validityNoDate)}</strong></p>
+      <p>${escapeHtml(QUOTE_ACCEPTANCE_TEXT.copies)}</p>
+      <div class="print-sign-grid">${renderSignatureFields(QUOTE_ACCEPTANCE_TEXT.fields)}</div>
+      <p class="print-return-line">${escapeHtml(fillPaperworkText(QUOTE_ACCEPTANCE_TEXT.returnLine, values))}</p>
+    </section>
+  `;
+}
+
+// ---- Work Authorization (Phase 25 Wave E) -------------------------------------------------------
+// Owner, 2026-09-29: "We ask for a signed work Authorization, but what does this even mean? We need
+// to create this document." Generated from the opportunity or project and its quote; the wording is
+// WORK_AUTHORIZATION_TEXT above. The signed copy comes back as a `work-authorization` requirement.
+function workAuthorizationContext({ opportunityId = "", projectId = "" } = {}) {
+  const project = projectId ? findProject(projectId) : null;
+  const opportunity = findOpportunity(opportunityId || project?.opportunityId || "") || null;
+  const accountId = project?.accountId || opportunity?.accountId || "";
+  const account = findAccount(accountId) || null;
+  // "Hired by" (Phase 25 Wave D) may not exist on every record yet; read it guarded.
+  const hiredById = project?.hiredByAccountId || opportunity?.hiredByAccountId || "";
+  const hiredBy = hiredById && hiredById !== accountId ? findAccount(hiredById) : null;
+  let site;
+  if (project) site = projectSite(project);
+  else {
+    const facility = findFacility(opportunity?.facilityId) || null;
+    site = { facility, location: null, name: facility?.name || opportunitySiteNames(opportunity)[0] || "", address: formatFacilityAddressLine(facility) };
+  }
+  const quoteId = project?.quoteId || opportunity?.quoteId || "";
+  const quote = (state.backend.quotes || []).find((item) => item.id === quoteId && !item.deletedAt) || (opportunity ? quotesForOpportunity(opportunity.id).slice(-1)[0] : null) || null;
+  const quoteLines = quote ? quoteLinesForQuote(quote.id) : [];
+  // The named primary contact when the opportunity has one (and their own phone), else the first linked contact.
+  const linkedContacts = contactsForOpportunity(opportunity?.id || "");
+  const personName = (person) => person?.name || [person?.firstName, person?.lastName].filter(Boolean).join(" ");
+  const primaryName = String(opportunity?.primaryContact || "").trim().toLowerCase();
+  const contact = (primaryName && linkedContacts.find((person) => personName(person).trim().toLowerCase() === primaryName)) || (primaryName ? null : linkedContacts[0]) || null;
+  const contactName = opportunity?.primaryContact || personName(contact) || project?.callerName || account?.contact || "";
+  const contactPhone = contact ? contact.phone || contact.mobilePhone || "" : opportunity?.primaryContact && account?.contact === opportunity.primaryContact ? account?.phone || "" : project?.callerPhone || account?.phone || "";
+  const billing = quote?.billingAddressId ? getAddresses().find((item) => item.id === quote.billingAddressId) : account ? addressesForAccount(account.id).find((address) => address.isPrimary) : null;
+  const needs = [...(project?.resourceNeeds || opportunity?.resourceNeeds || []), ...(project?.equipmentNeeds || opportunity?.equipmentNeeds || []), ...(project?.vendorNeeds || opportunity?.vendorNeeds || [])]
+    .map((need) => [need?.name, need?.note].filter(Boolean).join(" — "))
+    .filter(Boolean);
+  const emergency = project?.jobClass === "Emergency Response" || Boolean(quote?.isEmergencyCallout) || quoteLines.some((line) => line.minimumApplied);
+  return { project, opportunity, account, hiredBy, site, quote, quoteLines, contactName, contactPhone, billing, needs, emergency };
+}
+
+function formatPrintAddress(address) {
+  if (!address) return "";
+  return [[address.street1, address.street2].filter(Boolean).join(" "), [address.city, address.stateOrProvince].filter(Boolean).join(", "), address.postalCode].filter(Boolean).join(", ");
+}
+
+function renderWorkAuthorizationHtml(context) {
+  const T = WORK_AUTHORIZATION_TEXT;
+  const { project, opportunity, account, hiredBy, site, quote, contactName, contactPhone, billing, needs, emergency } = context;
+  const company = paperworkCompanyValues();
+  const quoteRef = quote ? (quote.quoteNumber ? quote.quoteNumber : `"${quote.name || "quote"}"`) : "";
+  const values = {
+    ...company,
+    customer: account?.name || "The Customer",
+    hiredBy: hiredBy?.name || "",
+    quoteRef,
+    quoteDate: quote ? formatDate(quote.effectiveFrom || quote.createdAt) : "",
+    quoteTotal: quote ? moneyExact(Number(quote.totalAmount || 0)) : "",
+    notToExceed: project?.notToExceed || opportunity?.notToExceed ? money(Number(project?.notToExceed || opportunity?.notToExceed)) : "",
+    accessNotes: site.facility?.access || "",
+    generator: project?.generatorName || account?.name || "",
+    scopeReference: quote ? fillPaperworkText(T.scopeReferenceQuote, { quoteRef }) : "",
+  };
+  const fill = (text) => escapeHtml(fillPaperworkText(text, values));
+  const jobTitle = project?.name || opportunity?.opportunityName || opportunity?.name || "";
+  const scopeItems = [
+    project?.serviceProfile ? `Service: ${project.serviceProfile}` : "",
+    opportunity?.proposedSolution ? `Proposed solution: ${opportunity.proposedSolution}` : "",
+    opportunity?.customerNeed ? `Customer need: ${opportunity.customerNeed}` : "",
+    opportunity?.contaminationNotes || project?.spillMaterial ? `Condition: ${opportunity?.contaminationNotes || [project.spillMaterial, project.spillQuantity ? `about ${project.spillQuantity}` : "", project.spillLocationType || project.spillSurface || ""].filter(Boolean).join(", ")}` : "",
+    opportunity?.description || project?.description ? `Background: ${opportunity?.description || project.description}` : "",
+    needs.length ? `Crew and equipment: ${needs.join("; ")}` : "",
+  ].filter(Boolean);
+  const insurance = project && (project.isInsuranceClaim === "Yes" || project.insuranceCarrier) && project.insuranceCarrier && project.insuranceCarrier !== "na" ? [project.insuranceCarrier, project.insuranceClaimNumber || project.claimNumber ? `claim ${project.insuranceClaimNumber || project.claimNumber}` : "", project.insurancePolicyNumber ? `policy ${project.insurancePolicyNumber}` : ""].filter(Boolean).join(", ") : "";
+  const deposit = Number(project?.downPaymentAmount || 0) > 0 ? `${money(Number(project.downPaymentAmount))}${project.downPaymentReference ? ` (ref. ${project.downPaymentReference})` : ""}` : "";
+  const partyCell = (label, lines) => `<div><h3>${escapeHtml(label)}</h3>${lines.filter(Boolean).map((line) => escapeHtml(line)).join("<br />") || "<em>Not set</em>"}</div>`;
+  const body = `
+    ${WORK_AUTHORIZATION_APPROVED ? "" : `<div class="print-draft-watermark" aria-hidden="true">DRAFT</div><div class="print-draft-banner" data-wa-draft>${escapeHtml(T.draftBanner)}</div>`}
+    <div class="print-wa" data-work-authorization>
+      <div class="print-doc-header">
+        <div>
+          <h1>${escapeHtml(T.title)}</h1>
+          <div>${escapeHtml(T.subtitle)}</div>
+          ${jobTitle ? `<div><strong>Job:</strong> ${escapeHtml(jobTitle)}</div>` : ""}
+        </div>
+        <div class="print-doc-meta print-company">
+          <strong>${escapeHtml(company.legalName)}</strong><br />dba ${escapeHtml(company.dba)}<br />${escapeHtml(company.street)}<br />${escapeHtml(company.cityStateZip)}<br />24/7 dispatch ${escapeHtml(company.dispatchPhone)}<br />${escapeHtml(company.email)}<br />Prepared ${escapeHtml(formatDate(todayIso()))}
+        </div>
+      </div>
+      <p>${fill(T.intro)}</p>
+      <h2>${escapeHtml(T.partiesHeading)}</h2>
+      <div class="print-doc-parties">
+        ${partyCell(T.customerLabel, [account?.name || "", contactName ? `Contact: ${contactName}${contactPhone ? `, ${formatPhoneNumber(contactPhone)}` : ""}` : "", billing ? `Bill to: ${formatPrintAddress(billing)}` : ""])}
+        ${hiredBy ? partyCell(T.hiredByLabel, [hiredBy.name, hiredBy.phone ? formatPhoneNumber(hiredBy.phone) : ""]) : ""}
+        ${partyCell(T.siteLabel, [site.name, site.address, !site.address && site.location ? formatGpsCoordinates(site.location) : ""])}
+        ${partyCell(T.bioremedyLabel, [`${company.legalName} dba ${company.dba}`, `${company.street}, ${company.cityStateZip}`, `Dispatch ${company.dispatchPhone}`])}
+      </div>
+      ${hiredBy ? `<p>${fill(T.hiredByNote)}</p>` : ""}
+      <h2>${escapeHtml(T.scopeHeading)}</h2>
+      <p>${fill(T.scopeIntro)}</p>
+      ${scopeItems.length ? `<ul>${scopeItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p><em>${escapeHtml(T.scopeEmpty)}</em></p>`}
+      <h2>${escapeHtml(T.pricingHeading)}</h2>
+      <p>${quote ? fill(T.pricingQuote) : fill(T.pricingTimeAndMaterials)}</p>
+      ${values.notToExceed ? `<p>${fill(T.pricingNotToExceed)}</p>` : ""}
+      ${emergency ? `<p>${fill(T.pricingEmergency)}</p>` : ""}
+      <p>${fill(T.pricingChanges)}</p>
+      <h2>${escapeHtml(T.authorizationHeading)}</h2>
+      <p>${fill(T.authorization)}</p>
+      <h2>${escapeHtml(T.accessHeading)}</h2>
+      <p>${fill(T.access)}</p>
+      ${values.accessNotes ? `<p>${fill(T.accessNotes)}</p>` : ""}
+      <h2>${escapeHtml(T.wasteHeading)}</h2>
+      <p>${fill(T.waste)}</p>
+      ${values.generator ? `<p>${fill(T.wasteGenerator)}</p>` : ""}
+      <h2>${escapeHtml(T.paymentHeading)}</h2>
+      <p>${fill(T.payment)}</p>
+      <p>${fill(T.paymentInsurance)}</p>
+      ${insurance ? `<p>${escapeHtml(fillPaperworkText(T.paymentInsuranceClaim, { insurance }))}</p>` : ""}
+      ${deposit ? `<p>${escapeHtml(fillPaperworkText(T.paymentDeposit, { deposit }))}</p>` : ""}
+      <h2>${escapeHtml(T.signatureHeading)}</h2>
+      <p>${fill(T.signatureNote)}</p>
+      <div class="print-wa-signatures">
+        <div><h3>${escapeHtml(T.customerSignatureLabel)}</h3><div class="print-sign-grid">${renderSignatureFields(T.signatureFields)}</div></div>
+        <div><h3>${escapeHtml(T.bioremedySignatureLabel)}</h3><div class="print-sign-grid">${renderSignatureFields(T.signatureFields)}</div></div>
+      </div>
+      <p class="print-return-line">${fill(T.returnLine)}</p>
+    </div>
+  `;
+  return renderPrintShell({ title: `${T.title}${jobTitle ? ` — ${jobTitle}` : ""}`, body, extraStyles: PRINT_SIGNATURE_STYLES });
+}
+
+function printWorkAuthorization({ opportunityId = "", projectId = "" } = {}) {
+  const context = workAuthorizationContext({ opportunityId, projectId });
+  if (!context.account) {
+    showToast("Link an account first — the work authorization is made out to it.");
+    return;
+  }
+  openPrintWindow(renderWorkAuthorizationHtml(context), "work authorization");
 }
 
 function printOpportunityQuote(opportunityId, quoteId) {
@@ -31019,6 +31317,175 @@ function canReviewPaperwork() {
   return userHasRole(...REVIEW_ROLES);
 }
 
+// Phase 25 Wave E (2026-09-29): deal-specific paperwork — the signed quote and the work
+// authorization. Only a requirement filed on this opportunity, or on a project created from it,
+// counts; an account-wide row does not sign this deal's quote. A signed-quote file uploaded straight
+// onto the opportunity counts too while its type needs no review (an upload against a requirement of
+// that type is auto-approved the same way).
+function opportunityPaperworkSatisfied(opportunity, typeCode) {
+  const type = documentTypeByCode(typeCode);
+  if (!opportunity?.id || !type) return false;
+  const projectIds = new Set(state.projects.filter((project) => project.opportunityId === opportunity.id).map((project) => project.id));
+  const forThisDeal = (row) => (row.entityType === "opportunity" && row.entityId === opportunity.id) || (row.entityType === "project" && projectIds.has(row.entityId));
+  if (getDocumentRequirements().some((requirement) => requirement.documentTypeId === type.id && forThisDeal(requirement) && requirementIsSatisfied(requirement))) return true;
+  return type.requiresReview === false && getDocuments().some((document) => document.documentTypeId === type.id && forThisDeal(document));
+}
+
+// The sign-off panel's line for a legacy dropdown that the signed copy can also satisfy.
+function describeSignoffState(opportunity, field, typeCode) {
+  if (opportunity[field] === "Signed") return "Signed";
+  if (opportunityPaperworkSatisfied(opportunity, typeCode)) return "Signed (approved copy on file)";
+  const type = documentTypeByCode(typeCode);
+  const pending = type ? getDocumentRequirements().find((requirement) => requirement.documentTypeId === type.id && requirement.entityType === "opportunity" && requirement.entityId === opportunity.id && !requirementIsSatisfied(requirement)) : null;
+  if (pending?.status === "In review") return "Signed copy waiting for office review";
+  return opportunity[field] || "Not started";
+}
+
+// ---- MSA: once per account, with an expiry (owner, 2026-09-29) --------------------------------
+// The master service agreement lives on the account. It is "on file" while an Approved (unexpired) or
+// Waived requirement exists, and "requested" while one is still moving through Not started → In review.
+const ACCOUNT_AGREEMENT_CODES = ["service-agreement-msa"];
+
+function accountAgreementState(accountId, typeCode = "service-agreement-msa") {
+  const type = documentTypeByCode(typeCode);
+  if (!type || !accountId) return { type, onFile: null, pending: null };
+  const rows = requirementsForAccount(accountId).filter((requirement) => requirement.documentTypeId === type.id);
+  const byNewest = (a, b) => String(b.expiresAt || b.reviewedAt || b.createdAt || "").localeCompare(String(a.expiresAt || a.reviewedAt || a.createdAt || ""));
+  const onFile = rows.filter(requirementIsSatisfied).sort(byNewest)[0] || null;
+  const pending = rows.filter((requirement) => !requirementIsSatisfied(requirement) && !requirementIsExpired(requirement) && requirement.status !== "Rejected").sort(byNewest)[0] || null;
+  return { type, onFile, pending };
+}
+
+function accountMsaSummary(accountId) {
+  const { type, onFile, pending } = accountAgreementState(accountId);
+  if (!type) return "";
+  if (onFile) return onFile.status === "Waived" ? "MSA: not required for this account." : onFile.expiresAt ? `MSA on file until ${formatDate(onFile.expiresAt)}.` : "MSA on file.";
+  if (pending) return `MSA requested on the account (${pending.status}).`;
+  return "MSA: none on file for this account.";
+}
+
+function renderAccountAgreementLine(accountId, typeCode) {
+  const { type, onFile, pending } = accountAgreementState(accountId, typeCode);
+  if (!type) return "";
+  const label = typeCode === "service-agreement-msa" ? "MSA" : type.name;
+  let text;
+  let tone;
+  let action = "";
+  if (onFile) {
+    tone = "low";
+    text = onFile.status === "Waived" ? `${label}: not required for this account (${onFile.waivedReason || "marked N/A"})` : onFile.expiresAt ? `${label} on file until ${formatDate(onFile.expiresAt)}` : `${label} on file (no expiry set)`;
+  } else if (pending) {
+    tone = "medium";
+    text = `${label}: requested on the account — ${describeRequirementState(pending)}`;
+    if (pending.status === "In review" && canReviewPaperwork() && !isPortalUser()) action = `<button class="primary-button" type="button" data-action="open-requirement-review" data-id="${escapeAttribute(pending.id)}">Review</button>`;
+    else if (!isPortalUser()) action = `<button class="mini-button" type="button" data-action="open-requirement-upload" data-id="${escapeAttribute(pending.id)}">Upload signed copy</button>`;
+  } else {
+    tone = "high";
+    text = `${label}: none on file`;
+    if (!isPortalUser()) action = `<button class="mini-button" type="button" data-action="start-required-paperwork" data-account-id="${escapeAttribute(accountId)}" data-entity-type="account" data-entity-id="${escapeAttribute(accountId)}" data-codes="${escapeAttribute(typeCode)}">Request</button>`;
+  }
+  return `
+    <div class="detail-card requirement-row account-agreement-line" data-account-agreement="${escapeAttribute(typeCode)}">
+      <div class="row-meta">
+        <strong>${escapeHtml(text)}</strong>
+        <span class="risk-badge ${tone}">${onFile ? "On file" : pending ? "Requested" : "Missing"}</span>
+      </div>
+      <span class="help-text">Kept once per account and renewed when it expires — it covers every project for this customer.</span>
+      ${action ? `<div class="inline-actions">${action}<button class="mini-button" type="button" data-action="view-account-files" data-id="${escapeAttribute(accountId)}">Account paperwork</button></div>` : `<div class="inline-actions"><button class="mini-button" type="button" data-action="view-account-files" data-id="${escapeAttribute(accountId)}">Account paperwork</button></div>`}
+    </div>
+  `;
+}
+
+// ---- Office review queue (Phase 25 Wave E, 2026-09-29) -----------------------------------------
+// Every requirement In review, on any record. Interim home until Phase 23's Work Inbox absorbs it.
+function paperworkAwaitingReview() {
+  return getDocumentRequirements()
+    .filter((requirement) => requirement.status === "In review")
+    .sort((a, b) => String(a.returnedAt || a.updatedAt || "").localeCompare(String(b.returnedAt || b.updatedAt || "")));
+}
+
+function requirementRecordLabel(requirement) {
+  if (requirement.entityType === "opportunity") return { kind: "Opportunity", name: findOpportunity(requirement.entityId)?.opportunityName || findOpportunity(requirement.entityId)?.name || "Opportunity" };
+  if (requirement.entityType === "project") return { kind: "Project", name: findProject(requirement.entityId)?.name || "Project" };
+  return { kind: "Account", name: findAccount(requirement.accountId || requirement.entityId)?.name || "Account" };
+}
+
+// Opens the record a requirement belongs to, on the tab that shows its paperwork.
+function openRequirementRecord(requirementId) {
+  const requirement = getDocumentRequirements().find((item) => item.id === requirementId) || (state.backend.documentRequirements || []).find((item) => item.id === requirementId);
+  if (!requirement) return false;
+  const type = findDocumentType(requirement.documentTypeId);
+  if (requirement.entityType === "opportunity" && findOpportunity(requirement.entityId)) {
+    viewOpportunity(requirement.entityId);
+    state.opportunityDetailTab = "proposal-documents";
+  } else if (requirement.entityType === "project" && findProject(requirement.entityId)) {
+    viewProject(requirement.entityId);
+    state.projectDetailTab = "files";
+  } else {
+    viewAccount(requirement.accountId || requirement.entityId);
+    state.accountDetailTab = type?.counterparty === "vendor" ? "vendor-subcontractor" : "files";
+  }
+  render();
+  return true;
+}
+
+function renderPaperworkReviewQueue() {
+  if (!canReviewPaperwork()) return "";
+  const rows = paperworkAwaitingReview();
+  const typeIds = [...new Set(rows.map((requirement) => requirement.documentTypeId))];
+  const filter = typeIds.includes(state.paperworkQueueTypeId) ? state.paperworkQueueTypeId : "";
+  const shown = filter ? rows.filter((requirement) => requirement.documentTypeId === filter) : rows;
+  const now = Date.now();
+  return `
+    <article class="panel paperwork-review-queue ${rows.length ? "panel-needs-attention" : ""}" data-tour="office-paperwork-queue">
+      <div class="panel-header">
+        <div><h3>Paperwork awaiting review${rows.length ? ` (${rows.length})` : ""}</h3><span>Signed paperwork returned by customers and vendors. Nothing counts until someone here approves it.</span></div>
+      </div>
+      ${
+        typeIds.length > 1
+          ? `<div class="quick-filter-chips" role="group" aria-label="Filter by document type">
+              <button type="button" class="timeline-filter-chip${filter ? "" : " active"}" data-action="filter-paperwork-queue" data-type-id="" aria-pressed="${!filter}">All (${rows.length})</button>
+              ${typeIds
+                .map((typeId) => {
+                  const count = rows.filter((requirement) => requirement.documentTypeId === typeId).length;
+                  return `<button type="button" class="timeline-filter-chip${filter === typeId ? " active" : ""}" data-action="filter-paperwork-queue" data-type-id="${escapeAttribute(typeId)}" aria-pressed="${filter === typeId}">${escapeHtml(findDocumentType(typeId)?.name || "Document")} (${count})</button>`;
+                })
+                .join("")}
+            </div>`
+          : ""
+      }
+      <div class="panel-body record-list">
+        ${
+          shown
+            .map((requirement) => {
+              const type = findDocumentType(requirement.documentTypeId);
+              const account = findAccount(requirement.accountId);
+              const record = requirementRecordLabel(requirement);
+              const current = requirementCurrentDocument(requirement);
+              const since = requirement.returnedAt || current?.uploadedAt || requirement.updatedAt || "";
+              const days = since ? Math.max(0, Math.floor((now - new Date(since).getTime()) / 86400000)) : 0;
+              return `
+                <div class="detail-card requirement-row paperwork-queue-row" data-requirement-id="${escapeAttribute(requirement.id)}">
+                  <div class="row-meta">
+                    <strong>${withTrailingAlertDot(type?.name || "Document", "Waiting for review")}</strong>
+                    <span class="risk-badge ${days >= 3 ? "high" : "medium"}">${days === 0 ? "Today" : `${days} day${days === 1 ? "" : "s"} waiting`}</span>
+                  </div>
+                  <span class="help-text">${escapeHtml(account?.name || "No account")} · ${record.kind === "Account" ? "account paperwork" : `${escapeHtml(record.kind)}: ${escapeHtml(record.name)}`}</span>
+                  <span class="help-text">${current ? `<a href="/api/documents/${encodeURIComponent(current.id)}/view" target="_blank" rel="noopener">${escapeHtml(current.fileName)}</a> · ` : ""}uploaded ${since ? formatDateTime(since) : "—"}${current?.uploadedBy ? ` by ${escapeHtml(current.uploadedBy)}` : ""}</span>
+                  <div class="inline-actions">
+                    <button class="primary-button" type="button" data-action="open-requirement-review" data-id="${escapeAttribute(requirement.id)}">Review</button>
+                    <button class="mini-button" type="button" data-action="open-requirement-record" data-id="${escapeAttribute(requirement.id)}">Open</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("") || `<div class="empty-state compact">Nothing waiting for review.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function isPortalUser() {
   return state.currentUser?.role === "Client Portal";
 }
@@ -31255,12 +31722,19 @@ function renderRequirementRow(requirement, { entityType, entityId } = {}) {
   `;
 }
 
-function renderRequirementsPanel({ entityType, entityId, accountId, counterparty = "customer", stageGate = null, title = "Paperwork", subtitle = "", panelClass = "", quickCodes = [] }) {
+// codes (Phase 25 Wave E): only these document types (the Won sign-off panel). accountAgreements:
+// types kept once per account (the MSA) — shown as one "on file until …" line instead of rows.
+function renderRequirementsPanel({ entityType, entityId, accountId, counterparty = "customer", stageGate = null, title = "Paperwork", subtitle = "", panelClass = "", quickCodes = [], codes = null, accountAgreements = [], extraActions = "", tourId = "" }) {
+  const agreementTypeIds = new Set(accountAgreements.map((code) => documentTypeByCode(code)?.id).filter(Boolean));
   const requirements = requirementsForAccount(accountId).filter((requirement) => {
     const type = findDocumentType(requirement.documentTypeId);
     if (!type || (counterparty && type.counterparty !== counterparty)) return false;
+    if (codes && !codes.includes(type.code)) return false;
+    if (agreementTypeIds.has(type.id)) return false;
     if (stageGate !== null && (stageGate ? type.stageGate !== stageGate : Boolean(type.stageGate))) return false;
     if (entityType === "opportunity" && requirement.entityType === "opportunity" && requirement.entityId !== entityId) return false;
+    if (codes && requirement.entityType !== entityType) return false;
+    if (codes && requirement.entityId !== entityId) return false;
     return true;
   });
   const needsReview = requirements.some((requirement) => requirement.status === "In review");
@@ -31269,19 +31743,21 @@ function renderRequirementsPanel({ entityType, entityId, accountId, counterparty
     return type && !requirements.some((requirement) => requirement.documentTypeId === type.id && requirement.status !== "Rejected");
   });
   return `
-    <article class="panel ${panelClass} ${needsReview && canReviewPaperwork() ? "panel-needs-attention" : ""}">
+    <article class="panel ${panelClass} ${needsReview && canReviewPaperwork() ? "panel-needs-attention" : ""}"${tourId ? ` data-tour="${escapeAttribute(tourId)}"` : ""}>
       <div class="panel-header">
         <div><h3>${escapeHtml(title)}</h3>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}</div>
         ${
           isPortalUser()
             ? ""
             : `<div class="inline-actions">
+                ${extraActions}
                 ${missingQuick.length ? `<button class="mini-button" type="button" data-action="start-required-paperwork" data-account-id="${escapeAttribute(accountId)}" data-entity-type="${escapeAttribute(entityType)}" data-entity-id="${escapeAttribute(entityId)}" data-codes="${escapeAttribute(missingQuick.join(","))}">Start required paperwork</button>` : ""}
                 <button class="mini-button" type="button" data-action="open-requirement" data-account-id="${escapeAttribute(accountId)}" data-entity-type="${escapeAttribute(entityType)}" data-entity-id="${escapeAttribute(entityId)}" data-counterparty="${escapeAttribute(counterparty || "")}" data-stage-gate="${escapeAttribute(stageGate === null ? "any" : stageGate || "none")}">Add requirement</button>
               </div>`
         }
       </div>
       <div class="panel-body record-list">
+        ${accountAgreements.map((code) => renderAccountAgreementLine(accountId, code)).join("")}
         ${requirements.map((requirement) => renderRequirementRow(requirement, { entityType, entityId })).join("") || `<div class="empty-state compact">${isPortalUser() ? "Nothing is being requested from you right now." : "No paperwork tracked yet."}</div>`}
       </div>
     </article>
@@ -31329,14 +31805,31 @@ async function saveRequirement(form) {
 }
 
 // Creates the standard set for an account in one go (Negotiation paperwork, emergency onsite paperwork).
+// Phase 25 Wave E (2026-09-29):
+//  - A type that only applies to accounts (the MSA — "once per account, with an expiry") is filed on
+//    the account even when a project or the emergency intake asks for it, and is only requested when
+//    the account has none on file (Approved and unexpired, or Waived) and none already pending.
+//  - An expired approval no longer counts as "already tracked": it needs a renewal.
+//  - A deal-specific type (signed quote, work authorization — not applicable to accounts) is checked
+//    against this record only, so another deal's signed quote never blocks this one's.
 async function ensurePaperworkRequirements(accountId, codes, { entityType = "account", entityId = accountId, source = "stage-gate" } = {}) {
   let created = 0;
   for (const code of codes) {
     const type = documentTypeByCode(code);
     if (!type) continue;
-    const exists = requirementsForAccount(accountId).some((requirement) => requirement.documentTypeId === type.id && requirement.status !== "Rejected");
+    const appliesTo = type.appliesTo || [];
+    const accountScoped = appliesTo.includes("account") && !appliesTo.includes(entityType);
+    const target = accountScoped ? { entityType: "account", entityId: accountId } : { entityType, entityId };
+    const accountWide = appliesTo.includes("account");
+    const exists = requirementsForAccount(accountId).some(
+      (requirement) =>
+        requirement.documentTypeId === type.id &&
+        requirement.status !== "Rejected" &&
+        !requirementIsExpired(requirement) &&
+        (accountWide || (requirement.entityType === target.entityType && requirement.entityId === target.entityId)),
+    );
     if (exists) continue;
-    await saveBackendRecord("documentRequirements", { id: makeId("requirement"), documentTypeId: type.id, entityType, entityId, accountId, status: "Not started", source });
+    await saveBackendRecord("documentRequirements", { id: makeId("requirement"), documentTypeId: type.id, ...target, accountId, status: "Not started", source });
     created += 1;
   }
   return created;
@@ -31516,7 +32009,21 @@ function renderProjectFilesTab(job) {
           ? `<article class="panel"><div class="panel-header"><div><h3>Site walk photos</h3><span>Taken on the opportunity before this project existed</span></div></div><div class="panel-body record-list document-list photo-grid">${opportunityPhotos.map(renderPhotoTile).join("")}</div></article>`
           : ""
       }
-      ${job.accountId ? renderRequirementsPanel({ entityType: "project", entityId: job.id, accountId: job.accountId, counterparty: "customer", title: "Customer paperwork", subtitle: "Read from the account — the same state sales and dispatch see", quickCodes: ["customer-packet", "waste-authorization"] }) : ""}
+      ${
+        job.accountId
+          ? renderRequirementsPanel({
+              entityType: "project",
+              entityId: job.id,
+              accountId: job.accountId,
+              counterparty: "customer",
+              title: "Customer paperwork",
+              subtitle: "Read from the account — the same state sales and dispatch see",
+              quickCodes: ["customer-packet", "waste-authorization"],
+              accountAgreements: ACCOUNT_AGREEMENT_CODES,
+              extraActions: `<button class="mini-button" type="button" data-action="print-work-authorization" data-project-id="${escapeAttribute(job.id)}">Print work authorization</button>`,
+            })
+          : ""
+      }
     </section>
   `;
 }

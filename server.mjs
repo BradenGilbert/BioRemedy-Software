@@ -4957,6 +4957,10 @@ const documentTypeSeed = [
   { id: "doctype-service-agreement-standing", code: "service-agreement-standing", name: "Service agreement — standing work order", kind: "upload", counterparty: "customer", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: 365, description: "Standing work order agreement." },
   { id: "doctype-service-agreement-rate", code: "service-agreement-rate", name: "Service agreement — rate agreement", kind: "upload", counterparty: "customer", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: 365, description: "Rate agreement." },
   { id: "doctype-signed-quote", code: "signed-quote", name: "Signed quote", kind: "upload", counterparty: "customer", appliesTo: ["opportunity"], stageGate: "", requiresReview: false, expiryDays: null, description: "The customer's signed copy of a quote." },
+  // Phase 25 Wave E (2026-09-29): generated from the opportunity/project + its quote (app.js
+  // WORK_AUTHORIZATION_TEXT, printed from the opportunity's Negotiation sign-off panel or the project's
+  // Files tab), signed by the customer and returned for review. An approved one satisfies the Won gate.
+  { id: "doctype-work-authorization", code: "work-authorization", name: "Work authorization", kind: "upload", counterparty: "customer", appliesTo: ["opportunity", "project"], stageGate: "", requiresReview: true, expiryDays: null, description: "The customer's signed authorization to mobilize and perform this job: parties, site, scope, pricing basis, waste and payment responsibility. Print it from the opportunity or project, upload the signed copy here." },
   { id: "doctype-vendor-form", code: "vendor-form", name: "New vendor form", kind: "external-form", counterparty: "vendor", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: null, templateFile: "New Vendor Form.pdf", description: "BioRemedy's vendor onboarding form." },
   { id: "doctype-vendor-w9", code: "vendor-w9", name: "W-9", kind: "upload", counterparty: "vendor", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: null, description: "The vendor's W-9. Approval marks the vendor profile's W-9 as approved." },
   { id: "doctype-vendor-coi", code: "vendor-coi", name: "Certificate of insurance (COI)", kind: "upload", counterparty: "vendor", appliesTo: ["account"], stageGate: "", requiresReview: true, expiryDays: 365, description: "Approval sets the vendor profile's insurance expiry from the certificate." },
@@ -5283,6 +5287,8 @@ async function handleDocumentUpload(request, response) {
       requirement.reviewedBy = "auto (no review required)";
     }
     touchRecord(requirement);
+    // Phase 25 Wave E: the office used to find out only by opening the record.
+    if (requirement.status === "In review") raisePaperworkReviewNotification(data, requirement, type, document);
   }
   if (entityType === "accountApprovedSubcontractors") {
     entity.evidenceDocumentId = document.id;
@@ -5379,6 +5385,57 @@ function applyRequirementApproval(data, requirement, type) {
   }
 }
 
+// Phase 25 Wave E (2026-09-29): "Document review is not showing up anywhere for office admin to
+// review." An upload that puts a requirement In review now tells every review role, the same row
+// shape the client's raiseNotification writes (id derived from the condition, per-user readBy). The
+// link opens the record the paperwork belongs to on its paperwork tab (app.js openNotification reads
+// requirementId); Admin and Office Manager also see it in the Office Manager page's review queue.
+const REQUIREMENT_RECORD_ROUTES = {
+  account: ["account-detail", "selectedAccountId"],
+  opportunity: ["opportunity-detail", "selectedOpportunityId"],
+  project: ["project-detail", "selectedProjectId"],
+};
+function raisePaperworkReviewNotification(data, requirement, uploadType, document) {
+  const type = (data.documentTypes || []).find((item) => item.id === requirement.documentTypeId) || uploadType;
+  const account = (data.accounts || []).find((item) => item.id === requirement.accountId);
+  const route = REQUIREMENT_RECORD_ROUTES[requirement.entityType];
+  const params = new URLSearchParams();
+  if (route) {
+    params.set("view", route[0]);
+    params.set(route[1], requirement.entityId);
+  } else if (requirement.accountId) {
+    params.set("view", "account-detail");
+    params.set("selectedAccountId", requirement.accountId);
+  }
+  params.set("requirementId", requirement.id);
+  const id = `notif-paperwork-review-${requirement.id}-${document.id}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 150);
+  if (!Array.isArray(data.notifications)) data.notifications = [];
+  if (data.notifications.some((item) => item.id === id)) return;
+  data.notifications.push(
+    touchRecord({
+      id,
+      dedupeKey: `paperwork-review-${requirement.id}-${document.id}`,
+      title: `Paperwork to review: ${type?.name || "Document"} — ${account?.name || "unknown account"}`,
+      body: `${document.fileName} uploaded by ${document.uploadedBy || "someone"}. Review it from the record's paperwork panel or the Office Manager page's review queue.`,
+      severity: "warning",
+      audienceRoles: [...REVIEW_ROLES],
+      recipientUserId: "",
+      link: `#${params.toString()}`,
+      requirementId: requirement.id,
+      readBy: [],
+    }),
+  );
+}
+
+// Phase 25 Wave E (2026-09-29, owner: "MSA once per account, with an expiry"): a type that only
+// applies to accounts (the service agreements, vendor paperwork) is always filed on the account, even
+// when it is requested from a project or an emergency intake, so one approved MSA covers every job.
+function accountScopedRequirementTarget(type, record) {
+  const appliesTo = type?.appliesTo || [];
+  if (!record.accountId || appliesTo.includes(record.entityType) || !appliesTo.includes("account")) return null;
+  return { entityType: "account", entityId: record.accountId };
+}
+
 // Generic-route guard for documentRequirements: the lifecycle is enforced here. "In review" comes
 // only from an upload; Approved / Rejected only from a review role, stamped with who and when.
 function normalizeRequirementWrite(data, request, body, stored) {
@@ -5399,6 +5456,8 @@ function normalizeRequirementWrite(data, request, body, stored) {
     createdAt: stored?.createdAt || new Date().toISOString(),
     createdBy: stored?.createdBy || attribution(request),
   };
+  const accountTarget = accountScopedRequirementTarget(type, record);
+  if (accountTarget) Object.assign(record, accountTarget);
   const now = new Date().toISOString();
   if (status !== stored?.status) {
     if (status === "In review") return { error: "A requirement goes into review when a document is uploaded against it.", status: 400 };

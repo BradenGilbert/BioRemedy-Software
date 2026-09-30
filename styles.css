@@ -877,6 +877,31 @@ h3 {
   box-shadow: 0 0 0 2px #ffffff;
 }
 
+/* Phase 25 Wave E: the paperwork review count on the Office Manager nav item and home launcher. */
+.nav-count,
+.nav-item .nav-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: 9px;
+  background: var(--red);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.paperwork-review-queue {
+  margin-bottom: 16px;
+}
+
+.paperwork-review-queue .quick-filter-chips {
+  padding: 4px 16px 8px;
+}
+
 /* Persistent (not transient like .panel-highlight) — stays as long as the field is actually
    missing, so it reads as "this panel needs attention," not a one-time arrival flash. */
 .panel-needs-attention {
