@@ -234,6 +234,22 @@ function wireSheetClose(dialog, done) {
   dialog.querySelectorAll("[data-photo-sheet-close]").forEach((button) => (button.onclick = () => done(null)));
 }
 
+// Phase 25 D.2 (2026-09-29): a plain question on the same bottom sheet — a message and a column of
+// buttons. `choices`: [{ label, value, variant: "secondary"|"ghost"|"" }]. Resolves the chosen value,
+// or null when closed.
+export function fieldChoiceSheet({ title = "", message = "", detail = "", choices = [] } = {}) {
+  return runPhotoSheet((dialog, done) => {
+    dialog.innerHTML = `
+      ${sheetHead(title)}
+      <div class="field-choice-sheet-body"><p>${esc(message)}</p>${detail ? `<small>${esc(detail)}</small>` : ""}</div>
+      <div class="field-photo-sheet-actions">
+        ${choices.map((choice, index) => `<button type="button" class="field-button ${choice.variant ? `field-button--${attrEsc(choice.variant)}` : ""}" data-choice-index="${index}">${esc(choice.label)}</button>`).join("")}
+      </div>`;
+    wireSheetClose(dialog, done);
+    dialog.querySelectorAll("[data-choice-index]").forEach((button) => (button.onclick = () => done(choices[Number(button.dataset.choiceIndex)]?.value ?? null)));
+  });
+}
+
 // Item 6: "+ Photo" → Upload new (file picker / camera) or Choose existing (a multi-select grid of
 // `candidates`). Resolves { files } | { documentIds } | null.
 export function choosePhotoSource({ title = "Add photo", candidates = [], excludeIds = [], multiple = true } = {}) {

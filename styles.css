@@ -8356,3 +8356,55 @@ a.mini-button {
   margin: 6px 0;
   padding-left: 20px;
 }
+
+/* Phase 25 D (2026-09-29): facility coordinates in the facility dialog, and the "existing site?" prompt. */
+.facility-coordinates {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.facility-coordinates legend {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.facility-coordinates .warning-text {
+  color: var(--amber);
+}
+
+.facility-coords-map {
+  height: 260px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.similar-place-dialog .modal-panel {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.similar-place-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.similar-place-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 260px;
+}
+
+.similar-place-reason {
+  color: var(--amber);
+  font-weight: 600;
+}

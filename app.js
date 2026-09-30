@@ -1875,7 +1875,10 @@ async function dispatchClick(event) {
   if (action === "open-contact-employment") openContactEmploymentDialog(actionButton.dataset.contactId, id);
   if (action === "remove-contact-employment") await removeContactEmployment(id);
   if (action === "open-account-pause") openAccountPauseDialog(actionButton.dataset.accountId);
-  if (action === "open-facility") openFacilityDialog(actionButton.dataset.accountId, id);
+  if (action === "open-facility") {
+    openFacilityDialog(actionButton.dataset.accountId, id);
+    if (actionButton.dataset.focus === "coordinates") document.querySelector("#accountFacilityDialog input[name='latitude']")?.focus();
+  }
   if (action === "open-facility-contact") openFacilityContactDialog(actionButton.dataset.facilityId, actionButton.dataset.accountId, id);
   if (action === "remove-facility-contact") await removeFacilityContact(id);
   // Phase 25 D.4/D.5: site parties and merge tools.
@@ -7202,6 +7205,18 @@ function renderFacilityDetailHeader(facility, account) {
   `;
 }
 
+// Phase 25 D.1 (2026-09-29): the facility's GPS, where it came from and when, with an Edit link into
+// the facility dialog's coordinates.
+function renderFacilityCoordinatesRow(facility) {
+  const details = facilityCoordinateDetails(facility);
+  const edit = `<button class="text-button" type="button" data-action="open-facility" data-account-id="${escapeAttribute(facility.accountId || "")}" data-id="${escapeAttribute(facility.id)}" data-focus="coordinates">${details ? "Edit" : "Add coordinates"}</button>`;
+  return `<div data-facility-coordinates><dt>GPS coordinates</dt><dd>${
+    details
+      ? `<span class="facility-coordinates-value">${escapeHtml(`${details.lat.toFixed(6)}, ${details.lng.toFixed(6)}`)}</span> ${edit}<br /><small>${escapeHtml(formatFacilityCoordinateSource(details))}</small>`
+      : `Not set ${edit}`
+  }</dd></div>`;
+}
+
 function renderFacilityLocationPanel(facility) {
   const cityState = [facility.city, facility.stateOrProvince, facility.postalCode].filter(Boolean).join(", ");
   return `
@@ -7213,6 +7228,7 @@ function renderFacilityLocationPanel(facility) {
           ${facility.street2 ? `<div><dt>Street 2</dt><dd>${escapeHtml(facility.street2)}</dd></div>` : ""}
           <div><dt>City / State / ZIP</dt><dd>${escapeHtml(cityState || "Not captured")}</dd></div>
           <div><dt>Country</dt><dd>${escapeHtml(facility.countryOrRegion || "Not captured")}</dd></div>
+          ${renderFacilityCoordinatesRow(facility)}
           <div><dt>Phone</dt><dd>${escapeHtml(formatPhoneNumber(facility.phone || "Not captured"))}</dd></div>
           <div><dt>Access instructions</dt><dd>${escapeHtml(facility.access || "Not captured")}</dd></div>
           ${facility.concern ? `<div><dt>Concern</dt><dd>${escapeHtml(facility.concern)}</dd></div>` : ""}
@@ -7344,7 +7360,10 @@ function initializeFacilityMap(facilityId) {
   if (!mapElement) return;
 
   const leaflet = window.L;
-  const points = locationsForFacility(facilityId).filter(hasGpsCoordinates);
+  const points = liveRows(locationsForFacility(facilityId)).filter(hasGpsCoordinates);
+  // Phase 25 D.1: a facility whose coordinates sit only on the facility row still gets its pin.
+  const own = facilityCoordinateDetails(findFacility(facilityId));
+  if (own && !own.location) points.unshift({ id: "", label: "Facility coordinates", latitude: own.lat, longitude: own.lng });
   if (!leaflet) {
     mapElement.innerHTML = `<div class="map-loading">Map library did not load.</div>`;
     return;
@@ -7489,6 +7508,11 @@ function openPromoteLocationDialog(locationId) {
   form.elements.promoteLocationId.value = location.id;
   form.elements.name.value = location.label || "";
   form.elements.street1.value = location.addressText || "";
+  // Phase 25 D.1: the promoted point's GPS becomes the facility's coordinates (editable before saving).
+  if (hasGpsCoordinates(location) && !isPingLocation(location)) {
+    fillFacilityCoordinateFields(form, { lat: location.latitude, lng: location.longitude, source: "manual", accuracyM: location.accuracyM ?? "", capturedAt: location.capturedAt || location.lastPingAt || "" });
+    setFacilityCoordinateStatus(form, `${describeFacilityCoordinateFields(form)} — from the location being promoted`);
+  }
 }
 
 // After the facility is saved: the location now sits inside it, and every project at that location
@@ -19147,13 +19171,40 @@ async function saveLocation(form) {
     .map((assetTag) => assetTag.trim())
     .filter(Boolean);
   const isTemporary = form.elements.isTemporary?.checked || false;
+  // Phase 25 D.1: a location can be put inside a facility here (it used to keep whatever it had).
+  let facilityId = form.elements.facilityId ? (data.get("facilityId") || "").toString() : existing?.facilityId || "";
+  let facilityForLocation = findFacility(facilityId);
+  const label = data.get("label").toString().trim();
+
+  // Phase 25 D.3: a new location at a place we already know asks first.
+  if (!existing) {
+    const matches = findSimilarPlaces({ name: label, address: addressText, lat: latitude, lng: longitude });
+    if (facilityId) matches.facilities = matches.facilities.filter((match) => match.record.id !== facilityId);
+    const choice = await promptSimilarPlaces(matches, {
+      intro: "Put the new point inside a facility we already have, or open the existing location instead of adding another.",
+      labels: { facility: "Put it at this facility", location: "Use this one" },
+    });
+    if (choice.action === "cancel") return;
+    if (choice.action === "use" && choice.kind === "location") {
+      closeDialogs();
+      render();
+      showToast(`Kept the existing location: ${choice.record.label || choice.record.addressText || "location"}.`);
+      openLocationDialog(choice.record.id);
+      return;
+    }
+    if (choice.action === "use" && choice.kind === "facility") {
+      facilityId = choice.record.id;
+      facilityForLocation = choice.record;
+    }
+  }
 
   try {
-    await saveBackendRecord("locations", {
-      // Keep what this dialog doesn't edit (accountId, facilityId, reportedByEmployeeId, consentId).
+    const saved = await saveBackendRecord("locations", {
+      // Keep what this dialog doesn't edit (reportedByEmployeeId, consentId).
       ...(existing || {}),
       id: data.get("id").toString() || "",
-      accountId: findProject(projectId)?.accountId || existing?.accountId || "",
+      accountId: findProject(projectId)?.accountId || existing?.accountId || facilityForLocation?.accountId || "",
+      facilityId,
       projectId,
       scheduleEventId,
       label: data.get("label").toString().trim(),
@@ -19169,10 +19220,21 @@ async function saveLocation(form) {
       isTemporary,
       retainUntil: isTemporary ? data.get("retainUntil").toString() : "",
       retentionReason: isTemporary ? data.get("retentionReason").toString().trim() : "",
+      ...(existing?.locationType === "Facility" && (Number(existing.latitude) !== Number(latitude) || Number(existing.longitude) !== Number(longitude)) ? { source: "manual", capturedAt: new Date().toISOString(), accuracyM: "" } : {}),
     });
+    // A facility's own point edited here keeps the copy on the facility row in step (D.1).
+    const savedLocation = saved || {};
+    const pointFacility = savedLocation.locationType === "Facility" && savedLocation.isPrimary ? findFacility(savedLocation.facilityId) : null;
+    if (pointFacility && (Number(pointFacility.latitude) !== Number(latitude) || Number(pointFacility.longitude) !== Number(longitude) || String(pointFacility.latitude ?? "") === "" !== (latitude === ""))) {
+      try {
+        await saveBackendRecord("facilities", { ...pointFacility, latitude, longitude, coordinatesSource: latitude === "" ? "" : "manual", coordinatesCapturedAt: latitude === "" ? "" : new Date().toISOString(), coordinatesAccuracyM: "" }, { refresh: false });
+      } catch {
+        // The location is saved; the facility copy catches up the next time the facility is saved.
+      }
+    }
     closeDialogs();
     render();
-    showToast(latitudeText ? "Location saved on the map." : "Location saved. It goes on the map once it has GPS.");
+    showToast(latitudeText ? `Location saved on the map${facilityId && !existing?.facilityId ? ` at ${findFacility(facilityId)?.name || "the facility"}` : ""}.` : "Location saved. It goes on the map once it has GPS.");
   } catch (error) {
     showToast(error.message || "Location could not be saved.");
   }
@@ -20083,6 +20145,22 @@ async function submitEmergencyIntake(form) {
     const submitButton = form.querySelector('button[type="submit"]');
     if (submitButton) submitButton.disabled = true;
 
+    // Phase 25 D.3 (2026-09-29): a spill at a site we already know is linked to it, not logged as yet
+    // another point at the same address (live data had two spill origins at 2300 Greenlawn Blvd).
+    const intakePin = parseGpsPin((data.get("gpsPin") || "").toString());
+    const intakeFacilityPicked = (data.get("facilityId") || "").toString();
+    const intakeMatches = findSimilarPlaces({ name: (data.get("siteLocationName") || "").toString().trim(), address: (data.get("addressText") || "").toString().trim(), lat: intakePin?.latitude, lng: intakePin?.longitude });
+    if (intakeFacilityPicked) intakeMatches.facilities = intakeMatches.facilities.filter((match) => match.record.id !== intakeFacilityPicked);
+    const placeChoice = await promptSimilarPlaces(intakeMatches, {
+      title: "Is this spill at a site we already have?",
+      intro: "Link the spill to the existing site so its history stays in one place. Nothing is merged.",
+      labels: { facility: "Spill is at this facility", location: "Use this location" },
+      createLabel: "New location",
+    });
+    if (placeChoice.action === "cancel") return;
+    const reusedSiteLocation = placeChoice.action === "use" && placeChoice.kind === "location" ? placeChoice.record : null;
+    const chosenSiteFacility = placeChoice.action === "use" && placeChoice.kind === "facility" ? placeChoice.record : findFacility(reusedSiteLocation?.facilityId || "") || null;
+
     let account = (data.get("accountId") || "").toString() ? findAccount((data.get("accountId") || "").toString()) : null;
     const hasExistingAccount = Boolean(account);
     if (!account) {
@@ -20105,11 +20183,13 @@ async function submitEmergencyIntake(form) {
     // picked one, and a location can be promoted to a facility by hand later.
     const addressText = (data.get("addressText") || "").toString().trim();
     const gpsPin = parseGpsPin((data.get("gpsPin") || "").toString());
-    const facilityId = hasExistingAccount && facilitiesForAccount(account.id).some((facility) => facility.id === (data.get("facilityId") || "").toString()) ? (data.get("facilityId") || "").toString() : "";
-    const siteName = (data.get("siteLocationName") || "").toString().trim() || addressText || `GPS ${formatGpsCoordinates(gpsPin)}`;
+    const facilityId =
+      chosenSiteFacility?.id ||
+      (hasExistingAccount && facilitiesForAccount(account.id).some((facility) => facility.id === (data.get("facilityId") || "").toString()) ? (data.get("facilityId") || "").toString() : "");
+    const siteName = (data.get("siteLocationName") || "").toString().trim() || addressText || (gpsPin ? `GPS ${formatGpsCoordinates(gpsPin)}` : reusedSiteLocation?.label || chosenSiteFacility?.name || "Site");
 
     const mobilization = computeEmergencyMobilization(data, hasExistingAccount);
-    const siteLocationId = makeId("loc-gps");
+    const siteLocationId = reusedSiteLocation?.id || makeId("loc-gps");
 
     // Phase 25 D.5 (2026-09-29): who called us in (a spill broker, a contractor -- blank means the
     // account above) and, if known, the site's owner or tenant. The owner/tenant becomes a party on
@@ -20182,7 +20262,8 @@ async function submitEmergencyIntake(form) {
     await saveBackendRecord("projects", project, { refresh: false });
     if (facilityId && siteOwnerAccountId) await addFacilityPartyIfNew(facilityId, siteOwnerAccountId, siteOwnerRole, "emergency-intake");
 
-    await saveBackendRecord(
+    // A reused location (D.3) is already on file; the project just names it as its site.
+    if (!reusedSiteLocation) await saveBackendRecord(
       "locations",
       {
         id: siteLocationId,
@@ -26060,7 +26141,7 @@ function collectDocPricing(dialog) {
 // Estimation Tool turns the needs into draft lines to price.
 
 function composeOpportunityScope(opportunity) {
-  const sites = opportunityLocationsForOpportunity(opportunity.id).map((entry) => {
+  const sites = opportunityLocationsForOpportunity(opportunity.id).filter((entry) => !isCheckInSiteLink(entry)).map((entry) => {
     const facility = entry.facilityId ? findFacility(entry.facilityId) : null;
     const gps = entry.locationId ? (state.backend.locations || []).find((location) => location.id === entry.locationId) : null;
     return { label: facility?.name || gps?.label || "Site", role: entry.role || "", note: entry.note || "" };
@@ -28987,7 +29068,572 @@ function openFacilityDialog(accountId = "", facilityId = "") {
     toggleFacilityOtherField("");
     toggleFacilityConcernField("", false);
   }
+  resetFacilityCoordinateControls(form, facility);
   dialog.showModal();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Phase 25 D.1–D.3 (2026-09-29): places — facility coordinates and duplicate detection.
+//
+// Owner: "there are multiple locations with the same address now ... If they have identical or
+// similar locations we should ask if it's the same." Nothing here merges anything: it finds
+// candidates and asks. The merge tools (D.4) are separate.
+// ---------------------------------------------------------------------------------------------
+
+// PLACE-MATCH RULES BEGIN
+// Pure functions only: no `state`, no DOM, nothing from the rest of app.js. The owner's report
+// (scripts/report-duplicate-places.mjs) reads this block out of app.js and runs it, so the report
+// and the in-app prompt apply the same rules. Keep it self-contained.
+const PLACE_MATCH_RADIUS_METERS = 75;
+const PLACE_ADDRESS_PHRASES = [
+  [/\bcounty road\b/g, "cr"],
+  [/\bfarm to market\b/g, "fm"],
+  [/\bstate highway\b/g, "sh"],
+  [/\binterstate\b/g, "ih"],
+];
+const PLACE_ADDRESS_WORDS = {
+  boulevard: "blvd", street: "st", road: "rd", drive: "dr", avenue: "ave", av: "ave", suite: "ste", lane: "ln",
+  court: "ct", parkway: "pkwy", highway: "hwy", place: "pl", circle: "cir", trail: "trl", freeway: "fwy",
+  expressway: "expy", terrace: "ter", square: "sq", building: "bldg", floor: "fl", cove: "cv", crossing: "xing",
+  north: "n", south: "s", east: "e", west: "w", northeast: "ne", northwest: "nw", southeast: "se", southwest: "sw",
+  texas: "tx", mount: "mt", fort: "ft",
+};
+const PLACE_STREET_SUFFIXES = new Set(["blvd", "st", "rd", "dr", "ave", "ln", "ct", "pkwy", "hwy", "pl", "cir", "trl", "fwy", "expy", "ter", "sq", "way", "loop", "run", "pass", "path", "row", "xing", "cv", "bnd", "plz", "walk", "aly"]);
+const PLACE_DIRECTIONALS = new Set(["n", "s", "e", "w", "ne", "nw", "se", "sw"]);
+const PLACE_STATES = new Set(["tx", "ok", "la", "nm", "ar", "usa", "us"]);
+const PLACE_NAME_STOPWORDS = new Set(["the", "a", "an", "of", "at", "and", "near", "site", "spill", "facility", "location", "inc", "llc", "co", "corp", "company", "ltd", "gps", "lead", "check", "in", "walk", "response", "point"]);
+const PLACE_NAME_GENERIC = new Set(["warehouse", "yard", "plant", "office", "building", "bldg", "center", "centre", "station", "shop", "store", "main", "field", "parking", "garage", "tank", "dock", "pond", "storm", "drain", "street", "road", "north", "south", "east", "west", "city", "county", "area", "entrance", "staging", "origin", "sample", "arrived"]);
+
+function normalizePlaceText(value) {
+  let text = ` ${String(value ?? "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ")} `;
+  for (const [pattern, replacement] of PLACE_ADDRESS_PHRASES) text = text.replace(pattern, replacement);
+  return text
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => PLACE_ADDRESS_WORDS[word] || word)
+    .join(" ");
+}
+
+// { street, city, zip } (a facility's own fields) or { text } (a location's one-line address, e.g.
+// "2300 Greenlawn Blvd, Round Rock, TX 78664"). Returns the house number, the street ("greenlawn blvd"),
+// its core without suffix/directionals ("greenlawn"), the city and the ZIP.
+function parsePlaceAddress({ street = "", city = "", zip = "", text = "" } = {}) {
+  const raw = String(street || "").trim() ? String(street) : String(text || "");
+  const segments = raw.split(/[,\n;]/);
+  const streetTokens = normalizePlaceText(segments[0]).split(" ").filter(Boolean);
+  let rest = normalizePlaceText(String(street || "").trim() ? "" : segments.slice(1).join(" ")).split(" ").filter(Boolean);
+  let number = "";
+  if (/^\d+[a-z]?$/.test(streetTokens[0] || "") && streetTokens.length > 1) number = streetTokens.shift();
+  // The street runs to its suffix, plus any route number or directional right after it
+  // ("ranch rd 620 s"); whatever follows on the same segment is the city.
+  let cut = streetTokens.length;
+  const suffixAt = streetTokens.findIndex((word, index) => index > 0 && PLACE_STREET_SUFFIXES.has(word));
+  if (suffixAt >= 0) {
+    cut = suffixAt + 1;
+    while (cut < streetTokens.length && (/^\d+[a-z]?$/.test(streetTokens[cut]) || PLACE_DIRECTIONALS.has(streetTokens[cut]))) cut += 1;
+  }
+  const streetWords = streetTokens.slice(0, cut);
+  rest = [...streetTokens.slice(cut), ...rest];
+  const zipText = String(zip || "").match(/\d{5}/)?.[0] || [...rest].reverse().find((word) => /^\d{5}$/.test(word)) || "";
+  const cityText = String(city || "").trim()
+    ? normalizePlaceText(city)
+    : rest.filter((word) => !/^\d{5}(\d{4})?$/.test(word) && !PLACE_STATES.has(word)).join(" ");
+  const core = streetWords.filter((word) => !PLACE_STREET_SUFFIXES.has(word) && !PLACE_DIRECTIONALS.has(word)).join(" ");
+  return { number, street: streetWords.join(" "), core, city: cityText, zip: zipText, text: normalizePlaceText(raw) };
+}
+
+// "same" | "similar" | "" — same house number and street core, in a consistent ZIP/city.
+function placeAddressMatch(a, b) {
+  if (!a || !b || !a.core || !b.core || a.core !== b.core) return "";
+  if (a.number !== b.number) return "";
+  if (!a.number && a.core.split(" ").length < 2) return "";
+  if (a.zip && b.zip && a.zip !== b.zip) return "";
+  if (!(a.zip && b.zip) && a.city && b.city && !a.city.includes(b.city) && !b.city.includes(a.city)) return "";
+  return a.street === b.street ? "same" : "similar";
+}
+
+function placeNameTokens(name) {
+  return new Set(normalizePlaceText(name).split(" ").filter((word) => word && !PLACE_NAME_STOPWORDS.has(word) && (word.length > 1 || /\d/.test(word))));
+}
+
+function placeNamesSimilar(a, b) {
+  const left = placeNameTokens(a);
+  const right = placeNameTokens(b);
+  if (!left.size || !right.size) return false;
+  const shared = [...left].filter((word) => right.has(word));
+  if (!shared.length) return false;
+  const distinctive = shared.some((word) => word.length >= 4 && !/^\d+$/.test(word) && !PLACE_NAME_GENERIC.has(word));
+  const union = new Set([...left, ...right]).size;
+  const jaccard = shared.length / union;
+  const contained = shared.length === Math.min(left.size, right.size);
+  return (jaccard >= 0.6 && (distinctive || shared.length >= 2)) || (shared.length >= 2 && jaccard >= 0.5) || (contained && distinctive);
+}
+
+function placeDistanceMeters(a, b) {
+  const rad = (degrees) => (degrees * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// a, b: { name, address: parsePlaceAddress(...), lat, lng } (lat/lng null when unknown).
+// Returns null, or { codes: ["address"|"similar-address"|"nearby"|"name"], distanceM, score }.
+function comparePlaces(a, b, radiusM = PLACE_MATCH_RADIUS_METERS) {
+  const codes = [];
+  const address = placeAddressMatch(a.address, b.address);
+  if (address === "same") codes.push("address");
+  if (address === "similar") codes.push("similar-address");
+  const hasPoint = (place) => Number.isFinite(place.lat) && Number.isFinite(place.lng);
+  const distanceM = hasPoint(a) && hasPoint(b) ? placeDistanceMeters(a, b) : null;
+  if (distanceM !== null && distanceM <= radiusM) codes.push("nearby");
+  if (placeNamesSimilar(a.name, b.name)) {
+    // A name alone is weak: two "Station 2"s in different towns are not the same place.
+    const farApart = distanceM !== null && distanceM > 2000;
+    const otherZip = a.address?.zip && b.address?.zip && a.address.zip !== b.address.zip;
+    if (codes.length || (!farApart && !otherZip)) codes.push("name");
+  }
+  if (!codes.length) return null;
+  const weights = { address: 4, "similar-address": 3, nearby: 3, name: 1 };
+  return { codes, distanceM, score: codes.reduce((sum, code) => sum + weights[code], 0) };
+}
+// PLACE-MATCH RULES END
+
+// Pings of a person's phone (a walk check-in, a crew "Arrived on site"), not places: they never stand
+// for a facility's position, never become an opportunity's site and are not offered as duplicates.
+function isPingLocation(location) {
+  return /^(check-in|job event)$/i.test(String(location?.locationType || ""));
+}
+
+function realCoordinate(value) {
+  return value !== "" && value != null && Number.isFinite(Number(value)) ? Number(value) : null;
+}
+
+// A facility's own point: the primary Facility-type location row (Phase 25 D.1).
+function facilityPrimaryLocation(facilityId) {
+  if (!facilityId) return null;
+  const rows = liveRows(state.backend.locations).filter((location) => location.facilityId === facilityId && location.locationType === "Facility");
+  return rows.find((location) => location.isPrimary) || rows[0] || null;
+}
+
+// Where a facility's coordinates came from, for the facility page and the walk check-in.
+// { lat, lng, source, capturedAt, accuracyM, location } or null.
+function facilityCoordinateDetails(facility) {
+  if (!facility) return null;
+  const primary = facilityPrimaryLocation(facility.id);
+  if (primary && hasGpsCoordinates(primary)) {
+    return { lat: Number(primary.latitude), lng: Number(primary.longitude), source: primary.source || "", capturedAt: primary.capturedAt || "", accuracyM: realCoordinate(primary.accuracyM), location: primary };
+  }
+  if (realCoordinate(facility.latitude) !== null && realCoordinate(facility.longitude) !== null) {
+    return { lat: Number(facility.latitude), lng: Number(facility.longitude), source: facility.coordinatesSource || "", capturedAt: facility.coordinatesCapturedAt || "", accuracyM: realCoordinate(facility.coordinatesAccuracyM), location: null };
+  }
+  return null;
+}
+
+const FACILITY_COORDINATE_SOURCES = { manual: "Typed in", device: "Device GPS", map: "Picked on map" };
+
+function formatFacilityCoordinateSource(details) {
+  if (!details) return "";
+  const parts = [FACILITY_COORDINATE_SOURCES[details.source] || details.source || "Source not recorded"];
+  if (details.accuracyM !== null && details.accuracyM !== undefined) parts.push(`±${Math.round(details.accuracyM)} m`);
+  if (details.capturedAt) parts.push(formatDateTime(details.capturedAt));
+  return parts.join(" · ");
+}
+
+function placeDescriptorForFacility(facility) {
+  const point = facilityCoordinates(facility);
+  return {
+    name: facility.name || "",
+    address: parsePlaceAddress({ street: facility.street1 || facility.address || "", city: facility.city || "", zip: facility.postalCode || "" }),
+    lat: point ? point.lat : null,
+    lng: point ? point.lng : null,
+  };
+}
+
+function placeDescriptorForLocation(location) {
+  return {
+    name: location.label || "",
+    address: parsePlaceAddress({ text: location.addressText || "" }),
+    lat: realCoordinate(location.latitude),
+    lng: realCoordinate(location.longitude),
+  };
+}
+
+function describePlaceMatch(match) {
+  const labels = { address: "Same address", "similar-address": "Similar address", name: "Similar name" };
+  return match.codes
+    .map((code) => (code === "nearby" ? `${formatSiteWalkDistance(match.distanceM)} away` : labels[code]))
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// The duplicate check D.3 asks for, and the helper D.4's merge tools call. `address` may be a string
+// ("2300 Greenlawn Blvd, Round Rock, TX 78664") or a facility-shaped object ({ street1, city,
+// postalCode }). `excludeId` skips that facility or location (and a facility's own points).
+// Returns { facilities: [{ record, reason, distanceM, codes, score }], locations: [...] }, best first.
+function findSimilarPlaces({ name = "", address = "", lat = null, lng = null, excludeId = "", includePings = false, radiusM = PLACE_MATCH_RADIUS_METERS } = {}) {
+  const parsedAddress =
+    address && typeof address === "object"
+      ? parsePlaceAddress({ street: address.street1 || address.street || address.address || "", city: address.city || "", zip: address.postalCode || address.zip || "", text: address.text || address.addressText || "" })
+      : parsePlaceAddress({ text: address || "" });
+  const probe = { name, address: parsedAddress, lat: realCoordinate(lat), lng: realCoordinate(lng) };
+  const collect = (rows, describe) =>
+    rows
+      .map((record) => {
+        const match = comparePlaces(probe, describe(record), radiusM);
+        return match ? { record, reason: describePlaceMatch(match), distanceM: match.distanceM, codes: match.codes, score: match.score } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score || (a.distanceM ?? Infinity) - (b.distanceM ?? Infinity));
+  const facilities = collect(
+    state.facilities.filter((facility) => facility.id !== excludeId),
+    placeDescriptorForFacility,
+  );
+  const locations = collect(
+    liveRows(state.backend.locations).filter(
+      (location) =>
+        location.id !== excludeId &&
+        (!excludeId || location.facilityId !== excludeId) &&
+        (includePings || !isPingLocation(location)) &&
+        // A facility's own point is the facility; it is found as the facility.
+        !(location.locationType === "Facility" && findFacility(location.facilityId)),
+    ),
+    placeDescriptorForLocation,
+  );
+  return { facilities, locations };
+}
+
+// "This looks like an existing site" — one dialog, built on first use. Resolves
+// { action: "use", kind: "facility"|"location", record } | { action: "create" } | { action: "cancel" }.
+// `labels.facility` / `labels.location`: the "use" button text per kind (null hides it for that kind).
+let similarPlaceDialog = null;
+function promptSimilarPlaces(matches, { title = "This looks like an existing site", intro = "", createLabel = "Create anyway", labels = {} } = {}) {
+  const useLabels = { facility: "Use this one", location: "Use this one", ...labels };
+  const rows = [
+    ...(matches.facilities || []).map((match) => ({ ...match, kind: "facility" })),
+    ...(matches.locations || []).map((match) => ({ ...match, kind: "location" })),
+  ]
+    .filter((match) => useLabels[match.kind] !== null)
+    // A facility is the better thing to reuse: it wins a tie (and a near-tie) with a loose point.
+    .sort((a, b) => b.score + (b.kind === "facility" ? 1.5 : 0) - (a.score + (a.kind === "facility" ? 1.5 : 0)) || (a.distanceM ?? Infinity) - (b.distanceM ?? Infinity))
+    .slice(0, 5);
+  if (!rows.length) return Promise.resolve({ action: "create" });
+  if (!similarPlaceDialog?.isConnected) {
+    similarPlaceDialog = document.createElement("dialog");
+    similarPlaceDialog.id = "similarPlaceDialog";
+    similarPlaceDialog.className = "modal similar-place-dialog";
+    document.body.append(similarPlaceDialog);
+  }
+  const dialog = similarPlaceDialog;
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      if (dialog.open) dialog.close();
+      resolve(value);
+    };
+    dialog.innerHTML = `
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2>${escapeHtml(title)}</h2>
+          <button type="button" class="icon-button" data-similar-place="cancel" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">${escapeHtml(intro || "Check before adding another record for the same place. Nothing is merged automatically.")}</p>
+        <div class="record-list similar-place-list">
+          ${rows
+            .map((match, index) => {
+              const record = match.record;
+              const account = findAccount(record.accountId || findProject(record.projectId)?.accountId || "");
+              const place = match.kind === "facility" ? formatFacilityAddressLine(record) : locationPlaceLine(record);
+              return `
+                <article class="detail-card similar-place-row" data-kind="${escapeAttribute(match.kind)}">
+                  <div class="similar-place-text">
+                    <strong>${escapeHtml(match.kind === "facility" ? record.name || "Facility" : record.label || record.addressText || "Location")}</strong>
+                    <div class="row-meta">
+                      <span class="tag">${match.kind === "facility" ? "Facility" : escapeHtml(record.locationType || "Location")}</span>
+                      ${account ? `<span>${escapeHtml(account.name)}</span>` : ""}
+                      ${place ? `<span>${escapeHtml(place)}</span>` : ""}
+                    </div>
+                    <small class="similar-place-reason">${escapeHtml(match.reason)}</small>
+                  </div>
+                  <button type="button" class="secondary-button" data-similar-place="use" data-index="${index}">${escapeHtml(useLabels[match.kind])}</button>
+                </article>`;
+            })
+            .join("")}
+        </div>
+        <menu class="modal-actions">
+          <button class="secondary-button" type="button" data-similar-place="cancel">Cancel</button>
+          <button class="primary-button" type="button" data-similar-place="create">${escapeHtml(createLabel)}</button>
+        </menu>
+      </div>`;
+    dialog.querySelectorAll("[data-similar-place]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const kind = button.dataset.similarPlace;
+        if (kind === "use") {
+          const match = rows[Number(button.dataset.index)];
+          done({ action: "use", kind: match.kind, record: match.record, match });
+        } else done({ action: kind });
+      });
+    });
+    dialog.addEventListener("close", () => done({ action: "cancel" }), { once: true });
+    dialog.showModal();
+  });
+}
+
+// ---- the facility dialog's coordinates (D.1) ----
+
+function facilityCoordinateForm() {
+  return document.querySelector("#accountFacilityDialog form");
+}
+
+function setFacilityCoordinateStatus(form, text, warn = false) {
+  const status = form.querySelector('[data-role="facility-coords-status"]');
+  if (!status) return;
+  status.textContent = text;
+  status.classList.toggle("warning-text", Boolean(warn));
+}
+
+function fillFacilityCoordinateFields(form, { lat = "", lng = "", source = "", accuracyM = "", capturedAt = "" } = {}) {
+  form.elements.latitude.value = lat === "" || lat == null ? "" : Number(lat).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  form.elements.longitude.value = lng === "" || lng == null ? "" : Number(lng).toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  form.elements.coordinatesSource.value = source || "";
+  form.elements.coordinatesAccuracyM.value = accuracyM === "" || accuracyM == null ? "" : String(Math.round(Number(accuracyM)));
+  form.elements.coordinatesCapturedAt.value = capturedAt || "";
+}
+
+function describeFacilityCoordinateFields(form) {
+  const lat = realCoordinate(form.elements.latitude.value.trim());
+  const lng = realCoordinate(form.elements.longitude.value.trim());
+  if (lat === null || lng === null) return "No coordinates yet. Type them, use this device's GPS at the site, or pick the spot on the map.";
+  const accuracy = realCoordinate(form.elements.coordinatesAccuracyM.value);
+  return formatFacilityCoordinateSource({ source: form.elements.coordinatesSource.value, accuracyM: accuracy, capturedAt: form.elements.coordinatesCapturedAt.value });
+}
+
+// Called by openFacilityDialog after form.reset().
+function resetFacilityCoordinateControls(form, facility) {
+  cleanupFacilityCoordinatePicker();
+  const holder = form.querySelector('[data-role="facility-coords-map"]');
+  if (holder) holder.hidden = true;
+  const details = facility ? facilityCoordinateDetails(facility) : null;
+  fillFacilityCoordinateFields(form, details ? { lat: details.lat, lng: details.lng, source: details.source, accuracyM: details.accuracyM ?? "", capturedAt: details.capturedAt } : {});
+  form.dataset.originalCoordinates = details ? `${details.lat},${details.lng}` : "";
+  setFacilityCoordinateStatus(form, describeFacilityCoordinateFields(form));
+  if (!form.dataset.coordsWired) {
+    form.dataset.coordsWired = "1";
+    const typed = () => {
+      form.elements.coordinatesSource.value = "manual";
+      form.elements.coordinatesAccuracyM.value = "";
+      form.elements.coordinatesCapturedAt.value = "";
+      setFacilityCoordinateStatus(form, describeFacilityCoordinateFields(form));
+      syncFacilityCoordinatePickerMarker(form);
+    };
+    form.elements.latitude.addEventListener("input", typed);
+    form.elements.longitude.addEventListener("input", typed);
+    // A pasted "30.4869, -97.6638" (or a Google Maps link) in either box fills both.
+    const pasted = (event) => {
+      const text = event.clipboardData?.getData("text") || "";
+      const pin = parseGpsPin(text);
+      if (!pin || !/[,\s@]/.test(text.trim())) return;
+      event.preventDefault();
+      fillFacilityCoordinateFields(form, { lat: pin.latitude, lng: pin.longitude, source: "manual" });
+      setFacilityCoordinateStatus(form, describeFacilityCoordinateFields(form));
+      syncFacilityCoordinatePickerMarker(form);
+    };
+    form.elements.latitude.addEventListener("paste", pasted);
+    form.elements.longitude.addEventListener("paste", pasted);
+    form.querySelector('[data-role="facility-coords-device"]')?.addEventListener("click", () => useDeviceLocationForFacility(form));
+    form.querySelector('[data-role="facility-coords-pick"]')?.addEventListener("click", () => toggleFacilityCoordinatePicker(form));
+    form.querySelector('[data-role="facility-coords-clear"]')?.addEventListener("click", () => {
+      fillFacilityCoordinateFields(form, {});
+      setFacilityCoordinateStatus(form, describeFacilityCoordinateFields(form));
+      syncFacilityCoordinatePickerMarker(form);
+    });
+    form.closest("dialog")?.addEventListener("close", cleanupFacilityCoordinatePicker);
+  }
+}
+
+function useDeviceLocationForFacility(form) {
+  if (!navigator.geolocation) {
+    setFacilityCoordinateStatus(form, "This browser cannot share its location.", true);
+    return;
+  }
+  const button = form.querySelector('[data-role="facility-coords-device"]');
+  if (button) button.disabled = true;
+  setFacilityCoordinateStatus(form, "Getting a GPS fix…");
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      if (button) button.disabled = false;
+      const accuracyM = Math.round(position.coords.accuracy || 0);
+      fillFacilityCoordinateFields(form, {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        source: "device",
+        accuracyM,
+        capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
+      });
+      const poor = accuracyM > SITE_WALK_CHECKIN_POOR_ACCURACY_METERS;
+      setFacilityCoordinateStatus(
+        form,
+        `${describeFacilityCoordinateFields(form)}${poor ? " — low accuracy. A laptop or desk position is often this far off; only use this at the site, or pick the spot on the map." : ""}`,
+        poor,
+      );
+      syncFacilityCoordinatePickerMarker(form);
+    },
+    (error) => {
+      if (button) button.disabled = false;
+      setFacilityCoordinateStatus(form, error?.code === 1 ? "Location permission was refused. Type the coordinates or pick on the map." : "No GPS fix. Type the coordinates or pick on the map.", true);
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+  );
+}
+
+let facilityCoordinatePicker = null;
+function cleanupFacilityCoordinatePicker() {
+  if (!facilityCoordinatePicker) return;
+  facilityCoordinatePicker.map.remove();
+  facilityCoordinatePicker = null;
+}
+
+function syncFacilityCoordinatePickerMarker(form) {
+  if (!facilityCoordinatePicker) return;
+  const lat = realCoordinate(form.elements.latitude.value.trim());
+  const lng = realCoordinate(form.elements.longitude.value.trim());
+  const { map, leaflet } = facilityCoordinatePicker;
+  if (lat === null || lng === null) {
+    facilityCoordinatePicker.marker?.remove();
+    facilityCoordinatePicker.marker = null;
+    return;
+  }
+  if (!facilityCoordinatePicker.marker) {
+    facilityCoordinatePicker.marker = leaflet.marker([lat, lng], { icon: gpsPointIcon(leaflet, "Site"), draggable: true }).addTo(map);
+    facilityCoordinatePicker.marker.on("dragend", (event) => {
+      const point = event.target.getLatLng();
+      fillFacilityCoordinateFields(form, { lat: point.lat, lng: point.lng, source: "map", capturedAt: new Date().toISOString() });
+      setFacilityCoordinateStatus(form, describeFacilityCoordinateFields(form));
+    });
+  } else facilityCoordinatePicker.marker.setLatLng([lat, lng]);
+}
+
+function toggleFacilityCoordinatePicker(form) {
+  const holder = form.querySelector('[data-role="facility-coords-map"]');
+  if (!holder) return;
+  if (!holder.hidden) {
+    holder.hidden = true;
+    cleanupFacilityCoordinatePicker();
+    return;
+  }
+  holder.hidden = false;
+  const leaflet = window.L;
+  if (!leaflet) {
+    holder.innerHTML = `<div class="map-loading">Map library did not load.</div>`;
+    return;
+  }
+  cleanupFacilityCoordinatePicker();
+  holder.innerHTML = "";
+  const lat = realCoordinate(form.elements.latitude.value.trim());
+  const lng = realCoordinate(form.elements.longitude.value.trim());
+  // No geocoder here: start on the typed point, else another facility on the account, else Round Rock.
+  const accountPoint = facilitiesForAccount(form.elements.accountId.value).map(facilityCoordinates).find(Boolean);
+  const center = lat !== null && lng !== null ? [lat, lng] : accountPoint ? [accountPoint.lat, accountPoint.lng] : [30.5083, -97.6789];
+  const map = leaflet.map(holder, { scrollWheelZoom: true }).setView(center, lat !== null ? 18 : accountPoint ? 15 : 11);
+  leaflet
+    .tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles &copy; Esri", maxZoom: 19 })
+    .addTo(map);
+  leaflet
+    .tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, opacity: 0.8 })
+    .addTo(map);
+  facilityCoordinatePicker = { map, leaflet, marker: null };
+  syncFacilityCoordinatePickerMarker(form);
+  map.on("click", (event) => {
+    fillFacilityCoordinateFields(form, { lat: event.latlng.lat, lng: event.latlng.lng, source: "map", capturedAt: new Date().toISOString() });
+    setFacilityCoordinateStatus(form, describeFacilityCoordinateFields(form));
+    syncFacilityCoordinatePickerMarker(form);
+  });
+  setTimeout(() => facilityCoordinatePicker?.map.invalidateSize(), 80);
+}
+
+// null (both blank) | { error } | { lat, lng, source, accuracyM, capturedAt, changed }.
+function readFacilityCoordinateFields(form) {
+  const latText = form.elements.latitude.value.trim();
+  const lngText = form.elements.longitude.value.trim();
+  if (!latText && !lngText) return null;
+  const lat = realCoordinate(latText);
+  const lng = realCoordinate(lngText);
+  if (lat === null || lng === null || Math.abs(lat) > 90 || Math.abs(lng) > 180) return { error: "Enter both latitude and longitude as decimal degrees (e.g. 30.4869, -97.6638), or leave both blank." };
+  if (lat === 0 && lng === 0) return { error: "0, 0 is not a real site. Leave the coordinates blank instead." };
+  const changed = form.dataset.originalCoordinates !== `${lat},${lng}`;
+  const source = form.elements.coordinatesSource.value || "manual";
+  return {
+    lat,
+    lng,
+    source,
+    accuracyM: realCoordinate(form.elements.coordinatesAccuracyM.value) ?? "",
+    capturedAt: form.elements.coordinatesCapturedAt.value || (changed ? new Date().toISOString() : ""),
+    changed,
+  };
+}
+
+// The facility's own point lives on its primary Facility-type location, so facilityCoordinates, the
+// walk map and the facility map all read it. The facility row keeps a copy (latitude/longitude and the
+// coordinates* fields): Sales owns facilities but cannot read the "operations" locations collection,
+// and a walker's phone gets the facility row but not every location at it.
+async function saveFacilityPrimaryLocation(facility, coordinates) {
+  const primary = facilityPrimaryLocation(facility.id);
+  const addressText = formatFacilityAddressLine(facility);
+  if (!coordinates) {
+    if (!primary || !hasGpsCoordinates(primary)) return null;
+    if (addressText) return saveBackendRecord("locations", { ...primary, latitude: "", longitude: "", addressText, accuracyM: "", capturedAt: "" }, { refresh: false });
+    await deleteBackendRecord("locations", primary.id);
+    return null;
+  }
+  const same = primary && hasGpsCoordinates(primary) && Math.abs(Number(primary.latitude) - coordinates.lat) < 1e-7 && Math.abs(Number(primary.longitude) - coordinates.lng) < 1e-7;
+  if (same && primary.label === facility.name && (primary.addressText || "") === addressText && (primary.accountId || "") === (facility.accountId || "") && primary.isPrimary) return primary;
+  const record = {
+    ...(primary || { id: makeId("loc-fac"), projectId: "", scheduleEventId: "", assetTags: [], status: "Active" }),
+    facilityId: facility.id,
+    accountId: facility.accountId || "",
+    label: facility.name || "Facility",
+    addressText,
+    latitude: coordinates.lat,
+    longitude: coordinates.lng,
+    locationType: "Facility",
+    isPrimary: true,
+  };
+  if (!same) {
+    record.source = coordinates.source || "manual";
+    record.capturedAt = coordinates.capturedAt || new Date().toISOString();
+    record.accuracyM = coordinates.accuracyM ?? "";
+    record.lastPingAt = new Date().toISOString();
+  }
+  return saveBackendRecord("locations", record, { refresh: false });
+}
+
+// "Use this one" from the facility dialog: pick the existing facility where the flow wanted a new one.
+// Opened over another dialog with a facility picker (the opportunity's Lead dialog, "Add a site"), it
+// selects the existing facility there; opened on its own, it goes to the facility.
+async function useExistingFacilityFromDialog(facility, promoteLocationId = "") {
+  if (promoteLocationId) await linkPromotedLocation(promoteLocationId, facility);
+  document.querySelector("#accountFacilityDialog")?.close();
+  const parent = [...document.querySelectorAll("dialog[open]")].find((dialog) => dialog.querySelector("select[name='facilityId']"));
+  if (parent) {
+    const select = parent.querySelector("select[name='facilityId']");
+    if (![...select.options].some((option) => option.value === facility.id)) {
+      const account = findAccount(facility.accountId);
+      select.add(new Option(`${facility.name}${account ? ` (${account.name})` : ""}`, facility.id));
+    }
+    select.value = facility.id;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    if (promoteLocationId) await refreshState();
+    showToast(`Using the existing facility: ${facility.name}.`);
+    return;
+  }
+  closeDialogs();
+  await refreshState();
+  viewFacility(facility.id);
+  showToast(promoteLocationId ? `Location attached to the existing facility: ${facility.name}.` : `Opened the existing facility: ${facility.name}.`);
 }
 
 async function saveFacility(form) {
@@ -29021,15 +29667,59 @@ async function saveFacility(form) {
   };
   delete facility.type;
   delete facility.status;
-  delete facility.latitude;
-  delete facility.longitude;
-  const saved = await saveBackendRecord("facilities", facility);
+  // Phase 25 D.1 (2026-09-29): coordinates are kept now (this used to delete them). The facility's
+  // primary Facility-type location holds them; the facility row keeps a copy (see saveFacilityPrimaryLocation).
+  const coordinates = readFacilityCoordinateFields(form);
+  if (coordinates?.error) {
+    showToast(coordinates.error);
+    form.elements.latitude.focus();
+    return;
+  }
+  if (coordinates) {
+    facility.latitude = coordinates.lat;
+    facility.longitude = coordinates.lng;
+    facility.coordinatesSource = coordinates.source;
+    facility.coordinatesCapturedAt = coordinates.capturedAt || facility.coordinatesCapturedAt || "";
+    facility.coordinatesAccuracyM = coordinates.changed ? coordinates.accuracyM : facility.coordinatesAccuracyM ?? coordinates.accuracyM;
+  } else {
+    facility.latitude = "";
+    facility.longitude = "";
+    facility.coordinatesSource = "";
+    facility.coordinatesCapturedAt = "";
+    facility.coordinatesAccuracyM = "";
+  }
   const promoteLocationId = (data.get("promoteLocationId") || "").toString();
+  // Phase 25 D.3: a new facility at a place we already know asks first. Never merges on its own.
+  let attachLocationId = "";
+  if (!existing) {
+    const matches = findSimilarPlaces({ name: facility.name, address: { street1, city, postalCode: facility.postalCode }, lat: coordinates?.lat, lng: coordinates?.lng, excludeId: promoteLocationId });
+    matches.locations = matches.locations.filter((match) => !match.record.facilityId || !findFacility(match.record.facilityId));
+    const choice = await promptSimilarPlaces(matches, {
+      intro: "A facility is a place the customer owns and we go back to. If one of these is the same place, use it instead of adding another.",
+      labels: { facility: "Use this one", location: "Create and attach this point" },
+    });
+    if (choice.action === "cancel") return;
+    if (choice.action === "use" && choice.kind === "facility") {
+      await useExistingFacilityFromDialog(choice.record, promoteLocationId);
+      return;
+    }
+    if (choice.action === "use" && choice.kind === "location") attachLocationId = choice.record.id;
+  }
+  const saved = await saveBackendRecord("facilities", facility);
+  let pointNote = "";
+  try {
+    await saveFacilityPrimaryLocation(saved || facility, coordinates);
+  } catch (error) {
+    // Sales can save facilities but not the "operations" locations collection; the facility row's copy
+    // of the coordinates still drives the maps and the walk check-in.
+    pointNote = coordinates ? " Coordinates saved on the facility." : "";
+  }
   if (promoteLocationId && !existing) await linkPromotedLocation(promoteLocationId, saved || facility);
+  if (attachLocationId) await linkPromotedLocation(attachLocationId, saved || facility);
   closeDialogs();
   await refreshState();
   render();
-  showToast(promoteLocationId && !existing ? "Location promoted to a facility on the account." : existing ? "Facility updated." : "Facility added.");
+  showToast(`${promoteLocationId && !existing ? "Location promoted to a facility on the account." : existing ? "Facility updated." : attachLocationId ? "Facility added, with the existing point attached." : "Facility added."}${pointNote}`);
 }
 
 function openFacilityContactDialog(facilityId = "", accountId = "", linkId = "") {
@@ -30403,6 +31093,24 @@ function openLocationDialog(locationId = "") {
   populateScheduleEventSelect(dialog);
 
   const location = findGpsLocation(locationId);
+  // Phase 25 D.1: which facility the location sits in. Every live facility (a spill can be at another
+  // account's site); the record's own values stay selectable even when they are not in a list.
+  if (form.elements.facilityId) {
+    form.elements.facilityId.innerHTML = [
+      `<option value="">Not at a facility</option>`,
+      ...state.facilities.map((facility) => `<option value="${escapeAttribute(facility.id)}">${escapeHtml(facility.name)}${findAccount(facility.accountId) ? ` (${escapeHtml(findAccount(facility.accountId).name)})` : ""}</option>`),
+    ].join("");
+    form.elements.facilityId.value = location?.facilityId && findFacility(location.facilityId) ? location.facilityId : "";
+  }
+  [["status", location?.status], ["locationType", location?.locationType]].forEach(([name, value]) => {
+    const select = form.elements[name];
+    select?.querySelectorAll("option[data-kept-value]").forEach((option) => option.remove());
+    if (select && value && ![...select.options].some((option) => option.value === value)) {
+      const option = new Option(value, value);
+      option.dataset.keptValue = "1";
+      select.add(option);
+    }
+  });
   if (location) {
     form.elements.id.value = location.id || "";
     form.elements.source.value = location.source || "Manual";
@@ -34311,8 +35019,17 @@ function opportunityLocationsForOpportunity(opportunityId) {
 }
 
 // The first linked facility and the first linked location, for handing the site to a project.
+// Phase 25 D.2 (2026-09-29): a site-walk check-in is where the walker's phone was, not the site -- the
+// owner ran test walks at a desk. It never becomes the opportunity's site or a project's siteLocationId.
+function isCheckInSiteLink(entry) {
+  if (!entry) return false;
+  if (/site walk check-in/i.test(entry.role || "")) return true;
+  const location = entry.locationId ? findGpsLocation(entry.locationId) : null;
+  return Boolean(location && isPingLocation(location));
+}
+
 function opportunitySiteLinks(opportunity) {
-  const entries = opportunity ? opportunityLocationsForOpportunity(opportunity.id) : [];
+  const entries = opportunity ? opportunityLocationsForOpportunity(opportunity.id).filter((entry) => !isCheckInSiteLink(entry)) : [];
   return {
     facilityId: entries.find((entry) => entry.facilityId && findFacility(entry.facilityId))?.facilityId || "",
     locationId: entries.find((entry) => entry.locationId && findGpsLocation(entry.locationId))?.locationId || "",
@@ -34320,11 +35037,12 @@ function opportunitySiteLinks(opportunity) {
 }
 
 // The opportunity's sites by name: its own facility, then every linked facility or location that
-// still exists. Drives the Qualify "Site" gate, so a dangling link doesn't count.
+// still exists. Drives the Qualify "Site" gate, so a dangling link doesn't count (nor a check-in ping).
 function opportunitySiteNames(opportunity) {
   if (!opportunity) return [];
   const names = [findFacility(opportunity.facilityId)?.name || ""];
   opportunityLocationsForOpportunity(opportunity.id).forEach((entry) => {
+    if (isCheckInSiteLink(entry)) return;
     const location = entry.locationId ? findGpsLocation(entry.locationId) : null;
     names.push(entry.facilityId ? findFacility(entry.facilityId)?.name || "" : location ? location.label || location.addressText || "Location" : "");
   });
@@ -34401,6 +35119,29 @@ async function saveOpportunityLocation(form) {
       }
       if (!addressText && !gps) {
         showToast("A location needs an address or a GPS point.");
+        return;
+      }
+      // Phase 25 D.3: an address or point we already have is linked, not added again.
+      const newLabel = (data.get("newLocationLabel") || "").toString().trim();
+      const choice = await promptSimilarPlaces(findSimilarPlaces({ name: newLabel, address: addressText, lat: gps?.latitude, lng: gps?.longitude }), {
+        intro: "Attach the existing site to this opportunity instead of adding another location for the same place.",
+      });
+      if (choice.action === "cancel") return;
+      if (choice.action === "use") {
+        const alreadyLinked = opportunityLocationsForOpportunity(opportunityId).some((entry) => (choice.kind === "facility" ? entry.facilityId === choice.record.id : entry.locationId === choice.record.id));
+        if (!alreadyLinked) {
+          await linkOpportunityLocation({
+            opportunityId,
+            type: choice.kind === "facility" ? "Facility" : "Location",
+            facilityId: choice.kind === "facility" ? choice.record.id : "",
+            locationId: choice.kind === "location" ? choice.record.id : "",
+            role: data.get("role").toString().trim(),
+            note: data.get("note").toString().trim(),
+          });
+        }
+        closeDialogs();
+        render();
+        showToast(alreadyLinked ? "That site is already attached to this opportunity." : "Existing site attached to this opportunity.");
         return;
       }
       const saved = await saveBackendRecord("locations", {
@@ -36635,14 +37376,15 @@ init().catch((error) => {
 // (app.js → field/index.js → …). The panels below are plain renderers called from the existing
 // tab renderers with one-line insertions.
 
-// A facility's coordinates: its own latitude/longitude, else the first GPS point logged by a
-// project at that facility. Used by the walk map, the parcel fetch and the tile download.
-function facilityCoordinates(facility) {
+// A facility's coordinates: its primary Facility-type location (Phase 25 D.1), else its own
+// latitude/longitude, else the first GPS point logged by a project at that facility -- never a
+// phone ping (a walk check-in or "Arrived on site"), which may have been taken at a desk.
+// Used by the walk map, the parcel fetch, the tile download and the walk check-in distance check.
+function facilityCoordinates(facility, { excludeLocationId = "" } = {}) {
   if (!facility) return null;
-  if (Number.isFinite(Number(facility.latitude)) && Number.isFinite(Number(facility.longitude)) && facility.latitude !== "" && facility.longitude !== "") {
-    return { lat: Number(facility.latitude), lng: Number(facility.longitude) };
-  }
-  const point = locationsForFacility(facility.id).find(hasGpsCoordinates);
+  const details = facilityCoordinateDetails(facility);
+  if (details && (!excludeLocationId || details.location?.id !== excludeLocationId)) return { lat: details.lat, lng: details.lng };
+  const point = liveRows(locationsForFacility(facility.id)).find((location) => hasGpsCoordinates(location) && !isPingLocation(location) && location.id !== excludeLocationId);
   return point ? { lat: Number(point.latitude), lng: Number(point.longitude) } : null;
 }
 
@@ -36853,11 +37595,7 @@ function projectWalkFiledReportDocument({ event, report }, opportunityId = "", w
 }
 
 function projectWalkDistanceMeters(a, b) {
-  const toRad = (value) => (value * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371000 * Math.asin(Math.sqrt(s));
+  return placeDistanceMeters(a, b);
 }
 
 // A check-in worth a second look: far from the facility (~500 m, the Wave D threshold) or a GPS fix
@@ -37140,12 +37878,10 @@ async function fileSiteWalkReport(walkEventId, button = null) {
   }
 }
 
+// Phase 25 D: one distance helper (placeDistanceMeters, in the place-match rules) for the walk, the
+// check-in and the duplicate check.
 function siteWalkDistanceMeters(a, b) {
-  const rad = (degrees) => (degrees * Math.PI) / 180;
-  const dLat = rad(b.lat - a.lat);
-  const dLng = rad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+  return placeDistanceMeters(a, b);
 }
 
 function formatSiteWalkDistance(meters) {
@@ -37163,24 +37899,31 @@ function siteWalkCheckInAssessment(walk, report) {
   if (!checkIn) return null;
   const real = (value) => value !== "" && value != null && Number.isFinite(Number(value));
   const fix = real(checkIn.lat) && real(checkIn.lng) ? { lat: Number(checkIn.lat), lng: Number(checkIn.lng) } : null;
-  const facility = findFacility(walk?.facilityId || report.facilityId || "");
+  const facility = findFacility(walk?.facilityId || checkIn.facilityId || report.facilityId || "");
   let reference = null;
   let referenceLabel = "";
-  if (facility && real(facility.latitude) && real(facility.longitude)) {
-    reference = { lat: Number(facility.latitude), lng: Number(facility.longitude) };
+  // Phase 25 D.2: the facility's own coordinates (its primary point or the copy on the facility row) --
+  // unless the walker saved this very fix as them -- else a non-ping GPS point logged at the facility.
+  const details = facilityCoordinateDetails(facility);
+  const samePoint = (location) => fix && Math.abs(Number(location.latitude) - fix.lat) < 1e-6 && Math.abs(Number(location.longitude) - fix.lng) < 1e-6;
+  if (checkIn.savedAsFacilityLocation && fix) {
+    reference = { ...fix };
+    referenceLabel = "the facility's location, which this check-in set";
+  } else if (details) {
+    reference = { lat: details.lat, lng: details.lng };
     referenceLabel = "the facility's coordinates";
   } else if (facility) {
-    const samePoint = (location) => fix && Math.abs(Number(location.latitude) - fix.lat) < 1e-6 && Math.abs(Number(location.longitude) - fix.lng) < 1e-6;
-    const point = locationsForFacility(facility.id).filter(hasGpsCoordinates).find((location) => location.id !== checkIn.locationId && !samePoint(location));
+    const point = liveRows(locationsForFacility(facility.id)).filter((location) => hasGpsCoordinates(location) && !isPingLocation(location)).find((location) => location.id !== checkIn.locationId && !samePoint(location));
     if (point) {
       reference = { lat: Number(point.latitude), lng: Number(point.longitude) };
-      referenceLabel = `a GPS point logged at the facility${point.name ? ` (${point.name})` : ""}`;
+      referenceLabel = `a GPS point logged at the facility${point.label ? ` (${point.label})` : ""}`;
     }
   }
   const accuracy = real(checkIn.accuracyM) ? Number(checkIn.accuracyM) : null;
   const distance = fix && reference ? siteWalkDistanceMeters(fix, reference) : null;
   const warnings = [];
-  if (!fix) warnings.push("No GPS fix at check-in, so nothing shows the walker was at the site.");
+  if (!fix && checkIn.gpsSkipped) warnings.push("Checked in without GPS (the walker chose to skip it), so only the time is recorded.");
+  else if (!fix) warnings.push("No GPS fix at check-in, so nothing shows the walker was at the site.");
   if (distance !== null && distance > SITE_WALK_CHECKIN_FAR_METERS) warnings.push(`Checked in ${formatSiteWalkDistance(distance)} from ${referenceLabel}. GPS may not be at the site.`);
   if (fix && (accuracy === null || accuracy > SITE_WALK_CHECKIN_POOR_ACCURACY_METERS)) warnings.push(`${accuracy === null ? "No GPS accuracy was reported" : `GPS accuracy was poor (±${Math.round(accuracy)} m)`}. GPS may not be at the site; a laptop or desk position is often this far off.`);
   return { checkIn, fix, facility, reference, referenceLabel, accuracy, distance, warnings };
@@ -37333,7 +38076,8 @@ function renderSiteWalkPage() {
                       ${assessment.warnings.length ? `<div class="site-walk-warning" role="alert">${assessment.warnings.map((warning) => `<p>${escapeHtml(warning)}</p>`).join("")}</div>` : ""}
                       <dl class="detail-list">
                         <div><dt>Time</dt><dd>${escapeHtml(formatDateTime(assessment.checkIn.at))}</dd></div>
-                        <div><dt>Position</dt><dd>${assessment.fix ? `${assessment.fix.lat.toFixed(6)}, ${assessment.fix.lng.toFixed(6)}` : "No GPS fix"}</dd></div>
+                        ${assessment.fix && assessment.checkIn.capturedAt ? `<div><dt>GPS fix taken</dt><dd>${escapeHtml(formatDateTime(assessment.checkIn.capturedAt))}</dd></div>` : ""}
+                        <div><dt>Position</dt><dd>${assessment.fix ? `${assessment.fix.lat.toFixed(6)}, ${assessment.fix.lng.toFixed(6)}${assessment.checkIn.savedAsFacilityLocation ? " (saved as the facility's location)" : ""}` : assessment.checkIn.gpsSkipped ? "GPS skipped by the walker" : "No GPS fix"}</dd></div>
                         <div><dt>Accuracy</dt><dd>${assessment.accuracy !== null ? `±${Math.round(assessment.accuracy)} m` : "Not reported"}</dd></div>
                         <div><dt>Distance from the site</dt><dd>${assessment.distance !== null ? `${escapeHtml(formatSiteWalkDistance(assessment.distance))} from ${escapeHtml(assessment.referenceLabel)}` : assessment.fix ? "Unknown: the facility has no coordinates of its own" : "Unknown"}</dd></div>
                       </dl>`
@@ -37745,6 +38489,17 @@ export {
   buildCoreContactRecord,
   buildCoreActivityRecord,
   facilityCoordinates,
+  // Phase 25 D (2026-09-29): places — facility GPS, check-in hygiene, duplicate detection
+  facilityCoordinateDetails,
+  facilityPrimaryLocation,
+  findSimilarPlaces,
+  promptSimilarPlaces,
+  placeDistanceMeters,
+  formatSiteWalkDistance,
+  isPingLocation,
+  hasGpsCoordinates,
+  SITE_WALK_CHECKIN_FAR_METERS,
+  SITE_WALK_CHECKIN_POOR_ACCURACY_METERS,
   facilitiesForAccount,
   contactsForAccount,
   contactsForOpportunity,

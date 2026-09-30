@@ -13,8 +13,8 @@
 // saveFieldRecord / fieldRequest / uploadFieldFile so W2's outbox can queue it.
 import * as crm from "../app.js";
 import { registerFieldRoute, registerFieldAction, registerFieldForm, registerSalesHomeSection, currentFieldEmployee } from "./index.js";
-import { fieldRequest, saveFieldRecord } from "./package.js";
-import { createSiteMap, walkReportForEvent, observationsForWalk, photoUrl, thumbUrl, uploadSiteDocument, backgroundsForReport, facilityCenter, renderObservationLine, choosePhotoSource, addWalkPhotos, runWalkPhotoAction, releaseWalkDocument, walkPhotoCandidates, documentTypeIdByCode } from "./map.js";
+import { fieldRequest, saveFieldRecord, isOnline } from "./package.js";
+import { createSiteMap, walkReportForEvent, observationsForWalk, photoUrl, thumbUrl, uploadSiteDocument, backgroundsForReport, facilityCenter, renderObservationLine, choosePhotoSource, addWalkPhotos, runWalkPhotoAction, releaseWalkDocument, walkPhotoCandidates, documentTypeIdByCode, fieldChoiceSheet } from "./map.js";
 import { snapshotReferenceLayers, bboxAround } from "./layers.js";
 import { PIN_KINDS, SHAPE_KINDS, SHAPE_COLORS, renderPrintMaps, rasterizeMapElement } from "./map-core.js";
 
@@ -370,7 +370,7 @@ function renderWalkTab(walk, opportunity, facility, report) {
     <section class="field-card ${checkIn ? "field-card--ok" : ""}">
       ${
         checkIn
-          ? `<div class="field-card-row"><strong>Checked in ${esc(crm.formatShortTime(checkIn.at))}</strong><small>${checkIn.accuracyM ? `GPS ±${Math.round(checkIn.accuracyM)} m` : "no GPS fix"}</small></div><small class="field-card-sub">Walk clock: ${esc(elapsed(checkIn.at))}</small>`
+          ? `<div class="field-card-row"><strong>Checked in ${esc(crm.formatShortTime(checkIn.at))}</strong><small>${checkIn.accuracyM ? `GPS ±${Math.round(checkIn.accuracyM)} m${checkIn.distanceM != null ? ` · ${esc(crm.formatSiteWalkDistance(checkIn.distanceM))} from the facility` : ""}` : checkIn.gpsSkipped ? "GPS skipped — time only" : "no GPS fix"}</small></div><small class="field-card-sub">Walk clock: ${esc(elapsed(checkIn.at))}</small>`
           : `<div class="field-card-row"><strong>Not checked in</strong><small>GPS + time, starts the walk clock</small></div><button class="field-button" type="button" data-field-action="walk-check-in">Check in</button>`
       }
     </section>
@@ -694,52 +694,194 @@ registerFieldAction("walk-check-in", async (button) => {
   const walk = currentWalk();
   if (!walk) return;
   button.disabled = true;
+  const restoreButton = () => {
+    if (!button.isConnected) return;
+    button.disabled = false;
+    button.textContent = "Check in";
+  };
   button.textContent = "Getting a GPS fix…";
-  const fix = await new Promise((resolve) => {
+  let fix = await new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
     navigator.geolocation.getCurrentPosition(
-      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude, accuracyM: Math.round(position.coords.accuracy || 0) }),
+      // capturedAt is when the phone took the fix (Phase 25 D.2), not when the check-in was saved.
+      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude, accuracyM: Math.round(position.coords.accuracy || 0), capturedAt: new Date(position.timestamp || Date.now()).toISOString() }),
       () => resolve(null),
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
     );
   });
+  const facility = crm.findFacility(walk.facilityId) || null;
+  const facilityName = facility?.name || walk.title || "the site";
+  let gpsSkipped = false;
+  let savedAsFacilityLocation = false;
+  let distanceM = null;
+
+  // Phase 25 D.2 (2026-09-29), owner: "Site walk used GPS and I was running test data at my desk ... I do
+  // not know when the GPS was collected." A fix far from the facility, or too loose to place anyone on
+  // the site, is questioned before it is recorded.
+  const site = facility ? crm.facilityCoordinates(facility) : null;
+  if (fix) {
+    distanceM = site ? crm.placeDistanceMeters(fix, site) : null;
+    const far = distanceM !== null && distanceM > crm.SITE_WALK_CHECKIN_FAR_METERS;
+    const loose = fix.accuracyM > crm.SITE_WALK_CHECKIN_POOR_ACCURACY_METERS;
+    if (far || loose) {
+      const message = far
+        ? `You're ${crm.formatSiteWalkDistance(distanceM)} from ${facilityName} (GPS ±${fix.accuracyM} m).`
+        : `Your GPS is only accurate to ±${fix.accuracyM} m${distanceM !== null ? `, ${crm.formatSiteWalkDistance(distanceM)} from ${facilityName}` : ""}.`;
+      const answer = await fieldChoiceSheet({
+        title: "Check the GPS",
+        message,
+        detail: "A laptop or desk position is often this far off. Record this position only if you are really at the site.",
+        choices: [
+          { label: "Use this location anyway", value: "use", variant: "secondary" },
+          { label: "Check in without GPS", value: "skip" },
+          { label: "Cancel", value: "cancel", variant: "ghost" },
+        ],
+      });
+      if (!answer || answer === "cancel") {
+        restoreButton();
+        return;
+      }
+      if (answer === "skip") {
+        fix = null;
+        gpsSkipped = true;
+        distanceM = null;
+      }
+    }
+  }
+
   const report = reportFor(walk);
   const now = new Date().toISOString();
   let locationId = "";
   try {
-    if (fix) {
-      const employee = currentFieldEmployee();
-      const location = await saveFieldRecord("locations", {
-        id: crm.makeId("location"),
-        projectId: "",
-        scheduleEventId: walk.id,
-        label: `Site walk check-in — ${crm.findFacility(walk.facilityId)?.name || walk.title || "site"}`,
-        latitude: fix.lat,
-        longitude: fix.lng,
-        assetTags: [],
-        status: "Field ping",
-        source: "Site walk check-in",
-        locationType: "Check-in",
-        reportedByEmployeeId: employee?.id || "",
-        lastPingAt: now,
+    const employee = currentFieldEmployee();
+    // A facility with no coordinates yet, and a tight fix: offer to make this the facility's own point.
+    if (fix && facility && !site && fix.accuracyM <= 50) {
+      const answer = await fieldChoiceSheet({
+        title: "Save the site's location?",
+        message: `${facilityName} has no GPS location yet. Save this spot (GPS ±${fix.accuracyM} m) as the facility's location?`,
+        choices: [
+          { label: "Save as the facility's location", value: "save" },
+          { label: "Not now", value: "no", variant: "ghost" },
+        ],
       });
-      locationId = location?.id || "";
-      if (walk.opportunityId && locationId) {
+      if (answer === "save") {
+        savedAsFacilityLocation = await saveFixAsFacilityLocation(facility, fix, employee);
+        if (savedAsFacilityLocation?.locationId) locationId = savedAsFacilityLocation.locationId;
+        savedAsFacilityLocation = Boolean(savedAsFacilityLocation);
+      }
+    }
+    if (fix && !locationId) {
+      // Reuse a point already within ~50 m (this facility's first) instead of adding one per check-in.
+      const nearby = crm.state.backend.locations
+        ? crm.liveRows(crm.state.backend.locations)
+            .filter((location) => crm.hasGpsCoordinates(location))
+            .map((location) => ({ location, meters: crm.placeDistanceMeters(fix, { lat: Number(location.latitude), lng: Number(location.longitude) }) }))
+            .filter((row) => row.meters <= CHECK_IN_REUSE_METERS)
+            .sort((a, b) => Number(b.location.facilityId === walk.facilityId) - Number(a.location.facilityId === walk.facilityId) || a.meters - b.meters)[0]
+        : null;
+      if (nearby) {
+        locationId = nearby.location.id;
+        if (isOnline()) {
+          try {
+            await crm.saveBackendRecord("locations", { ...nearby.location, lastPingAt: now }, { refresh: false });
+          } catch {
+            // Not ours to touch (another walk's point, or an operations-only row); referencing it is enough.
+          }
+        }
+      } else {
+        const location = await saveFieldRecord("locations", {
+          id: crm.makeId("location"),
+          projectId: "",
+          scheduleEventId: walk.id,
+          facilityId: walk.facilityId || "",
+          accountId: facility?.accountId || "",
+          label: `Site walk check-in — ${facilityName}`,
+          latitude: fix.lat,
+          longitude: fix.lng,
+          accuracyM: fix.accuracyM,
+          capturedAt: fix.capturedAt,
+          assetTags: [],
+          status: "Field ping",
+          source: "Site walk check-in",
+          locationType: "Check-in",
+          reportedByEmployeeId: employee?.id || "",
+          lastPingAt: now,
+        });
+        locationId = location?.id || "";
+      }
+      const linked = (crm.state.backend.opportunityLocations || []).some((entry) => !entry.deletedAt && entry.opportunityId === walk.opportunityId && entry.locationId === locationId);
+      if (walk.opportunityId && locationId && !linked) {
         await saveFieldRecord("opportunityLocations", { id: crm.makeId("opp-location"), opportunityId: walk.opportunityId, type: "Location", facilityId: "", locationId, role: "Site walk check-in", note: `Checked in ${crm.formatDateTime(now)}`, createdAt: now });
       }
     }
-    report.checkIn = { at: now, lat: fix?.lat ?? null, lng: fix?.lng ?? null, accuracyM: fix?.accuracyM ?? null, locationId };
+    report.checkIn = {
+      at: now,
+      capturedAt: fix?.capturedAt || "",
+      lat: fix?.lat ?? null,
+      lng: fix?.lng ?? null,
+      accuracyM: fix?.accuracyM ?? null,
+      distanceM: distanceM === null ? null : Math.round(distanceM),
+      facilityId: walk.facilityId || "",
+      locationId,
+      gpsSkipped,
+      savedAsFacilityLocation,
+    };
     report.startedAt = report.startedAt || now;
     await persistReport(report);
     crm.state.fieldWalkTab = "walk";
     crm.render();
-    crm.showToast(fix ? `Checked in (GPS ±${fix.accuracyM} m).` : "Checked in without a GPS fix.");
+    crm.showToast(fix ? `Checked in (GPS ±${fix.accuracyM} m)${savedAsFacilityLocation ? " and saved as the facility's location" : ""}.` : gpsSkipped ? "Checked in without GPS: only the time is recorded." : "Checked in without a GPS fix.");
   } catch (error) {
-    button.disabled = false;
-    button.textContent = "Check in";
+    restoreButton();
     crm.showToast(error.message || "Check-in failed.");
   }
 });
+
+const CHECK_IN_REUSE_METERS = 50;
+
+// The facility's own point from a walk check-in (D.2). The facility row carries a copy of the coordinates
+// (Sales can write facilities, not the operations `locations` collection), and the primary Facility-type
+// location is written where the walker may. Resolves { locationId } | true (facility copy only) | false.
+async function saveFixAsFacilityLocation(facility, fix, employee) {
+  const now = new Date().toISOString();
+  let saved = false;
+  let locationId = "";
+  try {
+    await saveFieldRecord("facilities", { ...facility, latitude: fix.lat, longitude: fix.lng, coordinatesSource: "device", coordinatesCapturedAt: fix.capturedAt, coordinatesAccuracyM: fix.accuracyM, updatedAt: now });
+    saved = true;
+  } catch {
+    // An operations walker cannot write facilities; the location below still records the point.
+  }
+  if (!crm.facilityPrimaryLocation(facility.id)) {
+    try {
+      const location = await saveFieldRecord("locations", {
+        id: crm.makeId("loc-fac"),
+        projectId: "",
+        scheduleEventId: crm.state.fieldWalkEventId || "",
+        facilityId: facility.id,
+        accountId: facility.accountId || "",
+        label: facility.name || "Facility",
+        addressText: [facility.street1 || facility.address, facility.city, facility.stateOrProvince, facility.postalCode].filter(Boolean).join(", "),
+        latitude: fix.lat,
+        longitude: fix.lng,
+        locationType: "Facility",
+        isPrimary: true,
+        source: "device",
+        capturedAt: fix.capturedAt,
+        accuracyM: fix.accuracyM,
+        assetTags: [],
+        status: "Active",
+        reportedByEmployeeId: employee?.id || "",
+        lastPingAt: now,
+      });
+      locationId = location?.id || "";
+    } catch {
+      // Sales walkers cannot write locations outside their walk; the facility copy is enough.
+    }
+  }
+  if (locationId) return { locationId };
+  return saved;
+}
 
 registerFieldAction("walk-need-remove", async (button) => {
   const walk = currentWalk();
@@ -1971,16 +2113,39 @@ registerFieldForm("quick-lead", async (form) => {
   const now = new Date().toISOString();
   const employee = currentFieldEmployee();
   try {
+    let facilityId = "";
+    const gps = crm.parseGpsPin(get("gpsPin"));
+    // Phase 25 D.3 (2026-09-29): a lead at a site we already have uses it rather than adding another.
+    // Asked before anything is saved, so Cancel leaves nothing behind.
+    if (get("addressText") || gps) {
+      const match = crm.findSimilarPlaces({ name: "", address: get("addressText"), lat: gps?.latitude, lng: gps?.longitude }).facilities[0];
+      if (match) {
+        const owner = crm.findAccount(match.record.accountId);
+        const answer = await fieldChoiceSheet({
+          title: "Is this an existing site?",
+          message: `This looks like ${match.record.name}${owner ? ` (${owner.name})` : ""}.`,
+          detail: `${match.reason}. Nothing is merged: "Use this one" links the lead to that site.`,
+          choices: [
+            { label: "Use this one", value: "use" },
+            { label: "Create anyway", value: "create", variant: "secondary" },
+            { label: "Cancel", value: "cancel", variant: "ghost" },
+          ],
+        });
+        if (!answer || answer === "cancel") {
+          submit.disabled = false;
+          return;
+        }
+        if (answer === "use") facilityId = match.record.id;
+      }
+    }
     let account = get("accountId") ? crm.findAccount(get("accountId")) : null;
     if (!account) {
       const accountName = get("newAccountName") || (get("contactName") ? `${get("contactName")} (lead)` : name);
       account = crm.buildCoreAccountRecord({ id: crm.makeId("acct"), name: accountName, phone: get("contactPhone"), contact: get("contactName"), classification: "Prospect", accountType: "Prospect", owner: employee?.displayName || "Unassigned", isProvisional: true, createdAt: now, updatedAt: now });
       await saveFieldRecord("accounts", account);
     }
-    let facilityId = "";
-    const gps = crm.parseGpsPin(get("gpsPin"));
-    if (get("addressText") || gps) {
-      const facility = { id: crm.makeId("loc"), accountId: account.id, name: get("addressText") ? `Site — ${get("addressText")}` : `Site near ${gps.latitude.toFixed(4)}, ${gps.longitude.toFixed(4)}`, street1: get("addressText"), city: "", category: "Job Site / Field Location", badge: "Prospect", latitude: gps?.latitude ?? "", longitude: gps?.longitude ?? "", createdAt: now, updatedAt: now };
+    if (!facilityId && (get("addressText") || gps)) {
+      const facility = { id: crm.makeId("loc"), accountId: account.id, name: get("addressText") ? `Site — ${get("addressText")}` : `Site near ${gps.latitude.toFixed(4)}, ${gps.longitude.toFixed(4)}`, street1: get("addressText"), city: "", category: "Job Site / Field Location", badge: "Prospect", latitude: gps?.latitude ?? "", longitude: gps?.longitude ?? "", coordinatesSource: gps ? "manual" : "", coordinatesCapturedAt: gps ? now : "", createdAt: now, updatedAt: now };
       await saveFieldRecord("facilities", facility);
       facilityId = facility.id;
     }
