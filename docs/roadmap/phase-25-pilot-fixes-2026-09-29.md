@@ -1,6 +1,6 @@
 # Phase 25 — Pilot fixes (feedback pass 2026-09-29)
 
-**Status:** 🟡 In progress. **Waves A and B built 2026-09-29** on branch `p25-wave-a` (smoke green, Wave B click-tested end to end on a copy of live data), **not yet on main or live** — waiting on the owner for the merge and live-server restart. Waves C–F not started.
+**Status:** 🟡 In progress. **Waves A–E built 2026-09-29/30** on branch `p25-wave-a` (smoke green; cross-worker flows click-tested on a copy of live data), **not yet on main or live** — waiting on the owner for the merge and live-server restart. Wave F (job action forms) planned, not built.
 
 **Depends on:** Phase 21 (Front Line 2), Phase 13 (documents), Phase 15 (project workspace), Phase 16 (emergency intake) — all shipped.
 
@@ -217,7 +217,9 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 
 **Waves A and B — built 2026-09-29.** Nine worktree workers (A: Front Line status/roll call, site-walk photos/measurements/sketch, pin declutter, office fixes, licence check-in; B: walk timeline/Regarding, walk page + filed report, project tabs), integrated on `p25-wave-a` with main (Phase 24) merged in. Smoke green apart from the worktree-only `/.git/config` check; every worker click-tested as the right role (field login via `/go/` links for Front Line); Wave B's cross-worker links click-tested together on a copy of live data (16/16). Service worker cache v67.
 
-**Going live needs, in order:** merge `p25-wave-a` into main → restart the live server (client and server changed together) → run `node scripts/merge-site-walk-activities.mjs --password <break-glass>` as a dry run, then with `--apply`, to fold the two pre-fix duplicate walk activities (Dell R3, Georgetown trash-truck walk).
+**Waves C–E — built 2026-09-29/30.** Four more workers (dispatch requests; facility GPS/check-in/duplicates; merge tools + facility parties; paperwork). Integrated on `p25-wave-a`; smoke green; cross-checks on a live-data copy: Hired by reaches the Work Authorization, the request dialog prefills from the project, the review queue shows (10/10), and the Wave B walk flow still passes (16/16).
+
+**Going live needs, in order:** merge `p25-wave-a` into main → restart the live server (client and server changed together) → run `node scripts/merge-site-walk-activities.mjs --password <break-glass>` as a dry run, then with `--apply`, to fold the two pre-fix duplicate walk activities (Dell R3, Georgetown trash-truck walk) → the same for `scripts/consolidate-msa-requirements.mjs` (moves the AIRCO MSA from the Dell spill project to the account) → attach the loose Dell points with the facility page's "Attach GPS points" (see `scripts/report-duplicate-places.mjs`).
 
 ## Corrections found during implementation
 
@@ -258,3 +260,17 @@ A → B → C → D → E → F. A is mostly independent fixes; per the budget m
 - **File names use " - ", not an em dash** — the server's file-name cleaner turns "—" into "_".
 - **Quotes and estimates are records, not files**, so Files › Project documents lists them as rows with a Print button.
 - **The Dell R3 walk's check-in reads "Low GPS accuracy (±160 m)"** and the Georgetown trash-truck walk's "3.1 km from the facility" — the warning chip the owner asked for when desk GPS was used.
+
+**Waves C–E (2026-09-29/30)**
+- **Sales users cannot see or send job requests.** `jobRequests` is in the server's dispatch domain, which excludes Sales Manager and Account Manager. A pure Sales requester gets the Needs-info notification but not the red dots or the request. Access was not widened — owner decision (Phase 23 plans for sales leads requesting dispatch).
+- **A Scheduler cannot read quotes or user logins**, so the request stores the requester's login and the quote's name for dispatch to see. Quotes have no quote number; the seed uses the status "Accepted", which the quote dialog does not offer.
+- **"Labor needed" is prefilled from `resourceNeeds`**, which mixes crew and materials (PPE, degreaser, drums alongside "2 technicians").
+- **The notification bell does not refresh on its own**; a new notification appears on the next data load.
+- **Sales cannot write facility-anchored `locations` rows** (server domain rules); letting them was left out as a permission change for the owner. A facility's coordinates are therefore also kept on the facility row, which Sales can write. The `locations` normaliser had been dropping `isPrimary`/`capturedAt`/`accuracyM`.
+- **The spill call no longer creates a provisional facility** (since 2026-09-25 it saves a location), so its duplicate check runs on the location.
+- **Duplicate report on live data (2026-09-29):** 0 duplicate facilities; the two loose Dell spill-origin points at 2300 Greenlawn Blvd are not attached to "Dell Solution Center (R3)"; two "Arrived on site" pings 4 m apart; the Georgetown walk check-in is 3.1 km from its facility; Dell R3 has no coordinates of its own.
+- **The New Customer Packet already contains a Work Authorization** — pages 2–5 are a 4-page "Work Authorization / Service Agreement" (20 clauses + signature page). The generated one-page job authorization therefore refers to those packet terms (or an MSA on file) as controlling. Whether "MSA" means that packet contract is an open owner question.
+- **The app stored no BioRemedy company details**; `BIOREMEDY_COMPANY` (3200 N IH 35 Suite 5, Round Rock TX 78681; dispatch 844-808-8000; AP 512-309-8000; ER@BioRemedy.com) was taken from the packet. Signed copies return to ER@BioRemedy.com, the only email in the packet.
+- **Duplicate MSAs were not actually being created** — an account-wide check already stopped a second one. The real faults were the MSA being filed on the project and an expired MSA never being renewed.
+- **The review queue lives on the Office Manager page**, which only Admin and Office Manager can open. Sales and Operations Managers (also review roles) get the notification and review on the record.
+- **Approving a signed quote or work authorization does not write "Signed" into the legacy dropdowns**; the gate and the panel read the requirement.
