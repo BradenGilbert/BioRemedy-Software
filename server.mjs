@@ -3265,7 +3265,9 @@ const fieldProjections = {
   jobTaskAttachments: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
   jobExpenses: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId || row.jobId) },
   timeEntries: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) || row.employeeId === ctx.employeeId },
-  jobMileageEntries: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
+  jobMileageEntries: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) || row.employeeId === ctx.employeeId },
+  // Pass 2 D: the phone shows its own jobs' flags (read-only; raised only through the /flag command).
+  projectAlerts: { fields: "*", where: (row, ctx) => Boolean(row.dispatchJobId) && ctx.myJobIds.has(row.dispatchJobId) },
   messages: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
   sampleRecords: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
   sampleLabReports: { fields: "*", where: (row, ctx) => (ctx.data.sampleRecords || []).some((item) => item.id === row.sampleId && ctx.myJobIds.has(item.dispatchJobId)) },
@@ -6107,6 +6109,21 @@ async function handleApi(request, response, pathname) {
       for (const key of fieldPartialWriteFields[collection]) if (Object.prototype.hasOwnProperty.call(body, key)) merged[key] = body[key];
       record = merged;
     }
+    // Pass 2 B (2026-10-01): a GPS-estimated mileage row keeps what the server measured; a person's
+    // correction changes the miles (calculatedDistance) and is marked, never the measured fields.
+    if (collection === "jobMileageEntries") {
+      if (record.calculatedDistance !== null && record.calculatedDistance !== undefined && record.calculatedDistance !== "" && Number.isFinite(Number(record.calculatedDistance))) {
+        record.calculatedDistance = Number(Number(record.calculatedDistance).toFixed(2));
+      }
+      if (stored && stored.method === "gps") {
+        for (const key of ["method", "startLat", "startLng", "endLat", "endLng", "startedAt", "endedAt", "timeEntryId", "estimatedFromSite", "estimatedDistance"]) if (stored[key] !== undefined) record[key] = stored[key];
+        if (Number(record.calculatedDistance) !== Number(stored.calculatedDistance)) {
+          record.estimatedDistance = stored.estimatedDistance ?? stored.calculatedDistance;
+          record.correctedBy = attribution(request);
+          record.correctedAt = new Date().toISOString();
+        }
+      }
+    }
     if (isFieldSession(request.session)) {
       const projection = fieldProjections[collection];
       const ctx = buildFieldContext(request.session, data);
@@ -6556,6 +6573,81 @@ function fieldAccountPauseBlock(data, accountId) {
   return `${account?.name || "This account"} is paused for field work${relationship.pausedReason ? ` (${relationship.pausedReason})` : ""}. Lift the pause on the account page first.`;
 }
 
+// ---- Automatic mileage (Pass 2 B, 2026-10-01) ----
+// A Travel clock-in/out carries a GPS fix at each end (startLat/startLng, endLat/endLng, 5 decimals).
+// On clock-out the server turns the two fixes into a jobMileageEntries row: straight-line (haversine)
+// miles x 1.25 road factor, one decimal. When only one end is known and the job's site has
+// coordinates, the other end is the site (a trip TO the site ends there; a trip FROM it starts there).
+const MILEAGE_ROAD_FACTOR = 1.25;
+const finiteCoordValue = (value) => value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value));
+const coordTo5 = (value) => Number(Number(value).toFixed(5));
+
+function haversineMiles(a, b) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return (2 * 6371008.8 * Math.asin(Math.min(1, Math.sqrt(h)))) / 1609.344;
+}
+
+// The job's site position: its own fix, the facility's coordinates, then the emergency-intake pin.
+function jobSiteCoordinates(data, job) {
+  if (!job) return null;
+  if (finiteCoordValue(job.latitude) && finiteCoordValue(job.longitude)) return { lat: Number(job.latitude), lng: Number(job.longitude) };
+  const facility = job.facilityId ? (data.facilities || []).find((item) => item.id === job.facilityId && !item.deletedAt) : null;
+  if (facility && finiteCoordValue(facility.latitude) && finiteCoordValue(facility.longitude)) return { lat: Number(facility.latitude), lng: Number(facility.longitude) };
+  const project = job.projectId ? (data.projects || []).find((item) => item.id === job.projectId && !item.deletedAt) : null;
+  if (project && finiteCoordValue(project.incidentLatitude) && finiteCoordValue(project.incidentLongitude)) return { lat: Number(project.incidentLatitude), lng: Number(project.incidentLongitude) };
+  return null;
+}
+
+// travel_to = the first travel before work on this job; travel_from = travel after the person has
+// worked in the previous 16 hours; other = travel with no job.
+function travelMileageType(data, entry, job) {
+  if (!job) return "other";
+  const end = new Date(entry.startedAt).getTime();
+  const workedBefore = (data.timeEntries || []).some(
+    (item) => item.id !== entry.id && !item.deletedAt && item.employeeId === entry.employeeId && item.entryType === "Work" && new Date(item.startedAt).getTime() < end && new Date(item.startedAt).getTime() > end - 16 * 3600 * 1000,
+  );
+  return workedBefore ? "travel_from" : "travel_to";
+}
+
+function writeTravelMileage(data, entry, job) {
+  if (entry.entryType !== "Travel" || !entry.endedAt) return null;
+  const id = `mileage-gps-${entry.id}`;
+  if ((data.jobMileageEntries || []).some((item) => item.id === id)) return null;
+  const mileageType = travelMileageType(data, entry, job);
+  const site = jobSiteCoordinates(data, job);
+  let start = finiteCoordValue(entry.startLat) && finiteCoordValue(entry.startLng) ? { lat: Number(entry.startLat), lng: Number(entry.startLng) } : null;
+  let end = finiteCoordValue(entry.endLat) && finiteCoordValue(entry.endLng) ? { lat: Number(entry.endLat), lng: Number(entry.endLng) } : null;
+  let estimatedFromSite = false;
+  if (!start && end && site && mileageType === "travel_from") { start = site; estimatedFromSite = true; }
+  if (!end && start && site && mileageType !== "travel_from") { end = site; estimatedFromSite = true; }
+  if (!start || !end) return null;
+  const miles = Number((haversineMiles(start, end) * MILEAGE_ROAD_FACTOR).toFixed(1));
+  if (!(miles > 0)) return null;
+  const row = touchRecord({
+    id,
+    employeeId: entry.employeeId,
+    dispatchJobId: job ? job.id : null,
+    mileageType,
+    beginningOdometer: null,
+    endingOdometer: null,
+    calculatedDistance: miles,
+    method: "gps",
+    estimatedFromSite,
+    startLat: coordTo5(start.lat), startLng: coordTo5(start.lng),
+    endLat: coordTo5(end.lat), endLng: coordTo5(end.lng),
+    startedAt: entry.startedAt,
+    endedAt: entry.endedAt,
+    timeEntryId: entry.id,
+    capturedAt: entry.endedAt,
+    notes: "",
+  });
+  (data.jobMileageEntries || (data.jobMileageEntries = [])).push(row);
+  return row;
+}
+
 // ---- POST /api/field/clock ----
 async function fieldClock(request) {
   const body = await readJsonBody(request);
@@ -6588,15 +6680,18 @@ async function fieldClock(request) {
   if (proposedEntryId && !/^time-entry-[a-z0-9-]{4,60}$/i.test(proposedEntryId)) throw requestError("Invalid time entry id.", 400);
   const at = body.at || new Date().toISOString();
   let record;
+  let mileageRow = null;
   if (body.action === "out") {
     const open = (data.timeEntries || []).find((item) => item.employeeId === targetEmployeeId && (item.dispatchJobId || null) === jobId && !item.endedAt && !item.deletedAt);
     if (!open) throw requestError("No open time entry to clock out.", 409);
     const durationMinutes = Math.max(0, Math.round((new Date(at).getTime() - new Date(open.startedAt).getTime()) / 60000));
     const updated = { ...open, endedAt: at, durationMinutes };
+    if (finiteCoordValue(body.endLat) && finiteCoordValue(body.endLng)) { updated.endLat = coordTo5(body.endLat); updated.endLng = coordTo5(body.endLng); }
     touchRecord(updated, open);
     const index = data.timeEntries.findIndex((item) => item.id === open.id);
     data.timeEntries[index] = updated;
     record = updated;
+    mileageRow = writeTravelMileage(data, updated, job);
   } else {
     if ((data.timeEntries || []).some((item) => item.employeeId === targetEmployeeId && (item.dispatchJobId || null) === jobId && !item.endedAt && !item.deletedAt)) {
       throw requestError(job ? "Already clocked in on this job." : "Already clocked in.", 409);
@@ -6613,12 +6708,88 @@ async function fieldClock(request) {
       notes: body.notes || "",
       source: "field",
       enteredByEmployeeId: targetEmployeeId === session.employeeId ? "" : session.employeeId,
+      ...(finiteCoordValue(body.startLat) && finiteCoordValue(body.startLng) ? { startLat: coordTo5(body.startLat), startLng: coordTo5(body.startLng) } : {}),
     });
     data.timeEntries.push(record);
   }
   await saveBackend(data);
   await audit(request, { action: "field-clock", collection: "timeEntries", recordId: record.id, summary: `${targetEmployeeId} ${body.action === "out" ? "out" : "in"} · ${job ? job.jobNumber || job.id : "no job"}` });
-  return { status: 200, body: record };
+  return { status: 200, body: mileageRow ? { ...record, mileageEntry: mileageRow } : record };
+}
+
+// ---- POST /api/field/jobs/:id/flag (Pass 2 D, 2026-10-01) ----
+// "Flag a job" from the phone: a projectAlerts row carrying the dispatch job (dispatchJobId), who raised
+// it (reportedBy + reportedByEmployeeId), source "field" and the optional photo's document id, plus a
+// notification to the office roles (the same shape and audience as app.js saveProjectAlert's). Field
+// sessions can't write projectAlerts directly -- the phone only reads its own jobs' flags.
+const FIELD_FLAG_TYPES = ["Scope Exception", "Safety Hazard", "Equipment Down", "Access Issue", "Weather Delay", "Material Shortage", "Customer Approval Needed", "Regulatory Concern", "Needs office attention"];
+const FIELD_FLAG_SEVERITIES = ["High", "Medium", "Low"];
+const FIELD_ALERT_NOTIFY_ROLES = ["Admin", "Office Manager", "Operations Manager", "Sales Manager", "Account Manager"];
+
+async function fieldFlagJob(request, jobId) {
+  const body = await readJsonBody(request);
+  const session = request.session;
+  const role = getRoles(request);
+  const data = await loadBackend();
+  const job = (data.dispatchJobs || []).find((item) => item.id === jobId && !item.deletedAt);
+  if (!job) throw requestError("Job not found.", 404);
+  let employee = null;
+  if (isFieldSession(session)) {
+    const ctx = buildFieldContext(session, data);
+    if (!ctx.myJobIds.has(job.id)) throw requestError("You do not have access to this job.", 403);
+    employee = (data.employees || []).find((item) => item.id === session.employeeId) || null;
+  } else if (!canAccess(role, "dispatch")) {
+    throw requestError("Dispatch role required.", 403);
+  }
+  const alertType = String(body.alertType || "");
+  if (!FIELD_FLAG_TYPES.includes(alertType)) throw requestError("Pick what is wrong from the list.", 400);
+  const severity = FIELD_FLAG_SEVERITIES.includes(body.severity) ? body.severity : "Medium";
+  const description = String(body.description || "").trim().slice(0, 2000);
+  if (!description) throw requestError("Add a note saying what is wrong.", 400);
+  const photoDocumentId = String(body.photoDocumentId || "");
+  const proposedId = String(body.id || "");
+  if (proposedId && !/^alert-[a-z0-9-]{4,60}$/i.test(proposedId)) throw requestError("Invalid alert id.", 400);
+  if (proposedId && (data.projectAlerts || []).some((item) => item.id === proposedId)) return { status: 200, body: (data.projectAlerts || []).find((item) => item.id === proposedId) };
+  const project = job.projectId ? (data.projects || []).find((item) => item.id === job.projectId && !item.deletedAt) : null;
+  const raisedAt = body.at && !Number.isNaN(Date.parse(body.at)) ? new Date(body.at).toISOString() : new Date().toISOString();
+  const alert = touchRecord({
+    id: proposedId || makeId("alert"),
+    projectId: project?.id || "",
+    accountId: project?.accountId || "",
+    facilityId: project?.facilityId || job.facilityId || "",
+    dispatchJobId: job.id,
+    alertType,
+    severity,
+    description,
+    reportedBy: employee?.displayName || attribution(request),
+    reportedByEmployeeId: employee?.id || "",
+    reportedAt: raisedAt,
+    status: "Open",
+    source: "field",
+    photoDocumentId,
+    notified: ["Office"],
+  });
+  (data.projectAlerts || (data.projectAlerts = [])).push(alert);
+  const notificationId = `notif-project-alert-${alert.id}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 150);
+  if (!Array.isArray(data.notifications)) data.notifications = [];
+  if (!data.notifications.some((item) => item.id === notificationId)) {
+    data.notifications.push(
+      touchRecord({
+        id: notificationId,
+        dedupeKey: `project-alert-${alert.id}`,
+        title: `${severity} flag from the field: ${job.jobNumber || job.id}`,
+        body: `${alertType}: ${description}${alert.reportedBy ? ` (${alert.reportedBy})` : ""}`,
+        severity: severity === "High" ? "critical" : "warning",
+        audienceRoles: [...FIELD_ALERT_NOTIFY_ROLES],
+        recipientUserId: "",
+        link: `#view=dispatch-job-detail&selectedDispatchJobId=${encodeURIComponent(job.id)}`,
+        readBy: [],
+      }),
+    );
+  }
+  await saveBackend(data);
+  await audit(request, { action: "field-flag", collection: "projectAlerts", recordId: alert.id, summary: `${job.jobNumber || job.id} flagged: ${alertType} (${severity})` });
+  return { status: 200, body: alert };
 }
 
 // ---- POST /api/field/jobs/:id/advance ----
@@ -8030,6 +8201,9 @@ async function handleFieldApi(request, response, pathname) {
 
   const advanceMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/advance$/);
   if (advanceMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldAdvanceJob(request, advanceMatch[1]));
+
+  const flagMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/flag$/);
+  if (flagMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldFlagJob(request, flagMatch[1]));
 
   const timerMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/timer$/);
   if (timerMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldJobTimer(request, timerMatch[1]));

@@ -417,17 +417,40 @@ function lastClosedWorkEntry(employeeId) {
 }
 
 // One clock command through the outbox. action "in" opens a row with `id`; "out" closes `entry`.
+// Pass 2 B (2026-10-01): a Travel clock-in/out grabs a GPS fix at each end so the server can write the
+// trip's miles (jobMileageEntries, method "gps"). 10 s and non-blocking: a denied permission or a
+// timeout still clocks the person in or out, just with no position.
+function getClockGpsFix() {
+  if (!navigator.geolocation) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    navigator.geolocation.getCurrentPosition(
+      (position) => finish({ lat: Number(position.coords.latitude.toFixed(5)), lng: Number(position.coords.longitude.toFixed(5)), accuracyM: Math.round(position.coords.accuracy || 0) }),
+      () => finish(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+    setTimeout(() => finish(null), 10500);
+  });
+}
+
 async function clockCommand({ action, employeeId, dispatchJobId = null, entryType = "work", entry = null, id = "", label = "" }) {
+  const isTravel = String(action === "out" ? entry?.entryType : entryType).toLowerCase() === "travel";
+  const fix = isTravel ? await getClockGpsFix() : null;
   if (action === "out") {
     const endedAt = new Date().toISOString();
     const durationMinutes = Math.max(0, Math.round((new Date(endedAt) - new Date(entry.startedAt)) / 60000));
-    const updated = { ...entry, endedAt, durationMinutes };
+    const updated = { ...entry, endedAt, durationMinutes, ...(fix ? { endLat: fix.lat, endLng: fix.lng } : {}) };
     await fieldPackage
       .fieldRequest("/api/field/clock", {
         method: "POST",
         kind: "clock",
         label: label || "Clock out",
-        body: { employeeId: entry.employeeId, dispatchJobId: entry.dispatchJobId || null, entryType: entry.entryType, action: "out", at: endedAt },
+        body: { employeeId: entry.employeeId, dispatchJobId: entry.dispatchJobId || null, entryType: entry.entryType, action: "out", at: endedAt, ...(fix ? { endLat: fix.lat, endLng: fix.lng } : {}) },
         apply: () => {
           crm.state.backend.timeEntries = (crm.state.backend.timeEntries || []).map((item) => (item.id === entry.id ? updated : item));
         },
@@ -448,13 +471,14 @@ async function clockCommand({ action, employeeId, dispatchJobId = null, entryTyp
     durationMinutes: null,
     notes: "",
     source: "field-app",
+    ...(fix ? { startLat: fix.lat, startLng: fix.lng } : {}),
   };
   await fieldPackage
     .fieldRequest("/api/field/clock", {
       method: "POST",
       kind: "clock",
       label: label || `Clock in (${entryType})`,
-      body: { employeeId, dispatchJobId: record.dispatchJobId, entryType, action: "in", timeEntryId: record.id, at: record.startedAt },
+      body: { employeeId, dispatchJobId: record.dispatchJobId, entryType, action: "in", timeEntryId: record.id, at: record.startedAt, ...(fix ? { startLat: fix.lat, startLng: fix.lng } : {}) },
       apply: () => {
         crm.state.backend.timeEntries = [...(crm.state.backend.timeEntries || []), record];
       },

@@ -8872,3 +8872,9 @@ a.mini-button {
     position: static;
   }
 }
+
+/* Pass 2 B (2026-10-01): the "GPS · estimated" tag on a Trips row. */
+.mileage-method {
+  font-size: 0.8rem;
+  color: var(--muted-text, #5b6b62);
+}

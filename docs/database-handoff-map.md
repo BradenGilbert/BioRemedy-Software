@@ -1352,3 +1352,10 @@ them.
 - Prototype server collections: `server.mjs` and `data/backend.json`
 - Browser database: `app.js`
 - Partial Laravel conversion: `laravel-ready/`
+
+### Pass 2 B and D field changes (2026-10-01)
+
+- `timeEntries` (Travel rows): new optional `startLat`, `startLng`, `endLat`, `endLng` (numbers, 5 decimals), written by `POST /api/field/clock`.
+- `jobMileageEntries`: new `method` (`"gps"` for a server-measured Travel leg; absent for manual odometer entries), `startLat/startLng/endLat/endLng`, `startedAt`, `endedAt`, `timeEntryId` (link to the `timeEntries` row; id is `mileage-gps-<timeEntryId>`), `estimatedFromSite` (one end taken from the job site), `estimatedDistance` (the measured miles once a person corrects `calculatedDistance`), `correctedBy`, `correctedAt`. For `job_mileage_entries` (023) these need columns or a JSON column; GPS rows are protected from client edits except `calculatedDistance`.
+- `projectAlerts`: new `dispatchJobId` (the job flagged from the field), `reportedByEmployeeId`, `source` (`"field"` when raised on the phone), `photoDocumentId` (a `documents` row, type job-photo). Written only by `POST /api/field/jobs/:id/flag`; projected read-only to field sessions for their own jobs. Alert type list gains "Needs office attention".
+- Derived: `computeJobBillables` day rows carry `mileage` (miles by person); invoice draft lines may carry `sourceType: "mileage"`.
