@@ -12947,6 +12947,31 @@ function formOnFormsMenu(form) {
   return form?.availableOnFormsMenu ?? true;
 }
 
+// Owner request 2026-10-01: "Driver's licence scan" (idScan). The phone reads the PDF417 barcode on
+// the back of a licence (field/idscan.js, the roll call's reader) and the answer keeps only the name,
+// issuing state, last 4, expiry, scan time, optional GPS and the matched employee -- never the number.
+// Config: matchEmployee, expiredPolicy ("warn" | "block"), captureGps. Listed after "Date".
+const FORM_ID_SCAN_TYPE_OPTION = { value: "idScan", label: "Driver's licence scan", help: "Scans the barcode on the back of a driver's licence: name, state, last 4 digits and expiry, and who it is." };
+const FORM_ID_SCAN_EXPIRED_POLICIES = [
+  { value: "warn", label: "Warn, and accept it" },
+  { value: "block", label: "Block -- a current licence is needed" },
+];
+FORM_FIELD_TYPE_OPTIONS.splice(FORM_FIELD_TYPE_OPTIONS.findIndex((option) => option.value === "date") + 1, 0, FORM_ID_SCAN_TYPE_OPTION);
+FORM_FIELD_TYPES.push(FORM_ID_SCAN_TYPE_OPTION.value);
+
+function renderIdScanFieldConfigEditor(config, check) {
+  return `
+    ${check("matchEmployee", "Look up who it is (matches licences already linked to employees on the roll call)")}
+    <label>An expired licence
+      <select data-fc="expiredPolicy" data-kind="text">
+        ${FORM_ID_SCAN_EXPIRED_POLICIES.map((policy) => `<option value="${policy.value}" ${(config.expiredPolicy || "warn") === policy.value ? "selected" : ""}>${escapeHtml(policy.label)}</option>`).join("")}
+      </select>
+    </label>
+    ${check("captureGps", "Record where the licence was scanned (GPS)")}
+    <p class="help-text">Kept on the submission: the name, issuing state, last 4 digits, expiry and scan time${config.captureGps ? ", the GPS point" : ""}${config.matchEmployee ? " and the matched employee" : ""}. Never the full licence number, date of birth, address or the photo.</p>
+  `;
+}
+
 function formFieldTypeLabel(type) {
   return FORM_FIELD_TYPE_OPTIONS.find((option) => option.value === type)?.label || type || "Field";
 }
@@ -13010,6 +13035,7 @@ function uniqueFormFieldRef(base, fields, exceptFieldId) {
 }
 
 function formFieldDefaultConfig(type) {
+  if (type === "idScan") return { matchEmployee: true, expiredPolicy: "warn", captureGps: true };
   if (type === "calculation") return { expression: "", decimals: 2 };
   if (type === "cascadingList") return { levels: [], rows: [] };
   if (type === "checkbox") return { defaultChecked: false };
@@ -13710,6 +13736,7 @@ function renderFormFieldConfigEditor(draft, field) {
   const config = field.config || {};
   const numberInput = (key, label, extra = "") => `<label>${label}<input type="number" data-fc="${key}" data-kind="number" value="${escapeAttribute(formConfigNumberValue(config[key]))}" ${extra} /></label>`;
   const check = (key, label) => `<label class="check-row"><input type="checkbox" data-fc="${key}" data-kind="bool" ${config[key] ? "checked" : ""} /><span>${label}</span></label>`;
+  if (field.type === "idScan") return renderIdScanFieldConfigEditor(config, check);
   if (field.type === "calculation") {
     const usable = draft.fields.filter((item) => item.id !== field.id && FORM_NUMERIC_FIELD_TYPES.includes(item.type) && item.fieldRef);
     return `
@@ -13838,6 +13865,7 @@ function renderFormPreviewField(field) {
   const required = field.required ? `<span class="fb-required-mark" aria-label="required">*</span>` : "";
   const help = field.helpText ? `<small class="fb-preview-help">${escapeHtml(field.helpText)}</small>` : "";
   const wrap = (control) => `<div class="fb-preview-field"><span class="fb-preview-label">${name}${required}</span>${control}${help}</div>`;
+  if (field.type === "idScan") return wrap(`<div class="fb-preview-box">🪪 Scan licence<small>camera or a photo of the back${config.matchEmployee ? " · looks up who it is" : ""}${config.expiredPolicy === "block" ? " · expired licences refused" : ""}</small></div>`);
   if (field.type === "label") {
     const text = escapeHtml(config.text || "");
     if (config.style === "heading") return `<div class="fb-preview-heading">${name && name !== "Label" ? `<strong>${name}</strong>` : ""}${text ? `<span>${text}</span>` : ""}</div>`;

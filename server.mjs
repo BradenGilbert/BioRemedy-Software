@@ -2319,6 +2319,58 @@ function parseFormExpression(expression) {
   return { refs: [...new Set(refs)] };
 }
 
+// Owner request 2026-10-01: the "Driver's licence scan" field (idScan). The phone reads the licence's
+// PDF417 barcode (field/idscan.js) and the answer keeps the roll call's minimum (Phase 25 A.3b):
+//   { displayName, idState, idLast4, idExpiry, scannedAt, employeeId?, lat?, lng?, accuracyM? }
+// config: { matchEmployee, expiredPolicy: "warn" | "block", captureGps }. Who it is comes from
+// POST /api/field/id-lookup (fieldIdLookup), which stores nothing. Every jobFormSubmissions write is cut
+// down to those keys for idScan fields (scrubIdScanAnswers), so a licence number, DOB or address can
+// never be saved through a form, whatever a client sends.
+FORM_FIELD_TYPES.push("idScan");
+const FORM_ID_SCAN_EXPIRED_POLICIES = ["warn", "block"];
+
+function normalizeIdScanFieldConfig(source) {
+  return {
+    matchEmployee: source.matchEmployee !== false,
+    expiredPolicy: FORM_ID_SCAN_EXPIRED_POLICIES.includes(source.expiredPolicy) ? source.expiredPolicy : "warn",
+    captureGps: source.captureGps !== false,
+  };
+}
+
+function idScanAnswerForStore(value, data) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const answer = {};
+  const displayName = String(value.displayName || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  if (displayName) answer.displayName = displayName;
+  const idState = String(value.idState || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+  if (idState.length >= 2) answer.idState = idState;
+  const idLast4 = String(value.idLast4 || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(-4);
+  if (idLast4) answer.idLast4 = idLast4;
+  if (typeof value.idExpiry === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.idExpiry)) answer.idExpiry = value.idExpiry;
+  if (typeof value.scannedAt === "string" && !Number.isNaN(Date.parse(value.scannedAt))) answer.scannedAt = new Date(value.scannedAt).toISOString();
+  const employeeId = typeof value.employeeId === "string" ? value.employeeId.trim() : "";
+  if (employeeId && (data.employees || []).some((item) => item.id === employeeId)) answer.employeeId = employeeId;
+  const lat = Number(value.lat);
+  const lng = Number(value.lng);
+  if (value.lat !== "" && value.lat !== null && value.lng !== "" && value.lng !== null && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+    answer.lat = lat;
+    answer.lng = lng;
+    const accuracyM = Number(value.accuracyM);
+    if (value.accuracyM !== "" && value.accuracyM !== null && Number.isFinite(accuracyM) && accuracyM >= 0) answer.accuracyM = Math.round(accuracyM);
+  }
+  return answer.idLast4 || answer.displayName ? answer : null;
+}
+
+function scrubIdScanAnswers(data, record) {
+  if (!record?.payload || typeof record.payload !== "object" || !record.formTemplateId) return record;
+  const template = (data.formTemplates || []).find((item) => item.id === record.formTemplateId);
+  const refs = (template?.fields || []).filter((field) => field?.type === "idScan").map((field) => field.fieldRef || field.key).filter(Boolean);
+  if (!refs.length) return record;
+  const payload = { ...record.payload };
+  for (const ref of refs) if (Object.prototype.hasOwnProperty.call(payload, ref)) payload[ref] = idScanAnswerForStore(payload[ref], data);
+  return { ...record, payload };
+}
+
 function formNumberOrNull(value) {
   if (value === "" || value === null || value === undefined) return null;
   const number = Number(value);
@@ -2340,6 +2392,7 @@ function formStringList(values, limit = 500) {
 
 function normalizeFormFieldConfig(type, config, legacy) {
   const source = config && typeof config === "object" ? config : {};
+  if (type === "idScan") return normalizeIdScanFieldConfig(source);
   const decimals = (value, fallback) => {
     const number = formNumberOrNull(value);
     return number === null ? fallback : Math.min(6, Math.max(0, Math.round(number)));
@@ -6038,6 +6091,8 @@ async function handleApi(request, response, pathname) {
       if (result.error) return json(response, result.status, { error: result.error, ...(result.holderId ? { holderId: result.holderId } : {}) });
       record = result.record;
     }
+    // 2026-10-01: a "Driver's licence scan" answer keeps only the minimum (see scrubIdScanAnswers).
+    if (collection === "jobFormSubmissions") record = scrubIdScanAnswers(data, record);
     if (collection === "itMessages") {
       const storedMessage = (data.itMessages || []).find((item) => item.id === body.id);
       const result = normalizeItMessageWrite(data, request, body, storedMessage);
@@ -7514,6 +7569,57 @@ async function fieldRollCallScan(request, jobId) {
   };
 }
 
+// ---- POST /api/field/id-lookup (2026-10-01) ----
+//
+// "Who is this licence?" for the forms' Driver's licence scan field. Takes { idState, licenceNumber },
+// hashes them exactly as the roll call's scan does and answers { match: {employeeId, displayName},
+// employeeId, displayName } or { match: null }. It stores nothing -- no command receipt, no audit row,
+// no roll-call row -- and never links a licence to anyone (linking stays the roll call's job, by a
+// lead or the office). Field sessions and office (workforce/dispatch) roles may call it, at most
+// ID_LOOKUP_LIMIT times a minute per session so nobody can probe licence numbers. A queued lookup may
+// carry submissionId/fieldRef for the phone's own use; they are ignored here.
+const ID_LOOKUP_LIMIT = 30;
+const ID_LOOKUP_WINDOW_MS = 60000;
+const idLookupHits = new Map();
+
+function idLookupAllowed(sessionId) {
+  const now = Date.now();
+  const recent = (idLookupHits.get(sessionId) || []).filter((at) => now - at < ID_LOOKUP_WINDOW_MS);
+  if (recent.length >= ID_LOOKUP_LIMIT) {
+    idLookupHits.set(sessionId, recent);
+    return { ok: false, retryAfter: Math.max(1, Math.ceil((ID_LOOKUP_WINDOW_MS - (now - recent[0])) / 1000)) };
+  }
+  recent.push(now);
+  idLookupHits.set(sessionId, recent);
+  return { ok: true };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, hits] of idLookupHits) if (!hits.some((at) => now - at < ID_LOOKUP_WINDOW_MS)) idLookupHits.delete(sessionId);
+}, 5 * 60000).unref();
+
+async function fieldIdLookup(request, response) {
+  const session = request.session;
+  if (!isFieldSession(session) && !isOfficeSession(request)) return json(response, 403, { error: "Field or office (dispatch/workforce) access required." });
+  const allowed = idLookupAllowed(session.id || session.tokenHash || "");
+  if (!allowed.ok) {
+    response.setHeader("Retry-After", String(allowed.retryAfter));
+    return json(response, 429, { error: `Too many licence lookups. Try again in ${allowed.retryAfter} seconds.` });
+  }
+  const body = await readJsonBody(request);
+  const licenceNumber = normalizeLicenceNumber(body.licenceNumber);
+  if (!/^[A-Z0-9]{4,25}$/.test(licenceNumber)) return json(response, 400, { error: "The licence number could not be read. Scan again." });
+  const idState = String(body.idState || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+  if (idState.length < 2) return json(response, 400, { error: "The licence's issuing state could not be read. Scan again." });
+  const hash = licenceHashFor(idState, licenceNumber);
+  const data = await loadBackend();
+  const employee = (data.employees || []).find((item) => !item.deletedAt && item.licenceHash && item.licenceHash === hash) || null;
+  if (!employee) return json(response, 200, { match: null });
+  const match = { employeeId: employee.id, displayName: employee.displayName || [employee.firstName, employee.lastName].filter(Boolean).join(" ") };
+  return json(response, 200, { match, ...match });
+}
+
 // ---- POST /api/field/site-walk/:eventId/complete ----
 function mergeFieldNeeds(existing, incoming) {
   const list = Array.isArray(existing) ? existing.map((item) => ({ ...item })) : [];
@@ -8027,6 +8133,9 @@ async function handleFieldApi(request, response, pathname) {
   }
 
   if (pathname === "/api/field/clock" && request.method === "POST") return runFieldCommand(request, response, () => fieldClock(request));
+
+  // 2026-10-01: not a runFieldCommand -- a lookup stores nothing, not even a command receipt.
+  if (pathname === "/api/field/id-lookup" && request.method === "POST") return fieldIdLookup(request, response);
 
   const advanceMatch = pathname.match(/^\/api\/field\/jobs\/([^/]+)\/advance$/);
   if (advanceMatch && request.method === "POST") return runFieldCommand(request, response, () => fieldAdvanceJob(request, advanceMatch[1]));

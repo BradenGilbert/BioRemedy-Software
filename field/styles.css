@@ -2896,3 +2896,56 @@ dialog.field-form-sheet::backdrop {
 .form-deferred {
   color: var(--amber, #a76116);
 }
+
+/* ---- Driver's licence scanner (field/idscan.js, 2026-10-01): the sheet shared by the roll call's
+   Scan ID and the forms' "Driver's licence scan" field, and that field's confirm card ------------- */
+
+dialog.field-id-capture {
+  width: min(560px, calc(100vw - 16px));
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--ink, #13241b);
+}
+
+dialog.field-id-capture::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.field-id-capture-body {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px max(14px, env(safe-area-inset-bottom));
+}
+
+.field-id-capture-body [hidden] {
+  display: none !important;
+}
+
+.field-form-idscan-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #d7e4d8);
+  border-radius: 8px;
+}
+
+.field-form-idscan-card p {
+  margin: 0;
+}
+
+.field-form-idscan-card.is-blocked {
+  border-color: var(--red, #b42318);
+}
+
+.field-form-idscan-alert {
+  color: var(--amber, #a76116);
+  font-weight: 600;
+}
+
+.field-form-idscan-card.is-blocked .field-form-idscan-alert {
+  color: var(--red, #b42318);
+}

@@ -20,11 +20,13 @@
 // pdf417 (Android Chrome, live camera), else from a photo by the vendored zxing-wasm decoder
 // (public/vendor/zxing/, loaded only when needed, precached for offline use). field/aamva.js parses
 // it; the licence number goes to POST /api/field/jobs/:id/roll-call/scan once and is never kept on
-// the phone (the photo is decoded here and never uploaded). A manual "Mark arrived" asks for a reason.
+// the phone (the photo is decoded on the phone and never uploaded). A manual "Mark arrived" asks for
+// a reason. The reader itself (camera, photo, decoder) is field/idscan.js since 2026-10-01, shared
+// with the forms' "Driver's licence scan" field.
 import * as crm from "../app.js";
 import { registerFieldAction, registerFieldForm } from "./index.js";
 import * as fieldPackage from "./package.js";
-import { parseAamva } from "./aamva.js";
+import { scanLicence, licenceSummary } from "./idscan.js";
 
 const REMINDER_KEYS = [
   { key: "ppeInspected", label: "PPE inspected" },
@@ -424,26 +426,24 @@ function renderSafetyLinks(job) {
 
 export function afterSafetyRender() {
   if (document.getElementById("frontlineSignaturePad")) crm.initializeSignaturePad();
-  afterIdScanRender();
 }
 
 // ---------------------------------------------------------------------------------------------
 // Scan ID (Phase 25 A.3b)
 // ---------------------------------------------------------------------------------------------
 //
+// Reading the licence (live camera, or a photo of the back) is field/idscan.js's scanLicence(),
+// shared with the forms' "Driver's licence scan" field since 2026-10-01: it opens its own sheet and
+// resolves with the parsed licence. This panel then shows the check-in.
 // crm.state.fieldIdScan holds only what the panel shows -- never the licence number:
-//   { jobId, forKey: {employeeId}|null, stage: "choose"|"camera"|"reading"|"sending"|"confirm"|"done",
-//     live: bool, error, licence: {displayName, idLast4, idState, idExpiry, expired}, warning,
+//   { jobId, forKey: {employeeId}|null, stage: "sending"|"confirm"|"done",
+//     error, licence: {displayName, idLast4, idState, idExpiry, expired}, warning,
 //     suggestions, canLink, offline, result }
 // The decoded licence (number included) lives in `pendingLicence`, in memory, until the scan command
 // has been answered or queued, or the panel is closed.
 
 let pendingLicence = null;
-let scanStream = null;
-let scanTimer = 0;
-let scanFix = null;
-let liveSupport = null;
-let zxingPromise = null;
+let pendingPosition = null;
 
 function scanState() {
   return crm.state.fieldIdScan || null;
@@ -455,162 +455,33 @@ function setScan(patch) {
 }
 
 function closeScan() {
-  stopScanCamera();
   pendingLicence = null;
-  scanFix = null;
+  pendingPosition = null;
   crm.state.fieldIdScan = null;
   crm.render();
 }
 
-async function liveScanSupported() {
-  if (liveSupport !== null) return liveSupport;
-  try {
-    liveSupport = Boolean(
-      window.BarcodeDetector && navigator.mediaDevices?.getUserMedia && (await window.BarcodeDetector.getSupportedFormats()).includes("pdf417"),
-    );
-  } catch {
-    liveSupport = false;
+// Opens the scanner; once a licence is read, the panel takes over (sending -> confirm/done).
+async function startIdScan(jobId, forKey) {
+  pendingLicence = null;
+  pendingPosition = null;
+  if (crm.state.fieldIdScan) {
+    crm.state.fieldIdScan = null;
+    crm.render();
   }
-  return liveSupport;
+  const forName = forKey?.employeeId ? crm.findEmployee(forKey.employeeId)?.displayName || "" : "";
+  const scanned = await scanLicence({ title: `Scan ID${forName ? ` — ${forName}` : ""}`, captureGps: true });
+  if (!scanned) return;
+  crm.state.fieldIdScan = { jobId, forKey, stage: "sending", error: "", licence: null, warning: "", suggestions: [], canLink: false, result: null };
+  pendingPosition = scanned.position;
+  await handleScannedLicence(scanned.licence, scanned.summary);
+  document.querySelector("[data-id-scan]")?.scrollIntoView({ block: "center" });
 }
 
-// A GPS fix for the check-in: started when the scan opens, so it is usually ready by the time the
-// barcode is read. A denied permission or a timeout just means no position on the row.
-function startScanFix() {
-  scanFix = { value: null, promise: null };
-  const holder = scanFix;
-  if (!navigator.geolocation) {
-    holder.promise = Promise.resolve(null);
-    return;
-  }
-  holder.promise = new Promise((resolve) => {
-    let settled = false;
-    const finish = (value) => {
-      if (settled) return;
-      settled = true;
-      holder.value = value;
-      resolve(value);
-    };
-    navigator.geolocation.getCurrentPosition(
-      (position) => finish({ lat: position.coords.latitude, lng: position.coords.longitude, accuracyM: Math.round(position.coords.accuracy || 0) }),
-      () => finish(null),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
-    );
-    setTimeout(() => finish(null), 8000);
-  });
-}
-
-async function currentScanFix() {
-  if (!scanFix) return null;
-  if (scanFix.value) return scanFix.value;
-  return Promise.race([scanFix.promise, new Promise((resolve) => setTimeout(() => resolve(null), 3000))]);
-}
-
-function stopScanCamera() {
-  clearTimeout(scanTimer);
-  scanTimer = 0;
-  if (scanStream) scanStream.getTracks().forEach((track) => track.stop());
-  scanStream = null;
-}
-
-function loadZxing() {
-  if (zxingPromise) return zxingPromise;
-  zxingPromise = new Promise((resolve, reject) => {
-    if (window.ZXingWASM) {
-      resolve(window.ZXingWASM);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = new URL("../public/vendor/zxing/zxing-reader.js", import.meta.url).href;
-    script.onload = () => (window.ZXingWASM ? resolve(window.ZXingWASM) : reject(new Error("The barcode reader didn't load.")));
-    script.onerror = () => reject(new Error("The barcode reader couldn't be loaded. Open the app once with signal so this phone can keep it for offline use."));
-    document.head.appendChild(script);
-  }).then((zxing) => {
-    const wasmUrl = new URL("../public/vendor/zxing/zxing_reader.wasm", import.meta.url).href;
-    // The library would fetch its .wasm from a CDN; point it at the vendored (precached) copy.
-    zxing.prepareZXingModule({ overrides: { locateFile: (file, prefix) => (file.endsWith(".wasm") ? wasmUrl : prefix + file) }, fireImmediately: true });
-    return zxing;
-  });
-  zxingPromise.catch(() => {
-    zxingPromise = null;
-  });
-  return zxingPromise;
-}
-
-// A still photo of the back of the licence -> the barcode text. Read on the phone; never uploaded.
-async function decodeLicencePhoto(file) {
-  if (await liveScanSupported()) {
-    try {
-      const bitmap = await createImageBitmap(file);
-      const found = await new window.BarcodeDetector({ formats: ["pdf417"] }).detect(bitmap);
-      bitmap.close?.();
-      const text = found.find((item) => item.rawValue)?.rawValue;
-      if (text) return text;
-    } catch {
-      // fall through to zxing
-    }
-  }
-  const zxing = await loadZxing();
-  const options = { formats: ["PDF417"], tryHarder: true, tryRotate: true, tryInvert: true, tryDownscale: true, textMode: "Plain", maxNumberOfSymbols: 1 };
-  const read = async (input) => (await zxing.readBarcodes(input, options)).find((item) => item.isValid && item.text)?.text || "";
-  const direct = await read(file);
-  if (direct) return direct;
-  // zxing's PDF417 reader gives up on a barcode tilted more than ~3 degrees (tested 2026-09-29), and a
-  // hand-held photo is rarely square: straighten it in 3-degree steps, both ways, up to 15 degrees.
-  let bitmap;
-  try {
-    bitmap = await createImageBitmap(file);
-  } catch {
-    return "";
-  }
-  const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
-  const width = Math.round(bitmap.width * scale);
-  const height = Math.round(bitmap.height * scale);
-  try {
-    for (const degrees of [-3, 3, -6, 6, -9, 9, -12, 12, -15, 15]) {
-      const radians = (degrees * Math.PI) / 180;
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.ceil(Math.abs(width * Math.cos(radians)) + Math.abs(height * Math.sin(radians)));
-      canvas.height = Math.ceil(Math.abs(width * Math.sin(radians)) + Math.abs(height * Math.cos(radians)));
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      context.fillStyle = "#fff";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.translate(canvas.width / 2, canvas.height / 2);
-      context.rotate(radians);
-      context.drawImage(bitmap, -width / 2, -height / 2, width, height);
-      const text = await read(context.getImageData(0, 0, canvas.width, canvas.height));
-      if (text) return text;
-    }
-  } finally {
-    bitmap.close?.();
-  }
-  return "";
-}
-
-function licenceSummary(licence) {
-  return {
-    displayName: licence.displayName,
-    idLast4: String(licence.licenceNumber || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(-4),
-    idState: licence.state,
-    idExpiry: licence.expiry,
-    expired: Boolean(licence.expiry) && licence.expiry < new Date().toISOString().slice(0, 10),
-  };
-}
-
-async function handleDecodedText(text) {
+async function handleScannedLicence(licence, summary) {
   const scan = scanState();
   if (!scan) return;
-  const licence = parseAamva(text);
-  if (!licence) {
-    setScan({ stage: scan.live ? "camera" : "choose", error: "That barcode isn't a driver's licence. Scan the large barcode on the back of the licence." });
-    return;
-  }
-  if (!licence.state) {
-    setScan({ stage: "choose", error: "The licence's issuing state couldn't be read. Try again, or mark the person arrived by hand." });
-    return;
-  }
   pendingLicence = licence;
-  const summary = licenceSummary(licence);
   setScan({ stage: "sending", error: "", licence: summary, warning: summary.expired ? `This licence expired on ${crm.formatDate(summary.idExpiry)}. Check them in, and follow up on a current licence.` : "" });
   const forKey = scan.forKey || null;
   // Offline, the phone can't ask the server who this is: the lead says who it is first, then the scan
@@ -661,7 +532,7 @@ async function sendScan(decision) {
   if (!job) return closeScan();
   const { date, briefing } = crm.briefingReadiness(job);
   const briefingId = briefing?.id || crm.makeId("job-safety-briefing");
-  const fix = await currentScanFix();
+  const fix = pendingPosition ? await pendingPosition() : null;
   const body = {
     licenceNumber: licence.licenceNumber,
     idState: licence.state,
@@ -761,24 +632,8 @@ function renderIdScanPanel(job) {
   const warning = scan.warning ? `<p class="field-gap" data-id-scan-warning>${crm.escapeHtml(scan.warning)}</p>` : "";
   const error = scan.error ? `<p class="field-gap" data-id-scan-error>${crm.escapeHtml(scan.error)}</p>` : "";
   const header = `<div class="field-card-row"><strong>Scan ID${forName ? ` — ${crm.escapeHtml(forName)}` : ""}</strong><button class="mini-button" type="button" data-field-action="field-id-scan-cancel">${scan.stage === "done" ? "Close" : "Cancel"}</button></div>`;
-  const photoButton = `
-    <label class="field-button field-button--secondary field-id-photo">Take a photo of the back of the licence
-      <input type="file" id="fieldIdScanPhoto" class="field-visually-hidden" accept="image/*" capture="environment" />
-    </label>`;
   let bodyHtml = "";
-  if (scan.stage === "camera") {
-    bodyHtml = `
-      <video id="fieldIdScanVideo" class="field-id-video" playsinline muted autoplay></video>
-      <small class="field-card-sub">Hold the barcode on the back of the licence flat inside the frame.</small>
-      ${photoButton}`;
-  } else if (scan.stage === "choose") {
-    bodyHtml = `
-      ${scan.live === false ? `<small class="field-card-sub">Live scanning isn't available on this phone. Take a clear, close photo of the barcode on the back instead.</small>` : ""}
-      ${scan.live ? `<button class="field-button" type="button" data-field-action="field-id-scan-camera">Use the camera</button>` : ""}
-      ${photoButton}`;
-  } else if (scan.stage === "reading") {
-    bodyHtml = `<p class="field-card-sub">Reading the barcode…</p>`;
-  } else if (scan.stage === "sending") {
+  if (scan.stage === "sending") {
     bodyHtml = `${licenceLine}<p class="field-card-sub">Checking them in…</p>`;
   } else if (scan.stage === "confirm") {
     const suggestions = scan.suggestions || [];
@@ -832,83 +687,18 @@ function renderIdScanPanel(job) {
       ${warning}
       ${error}
       ${bodyHtml}
-      ${scan.stage === "choose" || scan.stage === "camera" ? `<small class="field-card-sub">Only the name, issuing state, last 4 digits and expiry are kept. The photo never leaves this phone.</small>` : ""}
     </section>
   `;
 }
 
-function afterIdScanRender() {
-  const scan = scanState();
-  if (!scan || scan.stage !== "camera") {
-    if (scanStream) stopScanCamera();
-    return;
-  }
-  const video = document.getElementById("fieldIdScanVideo");
-  if (!video) return;
-  if (scanStream) {
-    if (video.srcObject !== scanStream) {
-      video.srcObject = scanStream;
-      video.play().catch(() => {});
-    }
-    return;
-  }
-  startScanCamera();
-}
-
-async function startScanCamera() {
-  try {
-    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
-  } catch {
-    scanStream = null;
-    setScan({ stage: "choose", live: false, error: "The camera couldn't be opened. Take a photo of the back of the licence instead." });
-    return;
-  }
-  const detector = new window.BarcodeDetector({ formats: ["pdf417"] });
-  const tick = async () => {
-    if (!scanStream) return;
-    const video = document.getElementById("fieldIdScanVideo");
-    if (!video) {
-      stopScanCamera();
-      return;
-    }
-    if (video.srcObject !== scanStream) {
-      video.srcObject = scanStream;
-      video.play().catch(() => {});
-    }
-    try {
-      if (video.readyState >= 2) {
-        const found = await detector.detect(video);
-        const text = found.find((item) => item.rawValue)?.rawValue;
-        if (text) {
-          stopScanCamera();
-          await handleDecodedText(text);
-          return;
-        }
-      }
-    } catch {
-      // a frame the detector couldn't read; keep going
-    }
-    scanTimer = setTimeout(tick, 250);
-  };
-  tick();
-}
-
 registerFieldAction("field-id-scan-start", async (button) => {
-  stopScanCamera();
-  pendingLicence = null;
-  const live = await liveScanSupported();
   const forKey = button.dataset.employeeId ? { employeeId: button.dataset.employeeId } : null;
-  crm.state.fieldIdScan = { jobId: button.dataset.jobId, forKey, stage: live ? "camera" : "choose", live, error: "", licence: null, warning: "", suggestions: [], canLink: false, result: null };
-  startScanFix();
-  crm.render();
-  document.querySelector("[data-id-scan]")?.scrollIntoView({ block: "center" });
+  await startIdScan(button.dataset.jobId, forKey);
 });
-registerFieldAction("field-id-scan-camera", () => setScan({ stage: "camera", error: "" }));
 registerFieldAction("field-id-scan-cancel", () => closeScan());
-registerFieldAction("field-id-scan-again", () => {
-  pendingLicence = null;
-  startScanFix();
-  setScan({ stage: scanState()?.live ? "camera" : "choose", error: "", licence: null, warning: "", suggestions: [], result: null, offline: false });
+registerFieldAction("field-id-scan-again", async () => {
+  const jobId = scanState()?.jobId || "";
+  if (jobId) await startIdScan(jobId, null);
 });
 registerFieldAction("field-id-scan-link", async (button) => {
   await sendScan({ employeeId: button.dataset.employeeId });
@@ -923,27 +713,6 @@ registerFieldForm("field-id-scan-link-other", async (form) => {
     return;
   }
   await sendScan({ employeeId });
-});
-
-document.addEventListener("change", async (event) => {
-  const input = event.target.closest?.("#fieldIdScanPhoto");
-  if (!input || !input.files?.[0]) return;
-  const file = input.files[0];
-  input.value = "";
-  stopScanCamera();
-  setScan({ stage: "reading", error: "" });
-  let text = "";
-  try {
-    text = await decodeLicencePhoto(file);
-  } catch (error) {
-    setScan({ stage: "choose", error: error?.message || "The photo couldn't be read." });
-    return;
-  }
-  if (!text) {
-    setScan({ stage: "choose", error: "No licence barcode found in that photo. Fill the frame with the barcode on the back, in good light, and try again." });
-    return;
-  }
-  await handleDecodedText(text);
 });
 
 // ---------------------------------------------------------------------------------------------
