@@ -490,7 +490,7 @@ async function loadRemovedJobIds() {
 }
 
 // Collections whose rows belong to one dispatch job (by jobId or dispatchJobId).
-const JOB_CHILD_COLLECTIONS = ["jobSteps", "jobActions", "jobAssignments", "jobResources", "jobStatusEvents", "jobTaskAttachments", "jobFormSubmissions", "jobSafetyBriefings", "jobEquipmentUsage", "jobMileageEntries", "projectAlerts", "messages", "sampleRecords", "weatherSnapshots", "wasteRecords"];
+const JOB_CHILD_COLLECTIONS = ["jobSteps", "jobActions", "jobAssignments", "jobResources", "jobStatusEvents", "jobTaskAttachments", "jobFormSubmissions", "jobSafetyBriefings", "jobEquipmentUsage", "jobVendorUsage", "jobMileageEntries", "projectAlerts", "messages", "sampleRecords", "weatherSnapshots", "wasteRecords"];
 
 function withoutJobs(backend, ids) {
   if (!backend || !ids?.size) return backend;

@@ -258,6 +258,8 @@ const collectionAccess = {
   // the domains below are for office roles.
   jobSafetyBriefings: "dispatch",
   jobEquipmentUsage: "dispatch",
+  // 2026-10-01: subcontractor / vendor services recorded on a job action form.
+  jobVendorUsage: "dispatch",
   formTemplates: "dispatch",
   siteWalkReports: "sales",
   siteWalkObservations: "sales",
@@ -2156,6 +2158,8 @@ const defaultBackend = {
   // the same pattern ensureDocumentTypes already uses for documentTypeSeed.
   jobSafetyBriefings: [],
   jobEquipmentUsage: [],
+  // 2026-10-01: vendor / subcontractor services used on a job, written by applyFormSubmissionUsage.
+  jobVendorUsage: [],
   formTemplates: [],
   siteWalkReports: [],
   siteWalkObservations: [],
@@ -2256,6 +2260,220 @@ const FORM_LABEL_STYLES = ["heading", "note", "warning"];
 // Mirrors who can edit Job Templates: the office dispatch roles. Field sessions never write here.
 const FORM_TEMPLATE_WRITE_ROLES = ["Admin", "Office Manager", "Operations Manager", "Scheduler"];
 
+// ---- 2026-10-01 (owner): "used on site" fields on job action forms --------------------------------
+// Four list-of-rows field types. A form holding any of them is always tied to a job (requiresJob is
+// forced on save, and a submission without a job is refused); the rows are recorded into the job's
+// usage collections when the submission is saved (applyFormSubmissionUsage), once per row.
+const FORM_USAGE_FIELD_TYPES = ["materialsUsed", "equipmentUsed", "wasteGenerated", "vendorServices"];
+FORM_FIELD_TYPES.push(...FORM_USAGE_FIELD_TYPES);
+const FORM_USAGE_EQUIPMENT_CONDITIONS = ["Good", "Needs service", "Damaged"];
+// Mirrors app.js WASTE_CLASSIFICATIONS / WASTE_CONTAINER_TYPES / WASTE_UNITS (the waste log's lists).
+const FORM_USAGE_WASTE_CLASSIFICATIONS = ["Non-hazardous (Class 2)", "Non-hazardous (Class 1)", "Hazardous (RCRA)", "Used oil", "Oily water / oily waste", "Universal waste", "Pending profile"];
+const FORM_USAGE_WASTE_UNITS = ["gal", "yd³", "lb", "ton", "drums", "bags"];
+
+function normalizeFormUsageFieldConfig(type, source) {
+  const categories = formStringList(source.categories, 100);
+  if (type === "materialsUsed") return { categories, allowWriteIn: source.allowWriteIn !== false, minRows: Math.max(0, Math.min(50, Math.round(formNumberOrNull(source.minRows) ?? 0))) };
+  if (type === "equipmentUsed") return { categories, defaultBasis: source.defaultBasis === "days" ? "days" : "hours", minRows: Math.max(0, Math.min(50, Math.round(formNumberOrNull(source.minRows) ?? 0))) };
+  if (type === "wasteGenerated") return { defaultUnit: FORM_USAGE_WASTE_UNITS.includes(source.defaultUnit) ? source.defaultUnit : "gal", minRows: Math.max(0, Math.min(50, Math.round(formNumberOrNull(source.minRows) ?? 0))) };
+  if (type === "vendorServices") return { askCost: source.askCost !== false, minRows: Math.max(0, Math.min(50, Math.round(formNumberOrNull(source.minRows) ?? 0))) };
+  return {};
+}
+
+// What the field projection sends for a form's pickers (see fieldProjections accounts/inventoryItems).
+function fieldVendorAccounts(data) {
+  const profiled = new Set((data.vendorProfiles || []).filter((row) => !row.deletedAt).map((row) => row.accountId));
+  const related = new Set((data.accountRelationshipExtensions || []).filter((row) => !row.deletedAt && (row.isVendor || row.isSubcontractor)).map((row) => row.accountId));
+  return (data.accounts || []).filter((row) => !row.deletedAt && (row.accountType === "Vendor" || profiled.has(row.id) || related.has(row.id)));
+}
+
+function inventoryItemCategory(data, item) {
+  if (item?.category) return item.category;
+  const product = item?.productId ? (data.products || []).find((row) => row.id === item.productId) : null;
+  return product?.category || "";
+}
+
+function formUsageFields(template) {
+  return (Array.isArray(template?.fields) ? template.fields : []).filter((field) => FORM_USAGE_FIELD_TYPES.includes(field?.type));
+}
+
+function formUsageNumber(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+// Records a submission's "used on site" rows into the job: materials through consumeJobMaterials (the
+// Material task's own path -- stock, ledger, alerts), equipment -> jobEquipmentUsage, waste ->
+// wasteRecords, vendor services -> jobVendorUsage. Every written row carries formSubmissionId +
+// formFieldRef + formRowId, and a row whose key is already on file (in any state, deleted too) is
+// skipped -- so the phone's second save (photo ids), an outbox replay or an office re-save never
+// records anything twice. Validates everything before changing anything. Stock never refuses a form:
+// a row that takes an item below zero is recorded and raises an inventoryAlerts row (the phone asked
+// the worker first; an offline submission can't be sent back for that).
+// Returns null (nothing to do), { status, error }, or { applied, alerts, summary }.
+function applyFormSubmissionUsage(data, record, stored, request) {
+  const template = (data.formTemplates || []).find((item) => item.id === record.formTemplateId);
+  const fields = formUsageFields(template);
+  if (!fields.length) return null;
+  const payload = record.payload && typeof record.payload === "object" ? record.payload : {};
+  const rowsOf = (field) => (Array.isArray(payload[field.fieldRef]) ? payload[field.fieldRef] : []).filter((row) => row && typeof row === "object");
+  const hasRows = fields.some((field) => rowsOf(field).length);
+  // A deferred timesheet form ("Not now") has no answers to record.
+  if (record.deferred && !hasRows) return null;
+  const formName = String(template.displayName || template.name || "This form");
+  const job = record.jobId ? (data.dispatchJobs || []).find((item) => item.id === record.jobId && !item.deletedAt) : null;
+  if (!job) return { status: 400, error: `"${formName}" records what was used on site, so it has to be tied to a job. Pick the job it is for.` };
+
+  const keyOf = (fieldRef, rowId) => `${fieldRef}|${rowId}`;
+  const doneKeys = (collection) => new Set((data[collection] || []).filter((row) => row.formSubmissionId === record.id).map((row) => keyOf(row.formFieldRef, row.formRowId)));
+  const done = {
+    jobResources: doneKeys("jobResources"),
+    jobEquipmentUsage: doneKeys("jobEquipmentUsage"),
+    wasteRecords: doneKeys("wasteRecords"),
+    jobVendorUsage: doneKeys("jobVendorUsage"),
+  };
+  const by = attribution(request) || String(record.submittedBy || "");
+  const at = new Date().toISOString();
+  const operationalDate = job.operationalDate || serverLocalIsoDate(record.submittedAt || at) || serverLocalIsoDate(new Date());
+  const stamp = (field, rowId) => ({ formSubmissionId: record.id, formFieldRef: field.fieldRef, formRowId: rowId, formName, actionId: record.actionId || "" });
+  const text = (value, max = 200) => String(value ?? "").trim().slice(0, max);
+
+  // Plan every row first (validation can still refuse the whole save here).
+  const materialItems = [];
+  const equipmentRows = [];
+  const wasteRows = [];
+  const vendorRows = [];
+  for (const field of fields) {
+    rowsOf(field).forEach((row, index) => {
+      const rowId = text(row.rowId, 80) || `r${index + 1}`;
+      const key = keyOf(field.fieldRef, rowId);
+      if (field.type === "materialsUsed") {
+        if (done.jobResources.has(key)) return;
+        materialItems.push({ row, rowId, field });
+      } else if (field.type === "equipmentUsed") {
+        if (!done.jobEquipmentUsage.has(key)) equipmentRows.push({ row, rowId, field });
+      } else if (field.type === "wasteGenerated") {
+        if (!done.wasteRecords.has(key)) wasteRows.push({ row, rowId, field });
+      } else if (field.type === "vendorServices") {
+        if (!done.jobVendorUsage.has(key)) vendorRows.push({ row, rowId, field });
+      }
+    });
+  }
+  for (const { row, field } of equipmentRows) {
+    const hours = formUsageNumber(row.hours);
+    const days = formUsageNumber(row.days);
+    if (!text(row.assetId) && !text(row.assetTag) && !text(row.assetLabel)) return { status: 400, error: `${field.displayName}: a row has no equipment picked.` };
+    if ((hours !== null && hours < 0) || (days !== null && days < 0)) return { status: 400, error: `${field.displayName}: hours and days cannot be negative.` };
+  }
+  for (const { row, field } of wasteRows) {
+    const quantity = formUsageNumber(row.quantity);
+    const count = formUsageNumber(row.containerCount);
+    if (quantity === null && count === null) return { status: 400, error: `${field.displayName}: a row needs a quantity or a container count.` };
+    if ((quantity !== null && quantity < 0) || (count !== null && count < 0)) return { status: 400, error: `${field.displayName}: quantities cannot be negative.` };
+  }
+  for (const { row, field } of vendorRows) {
+    if (!text(row.vendorAccountId) && !text(row.vendorName)) return { status: 400, error: `${field.displayName}: a row has no vendor or subcontractor picked.` };
+    const cost = formUsageNumber(row.cost);
+    if (cost !== null && cost < 0) return { status: 400, error: `${field.displayName}: a cost cannot be negative.` };
+  }
+
+  // Materials: the Material task's own path. A row whose item has since been deleted is kept as a
+  // write-in under the name the phone showed, rather than losing what was used.
+  let materials = { resources: [], alerts: [] };
+  if (materialItems.length) {
+    const items = materialItems.map(({ row, rowId, field }) => {
+      const inventoryItem = row.inventoryItemId ? (data.inventoryItems || []).find((item) => item.id === row.inventoryItemId && !item.deletedAt) : null;
+      const base = { quantity: row.quantity, force: true, stamp: { ...stamp(field, rowId), note: text(row.note, 500) } };
+      if (inventoryItem) return { ...base, inventoryItemId: inventoryItem.id };
+      return { ...base, writeInName: text(row.writeInName || row.itemLabel, 120) || "Unlisted item", unit: text(row.unit, 20) };
+    });
+    materials = consumeJobMaterials(data, { jobId: job.id, actionId: record.actionId || "", items, by, at, allowNegative: true, refType: "formSubmission", refId: record.id });
+    if (materials.error) return { status: materials.status || 400, error: materials.error };
+  }
+
+  for (const collection of ["jobEquipmentUsage", "wasteRecords", "jobVendorUsage"]) if (!Array.isArray(data[collection])) data[collection] = [];
+  const equipment = equipmentRows.map(({ row, rowId, field }) => {
+    const asset = (data.equipmentAssets || []).find((item) => (row.assetId && item.id === row.assetId) || (row.assetTag && item.assetTag === row.assetTag)) || null;
+    const usage = {
+      id: makeId("equip-usage"),
+      jobId: job.id,
+      assetTag: asset?.assetTag || text(row.assetTag, 60) || text(row.assetLabel, 120),
+      assetId: asset?.id || "",
+      operationalDate,
+      hours: formUsageNumber(row.hours),
+      days: formUsageNumber(row.days),
+      condition: FORM_USAGE_EQUIPMENT_CONDITIONS.includes(row.condition) ? row.condition : "Good",
+      note: text(row.note, 500),
+      by,
+      capturedAt: at,
+      ...stamp(field, rowId),
+    };
+    touchRecord(usage);
+    data.jobEquipmentUsage.push(usage);
+    return usage;
+  });
+
+  const waste = wasteRows.map(({ row, rowId, field }) => {
+    const wasteRecord = {
+      id: makeId("waste"),
+      projectId: job.projectId || "",
+      dispatchJobId: job.id,
+      description: text(row.description, 120) || text(row.classification, 60) || "Waste",
+      classification: FORM_USAGE_WASTE_CLASSIFICATIONS.includes(row.classification) ? row.classification : "Pending profile",
+      containerType: text(row.containerType, 60),
+      containerCount: formUsageNumber(row.containerCount),
+      quantity: formUsageNumber(row.quantity),
+      unit: text(row.unit, 20),
+      manifestNumber: "",
+      status: "Accumulating",
+      accumulationStartedOn: operationalDate,
+      notes: text(row.note, 1000),
+      createdAt: at,
+      createdBy: by,
+      ...stamp(field, rowId),
+    };
+    touchRecord(wasteRecord);
+    data.wasteRecords.push(wasteRecord);
+    return wasteRecord;
+  });
+
+  const vendors = vendorRows.map(({ row, rowId, field }) => {
+    const account = row.vendorAccountId ? (data.accounts || []).find((item) => item.id === row.vendorAccountId) : null;
+    const usage = {
+      id: makeId("vendor-usage"),
+      jobId: job.id,
+      projectId: job.projectId || "",
+      vendorAccountId: account?.id || "",
+      vendorName: account?.name || text(row.vendorName, 120),
+      service: text(row.service, 200),
+      quantity: formUsageNumber(row.quantity),
+      unit: text(row.unit, 20),
+      cost: formUsageNumber(row.cost),
+      note: text(row.note, 500),
+      operationalDate,
+      by,
+      capturedAt: at,
+      ...stamp(field, rowId),
+    };
+    touchRecord(usage);
+    data.jobVendorUsage.push(usage);
+    return usage;
+  });
+
+  // Server-owned: when the rows were first recorded and how many. A client re-save never carries them.
+  const applied = materials.resources.length + equipment.length + waste.length + vendors.length;
+  if (stored?.usageAppliedAt) record.usageAppliedAt = stored.usageAppliedAt;
+  else delete record.usageAppliedAt;
+  record.usageRowCount = Number(stored?.usageRowCount || 0) + applied;
+  if (applied && !record.usageAppliedAt) record.usageAppliedAt = at;
+  return {
+    applied,
+    alerts: materials.alerts.length,
+    summary: `${materials.resources.length} material, ${equipment.length} equipment, ${waste.length} waste, ${vendors.length} vendor row(s) from ${formName}`,
+  };
+}
+
 function formFieldRefSlug(value) {
   const slug = String(value || "")
     .normalize("NFKD")
@@ -2345,6 +2563,7 @@ function formStringList(values, limit = 500) {
 
 function normalizeFormFieldConfig(type, config, legacy) {
   const source = config && typeof config === "object" ? config : {};
+  if (FORM_USAGE_FIELD_TYPES.includes(type)) return normalizeFormUsageFieldConfig(type, source);
   const decimals = (value, fallback) => {
     const number = formNumberOrNull(value);
     return number === null ? fallback : Math.min(6, Math.max(0, Math.round(number)));
@@ -2492,6 +2711,8 @@ function normalizeFormTemplateWrite(data, body, stored, actor) {
     createdAt: stored?.createdAt || body.createdAt || new Date().toISOString(),
     createdBy: stored?.createdBy || String(body.createdBy || actor || "").slice(0, 120),
   };
+  // 2026-10-01: a form that records what was used on site is always tied to a job.
+  if (formUsageFields(record).length) record.requiresJob = true;
   // A save never undeletes: archive and restore go through the soft-delete route.
   for (const key of ["deletedAt", "deletedBy", "deletedVia", "restoredAt", "restoredBy"]) if (stored?.[key]) record[key] = stored[key];
   return { record };
@@ -2660,6 +2881,7 @@ const cascadeRules = {
     ["jobMileageEntries", "dispatchJobId"],
     ["jobSafetyBriefings", "jobId"],
     ["jobEquipmentUsage", "jobId"],
+    ["jobVendorUsage", "jobId"],
   ],
   // Phase 21 (Front Line 2, 2026-09-25): deleting a site-walk schedule event takes its report and
   // observations with it (they exist only to describe that one walk) -- both key off the event's own
@@ -3196,6 +3418,7 @@ function filterBackendForRoleUnstripped(data, role, session = null) {
     // Phase 21 (Front Line 2). Field sessions are narrowed by fieldProjections (W1).
     jobSafetyBriefings: canAccess(role, "dispatch") ? data.jobSafetyBriefings : [],
     jobEquipmentUsage: canAccess(role, "dispatch") || canAccess(role, "finance") ? data.jobEquipmentUsage : [],
+    jobVendorUsage: canAccess(role, "dispatch") || canAccess(role, "finance") ? data.jobVendorUsage : [],
     formTemplates: canAccess(role, "dispatch") ? data.formTemplates : [],
     siteWalkReports: canAccess(role, "sales") || canAccess(role, "operations") ? data.siteWalkReports : [],
     siteWalkObservations: canAccess(role, "sales") || canAccess(role, "operations") ? data.siteWalkObservations : [],
@@ -3297,6 +3520,9 @@ const fieldProjections = {
   wasteRecords: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
   jobSafetyBriefings: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
   jobEquipmentUsage: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  jobVendorUsage: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.jobId) },
+  // 2026-10-01: a form's vendor-services picker lists the customer's approved subcontractors first.
+  accountApprovedSubcontractors: { fields: ["id", "accountId", "subcontractorAccountId", "status", "approvedScope"], where: (row, ctx) => ctx.myAccountIds.has(row.accountId) },
   weatherSnapshots: { fields: "*", where: (row, ctx) => ctx.myJobIds.has(row.dispatchJobId) },
   spatialData: { fields: "*", where: (row, ctx) => ctx.myProjectIds.has(row.projectId) },
   locations: { fields: "*", where: (row, ctx) => ctx.myProjectIds.has(row.projectId) || ctx.myWalkEventIds.has(row.scheduleEventId) },
@@ -3307,7 +3533,15 @@ const fieldProjections = {
     where: (row, ctx) => ctx.myFacilityIds.has(row.id),
   },
   facilityContacts: { fields: "*", where: (row, ctx) => ctx.myFacilityIds.has(row.facilityId) },
-  accounts: { fields: ["id", "name", "phone", "website", "addressLine1", "addressLine2", "city", "state", "postalCode"], where: (row, ctx) => ctx.myAccountIds.has(row.id) },
+  accounts: {
+    fields: ["id", "name", "phone", "website", "addressLine1", "addressLine2", "city", "state", "postalCode"],
+    where: (row, ctx) => ctx.myAccountIds.has(row.id),
+    // 2026-10-01: a form's "Subcontractor / vendor services" picker -- every vendor/subcontractor, by name only.
+    extra: (rows, ctx) => {
+      const seen = new Set(rows.map((row) => row.id));
+      return rows.concat(fieldVendorAccounts(ctx.data).filter((row) => !seen.has(row.id)).map((row) => ({ id: row.id, name: row.name, isVendor: true })));
+    },
+  },
   contacts: { fields: ["id", "fullName", "firstName", "lastName", "title", "phone", "mobilePhone", "email", "accountId"], where: (row, ctx) => ctx.myAccountIds.has(row.accountId) },
   documents: { fields: "*", where: (row, ctx) => documentBelongsToFieldContext(row, ctx) },
   documentTypes: { fields: "*", where: () => true },
@@ -3335,7 +3569,9 @@ const fieldProjections = {
             .map((item) => pickFields(item, ["id", "displayName", "jobTitle", "employmentStatus"])),
         ),
   },
-  inventoryItems: { fields: ["id", "materialType", "name", "unit", "onHand", "productId", "category"], where: () => true },
+  // 2026-10-01: `category` falls back to the rate-sheet section of the item's product (inventory rows
+  // carry none of their own), so a form's "Consumables & PPE used" field can show only PPE, say.
+  inventoryItems: { fields: ["id", "materialType", "name", "unit", "onHand", "productId", "category"], where: () => true, extra: (rows, ctx) => rows.map((row) => (row.category ? row : { ...row, category: inventoryItemCategory(ctx.data, row) })) },
   // Phase 25 Wave F (2026-09-30): `equipment` (the asset's name) and `specs` (mileage) for a form's
   // odometer field -- the vehicle picker and the "lower than the last reading" warning.
   equipmentAssets: { fields: ["id", "assetTag", "name", "equipment", "category", "status", "specs"], where: () => true },
@@ -4169,13 +4405,30 @@ async function handleJobTaskConsume(request, response, actionId) {
   const action = data.jobActions.find((item) => item.id === actionId);
   if (!action) return json(response, 404, { error: "Job task not found." });
 
-  if (data.jobResources.some((resource) => resource.actionId === actionId)) {
+  if (data.jobResources.some((resource) => resource.actionId === actionId && !resource.formSubmissionId)) {
     return json(response, 409, { error: "Materials were already consumed for this task." });
   }
 
   const items = Array.isArray(payload.items) ? payload.items : [];
   if (!items.length) return json(response, 400, { error: "Select at least one material to consume." });
 
+  const consumedBy = attribution(request);
+  const result = consumeJobMaterials(data, { jobId: action.jobId, actionId, items, by: consumedBy, at: new Date().toISOString(), refType: "jobAction", refId: actionId });
+  if (result.error) return json(response, result.status, { error: result.error, ...(result.extra || {}) });
+
+  await saveBackend(data);
+  await audit(request, { action: "consume", collection: "jobResources", recordId: actionId, summary: `${result.resources.length} material line(s)`, alertsRaised: result.alerts.length });
+  return json(response, 201, { resources: result.resources, alertsRaised: result.alerts.length });
+}
+
+// The one path that draws inventory down for field use (2026-10-01: shared by the Material task's
+// /consume route and job action forms' "Consumables & PPE used" fields). Validates every line before
+// mutating anything; the caller saves. Lines on the same item are checked against a running balance.
+//   items: [{ inventoryItemId | writeInName, quantity, unit?, force?, stamp? }]
+//     `stamp` -- extra fields copied onto the jobResources row (and the alert): a form row's keys.
+//   allowNegative -- never refuse for stock (a form: the phone already asked; offline can't be undone)
+// Returns { resources, alerts } or { status, error, extra }.
+function consumeJobMaterials(data, { jobId, actionId = "", items, by, at, allowNegative = false, refType = "jobAction", refId = "" }) {
   // Gap item "PPE quantity handling" (Phase 10, Part 2): logging usage must never silently block on
   // negative resulting inventory. A catalog line with `force: true` is allowed to go negative once
   // the field UI has already confirmed that with the worker; it produces an `inventoryAlerts` row so
@@ -4183,49 +4436,50 @@ async function handleJobTaskConsume(request, response, actionId) {
   // touches inventory, it is tracked as used regardless.
   const planned = [];
   const writeIns = [];
-  const alerts = [];
+  const balances = new Map();
   for (const entry of items) {
     if (entry.writeInName) {
       const quantity = Number(entry.quantity);
       if (!Number.isFinite(quantity) || quantity <= 0) {
-        return json(response, 400, { error: `Quantity for ${entry.writeInName} must be greater than zero.` });
+        return { status: 400, error: `Quantity for ${entry.writeInName} must be greater than zero.` };
       }
-      writeIns.push({ name: String(entry.writeInName).trim(), quantity, unit: String(entry.unit || "").trim() });
+      writeIns.push({ name: String(entry.writeInName).trim(), quantity, unit: String(entry.unit || "").trim(), stamp: entry.stamp || {} });
       continue;
     }
     const inventoryItem = data.inventoryItems.find((item) => item.id === entry.inventoryItemId);
-    if (!inventoryItem) return json(response, 404, { error: "A selected inventory item no longer exists." });
+    if (!inventoryItem) return { status: 404, error: "A selected inventory item no longer exists." };
     const quantity = Number(entry.quantity);
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      return json(response, 400, { error: `Quantity for ${inventoryItem.materialType} must be greater than zero.` });
+      return { status: 400, error: `Quantity for ${inventoryItem.materialType} must be greater than zero.` };
     }
-    const resultingBalance = Number(inventoryItem.onHand || 0) - quantity;
-    if (resultingBalance < 0 && !entry.force) {
-      return json(response, 409, {
+    const balanceBefore = balances.has(inventoryItem.id) ? balances.get(inventoryItem.id) : Number(inventoryItem.onHand || 0);
+    const resultingBalance = balanceBefore - quantity;
+    // The refusal is judged per line against stock on file, as it always was (the phone asks per
+    // line); the running balance decides whether an alert is raised, so two lines of one item that
+    // together go below zero are flagged too.
+    if (Number(inventoryItem.onHand || 0) - quantity < 0 && !entry.force && !allowNegative) {
+      return {
+        status: 409,
         error: `Only ${Number(inventoryItem.onHand || 0)} ${inventoryItem.unit} of ${inventoryItem.materialType} on hand.`,
-        wouldGoNegative: true,
-        onHand: Number(inventoryItem.onHand || 0),
-        unit: inventoryItem.unit,
-        materialType: inventoryItem.materialType,
-      });
+        extra: { wouldGoNegative: true, onHand: Number(inventoryItem.onHand || 0), unit: inventoryItem.unit, materialType: inventoryItem.materialType },
+      };
     }
-    if (resultingBalance < 0 && entry.force) {
-      alerts.push({ inventoryItem, quantity, resultingBalance });
-    }
-    planned.push({ inventoryItem, quantity });
+    balances.set(inventoryItem.id, resultingBalance);
+    planned.push({ inventoryItem, quantity, balanceBefore, resultingBalance, stamp: entry.stamp || {} });
   }
 
-  const consumedAt = new Date().toISOString();
-  const consumedBy = attribution(request);
   // A job action's jobId points at dispatchJobs, which carries the engagement/project it belongs to
   // -- resolved once here so every movement row from this consume gets both references.
-  const dispatchJob = data.dispatchJobs.find((job) => job.id === action.jobId);
-  const created = planned.map(({ inventoryItem, quantity }) => {
+  const dispatchJob = data.dispatchJobs.find((job) => job.id === jobId);
+  const resources = [];
+  const alerts = [];
+  if (!data.inventoryAlerts) data.inventoryAlerts = [];
+  planned.forEach(({ inventoryItem, quantity, balanceBefore, resultingBalance, stamp }) => {
     inventoryItem.onHand = Number(inventoryItem.onHand || 0) - quantity;
     touchRecord(inventoryItem);
     const resource = {
       id: makeId("job-resource"),
-      jobId: action.jobId,
+      jobId,
       actionId,
       inventoryItemId: inventoryItem.id,
       type: "Material",
@@ -4234,10 +4488,12 @@ async function handleJobTaskConsume(request, response, actionId) {
       quantity,
       unit: inventoryItem.unit || "",
       status: "Consumed",
-      consumedAt,
-      consumedBy,
+      consumedAt: at,
+      consumedBy: by,
+      ...stamp,
     };
     data.jobResources.push(resource);
+    resources.push(resource);
     // Phase 11 (2026-09-23): write-in lines have no inventory item and never touch stock, so only
     // real catalog lines get a ledger row.
     appendInventoryMovement(data, {
@@ -4245,19 +4501,36 @@ async function handleJobTaskConsume(request, response, actionId) {
       quantityDelta: -quantity,
       balanceAfter: inventoryItem.onHand,
       reason: "field-usage",
-      refType: "jobAction",
-      refId: actionId,
-      dispatchJobId: action.jobId,
+      refType,
+      refId: refId || actionId,
+      dispatchJobId: jobId,
       projectId: dispatchJob?.projectId || "",
-      occurredAt: consumedAt,
-      by: consumedBy,
+      occurredAt: at,
+      by,
     });
-    return resource;
+    if (resultingBalance < 0) {
+      const alert = {
+        id: makeId("inventory-alert"),
+        inventoryItemId: inventoryItem.id,
+        materialType: inventoryItem.materialType,
+        jobId,
+        actionId,
+        requestedQuantity: quantity,
+        onHandAtRequest: balanceBefore,
+        resultingBalance,
+        requestedBy: by,
+        status: "Open",
+        createdAt: at,
+        ...(stamp.formSubmissionId ? { formSubmissionId: stamp.formSubmissionId, formName: stamp.formName || "" } : {}),
+      };
+      data.inventoryAlerts.push(alert);
+      alerts.push(alert);
+    }
   });
-  const createdWriteIns = writeIns.map((entry) => {
+  writeIns.forEach((entry) => {
     const resource = {
       id: makeId("job-resource"),
-      jobId: action.jobId,
+      jobId,
       actionId,
       inventoryItemId: "",
       type: "Material",
@@ -4267,32 +4540,14 @@ async function handleJobTaskConsume(request, response, actionId) {
       unit: entry.unit,
       status: "Consumed",
       writeIn: true,
-      consumedAt,
-      consumedBy,
+      consumedAt: at,
+      consumedBy: by,
+      ...entry.stamp,
     };
     data.jobResources.push(resource);
-    return resource;
+    resources.push(resource);
   });
-  if (!data.inventoryAlerts) data.inventoryAlerts = [];
-  alerts.forEach(({ inventoryItem, quantity, resultingBalance }) => {
-    data.inventoryAlerts.push({
-      id: makeId("inventory-alert"),
-      inventoryItemId: inventoryItem.id,
-      materialType: inventoryItem.materialType,
-      jobId: action.jobId,
-      actionId,
-      requestedQuantity: quantity,
-      onHandAtRequest: Number(inventoryItem.onHand || 0) + quantity,
-      resultingBalance,
-      requestedBy: consumedBy,
-      status: "Open",
-      createdAt: consumedAt,
-    });
-  });
-
-  await saveBackend(data);
-  await audit(request, { action: "consume", collection: "jobResources", recordId: actionId, summary: `${created.length + createdWriteIns.length} material line(s)`, alertsRaised: alerts.length });
-  return json(response, 201, { resources: [...created, ...createdWriteIns], alertsRaised: alerts.length });
+  return { resources, alerts };
 }
 
 // Phase 11 (2026-09-23): builds the exact payload a real Intuit QuickBooks Online "Invoice" create
@@ -6206,6 +6461,10 @@ async function handleApi(request, response, pathname) {
       const refusal = guardJobActionOptions(collection, record, stored, request);
       if (refusal) return json(response, 403, { error: refusal });
     }
+    // 2026-10-01: a job action form's "used on site" rows are recorded into the job in this same write
+    // (stock, equipment usage, waste, vendor services) -- once per row, however often it is re-saved.
+    const formUsage = collection === "jobFormSubmissions" ? applyFormSubmissionUsage(data, record, stored, request) : null;
+    if (formUsage?.error) return json(response, formUsage.status || 400, { error: formUsage.error });
     // Phase 11 (2026-09-23): manual onHand edits (the only other path that changes stock) get a
     // ledger row too, so the ledger stays the complete explanation for every onHand change. `body`
     // is the raw payload (pre-whitelist) so the transient adjustmentNote survives to here even though
@@ -6237,6 +6496,7 @@ async function handleApi(request, response, pathname) {
       await revokeSessions(auth, (session) => session.systemUserId === record.id, request.session?.name || "system");
     }
     await audit(request, { action: stored ? "update" : "create", collection, recordId: record.id, summary: recordSummary(record), changed: stored ? changedKeys(stored, record) : undefined });
+    if (formUsage?.applied) await audit(request, { action: "form-usage", collection, recordId: record.id, summary: formUsage.summary, alertsRaised: formUsage.alerts });
     const visibleRecord = withoutServerOnlyFields(collection, record);
     if (commandId) await recordCommandReceipt(commandId, 200, visibleRecord);
     return json(response, 200, visibleRecord);
