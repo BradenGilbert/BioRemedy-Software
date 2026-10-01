@@ -391,6 +391,7 @@ function renderBriefTab(job, project, account) {
 
     ${project ? renderIntakeCard(project) : ""}
     ${project ? renderScopeCard(project) : ""}
+    ${renderPlannedCard(job)}
 
     <section class="field-card">
       <div class="field-card-row"><strong>Assigned crew</strong></div>
@@ -478,6 +479,102 @@ function renderScopeCard(project) {
     </section>
   `;
 }
+
+// Pass 2 C (2026-10-01, owner: "No way to type in utilized or planned items") — the job's planned
+// equipment / labor / vendor notes and a free list of planned items, editable by the field lead right
+// next to the read-only Scope card. Crew see them read-only. Saved as a partial write on dispatchJobs
+// (the server lets a field session change only these fields); the office sees them on the dispatch
+// job's Details and Plan & resources tabs.
+function renderPlannedCard(job) {
+  const lead = isFieldLead(job, currentFieldEmployee());
+  const items = Array.isArray(job.plannedItems) ? job.plannedItems : [];
+  const noteRows = [
+    ["equipmentNotes", "Equipment"],
+    ["laborNotes", "Labor"],
+    ["vendorNotes", "Vendor / subcontractor"],
+  ];
+  const itemLine = (item) => `${crm.escapeHtml(item.name)}${item.qty !== "" && item.qty != null ? ` &times; ${crm.escapeHtml(String(item.qty))}${item.unit ? ` ${crm.escapeHtml(item.unit)}` : ""}` : ""}${item.note ? ` <small>${crm.escapeHtml(item.note)}</small>` : ""}`;
+  if (!lead) {
+    const filled = noteRows.filter(([key]) => job[key]);
+    if (!filled.length && !items.length) return "";
+    return `
+    <section class="field-card" data-tour="field-planned-card">
+      <div class="field-card-row"><strong>Planned</strong></div>
+      ${filled.map(([key, label]) => `<div class="field-card-row"><span>${label}</span><span>${crm.escapeHtml(job[key])}</span></div>`).join("")}
+      ${items.map((item) => `<div class="field-card-row"><span>${itemLine(item)}</span></div>`).join("")}
+    </section>`;
+  }
+  return `
+    <section class="field-card" data-tour="field-planned-card">
+      <div class="field-card-row"><strong>Planned</strong><small>The lead can edit this</small></div>
+      <form data-field-form="field-planned-notes-save">
+        <input type="hidden" name="jobId" value="${crm.escapeAttribute(job.id)}" />
+        ${noteRows.map(([key, label]) => `<label>${label} <textarea name="${key}" rows="2" maxlength="2000">${crm.escapeHtml(job[key] || "")}</textarea></label>`).join("")}
+        <button class="mini-button" type="submit">Save notes</button>
+      </form>
+      <div class="field-card-row"><strong>Planned items</strong></div>
+      ${
+        items
+          .map((item, index) => `<div class="field-card-row"><span>${itemLine(item)}</span><button class="mini-button" type="button" data-field-action="field-planned-item-remove" data-job-id="${crm.escapeAttribute(job.id)}" data-index="${index}">Remove</button></div>`)
+          .join("") || `<div class="empty-state compact">Nothing listed yet.</div>`
+      }
+      <form data-field-form="field-planned-item-add">
+        <input type="hidden" name="jobId" value="${crm.escapeAttribute(job.id)}" />
+        <label>Item <input name="name" maxlength="120" placeholder="e.g. Vac truck, 55-gal drums" required /></label>
+        <div class="form-grid">
+          <label>Qty <input type="number" name="qty" min="0" step="any" /></label>
+          <label>Unit <input name="unit" maxlength="30" placeholder="each, hrs, bags" /></label>
+        </div>
+        <label>Note <input name="note" maxlength="300" /></label>
+        <button class="mini-button" type="submit">Add planned item</button>
+      </form>
+    </section>`;
+}
+
+async function savePlannedFields(jobId, fields, label) {
+  const job = crm.findDispatchJob(jobId);
+  if (!job) return;
+  await fieldPackage.saveFieldRecord("dispatchJobs", { ...job, ...fields }, { kind: "planned-items", label });
+  crm.render();
+}
+
+registerFieldForm("field-planned-notes-save", async (form) => {
+  const data = new FormData(form);
+  const text = (name) => (data.get(name) || "").toString().trim();
+  try {
+    await savePlannedFields(data.get("jobId").toString(), { equipmentNotes: text("equipmentNotes"), laborNotes: text("laborNotes"), vendorNotes: text("vendorNotes") }, "Planned notes");
+    crm.showToast("Planned notes saved.");
+  } catch (error) {
+    crm.showToast(error.message || "Could not save the notes.");
+  }
+});
+
+registerFieldForm("field-planned-item-add", async (form) => {
+  const data = new FormData(form);
+  const jobId = data.get("jobId").toString();
+  const job = crm.findDispatchJob(jobId);
+  const name = (data.get("name") || "").toString().trim();
+  if (!job || !name) return;
+  const qty = crm.numberOrNull(data.get("qty"));
+  const item = { name, qty: qty == null ? "" : qty, unit: (data.get("unit") || "").toString().trim(), note: (data.get("note") || "").toString().trim() };
+  try {
+    await savePlannedFields(jobId, { plannedItems: [...(job.plannedItems || []), item] }, `Planned item — ${name}`);
+    crm.showToast("Planned item added.");
+  } catch (error) {
+    crm.showToast(error.message || "Could not add the item.");
+  }
+});
+
+registerFieldAction("field-planned-item-remove", async (button) => {
+  const job = crm.findDispatchJob(button.dataset.jobId);
+  if (!job) return;
+  const index = Number(button.dataset.index);
+  try {
+    await savePlannedFields(job.id, { plannedItems: (job.plannedItems || []).filter((_, i) => i !== index) }, "Planned item removed");
+  } catch (error) {
+    crm.showToast(error.message || "Could not remove the item.");
+  }
+});
 
 registerFieldAction("field-crew-clock-all", async (button) => {
   const jobId = button.dataset.jobId;

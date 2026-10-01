@@ -14397,6 +14397,37 @@ function renderDispatchJobSummaryTab(job, readiness) {
   `;
 }
 
+// Pass 2 C: the free "planned items" list the field lead (or the office) types on the job.
+function renderPlannedItemsInline(job) {
+  const items = Array.isArray(job.plannedItems) ? job.plannedItems : [];
+  if (!items.length) return "None listed";
+  return items
+    .map((item) => `<span class="tag">${escapeHtml(item.name)}${item.qty !== "" && item.qty != null ? ` &times; ${escapeHtml(String(item.qty))}${item.unit ? ` ${escapeHtml(item.unit)}` : ""}` : ""}${item.note ? ` &middot; ${escapeHtml(item.note)}` : ""}</span>`)
+    .join(" ");
+}
+
+function renderJobPlannedItemsPanel(job) {
+  const items = Array.isArray(job.plannedItems) ? job.plannedItems : [];
+  return `
+    <article class="panel">
+      <div class="panel-header"><div><h3>Planned items</h3><span>${items.length} typed in by the field lead or the office</span></div></div>
+      <div class="panel-body resource-list">
+        ${
+          items
+            .map(
+              (item) => `
+            <article class="job-resource-row">
+              <span class="resource-type-mark">${escapeHtml(getInitials(item.name, "P"))}</span>
+              <div><strong>${escapeHtml(item.name)}</strong><span>${item.qty !== "" && item.qty != null ? `${escapeHtml(String(item.qty))} ${escapeHtml(item.unit || "")}` : "No quantity"}${item.note ? ` &middot; ${escapeHtml(item.note)}` : ""}</span></div>
+            </article>`,
+            )
+            .join("") || `<div class="empty-state compact">No planned items typed in.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function renderDispatchJobDetailsTab(job) {
   const request = getJobRequests().find((item) => item.id === job.jobRequestId);
   // Gap item "equipment/labor/vendor ordered on the sales side are hidden from dispatch" — the job
@@ -14428,12 +14459,13 @@ function renderDispatchJobDetailsTab(job) {
       </article>
 
       <article class="panel">
-        <div class="panel-header"><h3>Ordered at intake / planning</h3><span>What sales or planning already lined up for this job</span></div>
+        <div class="panel-header"><div><h3>Ordered at intake / planning</h3><span>What sales or planning already lined up for this job</span></div><button class="mini-button" type="button" data-action="open-dispatch-job-edit" data-id="${escapeAttribute(job.id)}">Edit notes</button></div>
         <div class="panel-body">
           <dl class="detail-list job-overview-list">
             <div><dt>Equipment</dt><dd>${escapeHtml(equipmentNotes || "None noted")}</dd></div>
             <div><dt>Labor</dt><dd>${escapeHtml(laborNotes || "None noted")}</dd></div>
             <div><dt>Vendor</dt><dd>${escapeHtml(vendorNotes || "None noted")}</dd></div>
+            <div><dt>Planned items</dt><dd>${renderPlannedItemsInline(job)}</dd></div>
           </dl>
           ${
             salesAssignments.length
@@ -14716,6 +14748,7 @@ function renderDispatchJobAssignmentTab(job) {
           : ""
       }
 
+      ${renderJobPlannedItemsPanel(job)}
       ${renderJobSafetyBriefingsPanel(job)}
       ${renderJobEquipmentUsagePanel(job)}
       ${renderJobWasteContainersPanel(job)}
@@ -14784,8 +14817,8 @@ function renderJobEquipmentUsagePanel(job) {
               const asset = row.assetTag ? findEquipmentAssetByTag(row.assetTag) : null;
               return `
             <article class="job-resource-row">
-              <span class="resource-type-mark">${escapeHtml(getInitials(asset?.equipment || row.assetTag, "E"))}</span>
-              <div><strong>${escapeHtml(asset?.equipment || row.assetTag || "Equipment")}</strong><span>${escapeHtml(row.operationalDate ? formatDate(row.operationalDate) : "")} &middot; ${row.hours ? `${escapeHtml(String(row.hours))} hrs` : row.days ? `${escapeHtml(String(row.days))} day${Number(row.days) === 1 ? "" : "s"}` : "logged"}${row.condition ? ` &middot; ${escapeHtml(row.condition)}` : ""}</span></div>
+              <span class="resource-type-mark">${escapeHtml(getInitials(asset?.equipment || row.assetTag || row.name, "E"))}</span>
+              <div><strong>${escapeHtml(asset?.equipment || row.assetTag || row.name || "Equipment")}</strong>${row.writeIn || !row.assetTag ? ` <span class="tag">Written in</span>` : ""}<span>${escapeHtml(row.operationalDate ? formatDate(row.operationalDate) : "")} &middot; ${row.hours ? `${escapeHtml(String(row.hours))} hrs` : row.days ? `${escapeHtml(String(row.days))} day${Number(row.days) === 1 ? "" : "s"}` : "logged"}${row.condition ? ` &middot; ${escapeHtml(row.condition)}` : ""}</span></div>
             </article>
           `;
             })
@@ -15015,7 +15048,7 @@ function renderJobResource(resource) {
   return `
     <article class="job-resource-row">
       <span class="resource-type-mark">${escapeHtml(getInitials(resource.type, "R"))}</span>
-      <div><strong>${escapeHtml(name)}</strong><span>${escapeHtml(detail)}</span></div>
+      <div><strong>${escapeHtml(name)}</strong><span>${escapeHtml(detail)}${resource.writeIn ? " · written in" : ""}</span></div>
       ${overReserved ? `<span class="risk-badge high" title="Total reservations exceed on-hand stock">Over stock</span>` : ""}
       <span class="source-badge">${escapeHtml(resource.status)}</span>
       <button class="mini-button" type="button" data-action="remove-job-resource" data-id="${escapeAttribute(resource.id)}">Remove</button>
@@ -22817,6 +22850,16 @@ function jobEquipmentUsageForJob(jobId) {
 //    inference, so an asset never bills from both sources on the same day.
 //  - Materials: jobResources Consumed for the day. Office-wide materialUsage/equipmentLogs are
 //    project-level, not job-level, and stay in the caller's own project-wide pass.
+// Pass 2 C: the generic product a typed-in (write-in) equipment or material line is priced at.
+function standardBillableProduct(kind) {
+  const id = kind === "equipment" ? "prod-equipment-standard-daily" : "prod-material-standard-unit";
+  return getProducts().find((product) => product.id === id) || null;
+}
+
+function billableNoRateNote(row) {
+  return row?.noRate ? "no rate" : "";
+}
+
 function computeJobBillables(job) {
   const workDays = dispatchJobWorkDays(job);
   const dayOf = (value) => (value ? dispatchRecordDay(job, value, workDays) : "");
@@ -22872,12 +22915,22 @@ function computeJobBillables(job) {
   jobEquipmentUsageForJob(job.id).forEach((row) => {
     const date = row.operationalDate || dayOf(row.createdAt);
     if (!date) return;
-    coveredAssetDays.add(`${row.assetTag}|${date}`);
+    // Pass 2 C (2026-10-01): a write-in row (typed in from the field, no asset tag) is bucketed by its
+    // name and unit, marked writeIn, and flagged noRate when there is no standard equipment product.
+    const writeIn = !row.assetTag;
+    coveredAssetDays.add(`${row.assetTag || row.name}|${date}`);
     const asset = row.assetTag ? findEquipmentAssetByTag(row.assetTag) : null;
+    const unit = row.hours ? "hrs" : "days";
     addQuantity(
       ensureDay(date).equipment,
-      row.assetTag || row.id,
-      { name: asset?.equipment || row.assetTag || "Equipment", assetTag: row.assetTag || "", unit: row.hours ? "hrs" : "days", condition: row.condition || "" },
+      writeIn ? `writein:${String(row.name || "").toLowerCase()}|${unit}` : row.assetTag,
+      {
+        name: asset?.equipment || row.assetTag || row.name || "Equipment",
+        assetTag: row.assetTag || "",
+        unit,
+        condition: row.condition || "",
+        ...(writeIn ? { writeIn: true, noRate: !standardBillableProduct("equipment") } : {}),
+      },
       Number(row.hours || row.days || 0),
     );
   });
@@ -22896,7 +22949,13 @@ function computeJobBillables(job) {
     .forEach((resource) => {
       const date = dayOf(resource.consumedAt);
       if (!date) return;
-      addQuantity(ensureDay(date).materials, `${resource.name}|${resource.unit}`, { name: resource.name, unit: resource.unit || "" }, Number(resource.quantity || 0));
+      const writeIn = Boolean(resource.writeIn) || !resource.inventoryItemId;
+      addQuantity(
+        ensureDay(date).materials,
+        `${resource.name}|${resource.unit}`,
+        { name: resource.name, unit: resource.unit || "", ...(writeIn ? { writeIn: true, noRate: !standardBillableProduct("material") } : {}) },
+        Number(resource.quantity || 0),
+      );
     });
 
   return [...days.values()]
@@ -23025,7 +23084,7 @@ function renderJobBillablesPreviewTable(rows, columns, empty) {
   return `
     <table class="data-table compact-table">
       <thead><tr>${columns.map((col) => `<th>${escapeHtml(col.label)}</th>`).join("")}</tr></thead>
-      <tbody>${rows.map((row) => `<tr>${columns.map((col) => `<td>${escapeHtml(col.value(row))}</td>`).join("")}</tr>`).join("")}</tbody>
+      <tbody>${rows.map((row) => `<tr>${columns.map((col) => `<td>${escapeHtml(col.value(row))}${col.rateNote && row.noRate ? ` <strong class="no-rate-note" style="color:#b42318">no rate</strong>` : ""}</td>`).join("")}</tr>`).join("")}</tbody>
     </table>
   `;
 }
@@ -23055,7 +23114,7 @@ function renderJobBillablesPreview(job) {
           equipment,
           [
             { label: "Day", value: (row) => formatDate(row.date) },
-            { label: "Item", value: (row) => row.name },
+            { label: "Item", value: (row) => `${row.name}${row.writeIn ? " (written in)" : ""}`, rateNote: true },
             { label: "Asset", value: (row) => row.assetTag || "" },
             { label: "Qty", value: (row) => String(Math.round(row.quantity * 100) / 100) },
           ],
@@ -23066,7 +23125,7 @@ function renderJobBillablesPreview(job) {
           materials,
           [
             { label: "Day", value: (row) => formatDate(row.date) },
-            { label: "Item", value: (row) => row.name },
+            { label: "Item", value: (row) => `${row.name}${row.writeIn ? " (written in)" : ""}`, rateNote: true },
             { label: "Qty", value: (row) => `${Math.round(row.quantity * 100) / 100} ${row.unit || ""}`.trim() },
           ],
           "No material logged.",
@@ -23768,9 +23827,9 @@ function renderPostWorkReportHtml(report) {
       "No field hours logged.",
     )}
     <h4>Equipment</h4>
-    ${table([["Item"], ["Asset"], [equipmentLabel, true]], group.equipment.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.assetTag)}</td><td class="num">${hours(row.quantity)}</td></tr>`), "No equipment logged.")}
+    ${table([["Item"], ["Asset"], [equipmentLabel, true]], group.equipment.map((row) => `<tr><td>${escapeHtml(row.name)}${row.writeIn ? ` <small>(written in)</small>` : ""}${row.noRate ? ` <strong class="no-rate-note" style="color:#b42318">no rate</strong>` : ""}</td><td>${escapeHtml(row.assetTag)}</td><td class="num">${hours(row.quantity)}${row.writeIn && row.unit ? ` ${escapeHtml(row.unit)}` : ""}</td></tr>`), "No equipment logged.")}
     <h4>Material</h4>
-    ${table([["Item"], ["Quantity", true]], group.materials.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td class="num">${hours(row.quantity)} ${escapeHtml(row.unit)}</td></tr>`), "No material logged.")}
+    ${table([["Item"], ["Quantity", true]], group.materials.map((row) => `<tr><td>${escapeHtml(row.name)}${row.writeIn ? ` <small>(written in)</small>` : ""}${row.noRate ? ` <strong class="no-rate-note" style="color:#b42318">no rate</strong>` : ""}</td><td class="num">${hours(row.quantity)} ${escapeHtml(row.unit)}</td></tr>`), "No material logged.")}
   `;
   const address = projectSite(project).address || report.dispatchJobs.find((dispatchJob) => dispatchJob.addressText)?.addressText || "";
   const gps = report.gpsPoint ? `GPS: ${Number(report.gpsPoint.latitude).toFixed(7)}, ${Number(report.gpsPoint.longitude).toFixed(7)}` : project.incidentLatitude ? `GPS: ${project.incidentLatitude}, ${project.incidentLongitude}` : "";
@@ -28790,7 +28849,7 @@ function draftInvoiceLinesForProject(project, priceLevelId, defaultTier) {
     .forEach((row) => {
       const day = row.operationalDate || fieldDay(row.jobId, row.createdAt);
       if (!day) return;
-      coveredEquipmentDays.add(`${row.assetTag}|${day}`);
+      coveredEquipmentDays.add(`${row.assetTag || row.name}|${day}`);
       const asset = row.assetTag ? findEquipmentAssetByTag(row.assetTag) : null;
       const product = productFor(asset?.productId) || productFor("prod-equipment-standard-daily");
       const usesDays = !row.hours && row.days;
@@ -28800,8 +28859,8 @@ function draftInvoiceLinesForProject(project, priceLevelId, defaultTier) {
         operationalDate: day,
         dispatchJobId: row.jobId,
         productId: product?.id || "",
-        productName: product?.name || asset?.equipment || row.assetTag,
-        productDescription: `${asset?.equipment || row.assetTag}${row.assetTag ? ` (${row.assetTag})` : ""}${row.condition ? ` · ${row.condition}` : ""}${asset?.productId ? "" : "; not linked to a rate line"}`,
+        productName: product?.name || asset?.equipment || row.assetTag || row.name,
+        productDescription: `${asset?.equipment || row.assetTag || row.name}${row.assetTag ? ` (${row.assetTag})` : ""}${row.condition ? ` · ${row.condition}` : ""}${row.assetTag ? (asset?.productId ? "" : "; not linked to a rate line") : product ? "; written in from the field, priced at the standard rate, confirm" : "; written in from the field, NO RATE: enter a price"}`,
         uomId: uomFor(product),
         quantity: usesDays ? Number(row.days || 0) : Number(row.hours || 0) || 1,
       });
@@ -28856,7 +28915,7 @@ function draftInvoiceLinesForProject(project, priceLevelId, defaultTier) {
         dispatchJobId: resource.jobId,
         productId: product?.id || "",
         productName: product?.name || resource.name,
-        productDescription: `${resource.name}${resource.unit ? ` (${resource.unit})` : ""}${item?.productId ? "" : "; not linked to a rate line"}`,
+        productDescription: `${resource.name}${resource.unit ? ` (${resource.unit})` : ""}${resource.writeIn || !resource.inventoryItemId ? (product ? "; written in from the field, priced at the standard rate, confirm" : "; written in from the field, NO RATE: enter a price") : item?.productId ? "" : "; not linked to a rate line"}`,
         uomId: uomFor(product),
         quantity: Number(resource.quantity || 0),
       });

@@ -3360,7 +3360,7 @@ const fieldWritable = new Set([
 // it may set (merged onto the stored row; everything else in the payload is ignored). Absent from
 // this map = every field in the payload is accepted (still gated by fieldProjections' `where`).
 const fieldPartialWriteFields = {
-  dispatchJobs: ["measurements", "customerAcknowledgement", "dailyNarratives", "postJobReview", "hazards", "ppeLevel", "ergGuideNumber", "ergSpillSize", "ergDayNight", "ergIsolationMeters", "ergProtectiveMeters"],
+  dispatchJobs: ["measurements", "customerAcknowledgement", "dailyNarratives", "postJobReview", "hazards", "ppeLevel", "ergGuideNumber", "ergSpillSize", "ergDayNight", "ergIsolationMeters", "ergProtectiveMeters", "equipmentNotes", "laborNotes", "vendorNotes", "plannedItems"],
   opportunities: ["equipmentNeeds", "vendorNeeds", "resourceNeeds", "siteWalkStatus"],
 };
 
@@ -6075,6 +6075,13 @@ async function handleApi(request, response, pathname) {
       if (conflict) return json(response, 409, { error: "This account already has relationship details on file." });
     }
 
+    // Pass 2 C (2026-10-01): equipment usage may be a write-in -- the asset tag is optional, a name is not.
+    if (collection === "jobEquipmentUsage") {
+      record.assetTag = String(record.assetTag || "").trim();
+      record.name = String(record.name || "").trim().slice(0, 120);
+      if (!record.assetTag && !record.name) return json(response, 400, { error: "Equipment usage needs an asset tag or a name." });
+      record.writeIn = !record.assetTag;
+    }
     const index = data[collection].findIndex((item) => item.id === record.id);
     const stored = index >= 0 ? data[collection][index] : null;
     const conflict = versionConflict(stored, body);
@@ -6119,6 +6126,16 @@ async function handleApi(request, response, pathname) {
         for (const key of allowedFields) if (Object.prototype.hasOwnProperty.call(body, key)) merged[key] = body[key];
         record = merged;
       }
+    }
+    if (collection === "dispatchJobs") {
+      // Pass 2 C: the planned-items list is a free list typed in the field or the office.
+      if (Array.isArray(record.plannedItems)) {
+        record.plannedItems = record.plannedItems
+          .map((item) => ({ name: String(item?.name || "").trim().slice(0, 120), qty: item?.qty === "" || item?.qty == null ? "" : Number(item.qty) || "", unit: String(item?.unit || "").trim().slice(0, 30), note: String(item?.note || "").trim().slice(0, 300) }))
+          .filter((item) => item.name)
+          .slice(0, 60);
+      }
+      for (const key of ["equipmentNotes", "laborNotes", "vendorNotes"]) if (typeof record[key] === "string") record[key] = record[key].slice(0, 2000);
     }
     // Phase 25 Wave F (2026-09-30): a work-plan task's options are the office's to set.
     if (collection === "jobTypeTemplates" || collection === "jobActions") {
