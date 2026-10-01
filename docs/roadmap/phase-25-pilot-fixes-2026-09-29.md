@@ -261,6 +261,22 @@ Timer (`dispatchJobs`):
    - Delete on device: the job drops out of that worker's field package and cache once the action syncs.
    - Delete on server: the job is archived, after a confirmation on the phone. Only office roles can tick this option in a template.
 
+
+## Wave G — "used on site" and licence-scan form fields (2026-10-01)
+
+**Owner request (2026-10-01):** "for job action forms, we need something that lets us pick from our equipment, consumables, stuff like that. so if we used any thing on site it would be recorded" — plus "a barcode scanner for drivers license" in forms. **Decisions:** pick lists for consumables & PPE, equipment, waste generated and subcontractor/vendor services; a form with them must be tied to a job; stock comes out when the form is submitted (offline: on sync).
+
+**Built 2026-10-01** by two workers, integrated on `p25-usage` with main (IT clean-up Pass 2) merged in; smoke green, field API check 23 pass, forms click-test 12/12; worker click-tests 56/56 (usage) and 50/50 (licence) as real field logins. Fields and commands: `docs/database-handoff-map.md` → "Phase 25 Wave G".
+
+**Corrections found:**
+- **The project cost report never read `jobEquipmentUsage`**, so equipment logged from the field (quick action since Phase 21) was never costed. It now is, per day used; an asset with usage logged is no longer also costed from its assignment.
+- **The outbox drain re-sent every "done" row** (kept 24 h for the Sync screen) on every drain — harmless only because the server answers repeated command ids from receipts. The id lookup keeps no receipt, so its redacted replay was rejected. Done rows are now skipped.
+- **Inventory items have no category**; the form's category filter uses the linked product's rate-sheet section.
+- **Nothing recorded actual vendor use on a job** (a job's subcontractors were only `jobResources` of type Vendor, which billing never read) — hence the new `jobVendorUsage`.
+- **Two lines of the same item that together went below zero** now raise an inventory alert; before, the per-line check let them through silently.
+- **Merging with Pass 2:** Pass 2 C ("planned and used items typed in from the field") touched the same rows; both survive — a written-in item shows "written in" and, when from a form, "from form <name>"; the invoice order is labor, mileage, equipment, material, expense, vendor, waste.
+- **Open:** removing a consumed row in the office does not return the stock (same as the Material task); a licence lookup only matches people whose licence a lead linked on a roll call.
+
 ---
 
 ## Still open for the owner (recorded in the phase doc, not blocking)
