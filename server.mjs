@@ -4742,7 +4742,9 @@ function effectiveRoles(session) {
   if (!session) return [];
   const held = heldRoles(session);
   const active = String(session.activeRole || "");
-  if (active && KNOWN_ROLES.includes(active) && (held.includes(active) || held.includes("Admin"))) return [active];
+  // Owner, 2026-10-01: any known role the person picked in Settings is the effective one (was: only a
+  // held role, or anything for an Admin) -- the matching change is in the /api/auth/active-role route.
+  if (active && KNOWN_ROLES.includes(active)) return [active];
   return held;
 }
 
