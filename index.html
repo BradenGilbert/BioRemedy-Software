@@ -6816,6 +6816,21 @@
       </div>
     </dialog>
 
+    <dialog id="customerStatusLinesDialog" class="modal">
+      <form method="dialog" class="modal-panel" data-form="customer-status-lines">
+        <div class="modal-header">
+          <h2>What customers see</h2>
+          <button type="button" class="icon-button" data-action="close-dialog" aria-label="Close">x</button>
+        </div>
+        <p class="help-text">One plain-language line per job status. The client portal shows the line for the job's current status under "What's next". Keep it short and promise only what you can keep.</p>
+        <div class="form-grid" data-status-lines></div>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" data-action="close-dialog">Cancel</button>
+          <button type="submit" class="primary-button">Save wording</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./public/vendor/leaflet/leaflet.js"></script>
     <script type="importmap">

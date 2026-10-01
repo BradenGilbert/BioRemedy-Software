@@ -50,7 +50,7 @@ const REFERENCE_COLLECTIONS = [
   "accountTypes", "industries", "subcontractorTypes", "certificationTypes", "connectionRoles", "unitGroups",
   "unitsOfMeasure", "transactionCurrencies", "priceLevels", "pricingSettings", "documentTypes", "businessUnits",
   "teams", "permits", "standbyRotationSettings", "products", "productPriceLevels", "jobTypeTemplates",
-  "formTemplates", "jurisdictions", "libraryItems", "ergMaterials", "ergGuides", "ergDistances",
+  "formTemplates", "jurisdictions", "libraryItems", "customerStatusLines", "ergMaterials", "ergGuides", "ergDistances",
 ];
 const FILE_COLLECTIONS = ["documents", "jobTaskAttachments", "sampleLabReports", "jobRequestDocuments"];
 

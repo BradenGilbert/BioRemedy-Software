@@ -232,3 +232,7 @@ These are three independent axes. Collapsing them into one field will break the 
 | `accounts.address_one_*`, `accounts.address_two_*`, `accounts.billing_address_*` | Legacy flat address columns | `addresses` (026) |
 | `accounts.industry` (free text) | Free text, unusable for reporting | `account_industries` + `industries` (8 curated values already seeded) |
 | `locations.category = "Billing Address"` | Retired 2026-08-17 — `addresses.address_type` owns the billing-role concept | `addresses.address_type` |
+
+## customerStatusLines (2026-10-01)
+
+`customerStatusLines`: `{id, stageKey, label, line}`, one row per client-portal status (received, scheduled, dispatched, on_site, in_progress, on_hold, field_complete, awaiting_lab, office_review, closed). `line` is the plain-language "What's next" text on the portal spill page; edited on Office > Overview ("What customers see"), Admin/Office Manager only (access domain `customerCopy`). Not a dispatch status and not a project stage.

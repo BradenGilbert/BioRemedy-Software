@@ -8872,3 +8872,93 @@ a.mini-button {
     position: static;
   }
 }
+
+/* Client portal (Pass 2 items A + E, 2026-10-01): dispatch status ladder, what's next, visits, photos. */
+.client-ladder {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.client-ladder li {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  border-top: 3px solid var(--border);
+  padding-top: 8px;
+}
+
+.client-ladder li.done {
+  border-top-color: var(--green);
+  color: var(--green);
+}
+
+.client-ladder li.current {
+  font-weight: 800;
+}
+
+.client-ladder li strong {
+  font-weight: inherit;
+}
+
+.client-ladder li small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.client-ladder-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.client-ladder li.done .client-ladder-dot {
+  background: var(--green);
+}
+
+.client-ladder li.current .client-ladder-dot {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 25%, transparent);
+}
+
+.client-whats-next-line {
+  margin: 4px 0 8px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.client-photo-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.customer-status-lines-panel textarea {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .client-ladder {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+  }
+
+  .client-ladder li {
+    grid-template-columns: 14px 1fr auto;
+    justify-items: start;
+    text-align: left;
+    border-top: 0;
+    border-left: 3px solid var(--border);
+    padding: 4px 0 4px 8px;
+    align-items: center;
+  }
+
+  .client-ladder li.done {
+    border-left-color: var(--green);
+  }
+}

@@ -107,6 +107,7 @@ const roleAccess = {
   dispatch: ["Admin", "Office Manager", "Operations Manager", "Scheduler", "Field Lead", "Crew"],
   inventory: ["Admin", "Office Manager", "Operations Manager", "Inventory Manager"],
   finance: ["Admin", "Office Manager", "Finance Manager"],
+  customerCopy: ["Admin", "Office Manager"],
   identity: [
     "Admin",
     "Office Manager",
@@ -150,6 +151,9 @@ const collectionAccess = {
   employeeCertifications: "workforce",
   certificationTypes: "workforce",
   workforceTeams: "workforce",
+  // Pass 2 item E (2026-10-01): the customer-facing status copy. Read by every internal role and the portal
+  // (portalView), written only by Admin / Office Manager.
+  customerStatusLines: "customerCopy",
   workforceTeamMemberships: "workforce",
   crewProfiles: "workforce",
   availabilityBlocks: "workforce",
@@ -1019,6 +1023,7 @@ const defaultBackend = {
     }
   ],
   frontlineDevices: [],
+  customerStatusLines: [],
   timeEntries: [],
   jobMileageEntries: [],
   messages: [],
@@ -2532,6 +2537,21 @@ const LIBRARY_ITEM_SEED = [
   { id: "library-resources-disposal-hours", shelf: "resources", title: "Disposal facility hours", category: "Helpful resources", audienceRoles: ["Field Lead", "Crew"], requiredForRoles: [], renewalMonths: 0, pinnedOffline: false, documentId: "", url: "", version: 1, sortOrder: 1 },
 ];
 
+// Pass 2 item E (2026-10-01): one plain-language line per step of the customer's status ladder, shown
+// on the portal spill page as "What's next". Seeded once (by id); the office edits the wording.
+const CUSTOMER_STATUS_LINE_SEED = [
+  { id: "csl-received", stageKey: "received", label: "Received", line: "We have your request and are scheduling a crew." },
+  { id: "csl-scheduled", stageKey: "scheduled", label: "Scheduled", line: "Your visit is scheduled. A crew will be dispatched ahead of the arrival window." },
+  { id: "csl-dispatched", stageKey: "dispatched", label: "Crew dispatched", line: "A crew has been sent and is on the way to your site." },
+  { id: "csl-on_site", stageKey: "on_site", label: "On site", line: "Our crew is on site now." },
+  { id: "csl-in_progress", stageKey: "in_progress", label: "Work in progress", line: "Cleanup work is under way. We will post photos and updates here." },
+  { id: "csl-on_hold", stageKey: "on_hold", label: "Work paused", line: "Work is paused for now. We will resume as soon as conditions allow." },
+  { id: "csl-field_complete", stageKey: "field_complete", label: "Field complete", line: "Field work is done; the office is preparing the report." },
+  { id: "csl-awaiting_lab", stageKey: "awaiting_lab", label: "Samples at the lab", line: "Samples are at the lab; results take about 5 business days." },
+  { id: "csl-office_review", stageKey: "office_review", label: "Office review", line: "Our office is reviewing the job record and preparing your final report and invoice." },
+  { id: "csl-closed", stageKey: "closed", label: "Closed", line: "This job is complete. Your report and photos are posted below. Call us if anything needs a second look." },
+];
+
 // Adds each Phase 21 seed row by id, once -- same pattern as ensureDocumentTypes. Called from
 // loadBackend() so it applies whether backend.json is brand new or (like this repo's committed
 // data/backend.json) already has the key present as an empty array from an earlier commit.
@@ -2548,6 +2568,7 @@ function ensureFieldSeeds(data) {
   seedInto("formTemplates", FORM_TEMPLATE_SEED);
   seedInto("jurisdictions", JURISDICTION_SEED);
   seedInto("libraryItems", LIBRARY_ITEM_SEED);
+  seedInto("customerStatusLines", CUSTOMER_STATUS_LINE_SEED);
   // Phase 24: a seeded row that already exists (the Tutorials placeholder) gains its tour link once.
   for (const seed of LIBRARY_ITEM_SEED) {
     const row = seed.tourId ? data.libraryItems.find((item) => item.id === seed.id) : null;
@@ -3097,6 +3118,7 @@ function filterBackendForRoleUnstripped(data, role, session = null) {
     standbyAssignments: canAccess(role, "workforce") || canAccess(role, "dispatch") || canAccess(role, "operations") ? data.standbyAssignments : [],
     standbyRotationSettings: canAccess(role, "workforce") || canAccess(role, "dispatch") || canAccess(role, "operations") ? data.standbyRotationSettings : [],
     frontlineDevices: canAccess(role, "workforce") ? data.frontlineDevices : [],
+    customerStatusLines: data.customerStatusLines || [],
     timeEntries: canAccess(role, "operations") ? data.timeEntries : [],
     jobMileageEntries: canAccess(role, "operations") ? data.jobMileageEntries : [],
     messages: canAccess(role, "dispatch") ? data.messages : [],
@@ -5452,6 +5474,15 @@ function portalCanSeeDocument(session, document) {
   return Boolean(session?.clientAccountId && document.accountId === session.clientAccountId && document.visibility === "customer" && !document.deletedAt);
 }
 
+// A customer may read these alert types as written; every other internal alert (Scope Exception,
+// Safety Hazard, ...) reaches them only as a neutral "Work update" with no text, severity or author.
+const PORTAL_ALERT_TYPES = new Set(["Customer Approval Needed", "Weather Delay", "Access Issue"]);
+function portalSafeAlert(alert) {
+  const base = { id: alert.id, projectId: alert.projectId, status: alert.status, reportedAt: alert.reportedAt };
+  if (PORTAL_ALERT_TYPES.has(alert.alertType)) return { ...base, alertType: alert.alertType, description: alert.description || "", severity: "" };
+  return { ...base, alertType: "Work update", description: "", severity: "" };
+}
+
 // What a customer sees when they sign in: their own account and what hangs off it, and nothing
 // about anyone else, any employee, or any internal document. Enforced here, not in the UI.
 function portalView(data, session) {
@@ -5467,12 +5498,28 @@ function portalView(data, session) {
   view.facilities = own(data.facilities);
   view.addresses = own(data.addresses);
   view.projects = projects;
-  view.projectAlerts = byProject(data.projectAlerts);
+  view.projectAlerts = byProject(data.projectAlerts).map(portalSafeAlert);
   view.sampleRecords = byProject(data.sampleRecords);
   view.spatialData = byProject(data.spatialData);
   view.scheduleEvents = byProject(data.scheduleEvents);
   view.scheduledWork = own(data.scheduledWork);
-  view.dispatchJobs = own(data.dispatchJobs).map((job) => ({ id: job.id, jobNumber: job.jobNumber, jobName: job.jobName, projectId: job.projectId, status: job.status, scheduledStart: job.scheduledStart, scheduledEnd: job.scheduledEnd, locationName: job.locationName }));
+  // Pass 2 item A (2026-10-01): a customer sees where their job is -- dispatch status, the visit
+  // window and the lead's name -- but never an employee row, a narrative or a post-job review.
+  const jobs = (data.dispatchJobs || []).filter((job) => !job.deletedAt && (job.accountId === accountId || projectIds.has(job.projectId)));
+  const jobIds = new Set(jobs.map((job) => job.id));
+  const employeeName = (id) => {
+    const employee = id ? (data.employees || []).find((item) => item.id === id && !item.deletedAt) : null;
+    return employee ? String(employee.displayName || [employee.firstName, employee.lastName].filter(Boolean).join(" ") || "").trim() : "";
+  };
+  view.dispatchJobs = jobs.map((job) => ({ id: job.id, jobNumber: job.jobNumber, jobName: job.jobName, projectId: job.projectId, status: job.status, scheduledStart: job.scheduledStart, scheduledEnd: job.scheduledEnd, operationalDate: job.operationalDate || "", locationName: job.locationName, addressText: job.addressText || "", leadName: employeeName(job.fieldLeadEmployeeId), completionPercent: job.completionPercent ?? null, updatedAt: job.updatedAt }));
+  view.jobStatusEvents = (data.jobStatusEvents || []).filter((event) => !event.deletedAt && jobIds.has(event.jobId)).map((event) => ({ id: event.id, jobId: event.jobId, fromStatus: event.fromStatus, toStatus: event.toStatus, occurredAt: event.occurredAt }));
+  view.jobScheduleSegments = (data.jobScheduleSegments || []).filter((segment) => !segment.deletedAt && jobIds.has(segment.jobId)).map((segment) => ({ id: segment.id, jobId: segment.jobId, type: segment.type, name: segment.name, sequence: segment.sequence, plannedStart: segment.plannedStart, plannedEnd: segment.plannedEnd, status: segment.status }));
+  const siteLocationIds = new Set(projects.map((project) => project.siteLocationId).filter(Boolean));
+  view.locations = (data.locations || []).filter((point) => !point.deletedAt && (projectIds.has(point.projectId) || siteLocationIds.has(point.id))).map((point) => ({ id: point.id, projectId: point.projectId, label: point.label, addressText: point.addressText, latitude: point.latitude, longitude: point.longitude, locationType: point.locationType }));
+  const opportunityIds = new Set(projects.map((project) => project.opportunityId).filter(Boolean));
+  view.siteWalkReports = (data.siteWalkReports || []).filter((report) => !report.deletedAt && report.completedAt && opportunityIds.has(report.opportunityId)).map((report) => ({ id: report.id, walkEventId: report.walkEventId, opportunityId: report.opportunityId, status: report.status, completedAt: report.completedAt, summary: report.summary }));
+  // Pass 2 item E: the plain-language "what's next" lines the office wrote for customers.
+  view.customerStatusLines = (data.customerStatusLines || []).filter((row) => !row.deletedAt);
   view.documentTypes = (data.documentTypes || []).filter((type) => !type.deletedAt && type.counterparty === "customer");
   view.documents = (data.documents || []).filter((document) => portalCanSeeDocument(session, document));
   view.documentRequirements = (data.documentRequirements || []).filter((requirement) => !requirement.deletedAt && requirement.accountId === accountId && requirement.counterparty === "customer");

@@ -389,3 +389,7 @@ Built as **one pass** on the owner's instruction, not the six passes in the buil
 - Annotation: [Inspection photo markup features](https://www.inspectly360.com/features/image-annotations/); [magicplan photo markup for estimators](https://magicplan.app/blog/photo-docs-for-restoration-estimators)
 - Video: [Uploading large videos, chunked/resumable](https://cloudinary.com/guides/video-effects/how-to-upload-large-video); [iOS Safari HTML media capture video quality](https://blog.addpipe.com/video-quality-when-recording-videos-from-safari-on-ios-through-html-media-capture/); [Large file uploads on mobile](https://uploadcare.com/blog/handling-large-file-uploads/)
 - In-repo: `phase-10-frontline.md`, `phase-11-field-ops-depth.md`, `phase-16-emergency-response.md`, `phase-18-workforce-and-devices.md`, `docs/erp-operational-architecture.md` (Front Line contract), the Lone Star report structure transcribed in Phase 11.
+
+### 2026-10-01 - per-photo "Share with customer" (portal Pass 2)
+
+Field uploads are still forced `internal`. `field/capture.js` exports `photoShareToggle(doc)` and registers `photo-visibility`, which writes `documents.visibility` (internal/customer) through `saveFieldRecord`; `field/job.js` shows it beside each image in the Brief Documents card. There is no separate photo tray for quick-bar photos, so that card is where it lives. Task attachments have no visibility field and are untouched.

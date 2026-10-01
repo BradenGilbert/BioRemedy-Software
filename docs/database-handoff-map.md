@@ -1106,6 +1106,7 @@ Generated from `server.mjs`'s `collectionAccess` map (121 collections including 
 | `availabilityBlocks` | availability_blocks (019) |  |
 | `standbyAssignments` | on_call_rotation_members (019) |  |
 | `standbyRotationSettings` | on_call_rotations (019) | Single settings row |
+| `customerStatusLines` | **new** customer_status_lines (029+) | stage_key, label, line; seeded by id; read by the portal projection, written by Admin/Office Manager |
 | `frontlineDevices` | frontline_devices (024) |  |
 | `timeEntries` | job_time_entries (023) |  |
 | `jobMileageEntries` | job_mileage_entries (023) |  |
@@ -1352,3 +1353,7 @@ them.
 - Prototype server collections: `server.mjs` and `data/backend.json`
 - Browser database: `app.js`
 - Partial Laravel conversion: `laravel-ready/`
+
+## Client portal projection (2026-10-01)
+
+`portalView` (server.mjs) returns, scoped to the customer's account: accounts, contacts, facilities, addresses, projects, scheduledWork; per project projectAlerts (sanitised to Customer Approval Needed / Weather Delay / Access Issue as written, all else "Work update"), sampleRecords, spatialData, scheduleEvents, `locations` (label, address, lat/lng only), `jobScheduleSegments`, `jobStatusEvents` (no author), completed `siteWalkReports` (completedAt, summary); `dispatchJobs` cut to id, jobNumber, jobName, projectId, status, scheduledStart/End, operationalDate, locationName, addressText, `leadName` (resolved name only), completionPercent; `documents` with visibility customer on the account; `customerStatusLines`. Employees, activities, narratives and post-job reviews stay empty. New collection `customerStatusLines` (see cutover table): `{id, stageKey, label, line}`.
