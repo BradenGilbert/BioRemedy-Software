@@ -1,6 +1,6 @@
 # Phase 25 — Pilot fixes (feedback pass 2026-09-29)
 
-**Status:** ✅ **Shipped 2026-10-01** — all six waves (A–F) merged to main and running on the live server (cache v67), reachable at https://bioremedy-crm.bioremedy.workers.dev (see `docs/live-hosting.md`). Still to do: apply the two cleanup scripts (need the current break-glass password) and attach the loose Dell GPS points; the owner decisions listed under Build record.
+**Status:** ✅ **Shipped 2026-10-01** — all six waves (A–F) merged to main and running on the live server (cache v67), reachable at https://bioremedy-crm.bioremedy.workers.dev (see `docs/live-hosting.md`). Still to do: apply the two cleanup scripts (need the current break-glass password — tried 2026-10-01 with the one in `data/break-glass-password.txt`: 401; dry runs: 3 walk activity pairs, 2 MSA moves) and attach the loose Dell GPS points; the owner decisions listed under Build record.
 
 **Depends on:** Phase 21 (Front Line 2), Phase 13 (documents), Phase 15 (project workspace), Phase 16 (emergency intake) — all shipped.
 
