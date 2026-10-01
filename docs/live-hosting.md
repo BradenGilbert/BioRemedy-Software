@@ -42,7 +42,9 @@ $wrangler = "$env:LOCALAPPDATA\bioremedy-crm-tools\node_modules\.bin\wrangler.CM
 
 ## Microsoft sign-in
 
-Register `https://bioremedy-crm.bioremedy.workers.dev/` once as a **Single-page application** redirect URI on the Entra app (see `docs/roadmap/cutover-runbook.md`). Keep `http://localhost:4173/` too.
+**Owner decision 2026-10-01: the workers.dev address is not registered in Entra.** "Sign in with Microsoft" therefore works only on `http://localhost:4173/` (the office PC). On the public address Microsoft will refuse the redirect, so people there sign in with the password an admin sets in Identity & Sync › Users & access (local login is on). To enable Microsoft sign-in there later, register `https://bioremedy-crm.bioremedy.workers.dev/` as a **Single-page application** redirect URI on the Entra app (see `docs/roadmap/cutover-runbook.md`).
+
+**Verified 2026-10-01:** the Worker serves the app (cache v67) and `/api/auth/providers` through the tunnel; the supervisor registered the first tunnel address within 6 s of starting.
 
 ## Limits to know
 
