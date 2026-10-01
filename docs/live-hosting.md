@@ -33,6 +33,7 @@ A named tunnel (`crm.bioremedy.com`) is free too, but it needs the domain's DNS 
 From `deploy/cloudflare-worker`:
 
 ```powershell
+$env:Path = "C:\Users\Braden\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin;" + $env:Path   # Node isn't on PATH here
 $wrangler = "$env:LOCALAPPDATA\bioremedy-crm-tools\node_modules\.bin\wrangler.CMD"
 & $wrangler deploy
 # first time, and whenever the secret changes: copy CRM_TUNNEL_SECRET from .env into the Worker
