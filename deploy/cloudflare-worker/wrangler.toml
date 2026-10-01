@@ -1,0 +1,14 @@
+# BioRemedy CRM — the permanent workers.dev address (see worker.js and docs/live-hosting.md).
+# Deploy: wrangler deploy --config deploy/cloudflare-worker/wrangler.toml
+name = "bioremedy-crm"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+LABEL = "BioRemedy CRM"
+ORIGIN_KEY = "origin"
+
+[[kv_namespaces]]
+binding = "CRM"
+id = "ccd7488bfe9b49a1a8b7751a36dc699f"
