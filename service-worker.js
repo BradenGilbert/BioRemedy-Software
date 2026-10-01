@@ -1,4 +1,4 @@
-const CACHE_NAME = "environmental-crm-shell-v67";
+const CACHE_NAME = "environmental-crm-shell-v68";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const APP_SHELL = [
   "./field/job.js",
   "./field/safety.js",
   "./field/aamva.js",
+  "./field/idscan.js",
   "./field/capture.js",
   "./field/forms.js",
   "./field/form-calc.js",

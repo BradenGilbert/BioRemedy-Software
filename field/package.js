@@ -198,11 +198,16 @@ export async function drainOutbox() {
     const rows = (await outboxGetAll()).sort((a, b) => a.createdAt - b.createdAt);
     for (const row of rows) {
       if (row.status === "rejected") continue; // kept visible until the user discards/retries it
+      // 2026-10-01: a done row is kept 24 h for the Sync screen, not to be sent again. Every drain used
+      // to re-send it (harmless only where the server answers a repeated command id from its receipt;
+      // the licence lookup keeps no receipt, so its redacted replay came back 400 "rejected").
+      if (row.status === "done") continue;
       if (!isOnline()) break;
       row.status = "sending";
       await outboxPut(row);
+      let sentResult;
       try {
-        await sendRow(row);
+        sentResult = await sendRow(row);
         row.status = "done";
         row.doneAt = Date.now();
         await outboxPut(row);
@@ -226,6 +231,9 @@ export async function drainOutbox() {
         row.body = body;
         await outboxPut(row);
       }
+      // 2026-10-01: a replayed command's answer, for the module that queued it (the forms' licence
+      // lookup patches its submission with it). The body is the redacted one.
+      if (row.status === "done") document.dispatchEvent(new CustomEvent("field:command-done", { detail: { kind: row.kind, clientCommandId: row.clientCommandId, body: row.body, result: sentResult } }));
       await notifySync();
     }
     // Sweep done rows older than 24h.

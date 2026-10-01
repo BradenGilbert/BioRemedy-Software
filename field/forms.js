@@ -34,6 +34,9 @@ import {
 import { isUsageFieldType, templateHasUsageFields, usageRowText, USAGE_EQUIPMENT_CONDITIONS } from "./form-calc.js";
 
 export { evaluateCalculation, validateCalculation, normalizeFormTemplate, TIMESHEET_ACTIONS, FORM_FIELD_TYPES, slugFieldRef } from "./form-calc.js";
+// 2026-10-01: the "Driver's licence scan" field (idScan) -- see "Driver's licence scan" below.
+import { formatIdScanText } from "./form-calc.js";
+import { scanLicence } from "./idscan.js";
 
 const FIELD_TYPE_CHECKLIST = "Checklist";
 
@@ -244,6 +247,7 @@ function thumbUrlFor(documentId) {
 }
 
 function renderFieldEdit(field, value, { preview = false } = {}) {
+  if (field.type === "idScan") return renderIdScanEdit(field, value, { preview });
   const name = fieldName(field);
   const ref = attr(field.fieldRef);
   const title = `<span>${esc(field.displayName)}${requiredMark(field)}</span>`;
@@ -351,6 +355,7 @@ function renderFieldEdit(field, value, { preview = false } = {}) {
 // One answer for reading (office job page, "My submissions", the "view" mode).
 function renderAnswerHtml(field, value) {
   if (isUsageFieldType(field.type)) return renderUsageAnswerHtml(field, value);
+  if (field.type === "idScan") return renderIdScanAnswer(field, value);
   if (field.type === "picture") {
     const ids = Array.isArray(value) ? value : value?.documentId ? [value.documentId] : [];
     if (!ids.length) return `<span class="muted-text">No photo</span>`;
@@ -588,6 +593,7 @@ function fieldRoot(form, field) {
 
 // Live behaviour: calculations, cascading selects, odometer warnings, photos, signatures.
 function wireFormFields(form, template, session, values = {}) {
+  wireIdScanFields(form, template, session, values);
   const recalc = () => {
     const calcs = template.fields.filter((field) => field.type === "calculation");
     if (!calcs.length) return;
@@ -783,6 +789,10 @@ function readRawValues(form, template, session) {
   for (const field of template.fields) {
     const root = fieldRoot(form, field);
     if (!root) continue;
+    if (field.type === "idScan") {
+      values[field.fieldRef] = idScanEntries(session).get(field.fieldRef)?.value || null;
+      continue;
+    }
     const name = fieldName(field);
     switch (field.type) {
       case "label":
@@ -841,6 +851,10 @@ function collectFormValues(form, template, session) {
     const ref = field.fieldRef;
     const config = field.config || {};
     const value = raw[ref];
+    if (field.type === "idScan") {
+      collectIdScan(field, idScanEntries(session).get(ref), values, need);
+      continue;
+    }
     switch (field.type) {
       case "label":
       case "calculation":
@@ -942,12 +956,271 @@ function collectFormValues(form, template, session) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Driver's licence scan (type idScan; owner request 2026-10-01)
+// ---------------------------------------------------------------------------------------------
+//
+// "Scan licence" reads the PDF417 barcode on the back of a driver's licence with field/idscan.js
+// (the roll call's reader). The answer keeps the same minimum as the roll call (Phase 25 A.3b):
+//   { displayName, idState, idLast4, idExpiry, scannedAt, employeeId?, lat?, lng?, accuracyM? }
+// -- never the licence number, DOB, address or the photo (decoded on the phone, never uploaded).
+// config: { matchEmployee, expiredPolicy: "warn" | "block", captureGps }.
+// matchEmployee asks POST /api/field/id-lookup who the licence belongs to: the server hashes state +
+// number the way the roll call does and answers, storing nothing and linking no one. With no signal
+// the number waits in memory (session.idScans) until the form is submitted; the lookup is then queued
+// in the outbox behind the submission (its number redacted once sent) and the answer patches the
+// submission's employeeId when it comes back (field:command-done, from field/package.js).
+
+const ID_SCAN_ANSWER_KEYS = ["displayName", "idState", "idLast4", "idExpiry", "scannedAt", "employeeId", "lat", "lng", "accuracyM"];
+
+// fieldRef -> { value, expired, match: ""|"checking"|"matched"|"none"|"pending"|"error", matchName,
+//               message, pending: {idState, licenceNumber} | null, seq }
+function idScanEntries(session) {
+  if (!session.idScans) session.idScans = new Map();
+  return session.idScans;
+}
+
+function idScanAnswer(value) {
+  if (!value || typeof value !== "object") return null;
+  const out = {};
+  for (const key of ID_SCAN_ANSWER_KEYS) if (value[key] !== undefined && value[key] !== "" && value[key] !== null) out[key] = value[key];
+  return out.idLast4 || out.displayName ? out : null;
+}
+
+function idScanEntryFromValue(field, value) {
+  const answer = idScanAnswer(value);
+  if (!answer) return null;
+  const employee = answer.employeeId ? crm.findEmployee(answer.employeeId) : null;
+  return {
+    value: answer,
+    expired: Boolean(answer.idExpiry) && answer.idExpiry < localToday(),
+    match: answer.employeeId ? "matched" : field.config?.matchEmployee ? "none" : "",
+    matchName: employee?.displayName || "",
+    message: "",
+    pending: null,
+    seq: 0,
+  };
+}
+
+function idScanBlocked(field, entry) {
+  return Boolean(entry?.expired) && field.config?.expiredPolicy === "block";
+}
+
+function renderIdScanCard(field, entry) {
+  if (!entry?.value) return `<p class="field-card-sub" data-idscan-empty>No licence scanned yet.</p>`;
+  const value = entry.value;
+  const blocked = idScanBlocked(field, entry);
+  const expiryDate = value.idExpiry ? crm.formatDate(value.idExpiry) : "";
+  const expiredLine = entry.expired
+    ? `<p class="field-form-idscan-alert" data-idscan-expired>${
+        blocked ? `This licence expired on ${esc(expiryDate)}. A current licence is needed — scan another one.` : `This licence expired on ${esc(expiryDate)}. Follow up on a current licence.`
+      }</p>`
+    : "";
+  const matchText = {
+    checking: "Looking them up…",
+    matched: `Matched: ${entry.matchName || "employee on file"}`,
+    none: "Not on file",
+    pending: "No signal — checked against employees when the phone reconnects.",
+    error: `Couldn't check who this is${entry.message ? `: ${entry.message}` : "."}`,
+  }[entry.match];
+  const matchLine = field.config?.matchEmployee && matchText ? `<p data-idscan-match="${attr(entry.match)}">${entry.match === "matched" ? `<strong>${esc(matchText)}</strong>` : esc(matchText)}</p>` : "";
+  return `
+    <div class="field-form-idscan-card ${blocked ? "is-blocked" : ""}" data-idscan-card>
+      <p><strong data-idscan-name>${esc(value.displayName || "Name not read")}</strong></p>
+      <p class="field-card-sub">${esc(value.idState || "")} licence ••••${esc(value.idLast4 || "")}${expiryDate ? ` · expires ${esc(expiryDate)}` : ""}</p>
+      ${expiredLine}
+      ${matchLine}
+    </div>`;
+}
+
+function renderIdScanEdit(field, value, { preview = false } = {}) {
+  const entry = idScanEntryFromValue(field, value);
+  return `<div class="field-form-field field-form-idscan" data-ref="${attr(field.fieldRef)}" data-type="idScan">
+      <fieldset class="field-form-choice"><legend>${esc(field.displayName)}${requiredMark(field)}</legend>
+        <div data-idscan-slot>${renderIdScanCard(field, entry)}</div>
+        <div class="field-form-photo-actions">
+          <button type="button" class="field-button field-button--secondary" data-idscan-start ${preview ? "disabled" : ""}>${entry ? "Scan again" : "Scan licence"}</button>
+          <button type="button" class="field-button field-button--ghost" data-idscan-clear ${entry ? "" : "hidden"}>Clear</button>
+        </div>
+        <small class="field-form-help">Camera, or a photo of the back of the licence. Only the name, state, last 4 digits and expiry are kept.</small>
+      </fieldset>
+      ${helpAndError(field)}
+    </div>`;
+}
+
+function renderIdScanAnswer(field, value) {
+  const answer = idScanAnswer(value);
+  if (!answer) return `<span class="muted-text">No licence scanned</span>`;
+  const employee = answer.employeeId ? crm.findEmployee(answer.employeeId) : null;
+  const text = formatIdScanText(answer, { formatDate: (date) => crm.formatDate(date), employeeName: employee?.displayName || "", matchEmployee: Boolean(field.config?.matchEmployee), today: localToday() });
+  return `<span data-idscan-answer>${esc(text)}</span>`;
+}
+
+// Who the licence belongs to: { status: "matched", employeeId, displayName } | { status: "none" } |
+// { status: "offline" } | { status: "error", message }.
+async function lookupLicence(idState, licenceNumber) {
+  if (!fieldPackage.isOnline()) return { status: "offline" };
+  try {
+    const result = await crm.apiRequest("/api/field/id-lookup", { method: "POST", body: JSON.stringify({ idState, licenceNumber }) });
+    return result?.employeeId ? { status: "matched", employeeId: result.employeeId, displayName: result.displayName || "" } : { status: "none" };
+  } catch (error) {
+    if (!error?.status || error.status >= 500 || error.status === 408) return { status: "offline" };
+    return { status: "error", message: error?.payload?.error || error.message || "" };
+  }
+}
+
+function wireIdScanFields(form, template, session, values = {}) {
+  const entries = idScanEntries(session);
+  for (const field of template.fields) {
+    if (field.type !== "idScan") continue;
+    const root = fieldRoot(form, field);
+    if (!root) continue;
+    const start = idScanEntryFromValue(field, values?.[field.fieldRef]);
+    if (start) entries.set(field.fieldRef, start);
+    const draw = () => {
+      const entry = entries.get(field.fieldRef) || null;
+      root.querySelector("[data-idscan-slot]").innerHTML = renderIdScanCard(field, entry);
+      root.querySelector("[data-idscan-start]").textContent = entry ? "Scan again" : "Scan licence";
+      root.querySelector("[data-idscan-clear]").hidden = !entry;
+      root.classList.remove("has-error");
+      const error = root.querySelector("[data-error-for]");
+      if (error) error.textContent = "";
+    };
+    root.querySelector("[data-idscan-clear]")?.addEventListener("click", () => {
+      entries.delete(field.fieldRef);
+      draw();
+    });
+    root.querySelector("[data-idscan-start]")?.addEventListener("click", async () => {
+      const scanned = await scanLicence({ title: field.displayName || "Scan licence", captureGps: Boolean(field.config?.captureGps) });
+      if (!scanned || !form.isConnected) return;
+      const { licence, summary } = scanned;
+      const previous = entries.get(field.fieldRef);
+      const entry = {
+        value: { displayName: summary.displayName || "", idState: summary.idState, idLast4: summary.idLast4, idExpiry: summary.idExpiry || "", scannedAt: new Date().toISOString() },
+        expired: Boolean(summary.expired),
+        match: field.config?.matchEmployee ? "checking" : "",
+        matchName: "",
+        message: "",
+        // The number stays in memory only while the match is still to be checked.
+        pending: field.config?.matchEmployee ? { idState: licence.state, licenceNumber: licence.licenceNumber } : null,
+        seq: (previous?.seq || 0) + 1,
+      };
+      entries.set(field.fieldRef, entry);
+      draw();
+      const seq = entry.seq;
+      const located = field.config?.captureGps
+        ? scanned.position().then((fix) => {
+            if (fix && entries.get(field.fieldRef)?.seq === seq) Object.assign(entry.value, { lat: fix.lat, lng: fix.lng, accuracyM: fix.accuracyM });
+          })
+        : Promise.resolve();
+      if (entry.pending) {
+        const found = await lookupLicence(entry.pending.idState, entry.pending.licenceNumber);
+        if (entries.get(field.fieldRef)?.seq !== seq) return;
+        if (found.status === "offline") {
+          entry.match = "pending";
+        } else {
+          entry.pending = null;
+          entry.match = found.status === "matched" ? "matched" : found.status === "none" ? "none" : "error";
+          entry.message = found.message || "";
+          if (found.status === "matched") {
+            entry.value.employeeId = found.employeeId;
+            entry.matchName = found.displayName || crm.findEmployee(found.employeeId)?.displayName || "";
+          }
+        }
+        if (form.isConnected) draw();
+      }
+      await located;
+    });
+  }
+}
+
+function collectIdScan(field, entry, values, need) {
+  const ref = field.fieldRef;
+  if (!entry?.value) {
+    if (field.required) need(field, `Scan a driver's licence for ${field.displayName}.`);
+    values[ref] = null;
+    return;
+  }
+  if (idScanBlocked(field, entry)) need(field, `${field.displayName}: this licence expired on ${crm.formatDate(entry.value.idExpiry)}. Scan a current licence.`);
+  values[ref] = idScanAnswer(entry.value);
+}
+
+// At submit, online: check any scan whose match is still open before the submission is saved.
+async function resolvePendingIdLookups(template, filled) {
+  const entries = filled?.session?.idScans;
+  if (!entries || !fieldPackage.isOnline()) return;
+  for (const field of template.fields) {
+    const entry = field.type === "idScan" ? entries.get(field.fieldRef) : null;
+    if (!entry?.pending || !filled.values[field.fieldRef]) continue;
+    const found = await lookupLicence(entry.pending.idState, entry.pending.licenceNumber);
+    if (found.status === "offline") continue;
+    entry.pending = null;
+    if (found.status === "matched") filled.values[field.fieldRef] = { ...filled.values[field.fieldRef], employeeId: found.employeeId };
+  }
+}
+
+// After the submission is saved (or queued): a scan still waiting for its match goes into the outbox
+// behind it. The number leaves memory here; the outbox drops it once the server has answered.
+async function queuePendingIdLookups(template, filled, submissionId) {
+  const entries = filled?.session?.idScans;
+  if (!entries) return;
+  for (const field of template.fields) {
+    const entry = field.type === "idScan" ? entries.get(field.fieldRef) : null;
+    if (!entry?.pending) continue;
+    const pending = entry.pending;
+    entry.pending = null;
+    const answer = filled.values[field.fieldRef];
+    if (!answer) continue;
+    const body = { idState: pending.idState, licenceNumber: pending.licenceNumber, submissionId, fieldRef: field.fieldRef };
+    try {
+      const result = await fieldPackage.fieldRequest("/api/field/id-lookup", {
+        method: "POST",
+        kind: "id-lookup",
+        label: `Licence check — ${template.displayName} (••••${answer.idLast4 || ""})`,
+        body,
+        redactOnDone: ["licenceNumber"],
+      });
+      if (result) await applyIdLookupResult(submissionId, field.fieldRef, result);
+    } catch {
+      // Refused (e.g. too many lookups): the scan stays on the submission, unmatched.
+    } finally {
+      body.licenceNumber = "";
+    }
+  }
+}
+
+// A lookup answered after the submission was saved: put the matched employee on the stored answer.
+async function applyIdLookupResult(submissionId, fieldRef, result) {
+  if (!submissionId || !fieldRef || !result?.employeeId) return;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const row = (crm.state.backend.jobFormSubmissions || []).find((item) => item.id === submissionId);
+    const answer = idScanAnswer(row?.payload?.[fieldRef]);
+    if (!row || !answer || answer.employeeId) return;
+    const next = { ...row, payload: { ...row.payload, [fieldRef]: { ...answer, employeeId: result.employeeId } } };
+    try {
+      await fieldPackage.saveFieldRecord("jobFormSubmissions", next, { kind: "form-submission", label: `${row.formName || "Form"} — licence match` });
+      return;
+    } catch (error) {
+      if (!error?.conflict) return; // the stale copy was replaced with the server's; try once more
+    }
+  }
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("field:command-done", (event) => {
+    const detail = event.detail || {};
+    if (detail.kind !== "id-lookup") return;
+    applyIdLookupResult(detail.body?.submissionId, detail.body?.fieldRef, detail.result).catch(() => {});
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
 // Saving
 // ---------------------------------------------------------------------------------------------
 
 // Build and save a jobFormSubmissions row from a filled sheet, then upload its pictures and
 // signatures as documents with ids chosen here. Online or offline, resolves to the stored row.
 async function saveSubmission(template, filled, context = {}) {
+  await resolvePendingIdLookups(template, filled);
   const employee = currentFieldEmployee();
   const id = crm.makeId("form-sub");
   const payload = {};
@@ -997,6 +1270,7 @@ async function saveSubmission(template, filled, context = {}) {
     payload,
   };
   await fieldPackage.saveFieldRecord("jobFormSubmissions", submission, { kind: "form-submission", label: template.displayName });
+  await queuePendingIdLookups(template, filled, id);
 
   // The row exists (or is queued ahead of these), so the documents can point at it.
   let changed = false;

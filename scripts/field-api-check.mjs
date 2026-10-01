@@ -550,6 +550,116 @@ await step("roll-call scan: match, suggestions, lead links, crew can't link, exp
   }
 });
 
+// ---- 13b. 2026-10-01: the forms' "Driver's licence scan" -- POST /api/field/id-lookup -------------
+// A lookup answers who a licence belongs to (only licences a lead already linked on a roll call), stores
+// nothing, links no one, is rate-limited per session, and never echoes the number. A form submission's
+// idScan answer is cut down to the minimum whatever the client sends.
+await step("id-lookup: match, no match, stores nothing, links no one, rate limit; idScan answers scrubbed", async () => {
+  const stamp = Date.now();
+  const leadId = `field-api-check-idl-lead-${stamp}`;
+  const crewId = `field-api-check-idl-crew-${stamp}`;
+  const jobId = `field-api-check-idl-job-${stamp}`;
+  const formId = `field-api-check-idl-form-${stamp}`;
+  const submissionId = `field-api-check-idl-sub-${stamp}`;
+  for (const [id, first, last] of [[leadId, "Idlead", `Check${stamp}`], [crewId, "Idcrew", `Check${stamp}`]]) {
+    const created = await adminPost("employees", { id, firstName: first, lastName: last, displayName: `${first} ${last}`, jobTitle: "Technician", employmentStatus: "Active" });
+    assert(created.response.ok, `create test employee -> ${created.response.status} ${created.payload.error || ""}`);
+  }
+  const start = new Date();
+  const job = await adminPost("dispatchJobs", {
+    id: jobId, jobNumber: "CHECK-IDL", jobName: "field-api-check id lookup", status: "on_site", dispatchStatus: "On site",
+    scheduledStart: start.toISOString(), scheduledEnd: new Date(start.getTime() + 8 * 3600 * 1000).toISOString(), fieldLeadEmployeeId: leadId,
+  });
+  assert(job.response.ok, `create test job -> ${job.response.status} ${job.payload.error || ""}`);
+  await adminPost("jobAssignments", { id: `${jobId}-lead`, jobId, employeeId: leadId, isFieldLead: true, status: "Assigned" });
+  await adminPost("jobAssignments", { id: `${jobId}-crew`, jobId, employeeId: crewId, isFieldLead: false, status: "Assigned" });
+  try {
+    const leadCookie = await linkSession(leadId, jobId);
+    const crewCookie = await linkSession(crewId, jobId);
+    const digits = String(stamp).slice(-8);
+    const crewLicence = `K${digits}`;
+    const unknownLicence = `U${digits}`;
+    const numbers = [crewLicence, unknownLicence];
+    const seen = [];
+    const lookup = async (cookie, body) => {
+      const result = await fieldPost(cookie, "/api/field/id-lookup", body);
+      seen.push(JSON.stringify(result.payload));
+      return result;
+    };
+
+    // Nothing linked yet: no match, and nothing changes on the server.
+    const before = await (await fetch(`${baseUrl}/api/backend`, { headers: { Cookie: adminCookie } })).text();
+    const none = await lookup(leadCookie, { idState: "TX", licenceNumber: crewLicence });
+    assert(none.response.ok && none.payload.match === null && !none.payload.employeeId, `unlinked licence -> ${none.response.status} ${JSON.stringify(none.payload)} (want 200, match null)`);
+    const office = await lookup(adminCookie, { idState: "TX", licenceNumber: unknownLicence });
+    assert(office.response.ok && office.payload.match === null, `office lookup, unknown licence -> ${office.response.status} (want 200, match null)`);
+    const after = await (await fetch(`${baseUrl}/api/backend`, { headers: { Cookie: adminCookie } })).text();
+    assert(before === after, "a lookup changed something on the server");
+    const noLink = await lookup(leadCookie, { idState: "TX", licenceNumber: crewLicence, employeeId: crewId });
+    assert(noLink.response.ok && noLink.payload.match === null, "a lookup with an employeeId linked the licence");
+    const bad = await lookup(leadCookie, { idState: "", licenceNumber: crewLicence });
+    assert(bad.response.status === 400, `lookup without a state -> ${bad.response.status} (want 400)`);
+
+    // The lead links it on the roll call; now a lookup finds them, from a field or an office session.
+    const linked = await fieldPost(leadCookie, `/api/field/jobs/${jobId}/roll-call/scan`, { idState: "TX", idExpiry: "2031-01-31", licenceNumber: crewLicence, displayName: `Idcrew Check${stamp}`, employeeId: crewId });
+    seen.push(JSON.stringify(linked.payload));
+    assert(linked.response.ok && linked.payload.linked, `lead links the licence on the roll call -> ${linked.response.status} ${linked.payload.error || ""}`);
+    const match = await lookup(crewCookie, { idState: "tx", licenceNumber: `${crewLicence.slice(0, 3)}-${crewLicence.slice(3)}` });
+    assert(match.response.ok && match.payload.employeeId === crewId && match.payload.match?.employeeId === crewId && match.payload.displayName === `Idcrew Check${stamp}`, `linked licence -> ${match.response.status} ${JSON.stringify(match.payload)}`);
+    const officeMatch = await lookup(adminCookie, { idState: "TX", licenceNumber: crewLicence });
+    assert(officeMatch.payload.employeeId === crewId, "office lookup did not match the linked licence");
+    const otherState = await lookup(leadCookie, { idState: "OK", licenceNumber: crewLicence });
+    assert(otherState.payload.match === null, "the same number in another state matched");
+
+    // An idScan answer keeps only the minimum, whatever the phone sends.
+    const form = await adminPost("formTemplates", {
+      id: formId, name: `field-api-check id scan ${stamp}`, displayName: "ID check", isActive: false, availableOnFormsMenu: false,
+      fields: [{ displayName: "Driver licence", fieldRef: "driver_licence", type: "idScan", required: true, config: { matchEmployee: true, expiredPolicy: "nope", captureGps: true } }],
+    });
+    assert(form.response.ok, `save a form with an idScan field -> ${form.response.status} ${form.payload.error || ""}`);
+    const savedField = (form.payload.fields || [])[0] || {};
+    assert(savedField.type === "idScan" && savedField.config?.expiredPolicy === "warn" && savedField.config.matchEmployee === true && savedField.config.captureGps === true, `idScan config normalised -> ${JSON.stringify(savedField.config)}`);
+    const submission = await fetch(`${baseUrl}/api/backend/jobFormSubmissions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: leadCookie },
+      body: JSON.stringify({
+        id: submissionId, jobId, formTemplateId: formId, formName: "ID check", status: "Submitted", submittedByEmployeeId: leadId, submittedAt: new Date().toISOString(),
+        payload: { driver_licence: { displayName: `Idcrew Check${stamp}`, idState: "TX", idLast4: crewLicence, idExpiry: "2031-01-31", scannedAt: new Date().toISOString(), employeeId: crewId, lat: 30.5, lng: -97.6, accuracyM: 8.4, licenceNumber: crewLicence, dateOfBirth: "1985-07-04", address: "123 Main St" } },
+      }),
+    }).then(async (response) => ({ response, payload: await j(response) }));
+    seen.push(JSON.stringify(submission.payload));
+    assert(submission.response.ok, `field submission with an idScan answer -> ${submission.response.status} ${submission.payload.error || ""}`);
+    const answer = submission.payload.payload?.driver_licence || {};
+    assert(
+      JSON.stringify(Object.keys(answer).sort()) === JSON.stringify(["accuracyM", "displayName", "employeeId", "idExpiry", "idLast4", "idState", "lat", "lng", "scannedAt"]) && answer.idLast4 === crewLicence.slice(-4) && answer.accuracyM === 8,
+      `stored idScan answer -> ${JSON.stringify(answer)}`,
+    );
+
+    // Rate limit: 30 a minute per session; another session is not affected.
+    const limitCookie = await linkSession(crewId, jobId);
+    let firstRefused = 0;
+    for (let index = 1; index <= 31; index += 1) {
+      const result = await fieldPost(limitCookie, "/api/field/id-lookup", { idState: "TX", licenceNumber: `R${digits}${index}` });
+      seen.push(JSON.stringify(result.payload));
+      if (result.response.status === 429 && !firstRefused) firstRefused = index;
+    }
+    assert(firstRefused === 31, `rate limit -> first 429 at lookup ${firstRefused || "never"} (want 31)`);
+    const otherSession = await lookup(leadCookie, { idState: "TX", licenceNumber: unknownLicence });
+    assert(otherSession.response.ok, `another session after the limit -> ${otherSession.response.status} (want 200)`);
+
+    for (const [cookie, url] of [[adminCookie, "/api/backend"], [leadCookie, "/api/backend"], [leadCookie, "/api/field/package"]]) {
+      seen.push(await (await fetch(`${baseUrl}${url}`, { headers: { Cookie: cookie } })).text());
+    }
+    const leaked = seen.find((text) => text.includes("licenceHash") || text.includes("dateOfBirth") || numbers.some((number) => text.includes(number)));
+    assert(!leaked, `a response carried a licence number, licenceHash or DOB: ${String(leaked).slice(0, 160)}`);
+  } finally {
+    await fetch(`${baseUrl}/api/backend/jobFormSubmissions/${submissionId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+    await fetch(`${baseUrl}/api/backend/formTemplates/${formId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+    await fetch(`${baseUrl}/api/backend/dispatchJobs/${jobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+    for (const id of [leadId, crewId]) await fetch(`${baseUrl}/api/backend/employees/${id}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+  }
+});
+
 await step("Travel clock-in sent in lower case is stored as Travel", async () => {
   const employeeId = guardCrewId || leadEmployeeId;
   if (!employeeId) return "skip";

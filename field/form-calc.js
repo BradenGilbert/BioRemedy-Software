@@ -85,6 +85,10 @@ export function usageRowText(type, row) {
   }
   return "";
 }
+// 2026-10-01: "Driver's licence scan" (type idScan; field/forms.js reads the licence with
+// field/idscan.js). Its answer is { displayName, idState, idLast4, idExpiry, scannedAt, employeeId?,
+// lat?, lng?, accuracyM? } -- never the licence number, DOB, address or the photo.
+FORM_FIELD_TYPES.push("idScan");
 
 // Lower snake case, unique within `taken` (a Set of refs already used in the form).
 export function slugFieldRef(text, taken = new Set()) {
@@ -388,6 +392,7 @@ export function formatFieldValueText(field, value) {
     return value.filter((item) => item !== "" && item !== null && item !== undefined).join(type === "cascadingList" ? " › " : ", ");
   }
   if (typeof value === "object") {
+    if (type === "idScan") return formatIdScanText(value);
     if (Array.isArray(value.checked)) return value.checked.join(", ") || "None checked";
     if (value.reading !== undefined) return `${value.reading === "" || value.reading === null ? "" : Number(value.reading).toLocaleString("en-US")}${value.vehicleLabel ? ` (${value.vehicleLabel})` : ""}`;
     if (type === "signature" || value.signed !== undefined || value.signerName !== undefined) return value.documentId || value.signed ? `Signed${value.signerName ? ` by ${value.signerName}` : ""}` : "Not signed";
@@ -403,4 +408,16 @@ export function formatFieldValueText(field, value) {
     return `${number.toLocaleString("en-US", { maximumFractionDigits: 10 })}${unit}`;
   }
   return String(value);
+}
+
+// A "Driver's licence scan" answer as one line: "Scanned ID: Dana Scantest ••••3579 TX, expires
+// 2030-05-05 (matched: Dana Scantest)". `formatDate` formats the expiry (default: as stored);
+// `employeeName` is the matched employee's name, if the caller can look it up; `matchEmployee` adds
+// "(not on file)" when the scan matched nobody.
+export function formatIdScanText(value, { formatDate = (date) => date, employeeName = "", matchEmployee = false, today = "" } = {}) {
+  if (!value || typeof value !== "object" || (!value.idLast4 && !value.displayName)) return "";
+  const expired = Boolean(value.idExpiry) && Boolean(today) && value.idExpiry < today;
+  const expiry = value.idExpiry ? `, ${expired ? "expired" : "expires"} ${formatDate(value.idExpiry)}` : "";
+  const match = value.employeeId ? (employeeName ? ` (matched: ${employeeName})` : " (matched)") : matchEmployee ? " (not on file)" : "";
+  return `Scanned ID: ${value.displayName || "Name not read"}${value.idLast4 ? ` ••••${value.idLast4}` : ""}${value.idState ? ` ${value.idState}` : ""}${expiry}${match}`;
 }
