@@ -2896,3 +2896,37 @@ dialog.field-form-sheet::backdrop {
 .form-deferred {
   color: var(--amber, #a76116);
 }
+
+/* Pass 2 D (2026-10-01): five quick-bar buttons (Photo, Video, Note, Message, Flag) wrap instead of
+   overflowing a phone. */
+.field-quick-bar {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+}
+
+.field-quick-bar .field-icon-button {
+  min-width: 0;
+  justify-content: center;
+}
+
+.field-flag-sheet textarea,
+.field-flag-sheet select,
+.field-flag-sheet input[type="file"] {
+  width: 100%;
+}
+
+/* Pass 2 D (2026-10-01): five quick-bar buttons (Photo, Video, Note, Message, Flag) wrap instead of overflowing a phone. */
+.field-quick-bar {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+}
+
+.field-quick-bar .field-icon-button {
+  min-width: 0;
+  justify-content: center;
+}
+
+.field-flag-sheet textarea,
+.field-flag-sheet select,
+.field-flag-sheet input[type="file"] {
+  width: 100

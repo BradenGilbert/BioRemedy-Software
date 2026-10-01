@@ -10,6 +10,7 @@ import * as fieldPackage from "./package.js";
 import { renderSafetyTab, afterSafetyRender } from "./safety.js";
 import { renderWorkTab, afterCaptureRender, photoShareToggle } from "./capture.js";
 import { withTimesheetForm } from "./forms.js";
+import { renderFlagsCard } from "./flag.js";
 
 function currentJob() {
   return crm.findDispatchJob(crm.state.frontlineSelectedJobId);
@@ -68,6 +69,7 @@ function renderJob() {
         <button class="field-icon-button" type="button" data-field-action="field-quick-video">Video</button>
         <button class="field-icon-button" type="button" data-field-action="field-quick-note">Note</button>
         <button class="field-icon-button" type="button" data-action="frontline-messaging-open-thread" data-thread="${crm.escapeAttribute(job.id)}">Message${unread ? ` (${unread})` : ""}</button>
+        <button class="field-icon-button" type="button" data-field-action="field-flag-open">Flag</button>
       </div>
       <input type="file" id="fieldQuickPhotoInput" accept="image/png,image/jpeg" capture="environment" style="display:none" data-camera-ready="1" data-job-id="${crm.escapeAttribute(job.id)}" />
 
@@ -353,7 +355,7 @@ document.addEventListener("change", async (event) => {
     // documentType job-photo/site-photo) never picked them up. includeInReport defaults true for a
     // field capture -- a second write after the upload, since /api/documents doesn't take it as a
     // header (see server.mjs's documents metadata route).
-    const uploaded = await fieldPackage.uploadFieldFile(`/api/documents`, file, { "X-Entity-Type": "dispatchJob", "X-Entity-Id": jobId, "X-Document-Type": "job-photo", "X-Visibility": "internal" });
+    const uploaded = await fieldPackage.uploadFieldFile(`/api/documents`, file, { "X-Entity-Type": "dispatchJob", "X-Entity-Id": jobId, "X-Document-Type": crm.documentTypeByCode("job-photo")?.id || "", "X-Visibility": "internal" });
     if (uploaded?.id) {
       await fieldPackage.saveFieldRecord("documents", { ...uploaded, includeInReport: true }, { kind: "document-flag", label: "Include photo in report" });
     }
@@ -389,6 +391,7 @@ function renderBriefTab(job, project, account) {
       <div class="field-card-row"><strong>Class</strong><span>${crm.escapeHtml(project?.serviceType || project?.projectClass || "—")}</span></div>
     </section>
 
+    ${renderFlagsCard(job)}
     ${project ? renderIntakeCard(project) : ""}
     ${project ? renderScopeCard(project) : ""}
     ${renderPlannedCard(job)}

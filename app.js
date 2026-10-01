@@ -2373,6 +2373,9 @@ async function dispatchClick(event) {
     state.frontlineAdHocType = "";
     render();
   }
+  if (action === "frontline-correct-miles") {
+    await frontlineCorrectMiles(actionButton.dataset.entryId);
+  }
   if (action === "frontline-messaging-open-thread") {
     state.frontlineMessagingThreadKey = actionButton.dataset.thread || "general";
     state.view = "field-messages";
@@ -10774,6 +10777,11 @@ function renderAlertCard(alert) {
       </div>
       <strong>${escapeHtml(job?.name ?? "Unknown job")}</strong>
       <p class="help-text">${escapeHtml(alert.description)}</p>
+      ${
+        alert.source === "field"
+          ? `<p class="help-text" data-field-flag>Flagged from the field by ${escapeHtml(alert.reportedBy || "the crew")}${alert.dispatchJobId ? ` on <button class="link-button" type="button" data-action="view-dispatch-job" data-id="${escapeAttribute(alert.dispatchJobId)}">${escapeHtml(findDispatchJob(alert.dispatchJobId)?.jobNumber || "a dispatch job")}</button>` : ""}${alert.photoDocumentId ? ` · <a href="/api/documents/${escapeAttribute(alert.photoDocumentId)}/view" target="_blank" rel="noopener">Photo</a>` : ""}</p>`
+          : ""
+      }
       <div class="row-meta">
         <span>${escapeHtml(account?.name ?? "Unknown account")}</span>
         <span>${escapeHtml(alert.reportedBy)}</span>
@@ -12052,8 +12060,19 @@ function dispatchJobReadinessAlertTitle(job, readiness = getJobReadiness(job)) {
 }
 
 // List rows and board cards carry every alert on the job; on the detail page each tab carries its own.
+// Pass 2 D (2026-10-01): open flags the crew raised from Front Line on this dispatch job.
+function openFieldFlagsForJob(job) {
+  return (state.backend.projectAlerts || []).filter((alert) => !alert.deletedAt && alert.dispatchJobId === job.id && alert.status !== "Resolved");
+}
+
+function dispatchJobFlagAlertTitle(job) {
+  const flags = openFieldFlagsForJob(job);
+  if (!flags.length) return "";
+  return `${flags.length} open field flag${flags.length === 1 ? "" : "s"}: ${flags.map((flag) => flag.alertType).join(", ")}`;
+}
+
 function dispatchJobAlertTitle(job, readiness = getJobReadiness(job)) {
-  return [dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job), dispatchJobMessageAlertTitle(job)].filter(Boolean).join("; ");
+  return [dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job), dispatchJobMessageAlertTitle(job), dispatchJobFlagAlertTitle(job)].filter(Boolean).join("; ");
 }
 
 function renderDispatchJobTableRow(job) {
@@ -14324,7 +14343,7 @@ function renderDispatchJobDetail() {
       </section>
 
       <div class="account-detail-tabs-row">
-        ${renderDispatchJobDetailTabs(activeTab, dispatchJobReadinessAlertTitle(job, readiness), dispatchCloseoutAlertTitle(job), dispatchJobMessageAlertTitle(job))}
+        ${renderDispatchJobDetailTabs(activeTab, [dispatchJobReadinessAlertTitle(job, readiness), dispatchJobFlagAlertTitle(job)].filter(Boolean).join("; "), dispatchCloseoutAlertTitle(job), dispatchJobMessageAlertTitle(job))}
       </div>
       <div class="account-detail-tabbody">
         ${renderDispatchJobTabBody(activeTab, job, readiness)}
@@ -18743,16 +18762,42 @@ function renderFrontlineTrips() {
   `;
 }
 
+// Pass 2 B (2026-10-01): a trip the server measured from the Travel clock's two GPS fixes
+// (method "gps"). "GPS · estimated" until a person corrects the miles.
+function mileageMethodLabel(entry) {
+  if (entry?.method !== "gps") return "";
+  if (entry.correctedAt) return `GPS · corrected (was ${Number(entry.estimatedDistance).toFixed(1)} mi)`;
+  return entry.estimatedFromSite ? "GPS · estimated (one end from the site)" : "GPS · estimated";
+}
+
 function renderFrontlineTripRow(entry) {
   const job = entry.dispatchJobId ? findDispatchJob(entry.dispatchJobId) : null;
+  const methodLabel = mileageMethodLabel(entry);
   return `
     <article class="frontline-record-card">
       <div class="inline-actions"><span class="job-number">${escapeHtml(formatDispatchStatus(entry.mileageType))}</span><span>${entry.calculatedDistance != null ? `${Number(entry.calculatedDistance).toFixed(1)} mi` : "Distance not captured"}</span></div>
       <strong>${job ? escapeHtml(frontlineJobOptionLabel(job)) : "No job linked"}</strong>
       <span>${formatDateTime(entry.capturedAt)}${entry.beginningOdometer != null && entry.endingOdometer != null ? ` · ${entry.beginningOdometer} → ${entry.endingOdometer}` : ""}</span>
+      ${methodLabel ? `<span class="mileage-method" data-method="gps">${escapeHtml(methodLabel)}</span>` : ""}
       ${entry.notes ? `<span>${escapeHtml(entry.notes)}</span>` : ""}
+      ${entry.method === "gps" ? `<button class="secondary-button" type="button" data-action="frontline-correct-miles" data-entry-id="${escapeAttribute(entry.id)}">Correct miles</button>` : ""}
     </article>
   `;
+}
+
+async function frontlineCorrectMiles(entryId) {
+  const entry = getJobMileageEntries().find((item) => item.id === entryId);
+  if (!entry) return;
+  const answer = window.prompt("Actual miles for this trip", String(entry.calculatedDistance ?? ""));
+  if (answer === null) return;
+  const miles = Number(answer);
+  if (!Number.isFinite(miles) || miles < 0) {
+    showToast("Enter the miles as a number.");
+    return;
+  }
+  await saveBackendRecord("jobMileageEntries", { ...entry, calculatedDistance: Number(miles.toFixed(1)) });
+  showToast("Miles updated.");
+  render();
 }
 
 async function frontlineLogTrip(form) {
@@ -23052,7 +23097,7 @@ function computeJobBillables(job) {
   const dayOf = (value) => (value ? dispatchRecordDay(job, value, workDays) : "");
   const days = new Map();
   const ensureDay = (date) => {
-    if (!days.has(date)) days.set(date, { date, manpower: new Map(), equipment: new Map(), materials: new Map() });
+    if (!days.has(date)) days.set(date, { date, manpower: new Map(), equipment: new Map(), materials: new Map(), mileage: new Map() });
     return days.get(date);
   };
   const addQuantity = (map, key, fields, quantity) => {
@@ -23145,9 +23190,20 @@ function computeJobBillables(job) {
       );
     });
 
+  // Mileage (Pass 2 B): miles per person per day, GPS-estimated Travel legs and manual trips together.
+  (state.backend.jobMileageEntries || [])
+    .filter((entry) => entry.dispatchJobId === job.id && !entry.deletedAt && Number(entry.calculatedDistance) > 0)
+    .forEach((entry) => {
+      const date = dayOf(entry.startedAt || entry.capturedAt);
+      if (!date) return;
+      const employee = findEmployee(entry.employeeId);
+      addQuantity(ensureDay(date).mileage, entry.employeeId, { name: employee?.displayName || "Unknown", gps: false }, Number(entry.calculatedDistance));
+      if (entry.method === "gps") ensureDay(date).mileage.get(entry.employeeId).gps = true;
+    });
+
   return [...days.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((day) => ({ ...day, manpower: [...day.manpower.values()], equipment: [...day.equipment.values()], materials: [...day.materials.values()] }));
+    .map((day) => ({ ...day, manpower: [...day.manpower.values()], equipment: [...day.equipment.values()], materials: [...day.materials.values()], mileage: [...day.mileage.values()] }));
 }
 
 function narrativeForDay(job, date) {
@@ -23316,6 +23372,16 @@ function renderJobBillablesPreview(job) {
             { label: "Qty", value: (row) => `${Math.round(row.quantity * 100) / 100} ${row.unit || ""}`.trim() },
           ],
           "No material logged.",
+        )}
+        <h4>Mileage</h4>
+        ${renderJobBillablesPreviewTable(
+          days.flatMap((day) => (day.mileage || []).map((row) => ({ ...row, date: day.date }))),
+          [
+            { label: "Day", value: (row) => formatDate(row.date) },
+            { label: "Name", value: (row) => row.name },
+            { label: "Miles", value: (row) => `${Math.round(row.quantity * 10) / 10}${row.gps ? " (GPS)" : ""}` },
+          ],
+          "No mileage recorded.",
         )}
       </div>
     </article>
@@ -23782,7 +23848,7 @@ function buildPostWorkReport(project) {
 
   const dayMap = new Map();
   const ensureDay = (date) => {
-    if (!dayMap.has(date)) dayMap.set(date, { date, narratives: [], manpower: new Map(), equipment: new Map(), materials: new Map() });
+    if (!dayMap.has(date)) dayMap.set(date, { date, narratives: [], manpower: new Map(), equipment: new Map(), materials: new Map(), mileage: new Map() });
     return dayMap.get(date);
   };
   const addQuantity = (map, key, fields, quantity) => {
@@ -23809,6 +23875,7 @@ function buildPostWorkReport(project) {
       day.manpower.forEach((row) => addQuantity(target.manpower, `${row.name}|${row.entryType || "work"}`, row, row.quantity));
       day.equipment.forEach((row) => addQuantity(target.equipment, row.assetTag || row.name, row, row.quantity));
       day.materials.forEach((row) => addQuantity(target.materials, `${row.name}|${row.unit}`, row, row.quantity));
+      day.mileage.forEach((row) => addQuantity(target.mileage, row.name, { ...row }, row.quantity));
     });
   });
   // Office-side logs have no dispatch job and no work-day association, so they keep their own date.
@@ -23823,7 +23890,7 @@ function buildPostWorkReport(project) {
 
   const days = [...dayMap.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((day) => ({ ...day, manpower: [...day.manpower.values()], equipment: [...day.equipment.values()], materials: [...day.materials.values()] }));
+    .map((day) => ({ ...day, manpower: [...day.manpower.values()], equipment: [...day.equipment.values()], materials: [...day.materials.values()], mileage: [...day.mileage.values()] }));
   const rollUp = (rows, keyOf) => {
     const map = new Map();
     rows.forEach((row) => addQuantity(map, keyOf(row), row, row.quantity));
@@ -23833,6 +23900,7 @@ function buildPostWorkReport(project) {
     manpower: rollUp(days.flatMap((day) => day.manpower), (row) => `${row.name}|${row.entryType || "work"}`),
     equipment: rollUp(days.flatMap((day) => day.equipment), (row) => row.assetTag || row.name),
     materials: rollUp(days.flatMap((day) => day.materials), (row) => `${row.name}|${row.unit}`),
+    mileage: rollUp(days.flatMap((day) => day.mileage), (row) => row.name),
   };
 
   const submissions = dispatchJobs
@@ -24017,6 +24085,8 @@ function renderPostWorkReportHtml(report) {
     ${table([["Item"], ["Asset"], [equipmentLabel, true]], group.equipment.map((row) => `<tr><td>${escapeHtml(row.name)}${row.writeIn ? ` <small>(written in)</small>` : ""}${row.noRate ? ` <strong class="no-rate-note" style="color:#b42318">no rate</strong>` : ""}</td><td>${escapeHtml(row.assetTag)}</td><td class="num">${hours(row.quantity)}${row.writeIn && row.unit ? ` ${escapeHtml(row.unit)}` : ""}</td></tr>`), "No equipment logged.")}
     <h4>Material</h4>
     ${table([["Item"], ["Quantity", true]], group.materials.map((row) => `<tr><td>${escapeHtml(row.name)}${row.writeIn ? ` <small>(written in)</small>` : ""}${row.noRate ? ` <strong class="no-rate-note" style="color:#b42318">no rate</strong>` : ""}</td><td class="num">${hours(row.quantity)} ${escapeHtml(row.unit)}</td></tr>`), "No material logged.")}
+    <h4>Mileage</h4>
+    ${table([["Name"], ["Miles", true]], (group.mileage || []).map((row) => `<tr><td>${escapeHtml(row.name)}${row.gps ? ` <small>(GPS estimate)</small>` : ""}</td><td class="num">${hours(row.quantity)}</td></tr>`), "No mileage recorded.")}
   `;
   const address = projectSite(project).address || report.dispatchJobs.find((dispatchJob) => dispatchJob.addressText)?.addressText || "";
   const gps = report.gpsPoint ? `GPS: ${Number(report.gpsPoint.latitude).toFixed(7)}, ${Number(report.gpsPoint.longitude).toFixed(7)}` : project.incidentLatitude ? `GPS: ${project.incidentLatitude}, ${project.incidentLongitude}` : "";
@@ -29161,10 +29231,51 @@ function draftInvoiceLinesForProject(project, priceLevelId, defaultTier) {
       });
     });
 
-  const kindOrder = ["labor", "equipment", "material", "expense", "waste"];
-  return lines
+  // Mileage (Pass 2 B, 2026-10-01): one line per person per day from jobMileageEntries (GPS-estimated
+  // Travel legs and manually logged trips alike), priced by the catalog's mileage product when there
+  // is one (name matches /mileage|per mile/, else a /travel/ product priced per mile). With no such
+  // product the miles are NOT billed: the draft carries `skippedMileage` and the dialog says so,
+  // rather than inventing a rate.
+  const mileageProduct =
+    getProducts().find((product) => /mileage|per.?mile/i.test(product.name || "")) ||
+    getProducts().find((product) => /travel/i.test(product.name || "") && /mile/i.test(getUnitsOfMeasure().find((uom) => uom.id === uomFor(product))?.name || ""));
+  let skippedMileage = 0;
+  (state.backend.jobMileageEntries || [])
+    .filter((entry) => !entry.deletedAt && jobIds.has(entry.dispatchJobId) && Number(entry.calculatedDistance) > 0)
+    .forEach((entry) => {
+      const day = fieldDay(entry.dispatchJobId, entry.startedAt || entry.capturedAt);
+      if (!mileageProduct) {
+        skippedMileage += Number(entry.calculatedDistance);
+        return;
+      }
+      const key = `${entry.dispatchJobId}|${day}|${entry.employeeId}|mileage`;
+      const existing = lines.find((line) => line.groupKey === key);
+      if (existing) {
+        existing.quantity = Number((existing.quantity + Number(entry.calculatedDistance)).toFixed(1));
+        return;
+      }
+      const employee = findEmployee(entry.employeeId);
+      add({
+        groupKey: key,
+        sourceType: "mileage",
+        sourceId: entry.id,
+        operationalDate: day,
+        dispatchJobId: entry.dispatchJobId,
+        productId: mileageProduct.id,
+        productName: mileageProduct.name,
+        productDescription: `${employee?.displayName || entry.employeeId} · Mileage${entry.method === "gps" ? " (GPS estimate; check against the odometer)" : ""}`,
+        uomId: uomFor(mileageProduct),
+        quantity: Number(entry.calculatedDistance),
+      });
+    });
+  lines.skippedMileage = Number(skippedMileage.toFixed(1));
+
+  const kindOrder = ["labor", "mileage", "equipment", "material", "expense", "waste"];
+  const sorted = lines
     .filter((line) => Number(line.quantity) > 0 || line.pricingMethod === "cost_plus")
     .sort((a, b) => String(a.operationalDate).localeCompare(String(b.operationalDate)) || kindOrder.indexOf(a.sourceType) - kindOrder.indexOf(b.sourceType));
+  sorted.skippedMileage = lines.skippedMileage;
+  return sorted;
 }
 
 function fillInvoiceLines(dialog, lines) {
@@ -29194,7 +29305,8 @@ function draftInvoiceLinesIntoDialog(dialog, { confirmReplace = true } = {}) {
   const settings = readDocSettings(dialog);
   const lines = draftInvoiceLinesForProject(project, settings.priceLevelId, settings.rateTier);
   fillInvoiceLines(dialog, lines.length ? lines : [{}]);
-  showToast(lines.length ? `Drafted ${lines.length} line${lines.length === 1 ? "" : "s"} from field records. Review each before sending.` : "No field hours, equipment, materials, receipts or disposal are recorded for this project yet.");
+  const mileageNote = lines.skippedMileage ? ` ${lines.skippedMileage} mi of field mileage was not billed: the catalog has no mileage product (add one on the Rate Card).` : "";
+  showToast(lines.length ? `Drafted ${lines.length} line${lines.length === 1 ? "" : "s"} from field records. Review each before sending.${mileageNote}` : `No field hours, equipment, materials, receipts or disposal are recorded for this project yet.${mileageNote}`);
 }
 
 function openInvoiceDialog(jobId = "") {
@@ -38963,7 +39075,7 @@ function getOfficeAlerts() {
       group: "Operations",
       owner: alert.notified?.join(", ") || "Project team",
       title: alert.alertType,
-      detail: alert.description,
+      detail: alert.source === "field" ? `${alert.description} (Flagged from the field by ${alert.reportedBy || "the crew"}${alert.dispatchJobId ? ` on ${findDispatchJob(alert.dispatchJobId)?.jobNumber || "a dispatch job"}` : ""})` : alert.description,
       tone: alert.severity.toLowerCase() === "high" ? "high" : "medium",
     }));
   const negativeStockAlerts = liveInventoryAlerts().map((alert) => ({

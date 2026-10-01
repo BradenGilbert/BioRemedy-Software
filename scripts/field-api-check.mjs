@@ -705,6 +705,57 @@ await step("delete on server: archived (soft-deleted via the task), refused unti
   await fetch(`${baseUrl}/api/backend/dispatchJobs/${serverJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
 });
 
+// ---- 15. Pass 2 B (2026-10-01): automatic mileage from the Travel clock ---------------------------
+await step("mileage: Travel clock in/out with coordinates writes one GPS jobMileageEntries row; the miles can be corrected", async () => {
+  if (!timerReady) return "skip";
+  const leadCookie = await linkSession(guardLeadId, timerJobId);
+  const t0 = Date.now();
+  // Georgetown, TX city hall to the Round Rock water tower: ~8.6 straight-line miles, ~10.8 with the road factor.
+  const clockIn = await fieldPost(leadCookie, "/api/field/clock", { employeeId: guardLeadId, dispatchJobId: timerJobId, entryType: "travel", action: "in", at: new Date(t0 - 30 * 60000).toISOString(), startLat: 30.63326, startLng: -97.67723 });
+  assert(clockIn.response.ok, `travel in -> ${clockIn.response.status} ${clockIn.payload.error || ""}`);
+  assert(clockIn.payload.startLat === 30.63326, "the start fix was not stored on the time entry");
+  const clockOut = await fieldPost(leadCookie, "/api/field/clock", { employeeId: guardLeadId, dispatchJobId: timerJobId, action: "out", at: new Date(t0).toISOString(), endLat: 30.50827, endLng: -97.67896 });
+  assert(clockOut.response.ok, `travel out -> ${clockOut.response.status} ${clockOut.payload.error || ""}`);
+  const rows = (await adminGet("jobMileageEntries")).filter((row) => row.timeEntryId === clockIn.payload.id && !row.deletedAt);
+  assert(rows.length === 1, `${rows.length} mileage rows for the travel entry (want 1)`);
+  const row = rows[0];
+  assert(row.method === "gps" && Number(row.calculatedDistance) > 9 && Number(row.calculatedDistance) < 13, `calculatedDistance ${row.calculatedDistance} (want ~10.8 mi)`);
+  assert(row.employeeId === guardLeadId && row.dispatchJobId === timerJobId && ["travel_to", "travel_from"].includes(row.mileageType), `row ${row.employeeId}/${row.dispatchJobId}/${row.mileageType}`);
+  assert(row.startLat === 30.63326 && row.endLng === -97.67896, "coordinates not stored to 5 decimals");
+  // The lead corrects the miles; the measured value is kept and the row says it was corrected.
+  const fixed = await fetch(`${baseUrl}/api/backend/jobMileageEntries`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: leadCookie }, body: JSON.stringify({ ...row, calculatedDistance: 8.2, method: "manual" }) });
+  const fixedRow = await j(fixed);
+  assert(fixed.ok && fixedRow.calculatedDistance === 8.2 && fixedRow.method === "gps" && fixedRow.estimatedDistance === row.calculatedDistance && fixedRow.correctedAt, `correction -> ${fixed.status} ${JSON.stringify(fixedRow).slice(0, 200)}`);
+  const replay = await fieldPost(leadCookie, "/api/field/clock", { employeeId: guardLeadId, dispatchJobId: timerJobId, action: "out" });
+  assert(replay.response.status === 409, "a second clock-out should find no open entry");
+  assert((await adminGet("jobMileageEntries")).filter((item) => item.timeEntryId === clockIn.payload.id).length === 1, "a second mileage row appeared");
+});
+
+// ---- 16. Pass 2 D (2026-10-01): flag a job from the phone ----------------------------------------
+await step("flag a job: field command writes a projectAlerts row with dispatchJobId + a notification; the phone reads it back; strangers are refused", async () => {
+  if (!timerReady) return "skip";
+  const leadCookie = await linkSession(guardLeadId, timerJobId);
+  const bad = await fieldPost(leadCookie, `/api/field/jobs/${timerJobId}/flag`, { alertType: "Made up", description: "x" });
+  assert(bad.response.status === 400, `unknown type -> ${bad.response.status} (want 400)`);
+  const empty = await fieldPost(leadCookie, `/api/field/jobs/${timerJobId}/flag`, { alertType: "Safety Hazard", description: "  " });
+  assert(empty.response.status === 400, `empty note -> ${empty.response.status} (want 400)`);
+  const flag = await fieldPost(leadCookie, `/api/field/jobs/${timerJobId}/flag`, { alertType: "Needs office attention", severity: "High", description: "Check flag from the phone", photoDocumentId: "document-none" });
+  assert(flag.response.ok, `flag -> ${flag.response.status} ${flag.payload.error || ""}`);
+  const alert = flag.payload;
+  assert(alert.dispatchJobId === timerJobId && alert.source === "field" && alert.status === "Open" && alert.severity === "High" && alert.reportedByEmployeeId === guardLeadId, `alert shape: ${JSON.stringify(alert).slice(0, 240)}`);
+  const stored = (await adminGet("projectAlerts")).find((row) => row.id === alert.id);
+  assert(stored && stored.photoDocumentId === "document-none", "the alert was not stored");
+  const notification = (await adminGet("notifications")).find((row) => row.dedupeKey === `project-alert-${alert.id}`);
+  assert(notification && notification.audienceRoles.includes("Operations Manager"), "no notification for the office roles");
+  const pack = await (await fetch(`${baseUrl}/api/field/package`, { headers: { Cookie: leadCookie } })).json();
+  assert((pack.projectAlerts || []).some((row) => row.id === alert.id), "the phone's package does not carry its job's flag");
+  assert((pack.projectAlerts || []).every((row) => row.dispatchJobId === timerJobId), "the package carries a flag from outside the worker's jobs");
+  const direct = await fetch(`${baseUrl}/api/backend/projectAlerts`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: leadCookie }, body: JSON.stringify({ ...stored, status: "Resolved" }) });
+  assert(direct.status === 403, `a field session writing projectAlerts directly -> ${direct.status} (want 403)`);
+  const outsider = await fieldPost(leadCookie, `/api/field/jobs/${timerJobId}-nope/flag`, { alertType: "Safety Hazard", description: "x" });
+  assert([403, 404].includes(outsider.response.status), `flag on a job that is not theirs -> ${outsider.response.status}`);
+});
+
 if (timerReady) await fetch(`${baseUrl}/api/backend/dispatchJobs/${timerJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
 
 console.log("");
