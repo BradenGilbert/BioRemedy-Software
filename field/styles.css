@@ -2896,3 +2896,78 @@ dialog.field-form-sheet::backdrop {
 .form-deferred {
   color: var(--amber, #a76116);
 }
+
+/* "Used on site" form fields (2026-10-01): consumables, equipment, waste, vendor services as rows. */
+.field-usage-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.field-usage-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border, #d7e4d8);
+  border-radius: 10px;
+  background: var(--surface-alt, #f6faf6);
+}
+
+.field-usage-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.field-usage-row > select,
+.field-usage-search,
+.field-usage-row .field-form-affixed select {
+  width: 100%;
+  min-height: var(--field-tap);
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.field-usage-row .field-form-affixed select {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.field-usage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.field-usage-writein {
+  display: grid;
+  gap: 8px;
+}
+
+.field-usage-writein[hidden],
+[data-usage-other-vendor][hidden] {
+  display: none;
+}
+
+.field-usage-remove {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.field-usage-add {
+  justify-self: start;
+}
+
+.form-answer-usage {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.form-usage-pending {
+  color: var(--amber, #a76116);
+}

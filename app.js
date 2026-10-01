@@ -1171,6 +1171,8 @@ const state = {
     // Phase 21 (Front Line 2)
     jobSafetyBriefings: [],
     jobEquipmentUsage: [],
+    // 2026-10-01: vendor / subcontractor services recorded on a job action form.
+    jobVendorUsage: [],
     formTemplates: [],
     siteWalkReports: [],
     siteWalkObservations: [],
@@ -9296,12 +9298,13 @@ function renderProjectBillingPanel(job) {
           <div><dt>Labor (${costs.labor.hours} hrs logged, ${money(costs.labor.unitCost)}/hr${costs.labor.rateSource === "fallback" ? " - fallback rate" : " - rate card"})</dt><dd>${money(costs.labor.total)}</dd></div>
           ${costs.expenses ? `<div><dt>Field expenses (${costs.expenses.items.length} receipt${costs.expenses.items.length === 1 ? "" : "s"})</dt><dd>${money(costs.expenses.total)}</dd></div>` : ""}
           ${costs.waste ? `<div><dt>Waste disposal (${costs.waste.items.length} record${costs.waste.items.length === 1 ? "" : "s"} with a cost)</dt><dd>${money(costs.waste.total)}</dd></div>` : ""}
+          ${costs.vendors?.items.length ? `<div data-cost-vendors><dt>Vendor &amp; subcontractor services (${costs.vendors.items.length} recorded${costs.vendors.items.some((item) => !item.costEntered) ? `, ${costs.vendors.items.filter((item) => !item.costEntered).length} with no cost yet` : ""})</dt><dd>${money(costs.vendors.total)}</dd></div>` : ""}
           <div><dt>Total cost</dt><dd><strong>${money(costs.total)}</strong></dd></div>
           <div><dt>Revenue (${escapeHtml(revenue.quotedSource === "quote" ? "quote" : revenue.quotedSource === "estimate" ? "estimate" : revenue.quotedSource === "none" ? "no quote/estimate on file" : "opportunity value")})</dt><dd>${money(revenue.quoted)}</dd></div>
           ${revenue.invoiced != null ? `<div><dt>Invoiced amount</dt><dd>${money(revenue.invoiced)}</dd></div>` : ""}
           <div><dt>Margin</dt><dd><strong class="${margin >= 0 ? "" : "risk-badge high"}">${money(margin)}${marginPercent != null ? ` (${marginPercent.toFixed(1)}%)` : ""}</strong></dd></div>
         </dl>
-        ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours && !costs.expenses?.items.length && !costs.waste?.items.length ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
+        ${!costs.materials.items.length && !costs.equipment.items.length && !costs.labor.hours && !costs.expenses?.items.length && !costs.waste?.items.length && !costs.vendors?.items.length ? `<div class="empty-state">No equipment, labor, or material usage was logged against this project — costs are $0.</div>` : ""}
         ${costs.waste ? "" : `<p class="help-text">This report was generated before waste disposal was tracked. Regenerate it to include disposal cost from the waste log.</p>`}
         ${renderProjectPricedBaselinePanel(job)}
       </div>
@@ -12918,6 +12921,181 @@ const FORM_LABEL_STYLES = [
 const FORM_TEMPLATE_WRITE_ROLES = ["Admin", "Office Manager", "Operations Manager", "Scheduler"];
 const FORM_CATEGORY_SUGGESTIONS = ["Safety", "Vehicle", "Incident", "Job", "Timesheet", "General"];
 
+// ---- 2026-10-01 (owner): "used on site" fields (field/form-calc.js USAGE_FIELD_TYPES) ----
+// Lists of rows the server records into the job when the form is submitted (server.mjs
+// applyFormSubmissionUsage): consumables & PPE (stock comes out), equipment hours/days, waste
+// generated, subcontractor / vendor services. A form holding any of them is always tied to a job.
+const FORM_USAGE_FIELD_TYPE_OPTIONS = [
+  { value: "materialsUsed", label: "Consumables & PPE used", help: "Inventory items and how many were used. Stock comes out when the form is submitted (offline: when the phone syncs)." },
+  { value: "equipmentUsed", label: "Equipment used", help: "Equipment and the hours or days it ran, with its condition. Logged as equipment usage on the job." },
+  { value: "wasteGenerated", label: "Waste generated", help: "Containers, waste type and quantity. Each row starts a waste record on the project." },
+  { value: "vendorServices", label: "Subcontractor / vendor services", help: "Which vendor or subcontractor did what on site, with an optional cost." },
+];
+const FORM_USAGE_FIELD_TYPES = FORM_USAGE_FIELD_TYPE_OPTIONS.map((option) => option.value);
+FORM_FIELD_TYPE_OPTIONS.push(...FORM_USAGE_FIELD_TYPE_OPTIONS);
+FORM_FIELD_TYPES.push(...FORM_USAGE_FIELD_TYPES);
+
+function isFormUsageType(type) {
+  return FORM_USAGE_FIELD_TYPES.includes(type);
+}
+
+function formDraftHasUsageFields(draft) {
+  return (draft?.fields || []).some((field) => isFormUsageType(field.type));
+}
+
+function formUsageDefaultConfig(type) {
+  if (type === "materialsUsed") return { categories: [], allowWriteIn: true, minRows: 0 };
+  if (type === "equipmentUsed") return { categories: [], defaultBasis: "hours", minRows: 0 };
+  if (type === "wasteGenerated") return { defaultUnit: "gal", minRows: 0 };
+  if (type === "vendorServices") return { askCost: true, minRows: 0 };
+  return {};
+}
+
+// Inventory rows carry no category of their own: it is the rate-sheet section of the linked product.
+function inventoryItemUsageCategory(item) {
+  if (item?.category) return item.category;
+  const product = item?.productId ? getProducts().find((row) => row.id === item.productId) : null;
+  return product?.category || "Other";
+}
+
+function formUsageCategoryChoices(type) {
+  const values =
+    type === "materialsUsed"
+      ? getInventoryItems().map(inventoryItemUsageCategory)
+      : liveRows(state.backend.equipmentAssets).map((asset) => asset.category || "");
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function renderFormUsageConfigEditor(draft, field) {
+  const config = field.config || {};
+  const check = (key, label) => `<label class="check-row"><input type="checkbox" data-fc="${key}" data-kind="bool" ${config[key] ? "checked" : ""} /><span>${label}</span></label>`;
+  const minRows = `<label>At least (rows)<input type="number" data-fc="minRows" data-kind="number" min="0" max="50" step="1" value="${escapeAttribute(formConfigNumberValue(config.minRows))}" /></label>`;
+  const categories = () => {
+    const chosen = config.categories || [];
+    const choices = [...new Set([...formUsageCategoryChoices(field.type), ...chosen])];
+    return `
+      <fieldset class="fb-usage-categories" data-fc-group>
+        <legend>${field.type === "materialsUsed" ? "Only show items in these categories" : "Only show equipment in these categories"}</legend>
+        ${choices.map((category) => `<label class="check-row"><input type="checkbox" data-fc="categories" data-kind="multi" value="${escapeAttribute(category)}" ${chosen.includes(category) ? "checked" : ""} /><span>${escapeHtml(category)}</span></label>`).join("") || `<p class="help-text">Nothing on file to filter by yet.</p>`}
+      </fieldset>
+      <p class="help-text">None ticked: every ${field.type === "materialsUsed" ? "item in inventory" : "piece of equipment"}.</p>`;
+  };
+  const jobNote = `<p class="help-text">The rows are recorded on the job when the form is submitted (offline: when the phone syncs). A form with this field is always tied to a job.</p>`;
+  if (field.type === "materialsUsed") {
+    return `
+      ${categories()}
+      ${check("allowWriteIn", "Let workers write in something that is not in inventory (recorded as used; takes no stock)")}
+      <div class="form-grid">${minRows}</div>
+      <p class="help-text">Stock comes out of inventory on submit. Going below zero asks the worker to confirm and raises an inventory alert, as the Material task does.</p>
+      ${jobNote}`;
+  }
+  if (field.type === "equipmentUsed") {
+    return `
+      ${categories()}
+      <div class="form-grid">
+        <label>Usage counted in
+          <select data-fc="defaultBasis" data-kind="text">
+            <option value="hours" ${config.defaultBasis !== "days" ? "selected" : ""}>Hours</option>
+            <option value="days" ${config.defaultBasis === "days" ? "selected" : ""}>Days</option>
+          </select>
+        </label>
+        ${minRows}
+      </div>
+      <p class="help-text">Equipment assigned to the job is listed first. Each row is an equipment usage line on the job, which the invoice draft bills.</p>
+      ${jobNote}`;
+  }
+  if (field.type === "wasteGenerated") {
+    return `
+      <div class="form-grid">
+        <label>Default unit
+          <select data-fc="defaultUnit" data-kind="text">${WASTE_UNITS.map((unit) => `<option value="${escapeAttribute(unit)}" ${(config.defaultUnit || "gal") === unit ? "selected" : ""}>${escapeHtml(unit)}</option>`).join("")}</select>
+        </label>
+        ${minRows}
+      </div>
+      <p class="help-text">Container types, waste types and units come from the waste log. Each row starts a waste record on the project (status Accumulating).</p>
+      ${jobNote}`;
+  }
+  if (field.type === "vendorServices") {
+    return `
+      ${check("askCost", "Ask for the cost (optional for the worker)")}
+      <div class="form-grid">${minRows}</div>
+      <p class="help-text">Subcontractors on the job and those approved by the customer are listed first, then every vendor. A cost goes on the project cost report and on the invoice draft at cost.</p>
+      ${jobNote}`;
+  }
+  return "";
+}
+
+function renderFormUsagePreviewField(field) {
+  const name = escapeHtml(field.displayName || "");
+  const required = field.required ? `<span class="fb-required-mark" aria-label="required">*</span>` : "";
+  const help = field.helpText ? `<small class="fb-preview-help">${escapeHtml(field.helpText)}</small>` : "";
+  const controls = {
+    materialsUsed: `<select disabled><option>Item…</option></select><input disabled inputmode="decimal" placeholder="Quantity" />`,
+    equipmentUsed: `<select disabled><option>Equipment…</option></select><input disabled inputmode="decimal" placeholder="${field.config?.defaultBasis === "days" ? "Days" : "Hours"}" />`,
+    wasteGenerated: `<select disabled><option>Container…</option></select><select disabled><option>Waste type…</option></select><input disabled inputmode="decimal" placeholder="Quantity (${escapeAttribute(field.config?.defaultUnit || "gal")})" />`,
+    vendorServices: `<select disabled><option>Vendor or subcontractor…</option></select><input disabled placeholder="Service" />`,
+  };
+  const add = FORM_USAGE_FIELD_TYPE_OPTIONS.find((option) => option.value === field.type);
+  return `<div class="fb-preview-field fb-preview-usage"><span class="fb-preview-label">${name}${required}</span><div class="fb-preview-box">${controls[field.type] || ""}</div><small class="fb-preview-help">+ Add another row · ${escapeHtml(add?.label || "")}</small>${help}</div>`;
+}
+
+function renderFormRequiresJobControl(draft) {
+  if (formDraftHasUsageFields(draft)) {
+    return `<label class="check-row fb-indent"><input type="checkbox" checked disabled /><span>From the Forms menu, ask which job it is for -- <strong>always on</strong>: this form records what was used on site, so it is tied to a job (the worker picks the job first).</span></label>`;
+  }
+  return `<label class="check-row fb-indent"><input type="checkbox" data-fd="requiresJob" ${draft.requiresJob ? "checked" : ""} /><span>From the Forms menu, ask which job it is for</span></label>`;
+}
+
+// Office: where a usage row came from ("from form Site usage").
+function formUsageSourceText(row) {
+  if (!row?.formSubmissionId) return "";
+  const submission = (state.backend.jobFormSubmissions || []).find((item) => item.id === row.formSubmissionId);
+  return `from form ${row.formName || submission?.formName || "submission"}`;
+}
+
+function equipmentUsageForCostReport(projectId) {
+  return dispatchJobsForProject(projectId).flatMap((job) => jobEquipmentUsageForJob(job.id));
+}
+
+function equipmentUsageCoveredOnJob(jobId, assetTag) {
+  return Boolean(assetTag) && jobEquipmentUsageForJob(jobId).some((row) => row.assetTag === assetTag);
+}
+
+function jobVendorUsageForJob(jobId) {
+  return liveRows(state.backend.jobVendorUsage).filter((row) => row.jobId === jobId);
+}
+
+function jobVendorUsageForProject(projectId) {
+  const jobIds = new Set(dispatchJobsForProject(projectId).map((job) => job.id));
+  return liveRows(state.backend.jobVendorUsage).filter((row) => jobIds.has(row.jobId) || (row.projectId && row.projectId === projectId));
+}
+
+function renderJobVendorUsagePanel(job) {
+  const rows = jobVendorUsageForJob(job.id).sort((a, b) => String(a.operationalDate || "").localeCompare(String(b.operationalDate || "")));
+  const total = roundCents(rows.reduce((sum, row) => sum + Number(row.cost || 0), 0));
+  return `
+    <article class="panel" data-vendor-usage-panel>
+      <div class="panel-header"><div><h3>Vendor &amp; subcontractor services</h3><span>${rows.length} recorded from the field${total ? ` · ${money(total)}` : ""}</span></div></div>
+      <div class="panel-body resource-list">
+        ${
+          rows
+            .map((row) => {
+              const vendor = row.vendorAccountId ? findAccount(row.vendorAccountId) : null;
+              const amount = row.quantity !== null && row.quantity !== undefined && row.quantity !== "" ? `${row.quantity}${row.unit ? ` ${row.unit}` : ""}` : "";
+              const parts = [row.operationalDate ? formatDate(row.operationalDate) : "", amount, row.cost !== null && row.cost !== undefined && row.cost !== "" ? money(row.cost) : "no cost entered", formUsageSourceText(row)].filter(Boolean);
+              return `
+            <article class="job-resource-row">
+              <span class="resource-type-mark">${escapeHtml(getInitials(vendor?.name || row.vendorName || "Vendor", "V"))}</span>
+              <div><strong>${escapeHtml(vendor?.name || row.vendorName || "Vendor")}${row.service ? ` · ${escapeHtml(row.service)}` : ""}</strong><span>${parts.map(escapeHtml).join(" &middot; ")}</span></div>
+            </article>`;
+            })
+            .join("") || `<div class="empty-state compact">No vendor or subcontractor services recorded yet.</div>`
+        }
+      </div>
+    </article>
+  `;
+}
+
 function getFormTemplates() {
   return liveRows(state.backend.formTemplates);
 }
@@ -13010,6 +13188,7 @@ function uniqueFormFieldRef(base, fields, exceptFieldId) {
 }
 
 function formFieldDefaultConfig(type) {
+  if (isFormUsageType(type)) return formUsageDefaultConfig(type);
   if (type === "calculation") return { expression: "", decimals: 2 };
   if (type === "cascadingList") return { levels: [], rows: [] };
   if (type === "checkbox") return { defaultChecked: false };
@@ -13576,7 +13755,7 @@ function renderFormEditor() {
             <div class="panel-body">
               <label class="check-row"><input type="checkbox" data-fd="isActive" ${draft.isActive ? "checked" : ""} /><span><strong>Active</strong> -- workers can complete it and job templates can attach it to a job action.</span></label>
               <label class="check-row"><input type="checkbox" data-fd="availableOnFormsMenu" ${draft.availableOnFormsMenu ? "checked" : ""} /><span><strong>Available on Forms Menu</strong> -- an ad hoc form workers can fill in any time, without a job (daily safety checklist, incident report, vehicle inspection).</span></label>
-              <label class="check-row fb-indent"><input type="checkbox" data-fd="requiresJob" ${draft.requiresJob ? "checked" : ""} /><span>From the Forms menu, ask which job it is for</span></label>
+              ${renderFormRequiresJobControl(draft)}
               <label>Timesheet action
                 <select data-fd="timesheetAction">
                   <option value="" ${draft.timesheetAction ? "" : "selected"}>None</option>
@@ -13710,6 +13889,7 @@ function renderFormFieldConfigEditor(draft, field) {
   const config = field.config || {};
   const numberInput = (key, label, extra = "") => `<label>${label}<input type="number" data-fc="${key}" data-kind="number" value="${escapeAttribute(formConfigNumberValue(config[key]))}" ${extra} /></label>`;
   const check = (key, label) => `<label class="check-row"><input type="checkbox" data-fc="${key}" data-kind="bool" ${config[key] ? "checked" : ""} /><span>${label}</span></label>`;
+  if (isFormUsageType(field.type)) return renderFormUsageConfigEditor(draft, field);
   if (field.type === "calculation") {
     const usable = draft.fields.filter((item) => item.id !== field.id && FORM_NUMERIC_FIELD_TYPES.includes(item.type) && item.fieldRef);
     return `
@@ -13833,6 +14013,7 @@ function renderFormPhonePreview(draft) {
 }
 
 function renderFormPreviewField(field) {
+  if (isFormUsageType(field.type)) return renderFormUsagePreviewField(field);
   const config = field.config || {};
   const name = escapeHtml(field.displayName || "");
   const required = field.required ? `<span class="fb-required-mark" aria-label="required">*</span>` : "";
@@ -13916,6 +14097,7 @@ function refreshFormEditorLive() {
 function readFormConfigInput(input) {
   const kind = input.dataset.kind || "text";
   if (kind === "bool") return input.checked;
+  if (kind === "multi") return [...(input.closest("[data-fc-group]")?.querySelectorAll(`input[data-fc="${CSS.escape(input.dataset.fc)}"]:checked`) || [])].map((item) => item.value);
   if (kind === "number") return numberOrNull(input.value);
   if (kind === "lines") {
     return input.value
@@ -14212,7 +14394,7 @@ async function saveFormDraft() {
     displayName: draft.displayName.trim() || name,
     description: draft.description.trim(),
     category: draft.category.trim() || "General",
-    requiresJob: Boolean(draft.requiresJob),
+    requiresJob: Boolean(draft.requiresJob) || formDraftHasUsageFields(draft),
     isActive: Boolean(draft.isActive),
     availableOnFormsMenu: Boolean(draft.availableOnFormsMenu),
     timesheetAction: draft.timesheetAction || "",
@@ -14719,6 +14901,7 @@ function renderDispatchJobAssignmentTab(job) {
       ${renderJobSafetyBriefingsPanel(job)}
       ${renderJobEquipmentUsagePanel(job)}
       ${renderJobWasteContainersPanel(job)}
+      ${renderJobVendorUsagePanel(job)}
     </section>
   `;
 }
@@ -14785,7 +14968,7 @@ function renderJobEquipmentUsagePanel(job) {
               return `
             <article class="job-resource-row">
               <span class="resource-type-mark">${escapeHtml(getInitials(asset?.equipment || row.assetTag, "E"))}</span>
-              <div><strong>${escapeHtml(asset?.equipment || row.assetTag || "Equipment")}</strong><span>${escapeHtml(row.operationalDate ? formatDate(row.operationalDate) : "")} &middot; ${row.hours ? `${escapeHtml(String(row.hours))} hrs` : row.days ? `${escapeHtml(String(row.days))} day${Number(row.days) === 1 ? "" : "s"}` : "logged"}${row.condition ? ` &middot; ${escapeHtml(row.condition)}` : ""}</span></div>
+              <div><strong>${escapeHtml(asset?.equipment || row.assetTag || "Equipment")}</strong><span>${escapeHtml(row.operationalDate ? formatDate(row.operationalDate) : "")} &middot; ${row.hours ? `${escapeHtml(String(row.hours))} hrs` : row.days ? `${escapeHtml(String(row.days))} day${Number(row.days) === 1 ? "" : "s"}` : "logged"}${row.condition ? ` &middot; ${escapeHtml(row.condition)}` : ""}${row.formSubmissionId ? ` &middot; ${escapeHtml(formUsageSourceText(row))}` : ""}</span></div>
             </article>
           `;
             })
@@ -14808,7 +14991,7 @@ function renderJobWasteContainersPanel(job) {
               (record) => `
           <article class="job-resource-row">
             <span class="resource-type-mark">${escapeHtml(getInitials(record.description || "Waste", "W"))}</span>
-            <div><strong>${escapeHtml(record.description || "Container")}</strong><span>${escapeHtml(formatWasteQuantity(record))}${record.manifestNumber ? ` &middot; Manifest ${escapeHtml(record.manifestNumber)}` : ""}</span></div>
+            <div><strong>${escapeHtml(record.description || "Container")}</strong><span>${escapeHtml(formatWasteQuantity(record))}${record.manifestNumber ? ` &middot; Manifest ${escapeHtml(record.manifestNumber)}` : ""}${record.formSubmissionId ? ` &middot; ${escapeHtml(formUsageSourceText(record))}` : ""}</span></div>
             ${record.containerPhotoAttachmentId ? `<img class="signature-preview" src="/api/job-task-attachments/${encodeURIComponent(record.containerPhotoAttachmentId)}/view" alt="" style="height:36px;width:36px;object-fit:cover;border-radius:4px;" />` : ""}
             <span class="source-badge">${escapeHtml(record.status || "")}</span>
           </article>
@@ -15015,7 +15198,7 @@ function renderJobResource(resource) {
   return `
     <article class="job-resource-row">
       <span class="resource-type-mark">${escapeHtml(getInitials(resource.type, "R"))}</span>
-      <div><strong>${escapeHtml(name)}</strong><span>${escapeHtml(detail)}</span></div>
+      <div><strong>${escapeHtml(name)}</strong><span>${escapeHtml([detail, formUsageSourceText(resource)].filter(Boolean).join(" · "))}</span></div>
       ${overReserved ? `<span class="risk-badge high" title="Total reservations exceed on-hand stock">Over stock</span>` : ""}
       <span class="source-badge">${escapeHtml(resource.status)}</span>
       <button class="mini-button" type="button" data-action="remove-job-resource" data-id="${escapeAttribute(resource.id)}">Remove</button>
@@ -24286,6 +24469,7 @@ function renderWasteRecordCard(record) {
         ${vendor ? `<span>${escapeHtml(vendor.name)}</span>` : ""}
         ${record.manifestNumber ? `<span>Manifest ${escapeHtml(record.manifestNumber)}</span>` : ""}
         ${Number(record.disposalCost) ? `<span>${money(record.disposalCost)}</span>` : ""}
+        ${record.formSubmissionId ? `<span>${escapeHtml(formUsageSourceText(record))}</span>` : ""}
       </div>
       ${alert ? `<p class="help-text">${escapeHtml(alert)}</p>` : ""}
       <div class="inline-actions"><button class="mini-button" type="button" data-action="open-waste-record" data-project-id="${escapeAttribute(record.projectId)}" data-id="${escapeAttribute(record.id)}">Edit</button></div>
@@ -25753,14 +25937,28 @@ function buildProjectCostReport(project) {
       lineCost: equipmentRate.amount,
       source: "office-log",
     })),
-    ...fieldEquipmentResources.map((item) => ({
-      id: item.id,
-      assetTag: item.assetTag || "",
-      equipment: item.name,
+    // 2026-10-01: equipment usage logged in the field (the quick action and job action forms) is
+    // costed per day used (a row in hours counts as one day); an asset with usage logged on a job is
+    // not costed again from its assignment, the rule the invoice draft already uses.
+    ...equipmentUsageForCostReport(project.id).map((row) => ({
+      id: row.id,
+      assetTag: row.assetTag || "",
+      equipment: findEquipmentAssetByTag(row.assetTag)?.equipment || row.assetTag || "Equipment",
+      days: Number(row.days) > 0 ? Number(row.days) : 1,
       unitCost: equipmentRate.amount,
-      lineCost: equipmentRate.amount,
-      source: "field-dispatch",
+      lineCost: equipmentRate.amount * (Number(row.days) > 0 ? Number(row.days) : 1),
+      source: row.formSubmissionId ? "field-form" : "field-usage",
     })),
+    ...fieldEquipmentResources
+      .filter((item) => !equipmentUsageCoveredOnJob(item.jobId, item.assetTag || item.name))
+      .map((item) => ({
+        id: item.id,
+        assetTag: item.assetTag || "",
+        equipment: item.name,
+        unitCost: equipmentRate.amount,
+        lineCost: equipmentRate.amount,
+        source: "field-dispatch",
+      })),
   ];
   const equipmentTotal = equipmentItems.reduce((sum, item) => sum + item.lineCost, 0);
 
@@ -25787,7 +25985,21 @@ function buildProjectCostReport(project) {
     .map((record) => ({ id: record.id, description: record.description, classification: record.classification, manifestNumber: record.manifestNumber || "", amount: Number(record.disposalCost) }));
   const wasteTotal = roundCents(wasteItems.reduce((sum, item) => sum + item.amount, 0));
 
-  const costsTotal = materialsTotal + equipmentTotal + laborTotal + expensesTotal + wasteTotal;
+  // 2026-10-01: subcontractor / vendor services recorded on a job action form -- actual money, like
+  // receipts, when the worker entered a cost (a row without one is listed at $0 so it is not missed).
+  const vendorItems = jobVendorUsageForProject(project.id).map((row) => ({
+    id: row.id,
+    vendorName: findAccount(row.vendorAccountId)?.name || row.vendorName || "Vendor",
+    service: row.service || "",
+    quantity: row.quantity ?? null,
+    unit: row.unit || "",
+    amount: Number(row.cost || 0),
+    costEntered: row.cost !== null && row.cost !== undefined && row.cost !== "",
+    formName: row.formName || "",
+  }));
+  const vendorsTotal = roundCents(vendorItems.reduce((sum, item) => sum + item.amount, 0));
+
+  const costsTotal = materialsTotal + equipmentTotal + laborTotal + expensesTotal + wasteTotal + vendorsTotal;
 
   const existingInvoice = (state.backend.invoices || []).find((invoice) => invoice.projectId === project.id);
   const quotedRevenue = docRef.total || Number(opportunity?.value || project.budget || project.notToExceed || 0);
@@ -25804,6 +26016,7 @@ function buildProjectCostReport(project) {
       labor: { unitCost: laborRate.amount, rateSource: laborRate.source, hours: labor.hours, entries: labor.entries, total: laborTotal },
       expenses: { items: expenseItems, total: expensesTotal },
       waste: { items: wasteItems, total: wasteTotal },
+      vendors: { items: vendorItems, total: vendorsTotal },
       total: costsTotal,
     },
     revenue: {
@@ -28894,6 +29107,27 @@ function draftInvoiceLinesForProject(project, priceLevelId, defaultTier) {
       }),
     );
 
+  // 2026-10-01: subcontractor / vendor services recorded on a job action form pass through at cost,
+  // the way billable receipts do; the office adds a markup on the line. A row with no cost entered
+  // still drafts (at $0) so the vendor's bill is not forgotten.
+  jobVendorUsageForProject(project.id).forEach((row) => {
+    const vendor = findAccount(row.vendorAccountId)?.name || row.vendorName || "Vendor";
+    const hasCost = row.cost !== null && row.cost !== undefined && row.cost !== "";
+    const amount = row.quantity !== null && row.quantity !== undefined && row.quantity !== "" ? `${row.quantity}${row.unit ? ` ${row.unit}` : ""}` : "";
+    add({
+      sourceType: "vendor",
+      sourceId: row.id,
+      operationalDate: row.operationalDate || fieldDay(row.jobId, row.capturedAt),
+      dispatchJobId: row.jobId || "",
+      productId: "",
+      productName: row.service || "Subcontracted service",
+      productDescription: `${vendor}${row.service ? `: ${row.service}` : ""}${amount ? ` (${amount})` : ""} (billed at cost${hasCost ? "" : "; no cost entered, enter the vendor's bill"})`,
+      pricingMethod: "cost_plus",
+      unitCost: Number(row.cost || 0),
+      markupPercent: 0,
+    });
+  });
+
   // Disposal bills through the sheet's own cost-plus disposal lines (cost + the sheet's markup).
   wasteRecordsForProject(project.id)
     .filter((record) => Number(record.disposalCost) > 0)
@@ -28915,7 +29149,7 @@ function draftInvoiceLinesForProject(project, priceLevelId, defaultTier) {
       });
     });
 
-  const kindOrder = ["labor", "equipment", "material", "expense", "waste"];
+  const kindOrder = ["labor", "equipment", "material", "expense", "vendor", "waste"];
   return lines
     .filter((line) => Number(line.quantity) > 0 || line.pricingMethod === "cost_plus")
     .sort((a, b) => String(a.operationalDate).localeCompare(String(b.operationalDate)) || kindOrder.indexOf(a.sourceType) - kindOrder.indexOf(b.sourceType));

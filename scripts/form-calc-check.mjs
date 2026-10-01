@@ -112,6 +112,12 @@ check("crew match", templateMatchesWorker({ groups: { crewIds: ["crew-a"], roles
 check("crew mismatch", templateMatchesWorker({ groups: { crewIds: ["crew-a"], roles: [] } }, { crewIds: ["crew-b"], roles: ["Crew"] }), false);
 check("role match", templateMatchesWorker({ groups: { crewIds: ["crew-a"], roles: ["Field Lead"] } }, { crewIds: [], roles: ["Field Lead"] }), true);
 
+// ---- "used on site" fields (2026-10-01)
+check("usage types survive normalisation", normalizeFormTemplate({ fields: [{ fieldRef: "m", displayName: "M", type: "materialsUsed" }, { fieldRef: "v", displayName: "V", type: "vendorServices" }] }).fields.map((field) => field.type), ["materialsUsed", "vendorServices"]);
+check("materials rows as text", formatFieldValueText({ type: "materialsUsed" }, [{ itemLabel: "Nitrile gloves", quantity: 2, unit: "pairs" }, { writeInName: "Zip ties", itemLabel: "Zip ties", quantity: 10, unit: "each", note: "bag" }]), "2 pairs · Nitrile gloves; 10 each · Zip ties (bag)");
+check("equipment row as text", formatFieldValueText({ type: "equipmentUsed" }, [{ assetLabel: "VAC-204 · Vactron", hours: 3, condition: "Needs service" }]), "VAC-204 · Vactron · 3 hrs · Needs service");
+check("vendor row as text", formatFieldValueText({ type: "vendorServices" }, [{ vendorName: "Balfour", service: "Vac truck", quantity: 4, unit: "hours", cost: 600 }]), "Balfour · Vac truck · 4 hours · $600.00");
+
 if (failed) {
   console.log(`\n${failed} form-calc check(s) failed.`);
   process.exit(1);

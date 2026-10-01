@@ -31,6 +31,7 @@ import {
   formatMoney,
   TIMESHEET_ACTIONS,
 } from "./form-calc.js";
+import { isUsageFieldType, templateHasUsageFields, usageRowText, USAGE_EQUIPMENT_CONDITIONS } from "./form-calc.js";
 
 export { evaluateCalculation, validateCalculation, normalizeFormTemplate, TIMESHEET_ACTIONS, FORM_FIELD_TYPES, slugFieldRef } from "./form-calc.js";
 
@@ -342,12 +343,14 @@ function renderFieldEdit(field, value, { preview = false } = {}) {
       </fieldset>`);
     }
     default:
+      if (isUsageFieldType(field.type)) return renderUsageFieldEdit(field, value, { preview });
       return wrap(`<label class="field-label">${title}<input type="text" name="${name}" value="${attr(value)}" /></label>`);
   }
 }
 
 // One answer for reading (office job page, "My submissions", the "view" mode).
 function renderAnswerHtml(field, value) {
+  if (isUsageFieldType(field.type)) return renderUsageAnswerHtml(field, value);
   if (field.type === "picture") {
     const ids = Array.isArray(value) ? value : value?.documentId ? [value.documentId] : [];
     if (!ids.length) return `<span class="muted-text">No photo</span>`;
@@ -411,7 +414,7 @@ export function renderFormSubmissionAnswers(submission) {
   const context = submission.timesheetAction ? `<p class="submission-fact">${esc(TIMESHEET_ACTIONS[submission.timesheetAction] || submission.timesheetAction)} form${submission.repeatIndex ? ` · entry ${Number(submission.repeatIndex) + 1}` : ""}</p>` : submission.repeatIndex ? `<p class="submission-fact">Entry ${Number(submission.repeatIndex) + 1}</p>` : "";
   const template = templateForSubmission(submission);
   if (!template) return deferred || context ? `${context}${deferred}` : "";
-  return `${context}${deferred}${renderAnswerList(template, submission.payload || {})}`;
+  return `${context}${deferred}${renderAnswerList(template, submission.payload || {})}${renderUsageStatus(template, submission)}`;
 }
 
 // A short plain-text line for the submission's `summary` (timelines, the day narrative draft).
@@ -514,6 +517,7 @@ function openFormSheet(template, { values = {}, jobs = null, requireJob = false,
     const form = dialog.querySelector("form");
     dialog.querySelectorAll("[data-form-close]").forEach((button) => (button.onclick = () => done(null)));
     wireFormFields(form, template, session, values);
+    wireUsageFields(form, template);
 
     if (allowDefer) {
       const panel = dialog.querySelector("[data-defer-panel]");
@@ -548,6 +552,7 @@ function openFormSheet(template, { values = {}, jobs = null, requireJob = false,
       if (jobs && requireJob && !chosenJob) collected.errors.__job = "Pick the job this form is for.";
       showErrors(dialog, template, collected.errors);
       if (Object.keys(collected.errors).length) return;
+      if (!confirmUsageStock(template, collected.values)) return;
       done({ action: "submit", values: collected.values, jobId: chosenJob, session });
     });
 
@@ -811,6 +816,10 @@ function readRawValues(form, template, session) {
         values[field.fieldRef] = session.signatures.get(field.fieldRef) || null;
         break;
       default: {
+        if (isUsageFieldType(field.type)) {
+          values[field.fieldRef] = readUsageRows(root, field);
+          break;
+        }
         const input = root.querySelector(`[name="${CSS.escape(name)}"]`);
         values[field.fieldRef] = (input?.value ?? "").toString().trim();
       }
@@ -919,6 +928,12 @@ function collectFormValues(form, template, session) {
         break;
       }
       default:
+        if (isUsageFieldType(field.type)) {
+          const checked = validateUsageRows(field, value);
+          if (checked.error) need(field, checked.error);
+          values[ref] = checked.rows;
+          break;
+        }
         if (field.required && !value) need(field);
         values[ref] = value;
     }
@@ -1019,7 +1034,9 @@ async function saveSubmission(template, filled, context = {}) {
   }
   if (failed) crm.showToast(`${failed} attachment${failed === 1 ? "" : "s"} could not be uploaded.`);
   filled.session?.objectUrls?.forEach((url) => setTimeout(() => URL.revokeObjectURL(url), 60000));
-  return (crm.state.backend.jobFormSubmissions || []).find((row) => row.id === id) || stored;
+  const savedRow = (crm.state.backend.jobFormSubmissions || []).find((row) => row.id === id) || stored;
+  await afterUsageSaved(template, savedRow);
+  return savedRow;
 }
 
 function namedImageFile(file, base) {
@@ -1056,6 +1073,464 @@ async function saveDeferred(template, reason, context = {}) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// "Used on site" fields (owner, 2026-10-01): Consumables & PPE, Equipment, Waste generated,
+// Subcontractor / vendor services. Each is a list of rows (add / remove); the server records them
+// into the job when the submission is saved -- stock comes out then, so offline it comes out when
+// the phone syncs (server.mjs applyFormSubmissionUsage). Rows keep the labels the worker saw.
+// ---------------------------------------------------------------------------------------------
+
+// The job the open form's pickers are for ("on this job" first). Set by each entry point.
+let usageJobId = "";
+const USAGE_WRITE_IN = "__writein";
+const USAGE_OTHER_VENDOR = "__other";
+const USAGE_ADD_LABELS = { materialsUsed: "+ Add item", equipmentUsed: "+ Add equipment", wasteGenerated: "+ Add waste", vendorServices: "+ Add service" };
+const USAGE_ROW_NOUNS = { materialsUsed: "Item", equipmentUsed: "Equipment", wasteGenerated: "Waste", vendorServices: "Service" };
+
+function usageJob() {
+  return usageJobId ? crm.findDispatchJob(usageJobId) || null : null;
+}
+
+// Stock this phone has used in forms that are still waiting in the outbox (item id -> quantity), so
+// "on hand" and the below-zero question stay right offline. A package reload from the cache cannot
+// undo it; it is cleared once the outbox is empty and the server's numbers are fetched.
+const pendingUsageStock = new Map();
+
+function usageOnHand(item) {
+  return Number(item?.onHand || 0) - (pendingUsageStock.get(item?.id) || 0);
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("field:sync", (event) => {
+    if (!pendingUsageStock.size || event.detail?.queued) return;
+    pendingUsageStock.clear();
+    if (fieldPackage.isOnline()) crm.refreshBackendState?.().catch(() => {});
+  });
+}
+
+function liveBackendRows(collection) {
+  return (crm.state.backend[collection] || []).filter((row) => row && !row.deletedAt);
+}
+
+// Inventory rows carry no category of their own; the rate-sheet section of the linked product is it
+// (the field package fills `category` in from the product; the office reads products directly).
+function usageItemCategory(item) {
+  if (item?.category) return item.category;
+  const product = item?.productId ? (crm.state.backend.products || []).find((row) => row.id === item.productId) : null;
+  return product?.category || "Other";
+}
+
+function usageInventoryItems(field, selectedId = "") {
+  const categories = field.config?.categories || [];
+  return liveBackendRows("inventoryItems")
+    .filter((item) => item.id === selectedId || !categories.length || categories.includes(usageItemCategory(item)))
+    .sort((a, b) => usageItemCategory(a).localeCompare(usageItemCategory(b)) || String(a.materialType || a.name || "").localeCompare(String(b.materialType || b.name || "")));
+}
+
+function usageItemName(item) {
+  return String(item?.materialType || item?.name || "Item");
+}
+
+function usageAssetLabel(asset) {
+  if (!asset) return "";
+  return [asset.assetTag, asset.equipment || asset.name].filter(Boolean).join(" · ");
+}
+
+function usageJobAssetTags() {
+  const job = usageJob();
+  if (!job) return new Set();
+  return new Set(crm.resourcesForDispatchJob(job.id).filter((resource) => resource.type === "Equipment").map((resource) => resource.assetTag || resource.name).filter(Boolean));
+}
+
+function usageAssets(field, selectedId = "") {
+  const categories = field.config?.categories || [];
+  return liveBackendRows("equipmentAssets")
+    .filter((asset) => asset.id === selectedId || ((!categories.length || categories.includes(asset.category || "")) && !/retired|sold|disposed/i.test(asset.status || "")))
+    .sort((a, b) => String(a.assetTag || "").localeCompare(String(b.assetTag || "")));
+}
+
+function usageVendorAccounts() {
+  const backend = crm.state.backend;
+  const profiled = new Set((backend.vendorProfiles || []).filter((row) => !row.deletedAt).map((row) => row.accountId));
+  const related = new Set((backend.accountRelationshipExtensions || []).filter((row) => !row.deletedAt && (row.isVendor || row.isSubcontractor)).map((row) => row.accountId));
+  const approved = new Set(liveBackendRows("accountApprovedSubcontractors").map((row) => row.subcontractorAccountId));
+  return liveBackendRows("accounts")
+    .filter((account) => account.isVendor || account.accountType === "Vendor" || profiled.has(account.id) || related.has(account.id) || approved.has(account.id))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+}
+
+function optionTags(rows, valueOf, labelOf, selected) {
+  return rows.map((row) => `<option value="${attr(valueOf(row))}" ${valueOf(row) === selected ? "selected" : ""}>${esc(labelOf(row))}</option>`).join("");
+}
+
+function grouped(label, inner) {
+  return inner ? `<optgroup label="${attr(label)}">${inner}</optgroup>` : "";
+}
+
+function materialSelectOptions(field, selected = "", query = "") {
+  const needle = String(query || "").trim().toLowerCase();
+  const items = usageInventoryItems(field, selected).filter((item) => item.id === selected || !needle || `${usageItemName(item)} ${usageItemCategory(item)}`.toLowerCase().includes(needle));
+  const byCategory = new Map();
+  items.forEach((item) => {
+    const category = usageItemCategory(item);
+    if (!byCategory.has(category)) byCategory.set(category, []);
+    byCategory.get(category).push(item);
+  });
+  const groups = [...byCategory.entries()].map(([category, rows]) => grouped(category, optionTags(rows, (item) => item.id, (item) => `${usageItemName(item)}${item.unit ? ` (${item.unit})` : ""}`, selected))).join("");
+  const writeIn = field.config?.allowWriteIn !== false ? `<option value="${USAGE_WRITE_IN}" ${selected === USAGE_WRITE_IN ? "selected" : ""}>Something not on the list (write it in)</option>` : "";
+  return `<option value="">${items.length ? "Select an item" : needle ? "No items match" : "No items on file"}</option>${groups}${writeIn}`;
+}
+
+function equipmentSelectOptions(field, selected = "") {
+  const onJobTags = usageJobAssetTags();
+  const assets = usageAssets(field, selected);
+  const onJob = assets.filter((asset) => onJobTags.has(asset.assetTag));
+  const others = assets.filter((asset) => !onJobTags.has(asset.assetTag));
+  return `<option value="">Select equipment</option>${grouped("On this job", optionTags(onJob, (asset) => asset.id, usageAssetLabel, selected))}${grouped(onJob.length ? "Other equipment" : "Equipment", optionTags(others, (asset) => asset.id, usageAssetLabel, selected))}`;
+}
+
+function vendorSelectOptions(selected = "") {
+  const job = usageJob();
+  const vendors = usageVendorAccounts();
+  const onJobIds = new Set(job ? crm.resourcesForDispatchJob(job.id).filter((resource) => resource.type === "Vendor" && resource.vendorAccountId).map((resource) => resource.vendorAccountId) : []);
+  const approvedIds = new Set(job?.accountId ? liveBackendRows("accountApprovedSubcontractors").filter((row) => row.accountId === job.accountId && row.status === "Approved").map((row) => row.subcontractorAccountId) : []);
+  const known = new Map(vendors.map((account) => [account.id, account]));
+  [...onJobIds, ...approvedIds].forEach((id) => {
+    if (!known.has(id)) {
+      const account = crm.findAccount(id);
+      if (account) known.set(id, account);
+    }
+  });
+  const all = [...known.values()].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  const onJob = all.filter((account) => onJobIds.has(account.id));
+  const approved = all.filter((account) => !onJobIds.has(account.id) && approvedIds.has(account.id));
+  const rest = all.filter((account) => !onJobIds.has(account.id) && !approvedIds.has(account.id));
+  const customer = job?.accountId ? crm.findAccount(job.accountId)?.name || "" : "";
+  const label = (account) => account.name || "Vendor";
+  return `<option value="">Select a vendor or subcontractor</option>${grouped("On this job", optionTags(onJob, (account) => account.id, label, selected))}${grouped(customer ? `Approved by ${customer}` : "Approved by the customer", optionTags(approved, (account) => account.id, label, selected))}${grouped("Other vendors", optionTags(rest, (account) => account.id, label, selected))}<option value="${USAGE_OTHER_VENDOR}" ${selected === USAGE_OTHER_VENDOR ? "selected" : ""}>Someone else (type the name)</option>`;
+}
+
+function usageInput(key, value, extra = "") {
+  return `<input data-u="${key}" value="${attr(value ?? "")}" ${extra} />`;
+}
+
+function usageNumber(key, value, extra = "") {
+  return `<input type="number" inputmode="decimal" min="0" step="any" data-u="${key}" value="${attr(value === null || value === undefined ? "" : value)}" ${extra} />`;
+}
+
+function usageSelect(key, options, selected) {
+  return `<select data-u="${key}">${options.map((option) => {
+    const value = typeof option === "string" ? option : option.value;
+    const label = typeof option === "string" ? option : option.label;
+    return `<option value="${attr(value)}" ${value === selected ? "selected" : ""}>${esc(label)}</option>`;
+  }).join("")}</select>`;
+}
+
+function usageField(label, control) {
+  return `<label class="field-label"><span>${esc(label)}</span>${control}</label>`;
+}
+
+function renderUsageRow(field, row = {}, index = 0, { preview = false } = {}) {
+  const rowId = row.rowId || crm.makeId("row");
+  const config = field.config || {};
+  let body = "";
+  if (field.type === "materialsUsed") {
+    const selected = row.inventoryItemId || (row.writeInName ? USAGE_WRITE_IN : "");
+    body = `
+      <input type="search" class="field-usage-search" data-usage-search placeholder="Search items" aria-label="Search items" />
+      <select data-u="inventoryItemId" aria-label="Item">${materialSelectOptions(field, selected)}</select>
+      <div class="field-usage-writein" data-usage-writein ${selected === USAGE_WRITE_IN ? "" : "hidden"}>
+        ${usageField("Item name", usageInput("writeInName", row.writeInName, 'maxlength="120"'))}
+        ${usageField("Unit", usageInput("unit", row.writeInName ? row.unit : "", 'maxlength="20" placeholder="each"'))}
+      </div>
+      <div class="field-usage-grid">
+        <label class="field-label"><span>Quantity</span><span class="field-form-affixed">${usageNumber("quantity", row.quantity)}<span class="field-form-affix" data-usage-unit></span></span></label>
+      </div>
+      <small class="field-form-help" data-usage-stock></small>`;
+  } else if (field.type === "equipmentUsed") {
+    const basis = row.days ? "days" : row.hours ? "hours" : config.defaultBasis === "days" ? "days" : "hours";
+    body = `
+      <select data-u="assetId" aria-label="Equipment">${equipmentSelectOptions(field, row.assetId || "")}</select>
+      <label class="field-label"><span>Used for</span><span class="field-form-affixed">${usageNumber("amount", basis === "days" ? row.days : row.hours)}${usageSelect("basis", [{ value: "hours", label: "hours" }, { value: "days", label: "days" }], basis)}</span></label>
+      ${usageField("Condition", usageSelect("condition", USAGE_EQUIPMENT_CONDITIONS, row.condition || "Good"))}`;
+  } else if (field.type === "wasteGenerated") {
+    body = `
+      <div class="field-usage-grid">
+        ${usageField("Container", usageSelect("containerType", crm.WASTE_CONTAINER_TYPES || [], row.containerType || (crm.WASTE_CONTAINER_TYPES || [])[0]))}
+        ${usageField("Containers", usageNumber("containerCount", row.containerCount, 'step="1"'))}
+      </div>
+      ${usageField("Waste type / profile", usageSelect("classification", crm.WASTE_CLASSIFICATIONS || [], row.classification || "Pending profile"))}
+      ${usageField("Contents", usageInput("description", row.description, 'maxlength="120" placeholder="What is in it"'))}
+      <div class="field-usage-grid">
+        ${usageField("Quantity", usageNumber("quantity", row.quantity))}
+        ${usageField("Unit", usageSelect("unit", crm.WASTE_UNITS || [], row.unit || config.defaultUnit || "gal"))}
+      </div>`;
+  } else if (field.type === "vendorServices") {
+    const selected = row.vendorAccountId || (row.vendorName ? USAGE_OTHER_VENDOR : "");
+    body = `
+      <select data-u="vendorAccountId" aria-label="Vendor or subcontractor">${vendorSelectOptions(selected)}</select>
+      <div data-usage-other-vendor ${selected === USAGE_OTHER_VENDOR ? "" : "hidden"}>${usageField("Vendor name", usageInput("vendorName", row.vendorAccountId ? "" : row.vendorName, 'maxlength="120"'))}</div>
+      ${usageField("Service", usageInput("service", row.service, 'maxlength="200" placeholder="e.g. Vac truck and operator"'))}
+      <div class="field-usage-grid">
+        ${usageField("Quantity", usageNumber("quantity", row.quantity))}
+        ${usageField("Unit", usageInput("unit", row.unit, 'maxlength="20" placeholder="hours"'))}
+        ${config.askCost !== false ? `<label class="field-label"><span>Cost (optional)</span><span class="field-form-affixed"><span class="field-form-affix">$</span>${usageNumber("cost", row.cost)}</span></label>` : ""}
+      </div>`;
+  }
+  return `
+    <div class="field-usage-row" data-usage-row data-row-id="${attr(rowId)}">
+      <div class="field-usage-row-head">
+        <strong data-usage-row-title>${esc(USAGE_ROW_NOUNS[field.type] || "Row")} ${index + 1}</strong>
+        <button type="button" class="field-button field-button--ghost field-usage-remove" data-usage-remove ${preview ? "disabled" : ""}>Remove</button>
+      </div>
+      ${body}
+      ${usageField("Note (optional)", usageInput("note", row.note, 'maxlength="500"'))}
+    </div>`;
+}
+
+function renderUsageFieldEdit(field, value, { preview = false } = {}) {
+  const rows = Array.isArray(value) && value.length ? value : [{}];
+  return `<div class="field-form-field field-form-usage" data-ref="${attr(field.fieldRef)}" data-type="${attr(field.type)}">
+    <fieldset class="field-form-choice"><legend>${esc(field.displayName)}${requiredMark(field)}</legend>
+      <div class="field-usage-rows" data-usage-rows>${rows.map((row, index) => renderUsageRow(field, row, index, { preview })).join("")}</div>
+      <button type="button" class="field-button field-button--secondary field-usage-add" data-usage-add ${preview ? "disabled" : ""}>${esc(USAGE_ADD_LABELS[field.type] || "+ Add")}</button>
+    </fieldset>
+    ${helpAndError(field)}
+  </div>`;
+}
+
+// The unit and on-hand line under a materials row, and the write-in / other-vendor boxes.
+function refreshUsageRow(rowEl, field) {
+  if (field.type === "materialsUsed") {
+    const value = rowEl.querySelector('[data-u="inventoryItemId"]')?.value || "";
+    const writeIn = value === USAGE_WRITE_IN;
+    const box = rowEl.querySelector("[data-usage-writein]");
+    if (box) box.hidden = !writeIn;
+    const item = !writeIn && value ? liveBackendRows("inventoryItems").find((row) => row.id === value) : null;
+    const unitEl = rowEl.querySelector("[data-usage-unit]");
+    if (unitEl) unitEl.textContent = item?.unit || (writeIn ? rowEl.querySelector('[data-u="unit"]')?.value || "" : "");
+    const stock = rowEl.querySelector("[data-usage-stock]");
+    if (stock) stock.textContent = item ? `${usageOnHand(item).toLocaleString("en-US")} ${item.unit || ""} on hand`.trim() : "";
+  }
+  if (field.type === "vendorServices") {
+    const box = rowEl.querySelector("[data-usage-other-vendor]");
+    if (box) box.hidden = (rowEl.querySelector('[data-u="vendorAccountId"]')?.value || "") !== USAGE_OTHER_VENDOR;
+  }
+}
+
+function renumberUsageRows(root, field) {
+  root.querySelectorAll("[data-usage-row]").forEach((rowEl, index) => {
+    const title = rowEl.querySelector("[data-usage-row-title]");
+    if (title) title.textContent = `${USAGE_ROW_NOUNS[field.type] || "Row"} ${index + 1}`;
+  });
+}
+
+function wireUsageFields(form, template) {
+  for (const field of template.fields.filter((item) => isUsageFieldType(item.type))) {
+    const root = fieldRoot(form, field);
+    if (!root) continue;
+    root.querySelectorAll("[data-usage-row]").forEach((rowEl) => refreshUsageRow(rowEl, field));
+    root.addEventListener("click", (event) => {
+      if (event.target.closest("[data-usage-add]")) {
+        const list = root.querySelector("[data-usage-rows]");
+        list.insertAdjacentHTML("beforeend", renderUsageRow(field, {}, list.querySelectorAll("[data-usage-row]").length));
+        const added = list.lastElementChild;
+        refreshUsageRow(added, field);
+        added.querySelector("select, input:not([type=search])")?.focus();
+        return;
+      }
+      const remove = event.target.closest("[data-usage-remove]");
+      if (remove) {
+        remove.closest("[data-usage-row]")?.remove();
+        renumberUsageRows(root, field);
+        root.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    });
+    root.addEventListener("input", (event) => {
+      if (!event.target.matches("[data-usage-search]")) return;
+      const rowEl = event.target.closest("[data-usage-row]");
+      const select = rowEl?.querySelector('[data-u="inventoryItemId"]');
+      if (!select) return;
+      const keep = select.value;
+      select.innerHTML = materialSelectOptions(field, keep, event.target.value);
+      select.value = keep;
+    });
+    root.addEventListener("change", (event) => {
+      const rowEl = event.target.closest("[data-usage-row]");
+      if (rowEl) refreshUsageRow(rowEl, field);
+    });
+  }
+}
+
+function usageValue(rowEl, key) {
+  return (rowEl.querySelector(`[data-u="${key}"]`)?.value ?? "").toString().trim();
+}
+
+// What the rows hold right now (unvalidated), in the stored shape.
+function readUsageRows(root, field) {
+  return [...root.querySelectorAll("[data-usage-row]")].map((rowEl) => {
+    const rowId = rowEl.dataset.rowId || crm.makeId("row");
+    const note = usageValue(rowEl, "note");
+    if (field.type === "materialsUsed") {
+      const selected = usageValue(rowEl, "inventoryItemId");
+      if (selected === USAGE_WRITE_IN) return { rowId, inventoryItemId: "", writeInName: usageValue(rowEl, "writeInName"), itemLabel: usageValue(rowEl, "writeInName"), quantity: numericValue(usageValue(rowEl, "quantity")), unit: usageValue(rowEl, "unit"), note };
+      const item = selected ? liveBackendRows("inventoryItems").find((row) => row.id === selected) : null;
+      return { rowId, inventoryItemId: selected, writeInName: "", itemLabel: item ? usageItemName(item) : "", quantity: numericValue(usageValue(rowEl, "quantity")), unit: item?.unit || "", category: item ? usageItemCategory(item) : "", note };
+    }
+    if (field.type === "equipmentUsed") {
+      const assetId = usageValue(rowEl, "assetId");
+      const asset = assetId ? liveBackendRows("equipmentAssets").find((row) => row.id === assetId) : null;
+      const amount = numericValue(usageValue(rowEl, "amount"));
+      const basis = usageValue(rowEl, "basis") === "days" ? "days" : "hours";
+      return { rowId, assetId, assetTag: asset?.assetTag || "", assetLabel: usageAssetLabel(asset), hours: basis === "hours" ? amount : null, days: basis === "days" ? amount : null, condition: usageValue(rowEl, "condition") || "Good", note };
+    }
+    if (field.type === "wasteGenerated") {
+      return { rowId, containerType: usageValue(rowEl, "containerType"), containerCount: numericValue(usageValue(rowEl, "containerCount")), classification: usageValue(rowEl, "classification"), description: usageValue(rowEl, "description"), quantity: numericValue(usageValue(rowEl, "quantity")), unit: usageValue(rowEl, "unit"), note };
+    }
+    const selected = usageValue(rowEl, "vendorAccountId");
+    const other = selected === USAGE_OTHER_VENDOR;
+    const account = selected && !other ? crm.findAccount(selected) : null;
+    return { rowId, vendorAccountId: other ? "" : selected, vendorName: other ? usageValue(rowEl, "vendorName") : account?.name || "", service: usageValue(rowEl, "service"), quantity: numericValue(usageValue(rowEl, "quantity")), unit: usageValue(rowEl, "unit"), cost: numericValue(usageValue(rowEl, "cost")), note };
+  });
+}
+
+function usageRowIsBlank(type, row) {
+  if (type === "materialsUsed") return !row.inventoryItemId && !row.writeInName && row.quantity === null && !row.note;
+  if (type === "equipmentUsed") return !row.assetId && row.hours === null && row.days === null && !row.note;
+  if (type === "wasteGenerated") return row.quantity === null && row.containerCount === null && !row.description && !row.note;
+  return !row.vendorAccountId && !row.vendorName && !row.service && row.quantity === null && row.cost === null && !row.note;
+}
+
+// Drops untouched rows, then checks each one. Returns { rows, error }.
+function validateUsageRows(field, rows) {
+  const kept = (Array.isArray(rows) ? rows : []).filter((row) => !usageRowIsBlank(field.type, row));
+  const noun = (USAGE_ROW_NOUNS[field.type] || "Row").toLowerCase();
+  const min = Math.max(Number(field.config?.minRows) || 0, field.required ? 1 : 0);
+  if (kept.length < min) return { rows: kept, error: min === 1 ? `Add at least one ${noun} to ${field.displayName}.` : `${field.displayName} needs at least ${min} rows.` };
+  for (const [index, row] of kept.entries()) {
+    const which = `${field.displayName}, ${noun} ${index + 1}`;
+    if (field.type === "materialsUsed") {
+      if (!row.inventoryItemId && !row.writeInName) return { rows: kept, error: `${which}: pick the item${field.config?.allowWriteIn !== false ? " or write it in" : ""}.` };
+      if (!(row.quantity > 0)) return { rows: kept, error: `${which}: enter how many were used.` };
+    } else if (field.type === "equipmentUsed") {
+      if (!row.assetId) return { rows: kept, error: `${which}: pick the equipment.` };
+      if (!((row.hours ?? row.days) > 0)) return { rows: kept, error: `${which}: enter the hours or days it was used.` };
+    } else if (field.type === "wasteGenerated") {
+      if (!(row.quantity > 0) && !(row.containerCount > 0)) return { rows: kept, error: `${which}: enter a quantity or a container count.` };
+      if ((row.quantity !== null && row.quantity < 0) || (row.containerCount !== null && row.containerCount < 0)) return { rows: kept, error: `${which}: quantities cannot be negative.` };
+    } else if (field.type === "vendorServices") {
+      if (!row.vendorAccountId && !row.vendorName) return { rows: kept, error: `${which}: pick the vendor or subcontractor.` };
+      if (!row.service) return { rows: kept, error: `${which}: say what service they provided.` };
+      if ((row.quantity !== null && row.quantity < 0) || (row.cost !== null && row.cost < 0)) return { rows: kept, error: `${which}: amounts cannot be negative.` };
+    }
+  }
+  return { rows: kept, error: "" };
+}
+
+// The Material task's "this will take it negative" question, asked once per item before the form is
+// sent. Confirmed rows are marked; the server records them either way and raises the stock alert.
+function confirmUsageStock(template, values) {
+  const totals = new Map();
+  for (const field of template.fields.filter((item) => item.type === "materialsUsed")) {
+    for (const row of values[field.fieldRef] || []) {
+      if (!row.inventoryItemId) continue;
+      totals.set(row.inventoryItemId, (totals.get(row.inventoryItemId) || 0) + Number(row.quantity || 0));
+    }
+  }
+  for (const [itemId, total] of totals) {
+    const item = liveBackendRows("inventoryItems").find((row) => row.id === itemId);
+    if (!item || usageOnHand(item) - total >= 0) continue;
+    const proceed = window.confirm(`This will take ${usageItemName(item)} negative (${usageOnHand(item)} ${item.unit || ""} on hand, ${total} requested). Log it anyway and flag the ops manager?`);
+    if (!proceed) {
+      crm.showToast("Adjust the quantity, or confirm to log it as negative inventory.");
+      return false;
+    }
+    for (const field of template.fields.filter((entry) => entry.type === "materialsUsed")) {
+      for (const row of values[field.fieldRef] || []) if (row.inventoryItemId === itemId) row.confirmedNegative = true;
+    }
+  }
+  return true;
+}
+
+function renderUsageAnswerHtml(field, value) {
+  const rows = (Array.isArray(value) ? value : []).filter((row) => row && typeof row === "object");
+  if (!rows.length) return `<span class="muted-text">None</span>`;
+  return `<ul class="form-answer-usage">${rows.map((row) => `<li>${esc(usageRowText(field.type, row))}</li>`).join("")}</ul>`;
+}
+
+function renderUsageStatus(template, submission) {
+  if (!templateHasUsageFields(template) || submission.deferred) return "";
+  const rows = template.fields.filter((field) => isUsageFieldType(field.type)).reduce((sum, field) => sum + (Array.isArray(submission.payload?.[field.fieldRef]) ? submission.payload[field.fieldRef].length : 0), 0);
+  if (!rows) return "";
+  if (submission.usageAppliedAt) return `<p class="submission-fact form-usage-applied">Recorded on the job${submission.usageAppliedAt ? ` ${esc(crm.formatShortTime(submission.usageAppliedAt))}` : ""}: stock taken out, equipment, waste and vendor rows added.</p>`;
+  return `<p class="submission-fact form-usage-pending">Waiting to sync: stock comes out when this reaches the office.</p>`;
+}
+
+// After a usage form is saved: online, pull the rows the server wrote (and the new stock); queued
+// offline (the stored row has no server version yet), count its stock as pending on this phone.
+async function afterUsageSaved(template, saved) {
+  if (!templateHasUsageFields(template) || !saved) return;
+  if (saved.version === undefined) {
+    for (const field of template.fields.filter((item) => item.type === "materialsUsed")) {
+      for (const row of saved.payload?.[field.fieldRef] || []) {
+        if (row?.inventoryItemId) pendingUsageStock.set(row.inventoryItemId, (pendingUsageStock.get(row.inventoryItemId) || 0) + Number(row.quantity || 0));
+      }
+    }
+    return;
+  }
+  try {
+    await crm.refreshBackendState();
+  } catch {
+    // the next package refresh brings it
+  }
+}
+
+// Ad hoc (Forms menu): the job comes first. Resolves the job, or null when the worker cancels.
+function pickJobForUsageForm(template, jobs, preselected = "") {
+  if (!jobs.length) {
+    crm.showToast(`${template.displayName} records what was used on a job, and you have no open jobs.`);
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    const dialog = sheetElement();
+    sheetToken += 1;
+    let settled = false;
+    const finish = (job) => {
+      if (settled) return;
+      settled = true;
+      dialog.removeEventListener("cancel", onCancel);
+      // Resolve only after the close event, so the form sheet that opens next isn't closed by it.
+      if (dialog.open) {
+        dialog.addEventListener("close", () => setTimeout(() => resolve(job), 0), { once: true });
+        dialog.close();
+      } else resolve(job);
+    };
+    const onCancel = (event) => {
+      event.preventDefault();
+      finish(null);
+    };
+    const sorted = [...jobs].sort((a, b) => (a.id === preselected ? -1 : b.id === preselected ? 1 : 0));
+    dialog.innerHTML = `
+      <div class="field-form-sheet-form">
+        <header class="field-form-sheet-head">
+          <button type="button" class="field-photo-sheet-close" data-form-close aria-label="Close">×</button>
+          <strong>${esc(template.displayName)}</strong>
+        </header>
+        <div class="field-form-sheet-body">
+          <p class="field-form-intro">Which job is this for? What you record here is logged on that job, and stock comes out when it is sent.</p>
+          <div class="field-card-list">
+            ${sorted.map((job) => `<button type="button" class="field-card field-card--tap" data-usage-job="${attr(job.id)}"><div class="field-card-row"><strong>${esc(crm.frontlineJobOptionLabel(job))}</strong></div></button>`).join("")}
+          </div>
+        </div>
+        <footer class="field-form-sheet-actions"><button type="button" class="field-button field-button--ghost" data-form-close>Cancel</button></footer>
+      </div>`;
+    dialog.addEventListener("cancel", onCancel);
+    dialog.querySelectorAll("[data-form-close]").forEach((button) => (button.onclick = () => finish(null)));
+    dialog.querySelectorAll("[data-usage-job]").forEach((button) => (button.onclick = () => finish(jobs.find((job) => job.id === button.dataset.usageJob) || null)));
+    if (!dialog.open) dialog.showModal();
+  });
+}
+
+// ---------------------------------------------------------------------------------------------
 // Public entry points
 // ---------------------------------------------------------------------------------------------
 
@@ -1067,6 +1542,7 @@ export async function openFormForAction({ jobId = "", actionId = "", formTemplat
     crm.showToast("That form is not on this phone yet — sync and try again.");
     return null;
   }
+  usageJobId = jobId;
   const result = await openFormSheet(template, { intro: Number(repeatIndex) > 0 ? `Entry ${Number(repeatIndex) + 1}` : "" });
   if (!result || result.action !== "submit") return null;
   try {
@@ -1092,6 +1568,7 @@ export async function withTimesheetForm(action, { perform, timeEntryId = "", job
     return true;
   }
   const label = TIMESHEET_ACTIONS[action] || "this";
+  usageJobId = jobId || "";
   const result = await openFormSheet(template, {
     allowDefer: true,
     intro: `Fill this in to ${{ shift_start: "clock in", shift_end: "clock out", break_start: "start your break", break_end: "end your break" }[action] || "continue"}.`,
@@ -1124,7 +1601,14 @@ async function openAdHocForm(templateId) {
   if (!template) return;
   const employee = currentFieldEmployee();
   const jobs = employee ? crm.frontlineMyDispatchJobs(employee.id).filter((job) => !["closed", "cancelled"].includes(job.status)) : [];
-  const result = await openFormSheet(template, { jobs, requireJob: Boolean(template.requiresJob), jobId: crm.state.frontlineSelectedJobId && jobs.some((job) => job.id === crm.state.frontlineSelectedJobId) ? crm.state.frontlineSelectedJobId : "" });
+  const preselected = crm.state.frontlineSelectedJobId && jobs.some((job) => job.id === crm.state.frontlineSelectedJobId) ? crm.state.frontlineSelectedJobId : "";
+  // 2026-10-01: a form that records what was used on site asks which job first, and only that job.
+  const usageJob = templateHasUsageFields(template) ? await pickJobForUsageForm(template, jobs, preselected) : null;
+  if (templateHasUsageFields(template) && !usageJob) return;
+  usageJobId = usageJob?.id || "";
+  const result = usageJob
+    ? await openFormSheet(template, { jobs: [usageJob], requireJob: true, jobId: usageJob.id })
+    : await openFormSheet(template, { jobs, requireJob: Boolean(template.requiresJob), jobId: preselected });
   if (!result || result.action !== "submit") return;
   try {
     await saveSubmission(template, result, { jobId: result.jobId });

@@ -38,6 +38,54 @@ export const TIMESHEET_ACTIONS = {
   break_end: "Break end",
 };
 
+// 2026-10-01 (owner): "used on site" fields. Each is a list of rows ({rowId, ...}) the server records
+// into the job when the submission is saved (server.mjs applyFormSubmissionUsage): consumables and PPE
+// (stock comes out), equipment hours/days, waste generated, subcontractor / vendor services. Rows keep
+// the label the worker saw (itemLabel, assetLabel, vendorName) so they read without lookups.
+export const USAGE_FIELD_TYPES = ["materialsUsed", "equipmentUsed", "wasteGenerated", "vendorServices"];
+FORM_FIELD_TYPES.push(...USAGE_FIELD_TYPES);
+
+export function isUsageFieldType(type) {
+  return USAGE_FIELD_TYPES.includes(type);
+}
+
+export function templateHasUsageFields(template) {
+  return asArray(template?.fields).some((field) => isUsageFieldType(field?.type));
+}
+
+export const USAGE_EQUIPMENT_CONDITIONS = [
+  { value: "Good", label: "OK" },
+  { value: "Needs service", label: "Needs service" },
+  { value: "Damaged", label: "Damaged" },
+];
+
+function usageQuantity(quantity, unit) {
+  const number = numericValue(quantity);
+  if (number === null) return "";
+  return `${number.toLocaleString("en-US", { maximumFractionDigits: 3 })}${unit ? ` ${unit}` : ""}`;
+}
+
+// One row as plain text ("2 pairs · Nitrile Gloves (Chemical)").
+export function usageRowText(type, row) {
+  if (!row || typeof row !== "object") return "";
+  const note = row.note ? ` (${row.note})` : "";
+  if (type === "materialsUsed") return [usageQuantity(row.quantity, row.unit), row.itemLabel || row.writeInName || "Item"].filter(Boolean).join(" · ") + note;
+  if (type === "equipmentUsed") {
+    const amount = numericValue(row.days) ? `${numericValue(row.days)} day${numericValue(row.days) === 1 ? "" : "s"}` : numericValue(row.hours) ? `${numericValue(row.hours)} hr${numericValue(row.hours) === 1 ? "" : "s"}` : "";
+    const condition = row.condition && row.condition !== "Good" ? row.condition : "";
+    return [row.assetLabel || row.assetTag || "Equipment", amount, condition].filter(Boolean).join(" · ") + note;
+  }
+  if (type === "wasteGenerated") {
+    const count = numericValue(row.containerCount) ? `${numericValue(row.containerCount)} × ${row.containerType || "container"}` : row.containerType || "";
+    return [row.description || row.classification || "Waste", count, usageQuantity(row.quantity, row.unit)].filter(Boolean).join(" · ") + note;
+  }
+  if (type === "vendorServices") {
+    const cost = numericValue(row.cost) !== null ? formatMoney(row.cost) : "";
+    return [row.vendorName || "Vendor", row.service, usageQuantity(row.quantity, row.unit), cost].filter(Boolean).join(" · ") + note;
+  }
+  return "";
+}
+
 // Lower snake case, unique within `taken` (a Set of refs already used in the form).
 export function slugFieldRef(text, taken = new Set()) {
   const base =
@@ -335,6 +383,7 @@ export function formatFieldValueText(field, value) {
   if (value === null || value === undefined || value === "") return "";
   const type = field?.type || "text";
   if (Array.isArray(value)) {
+    if (isUsageFieldType(type)) return value.map((row) => usageRowText(type, row)).filter(Boolean).join("; ");
     if (type === "picture") return `${value.length} photo${value.length === 1 ? "" : "s"}`;
     return value.filter((item) => item !== "" && item !== null && item !== undefined).join(type === "cascadingList" ? " › " : ", ");
   }

@@ -70,6 +70,9 @@ const parents = {
   locationId: "locations",
   siteLocationId: "locations",
   anchorLocationId: "locations",
+  // 2026-10-01: usage rows a job action form wrote (jobResources, jobEquipmentUsage, wasteRecords,
+  // jobVendorUsage, inventoryAlerts) name the submission they came from.
+  formSubmissionId: "jobFormSubmissions",
 };
 // Link rows: a dangling one carries no history worth keeping.
 const linkCollections = new Set([

@@ -707,6 +707,94 @@ await step("delete on server: archived (soft-deleted via the task), refused unti
 
 if (timerReady) await fetch(`${baseUrl}/api/backend/dispatchJobs/${timerJobId}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
 
+// ---- 15. 2026-10-01: "used on site" fields on job action forms ---------------------------------
+// A throwaway job, item (2 on hand), asset, vendor and a form with one field of each usage type. The
+// lead submits it through the generic save (as the phone does, online or replayed from the outbox).
+await step("used-on-site form: each row recorded once with formSubmissionId; replay/re-save never deduct twice; no job refused", async () => {
+  if (!guardLeadId) return "skip";
+  const tag = `fac-usage-${Date.now()}`;
+  const jobId = `${tag}-job`;
+  const itemId = `${tag}-item`;
+  const assetId = `${tag}-asset`;
+  const vendorId = `${tag}-vendor`;
+  const formId = `${tag}-form`;
+  const del = (collection, id) => fetch(`${baseUrl}/api/backend/${collection}/${id}`, { method: "DELETE", headers: adminHeaders }).catch(() => {});
+  try {
+    const start = new Date();
+    const job = await adminPost("dispatchJobs", { id: jobId, jobNumber: "CHECK-USAGE", jobName: "field-api-check usage", status: "on_site", dispatchStatus: "On site", scheduledStart: start.toISOString(), scheduledEnd: new Date(start.getTime() + 8 * 3600 * 1000).toISOString(), fieldLeadEmployeeId: guardLeadId });
+    const lead = await adminPost("jobAssignments", { id: `${jobId}-lead`, jobId, employeeId: guardLeadId, isFieldLead: true, status: "Assigned" });
+    const item = await adminPost("inventoryItems", { id: itemId, materialType: "Check nitrile gloves", unit: "pairs", onHand: 2 });
+    const asset = await adminPost("equipmentAssets", { id: assetId, assetTag: `CHK-${tag.slice(-5)}`, equipment: "Check pump", category: "Pump", status: "In service" });
+    const vendor = await adminPost("accounts", { id: vendorId, name: "Check Vac Co", accountType: "Vendor" });
+    assert(job.response.ok && lead.response.ok && item.response.ok && asset.response.ok && vendor.response.ok, "could not set up the usage check records");
+    const form = await adminPost("formTemplates", {
+      id: formId, name: "Site usage check", displayName: "Site usage check", isActive: true, availableOnFormsMenu: true, requiresJob: false,
+      fields: [
+        { displayName: "Consumables & PPE", fieldRef: "consumables", type: "materialsUsed", config: { allowWriteIn: true } },
+        { displayName: "Equipment", fieldRef: "equipment", type: "equipmentUsed", config: { defaultBasis: "hours" } },
+        { displayName: "Waste", fieldRef: "waste", type: "wasteGenerated", config: { defaultUnit: "gal" } },
+        { displayName: "Vendors", fieldRef: "vendors", type: "vendorServices", config: {} },
+      ],
+    });
+    assert(form.response.ok, `save usage form -> ${form.response.status} ${form.payload.error || ""}`);
+    assert(form.payload.requiresJob === true, "a form with usage fields was saved without requiresJob");
+    const leadCookie = await linkSession(guardLeadId, jobId);
+    const pkg = await (await fetch(`${baseUrl}/api/field/package`, { headers: { Cookie: leadCookie } })).json();
+    assert((pkg.accounts || []).some((row) => row.id === vendorId), "the vendor is not in the field package (vendor picker)");
+    const payload = {
+      consumables: [{ rowId: "m1", inventoryItemId: itemId, itemLabel: "Check nitrile gloves", quantity: 3, unit: "pairs", confirmedNegative: true }, { rowId: "m2", writeInName: "Zip ties", itemLabel: "Zip ties", quantity: 5, unit: "each" }],
+      equipment: [{ rowId: "e1", assetId, hours: 2.5, days: null, condition: "Needs service" }],
+      waste: [{ rowId: "w1", containerType: "55-gal drum", containerCount: 2, classification: "Used oil", description: "Oily water", quantity: 80, unit: "gal" }],
+      vendors: [{ rowId: "v1", vendorAccountId: vendorId, service: "Vac truck", quantity: 4, unit: "hours", cost: 600 }],
+    };
+    const submissionId = `${tag}-sub`;
+    const submission = { id: submissionId, jobId, formTemplateId: formId, formName: "Site usage check", status: "Submitted", submittedBy: "field-api-check", submittedByEmployeeId: guardLeadId, submittedAt: new Date().toISOString(), payload };
+    const commandId = `${tag}-cmd`;
+    const send = (body, id = commandId) => fetch(`${baseUrl}/api/backend/jobFormSubmissions`, { method: "POST", headers: { "Content-Type": "application/json", Cookie: leadCookie, "X-Client-Command-Id": id }, body: JSON.stringify(body) }).then(async (response) => ({ response, payload: await j(response) }));
+    const first = await send(submission);
+    assert(first.response.ok, `submit -> ${first.response.status} ${first.payload.error || ""}`);
+    assert(first.payload.usageAppliedAt && first.payload.usageRowCount === 5, `usageAppliedAt/usageRowCount = ${first.payload.usageAppliedAt}/${first.payload.usageRowCount} (want set/5)`);
+    const counts = async () => {
+      const [resources, equipment, waste, vendors, items, alerts, movements] = await Promise.all(["jobResources", "jobEquipmentUsage", "wasteRecords", "jobVendorUsage", "inventoryItems", "inventoryAlerts", "inventoryMovements"].map(adminGet));
+      const mine = (rows) => rows.filter((row) => row.formSubmissionId === submissionId && !row.deletedAt);
+      return { resources: mine(resources), equipment: mine(equipment), waste: mine(waste), vendors: mine(vendors), alerts: mine(alerts), onHand: items.find((row) => row.id === itemId)?.onHand, movements: movements.filter((row) => row.refType === "formSubmission" && row.refId === submissionId) };
+    };
+    const after = await counts();
+    assert(after.onHand === -1, `stock after the form = ${after.onHand} (want 2 - 3 = -1)`);
+    assert(after.resources.length === 2 && after.resources.every((row) => row.type === "Material" && row.status === "Consumed" && row.formFieldRef === "consumables" && row.formRowId), `jobResources rows = ${after.resources.length} (want 2 consumed, keyed)`);
+    assert(after.resources.some((row) => row.writeIn && row.name === "Zip ties"), "the write-in row was not recorded");
+    assert(after.alerts.length === 1 && after.alerts[0].resultingBalance === -1, "going below zero raised no inventory alert");
+    assert(after.movements.length === 1 && after.movements[0].quantityDelta === -3, "no stock ledger row for the form");
+    assert(after.equipment.length === 1 && after.equipment[0].hours === 2.5 && after.equipment[0].assetTag === asset.payload.assetTag && after.equipment[0].condition === "Needs service", "equipment usage row missing or wrong");
+    assert(after.waste.length === 1 && after.waste[0].dispatchJobId === jobId && after.waste[0].containerCount === 2 && after.waste[0].classification === "Used oil", "waste record missing or wrong");
+    assert(after.vendors.length === 1 && after.vendors[0].vendorAccountId === vendorId && after.vendors[0].cost === 600 && after.vendors[0].vendorName === "Check Vac Co", "vendor usage row missing or wrong");
+    // The same command replayed (an outbox retry), and a second save of the same submission (the
+    // phone re-saves it with its photo ids): nothing is recorded twice.
+    const replay = await send(submission);
+    assert(replay.response.ok && replay.payload.version === first.payload.version, "replaying the command id did not return the original response");
+    const resave = await send({ ...submission, version: first.payload.version }, `${tag}-cmd2`);
+    assert(resave.response.ok && resave.payload.usageRowCount === 5 && resave.payload.usageAppliedAt === first.payload.usageAppliedAt, `re-save -> ${resave.response.status} ${resave.payload.error || ""} usageRowCount=${resave.payload.usageRowCount}`);
+    const again = await counts();
+    assert(again.onHand === -1 && again.resources.length === 2 && again.equipment.length === 1 && again.waste.length === 1 && again.vendors.length === 1 && again.alerts.length === 1, `a replay/re-save recorded something twice (stock ${again.onHand}, ${again.resources.length}/${again.equipment.length}/${again.waste.length}/${again.vendors.length})`);
+    // A row added on a later save is recorded on its own.
+    const grown = await send({ ...submission, version: resave.payload.version, payload: { ...payload, consumables: [...payload.consumables, { rowId: "m3", inventoryItemId: itemId, quantity: 1 }] } }, `${tag}-cmd3`);
+    assert(grown.response.ok && grown.payload.usageRowCount === 6, `adding a row -> ${grown.response.status} usageRowCount=${grown.payload.usageRowCount}`);
+    assert((await counts()).onHand === -2, "the added row did not take exactly one more out");
+    // Without a job the form is refused.
+    const jobless = await send({ ...submission, id: `${tag}-sub-nojob`, jobId: "", payload: { consumables: [{ rowId: "m1", inventoryItemId: itemId, quantity: 1 }] } }, `${tag}-cmd4`);
+    assert(jobless.response.status === 400 && /job/i.test(jobless.payload.error || ""), `a usage form with no job -> ${jobless.response.status} (want 400)`);
+    assert((await counts()).onHand === -2, "the refused form still took stock");
+  } finally {
+    const waste = (await adminGet("wasteRecords")).filter((row) => row.dispatchJobId === jobId);
+    for (const row of waste) await del("wasteRecords", row.id);
+    await del("dispatchJobs", jobId);
+    await del("formTemplates", formId);
+    await del("inventoryItems", itemId);
+    await del("equipmentAssets", assetId);
+    await del("accounts", vendorId);
+  }
+});
+
 console.log("");
 const failed = results.filter((item) => item.status === "FAIL").length;
 const skipped = results.filter((item) => item.status === "SKIP").length;
