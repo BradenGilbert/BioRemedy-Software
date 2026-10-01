@@ -1,6 +1,6 @@
 # Phase 25 — Pilot fixes (feedback pass 2026-09-29)
 
-**Status:** 🟢 **All six waves (A–F) built 2026-09-29/30** on branch `p25-wave-a` (smoke green; cross-worker flows click-tested on a copy of live data), **not yet on main or live** — waiting on the owner for the merge and live-server restart, and for the owner decisions listed under Build record.
+**Status:** ✅ **Shipped 2026-10-01** — all six waves (A–F) merged to main and running on the live server (cache v67), reachable at https://bioremedy-crm.bioremedy.workers.dev (see `docs/live-hosting.md`). Still to do: apply the two cleanup scripts (need the current break-glass password) and attach the loose Dell GPS points; the owner decisions listed under Build record.
 
 **Depends on:** Phase 21 (Front Line 2), Phase 13 (documents), Phase 15 (project workspace), Phase 16 (emergency intake) — all shipped.
 
