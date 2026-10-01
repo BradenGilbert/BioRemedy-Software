@@ -38,9 +38,10 @@ export function renderWorkTab(job, employee, isLead) {
 
       <h3 class="field-section-title">Quick capture</h3>
       <div class="field-quick-actions">
-        <button class="field-button field-button--secondary" type="button" data-field-action="field-equipment-usage-open">Equipment usage</button>
+        <button class="field-button field-button--secondary" type="button" data-field-action="field-used-open">Used</button>
         <button class="field-button field-button--secondary" type="button" data-field-action="field-waste-open">Waste / containers</button>
       </div>
+      ${crm.state.fieldUsedOpen ? renderUsedForm(job) : ""}
       ${crm.state.fieldEquipmentUsageOpen ? renderEquipmentUsageForm(job) : ""}
       ${crm.state.fieldWasteOpen ? renderWasteForm(job) : ""}
 
@@ -143,6 +144,18 @@ export function afterCaptureRender() {
     if (action?.type === "Timer") {
       form.removeAttribute("data-form");
       form.dataset.fieldForm = "field-complete-timer";
+    }
+    // Pass 2 C: a Material task cannot complete with an empty list unless "Nothing used" is ticked.
+    if (action?.type === "Material") {
+      form.removeAttribute("data-form");
+      form.dataset.fieldForm = "field-complete-material";
+      if (!form.querySelector('[name="nothingUsed"]')) {
+        const label = document.createElement("label");
+        label.className = "check-row";
+        label.innerHTML = '<input type="checkbox" name="nothingUsed" /> Nothing used on this task';
+        const submit = form.querySelector('button[type="submit"]');
+        form.insertBefore(label, submit || null);
+      }
     }
   });
   // The "+ Activity" ad hoc form (crm.renderFrontlineAdHocCaptureForm) submits through
@@ -571,5 +584,244 @@ registerFieldForm("field-adhoc-activity", async (form) => {
   } catch (error) {
     if (submitButton) submitButton.disabled = false;
     crm.showToast(error.message || "Could not add that activity.");
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Pass 2 C (2026-10-01, owner: "No way to type in utilized or planned items")
+// The Material task refuses an empty list, and a "Used" quick action takes write-in equipment and
+// materials that are not assigned assets or catalog items.
+// ---------------------------------------------------------------------------------------------
+
+registerFieldForm("field-complete-material", async (form) => {
+  const data = new FormData(form);
+  const nothingUsed = form.elements.nothingUsed?.checked;
+  const ids = data.getAll("materialItemId").map((value) => value.toString());
+  const quantities = data.getAll("materialQuantity").map((value) => value.toString().trim());
+  const names = data.getAll("materialWriteInName").map((value) => value.toString().trim());
+  let lines = 0;
+  for (let i = 0; i < Math.max(ids.length, names.length); i += 1) {
+    const picked = names[i] || ids[i];
+    const quantity = Number(quantities[i]);
+    if (!picked) continue;
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      crm.showToast("Give every material a quantity, or clear the row.");
+      return;
+    }
+    lines += 1;
+  }
+  const hasPicker = form.querySelector('[name="materialItemId"], [name="materialWriteInName"]');
+  const summary = (data.get("summary") || "").toString().trim();
+  if (hasPicker && !lines && !nothingUsed) {
+    crm.showToast("List what was used, or tick \"Nothing used\".");
+    return;
+  }
+  if (!hasPicker && !summary && !nothingUsed) {
+    crm.showToast("Say what was used in the notes, or tick \"Nothing used\".");
+    return;
+  }
+  if (nothingUsed && lines) {
+    crm.showToast("Untick \"Nothing used\" or clear the material rows.");
+    return;
+  }
+  if (nothingUsed && form.elements.summary && !summary) form.elements.summary.value = "Nothing used.";
+  await crm.frontlineCompleteAction(form);
+});
+
+function renderUsedForm(job) {
+  const equipment = crm.resourcesForDispatchJob(job.id).filter((resource) => resource.type === "Equipment");
+  const items = crm.getInventoryItems ? crm.getInventoryItems() : [];
+  return `
+    <form class="frontline-action-form" data-field-form="field-used-save">
+      <input type="hidden" name="jobId" value="${crm.escapeAttribute(job.id)}" />
+      <h4>Equipment used</h4>
+      <label>Assigned equipment
+        <select name="assetTag">
+          <option value="">Not on the list (type it below)</option>
+          ${equipment.map((item) => `<option value="${crm.escapeAttribute(item.assetTag || "")}" data-name="${crm.escapeAttribute(item.name)}">${crm.escapeHtml(item.name)}${item.assetTag ? ` (${crm.escapeHtml(item.assetTag)})` : ""}</option>`).join("")}
+        </select>
+      </label>
+      <label>...or type equipment <input name="equipName" maxlength="120" placeholder="e.g. Rented vac truck" /></label>
+      <div class="form-grid">
+        <label>Hours <input type="number" name="hours" min="0" step="0.25" /></label>
+        <label>Days <input type="number" name="days" min="0" step="1" /></label>
+      </div>
+      <label>Condition
+        <select name="condition"><option>Good</option><option>Needs service</option><option>Damaged</option></select>
+      </label>
+      <h4>Materials used</h4>
+      <label>From inventory
+        <select name="inventoryItemId">
+          <option value="">Not from inventory (type it below)</option>
+          ${items.map((item) => `<option value="${crm.escapeAttribute(item.id)}">${crm.escapeHtml(item.materialType)} - ${Number(item.onHand || 0)} ${crm.escapeHtml(item.unit || "")} on hand</option>`).join("")}
+        </select>
+      </label>
+      <label>...or type material <input name="materialName" maxlength="90" placeholder="e.g. Oil-dry" /></label>
+      <div class="form-grid">
+        <label>Quantity <input type="number" name="quantity" min="0" step="any" /></label>
+        <label>Unit <input name="unit" maxlength="20" placeholder="bags, gal, ea" /></label>
+      </div>
+      <label>Notes <textarea name="note" placeholder="Anything about how it was used"></textarea></label>
+      <p class="help-text">Fill in the equipment, the material, or both. Typed-in items are tracked and billed even when they are not in the catalog.</p>
+      <div class="inline-actions">
+        <button class="mini-button" type="button" data-field-action="field-used-close">Cancel</button>
+        <button class="primary-button" type="submit">Save</button>
+      </div>
+    </form>
+  `;
+}
+
+registerFieldAction("field-used-open", () => {
+  crm.state.fieldUsedOpen = true;
+  crm.render();
+});
+registerFieldAction("field-used-close", () => {
+  crm.state.fieldUsedOpen = false;
+  crm.render();
+});
+
+registerFieldForm("field-used-save", async (form) => {
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton?.disabled) return;
+  const data = new FormData(form);
+  const text = (name) => (data.get(name) || "").toString().trim();
+  const jobId = text("jobId");
+  const job = crm.findDispatchJob(jobId);
+  if (!job) return;
+  const assetTag = text("assetTag");
+  const assetOption = form.elements.assetTag?.selectedOptions?.[0];
+  const equipName = text("equipName") || (assetTag ? "" : assetOption?.dataset?.name || "");
+  const hours = crm.numberOrNull(data.get("hours"));
+  const days = crm.numberOrNull(data.get("days"));
+  const hasEquipment = Boolean(assetTag || equipName);
+  const inventoryItemId = text("inventoryItemId");
+  const materialName = text("materialName");
+  const quantity = crm.numberOrNull(data.get("quantity"));
+  const hasMaterial = Boolean(inventoryItemId || materialName);
+
+  if (!hasEquipment && !hasMaterial) {
+    crm.showToast("Pick or type equipment, a material, or both.");
+    return;
+  }
+  if (hasEquipment && !(hours > 0) && !(days > 0)) {
+    crm.showToast("Give the equipment hours or days used.");
+    return;
+  }
+  if (hasMaterial && !(quantity > 0)) {
+    crm.showToast("Give the material a quantity.");
+    return;
+  }
+  if (submitButton) submitButton.disabled = true;
+  const employee = crm.findEmployee(crm.state.frontlineSession?.employeeId);
+  const by = employee?.displayName || "Front Line";
+  const note = text("note");
+  const logged = [];
+  try {
+    if (hasEquipment) {
+      // A write-in has no asset tag; a name is what identifies it (the server marks it writeIn).
+      const record = {
+        id: crm.makeId("equip-usage"),
+        jobId,
+        assetTag,
+        name: equipName || assetOption?.dataset?.name || "",
+        ...(assetTag ? {} : { writeIn: true }),
+        operationalDate: crm.dispatchJobOperationalDate(job) || crm.todayIso(),
+        hours,
+        days,
+        condition: text("condition") || "Good",
+        note,
+        by,
+        capturedAt: new Date().toISOString(),
+      };
+      await fieldPackage.saveFieldRecord("jobEquipmentUsage", record, { kind: "equipment-usage", label: `Used — ${record.name || record.assetTag}` });
+      logged.push(`${record.name || record.assetTag} ${hours > 0 ? `${hours} h` : `${days} d`}`);
+    }
+    if (hasMaterial) {
+      const item = inventoryItemId ? crm.findInventoryItem(inventoryItemId) : null;
+      const line = materialName ? { writeInName: materialName, unit: text("unit"), quantity } : { inventoryItemId, quantity };
+      const step = await fieldEnsureAdHocStep(jobId);
+      const action = {
+        id: crm.makeId("job-action"),
+        jobId,
+        stepId: step.id,
+        sequence: crm.actionsForDispatchStep(step.id).length + 1,
+        name: "Ad hoc: Material",
+        formName: "Ad hoc: Material",
+        type: "Material",
+        assigneeScope: "Any assigned worker",
+        status: "Complete",
+        adHoc: true,
+        config: {},
+      };
+      await fieldPackage.saveFieldRecord("jobActions", action, {
+        kind: "ad-hoc-action",
+        label: "Ad hoc: Material",
+        apply: () => {
+          crm.state.backend.jobActions = [...(crm.state.backend.jobActions || []), action];
+        },
+      });
+      const consumeLine = (force) => ({ ...line, ...(force ? { force: true } : {}) });
+      const post = (force) =>
+        fieldPackage.fieldRequest(`/api/job-actions/${encodeURIComponent(action.id)}/consume`, {
+          method: "POST",
+          kind: "consume",
+          label: `Used — ${materialName || item?.materialType || "material"}`,
+          body: { items: [consumeLine(force)] },
+          headers: { "X-CRM-User": by },
+          apply: () => {
+            crm.state.backend.jobResources = [
+              ...(crm.state.backend.jobResources || []),
+              {
+                id: crm.makeId("job-resource"),
+                jobId,
+                actionId: action.id,
+                inventoryItemId: materialName ? "" : inventoryItemId,
+                type: "Material",
+                name: materialName || item?.materialType || "Material",
+                assetTag: "",
+                quantity,
+                unit: materialName ? text("unit") : item?.unit || "",
+                status: "Consumed",
+                ...(materialName ? { writeIn: true } : {}),
+                consumedAt: new Date().toISOString(),
+                consumedBy: by,
+              },
+            ];
+          },
+        });
+      try {
+        await post(false);
+      } catch (error) {
+        if (error?.payload?.wouldGoNegative && window.confirm(`${error.message} Log it anyway and flag the ops manager?`)) await post(true);
+        else throw error;
+      }
+      const submission = {
+        id: crm.makeId("form-sub"),
+        jobId,
+        actionId: action.id,
+        formName: "Ad hoc: Material",
+        status: "Submitted",
+        submittedBy: by,
+        submittedAt: new Date().toISOString(),
+        summary: `${quantity} ${materialName ? text("unit") : item?.unit || ""} ${materialName || item?.materialType || "material"}${note ? ` — ${note}` : ""}.`.replace(/\s+/g, " "),
+        payload: { materials: [line], lines: [{ ...line, name: materialName || item?.materialType || "Material" }] },
+        adHoc: true,
+      };
+      await fieldPackage.saveFieldRecord("jobFormSubmissions", submission, {
+        kind: "ad-hoc-submission",
+        label: "Ad hoc: Material",
+        apply: () => {
+          crm.state.backend.jobFormSubmissions = [...(crm.state.backend.jobFormSubmissions || []), submission];
+        },
+      });
+      logged.push(`${quantity} ${materialName ? text("unit") : item?.unit || ""} ${materialName || item?.materialType}`.replace(/\s+/g, " ").trim());
+    }
+    crm.state.fieldUsedOpen = false;
+    if (fieldPackage.isOnline()) await crm.refreshBackendState().catch(() => {});
+    crm.showToast(`Logged: ${logged.join("; ")}.`);
+    crm.render();
+  } catch (error) {
+    if (submitButton) submitButton.disabled = false;
+    crm.showToast(error.message || "Could not log that.");
   }
 });
