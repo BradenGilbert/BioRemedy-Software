@@ -5355,7 +5355,8 @@ async function handleAuth(request, response, pathname) {
     const held = heldRoles(session);
     if (session.kind === "dispatch-link") return json(response, 400, { error: "A sign-on link session has a single role." });
     if (wanted && !KNOWN_ROLES.includes(wanted)) return json(response, 400, { error: `Unknown role "${wanted}".` });
-    if (wanted && !held.includes(wanted) && !held.includes("Admin")) return json(response, 403, { error: "You do not hold that role." });
+    // Owner, 2026-10-01: any signed-in person may act as any role during the pilot (was: only a
+    // held role, or anything for an Admin). Every switch is audited below; it ends with the session.
     if (wanted === "Client Portal" && !session.clientAccountId) return json(response, 400, { error: "Client Portal needs a customer account on the login. Use the portal preview instead." });
     const auth = await loadAuth();
     const stored = auth.sessions.find((item) => item.id === session.id);

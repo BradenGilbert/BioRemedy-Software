@@ -27111,8 +27111,10 @@ function openSettingsDialog() {
 }
 
 // Settings > Roles and Permissions > Active role (2026-09-24, owner). Options: everything the person
-// holds, or one of those roles; an Admin can view as any role. The choice lives on the server
-// session, so every API call honours it, and it ends with the session.
+// holds, or any role in the system (owner, 2026-10-01: "allow anyone to change their role in
+// settings" -- during the pilot every signed-in person may act as any role, not only an Admin). The
+// choice lives on the server session, so every API call honours it, every switch is audited, and it
+// ends with the session.
 function fillActiveRoleSelect(form) {
   const select = form.elements.activeRole;
   const help = settingsDialog.querySelector("[data-settings-roles-help]");
@@ -27120,14 +27122,14 @@ function fillActiveRoleSelect(form) {
   const held = state.currentUser?.heldRoles || [];
   const isAdmin = held.includes("Admin");
   const activeRole = state.currentUser?.activeRole || "";
-  const choices = isAdmin ? SYSTEM_USER_ROLES.filter((role) => role !== "Client Portal" || state.session?.clientAccountId) : held;
+  const choices = SYSTEM_USER_ROLES.filter((role) => role !== "Client Portal" || state.session?.clientAccountId);
   const allLabel = held.length > 1 ? `All my roles (${held.join(" + ")})` : `${held[0] || "No role"} (my only role)`;
   select.innerHTML = [
     `<option value="">${escapeHtml(allLabel)}</option>`,
     ...choices.filter((role) => held.length > 1 || role !== held[0]).map((role) => `<option value="${escapeAttribute(role)}">${escapeHtml(role)}${held.includes(role) ? "" : " (view as)"}</option>`),
   ].join("");
   select.value = activeRole;
-  select.disabled = !state.session || state.session.kind === "dispatch-link" || (held.length <= 1 && !isAdmin);
+  select.disabled = !state.session || state.session.kind === "dispatch-link";
   if (help) {
     help.textContent = activeRole
       ? `Acting as ${activeRole} until you log out. Choose "${allLabel}" to get everything back.`
@@ -27135,7 +27137,7 @@ function fillActiveRoleSelect(form) {
         ? `You hold ${held.join(" + ")}; everything those roles can do is open. Pick one to work as that role only, until you log out.`
         : isAdmin
           ? "Admin sees everything. Pick a role to see the app as that role until you log out."
-          : `Your role is ${held[0] || "not set"}.`;
+          : `Your role is ${held[0] || "not set"}. Pick another role to work as that role until you log out.`;
   }
 }
 
