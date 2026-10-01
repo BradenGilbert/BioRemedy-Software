@@ -1150,6 +1150,7 @@ const state = {
     // availability type would be wrong (see the phase doc's corrections).
     standbyAssignments: [],
     standbyRotationSettings: [],
+    customerStatusLines: [],
     frontlineDevices: [],
     timeEntries: [],
     jobMileageEntries: [],
@@ -2123,6 +2124,12 @@ async function dispatchClick(event) {
   if (action === "view-project") viewProject(id);
   if (action === "view-sample") viewSample(id);
   if (action === "view-client-spill") viewClientSpill(id);
+  if (action === "view-client-spill-photos") {
+    state.clientScrollTarget = "clientPhotos";
+    viewClientSpill(id);
+  }
+  if (action === "scroll-client-photos") document.getElementById("clientPhotos")?.scrollIntoView({ block: "start", behavior: "smooth" });
+  if (action === "open-customer-status-lines") openCustomerStatusLinesDialog();
   if (action === "view-employee") viewEmployee(id);
   if (action === "view-dispatch-job") viewDispatchJob(id);
   if (action === "delete-record") await confirmAndDeleteRecord(actionButton.dataset.collection, id);
@@ -2452,6 +2459,7 @@ async function dispatchSubmit(event) {
   if (form.dataset.form === "rate-card-uom") await saveRateCardUom(form);
   if (form.dataset.form === "rate-card-product") await saveRateCardProduct(form);
   if (form.dataset.form === "pricing-settings") await savePricingSettings(form);
+  if (form.dataset.form === "customer-status-lines") await saveCustomerStatusLines(form);
   if (form.dataset.form === "dispatch-assign-vendor") await saveDispatchAssignVendor(form);
   if (form.dataset.form === "project-from-opportunity") await saveProjectFromOpportunity(form);
   if (form.dataset.form === "project-intake") await saveProjectIntake(form);
@@ -15900,9 +15908,56 @@ function renderOfficeManager() {
             ${renderWorkspaceStatusCard("Finance", money(financeSummary.quoted), "Quotes and invoice prep active")}
           </div>
         </article>
+        ${renderCustomerStatusLinesPanel()}
       </section>
     </section>
   `;
+}
+
+// Pass 2 item E (2026-10-01): the customer-facing "What's next" wording, one line per job status.
+const CUSTOMER_STATUS_LINE_ORDER = ["received", "scheduled", "dispatched", "on_site", "in_progress", "on_hold", "field_complete", "awaiting_lab", "office_review", "closed"];
+
+function customerStatusLineRows() {
+  return liveRows(state.backend.customerStatusLines).sort((a, b) => CUSTOMER_STATUS_LINE_ORDER.indexOf(a.stageKey) - CUSTOMER_STATUS_LINE_ORDER.indexOf(b.stageKey));
+}
+
+function renderCustomerStatusLinesPanel() {
+  if (!userHasRole("Admin", "Office Manager")) return "";
+  return `
+    <article class="panel customer-status-lines-panel">
+      <div class="panel-header">
+        <div><h3>What customers see</h3><span>The "What's next" line on the client portal, by job status</span></div>
+        <button class="mini-button" type="button" data-action="open-customer-status-lines">Edit wording</button>
+      </div>
+      <div class="panel-body record-list">
+        ${customerStatusLineRows().map((row) => `<div class="detail-card"><strong>${escapeHtml(row.label || row.stageKey)}</strong><p class="help-text">${escapeHtml(row.line)}</p></div>`).join("") || `<div class="empty-state compact">No status lines yet.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function openCustomerStatusLinesDialog() {
+  const dialog = document.querySelector("#customerStatusLinesDialog");
+  const list = dialog.querySelector("[data-status-lines]");
+  list.innerHTML = customerStatusLineRows()
+    .map((row) => `<label>${escapeHtml(row.label || row.stageKey)}<textarea name="line-${escapeAttribute(row.id)}" rows="2" maxlength="300">${escapeHtml(row.line || "")}</textarea></label>`)
+    .join("");
+  dialog.showModal();
+}
+
+async function saveCustomerStatusLines(form) {
+  const data = new FormData(form);
+  try {
+    for (const row of customerStatusLineRows()) {
+      const line = (data.get(`line-${row.id}`) || "").toString().trim();
+      if (line && line !== row.line) await saveBackendRecord("customerStatusLines", { ...row, line });
+    }
+    closeDialogs();
+    render();
+    showToast("Customer wording saved. The portal shows it right away.");
+  } catch (error) {
+    showToast(error.message || "The wording could not be saved.");
+  }
 }
 
 function renderOfficeAlert(alert) {
@@ -16588,14 +16643,21 @@ function renderClientDashboard() {
   cleanupProjectDetailVisuals();
   const account = getClientAccount();
   const jobs = getClientVisibleJobs();
-  const activeJobs = jobs.filter((job) => isActiveProject(job));
+  const inProgress = jobs.filter((job) => clientProjectPhase(job) === "progress");
+  const previous = jobs.filter((job) => clientProjectPhase(job) === "previous").sort((a, b) => String(clientCompletedAt(b)).localeCompare(String(clientCompletedAt(a))));
   const alerts = getClientVisibleAlerts();
   const samples = getClientVisibleSamples();
-  const schedule = getClientVisibleSchedule().slice(0, 4);
+  const upcoming = getClientUpcomingVisits();
   const recentEvents = getClientRecentEvents(6);
-  const nextTarget = jobs
-    .filter((job) => job.targetDate)
-    .sort((a, b) => daysUntil(a.targetDate) - daysUntil(b.targetDate))[0];
+  // "Next milestone" is the nearest FUTURE dated item: the next visit or site walk, else the nearest
+  // target date still ahead. A date already past is not a milestone.
+  const nextVisit = upcoming[0];
+  const nextTarget = nextVisit
+    ? null
+    : jobs
+        .filter((job) => clientProjectPhase(job) !== "previous" && job.targetDate && daysUntil(job.targetDate) >= 0)
+        .sort((a, b) => daysUntil(a.targetDate) - daysUntil(b.targetDate))[0];
+  const nextProject = nextVisit ? findProject(nextVisit.projectId) : nextTarget;
 
   app.innerHTML = `
     <section class="view client-view">
@@ -16611,15 +16673,22 @@ function renderClientDashboard() {
           <h2>${escapeHtml(account?.name || "Client account")}</h2>
           <p>${escapeHtml(account?.siteName || account?.concern || "Active spill and remediation records tied to this account.")}</p>
           <div class="inline-actions">
-            <span class="stage-badge">${activeJobs.length} active spills</span>
+            <span class="stage-badge">${inProgress.length} in progress</span>
+            <span class="tag">${upcoming.length} upcoming</span>
             <span class="${alerts.length ? "risk-badge high" : "risk-badge low"}">${alerts.length} open updates</span>
             <span class="tag">${samples.length} sample records</span>
           </div>
         </div>
         <div class="client-next-card">
           <p class="eyebrow">Next milestone</p>
-          <strong>${escapeHtml(nextTarget?.activePhase || "No active milestone")}</strong>
-          <span>${nextTarget ? `${escapeHtml(nextTarget.name)} - target ${formatDate(nextTarget.targetDate)}` : "No target date is set."}</span>
+          <strong>${escapeHtml(nextVisit ? nextVisit.title : nextTarget ? "Target completion" : "Nothing scheduled right now")}</strong>
+          <span>${
+            nextVisit
+              ? `${escapeHtml(nextProject?.name || "")} - ${escapeHtml(formatClientWindow(nextVisit.start, nextVisit.end))}${nextVisit.leadName ? ` - crew lead ${escapeHtml(nextVisit.leadName)}` : ""}`
+              : nextTarget
+                ? `${escapeHtml(nextTarget.name)} - target ${formatDate(nextTarget.targetDate)}`
+                : "We will post the next visit here as soon as it is scheduled."
+          }</span>
         </div>
       </section>
 
@@ -16630,20 +16699,27 @@ function renderClientDashboard() {
       <section class="split-grid">
         <article class="panel">
           <div class="panel-header">
-            <h3>Active spills</h3>
+            <h3>In progress</h3>
             <button class="mini-button" type="button" data-view="client-spills">View all</button>
           </div>
           <div class="panel-body project-card-grid">
-            ${activeJobs.slice(0, 4).map(renderClientSpillCard).join("") || `<div class="empty-state">No active spills are attached to this login.</div>`}
+            ${inProgress.slice(0, 4).map(renderClientSpillCard).join("") || `<div class="empty-state">Nothing is in progress right now.</div>`}
           </div>
         </article>
         <article class="panel">
-          <div class="panel-header"><h3>Upcoming work</h3></div>
+          <div class="panel-header"><h3>Upcoming</h3></div>
           <div class="panel-body record-list">
-            ${schedule.map(renderClientScheduleCard).join("") || `<div class="empty-state">No scheduled site work is currently published.</div>`}
+            ${upcoming.slice(0, 5).map(renderClientVisitCard).join("") || `<div class="empty-state">No visits are scheduled yet. When one is booked, the date and window appear here.</div>`}
           </div>
         </article>
       </section>
+
+      <article class="panel">
+        <div class="panel-header"><h3>Previous work</h3></div>
+        <div class="panel-body project-card-grid">
+          ${previous.slice(0, 6).map(renderClientSpillCard).join("") || `<div class="empty-state">Completed jobs, with their reports and photos, will be listed here.</div>`}
+        </div>
+      </article>
 
       <section class="detail-grid">
         <article class="panel">
@@ -16670,6 +16746,12 @@ function renderClientSpills() {
   cleanupProjectDetailVisuals();
   const jobs = getClientVisibleJobs();
   const alerts = getClientVisibleAlerts();
+  const newestFirst = (a, b) => String(clientCompletedAt(b) || b.startDate || "").localeCompare(String(clientCompletedAt(a) || a.startDate || ""));
+  const groups = [
+    { title: "In progress", rows: jobs.filter((job) => clientProjectPhase(job) === "progress"), empty: "Nothing is in progress right now." },
+    { title: "Upcoming", rows: jobs.filter((job) => clientProjectPhase(job) === "upcoming"), empty: "No visits are scheduled yet." },
+    { title: "Previous work", rows: jobs.filter((job) => clientProjectPhase(job) === "previous").sort(newestFirst), empty: "Completed jobs will be listed here." },
+  ];
 
   app.innerHTML = `
     <section class="view client-view">
@@ -16680,9 +16762,17 @@ function renderClientSpills() {
       )}
       ${renderClientMetrics(jobs, alerts, getClientVisibleSamples())}
       ${renderClientSpillMapPanel(jobs)}
-      <section class="project-card-grid client-spill-grid">
-        ${jobs.map(renderClientSpillCard).join("") || `<div class="empty-state">No spills are attached to this client login.</div>`}
-      </section>
+      ${groups
+        .map(
+          (group) => `
+        <article class="panel">
+          <div class="panel-header"><h3>${group.title}</h3><span>${group.rows.length}</span></div>
+          <div class="panel-body project-card-grid client-spill-grid">
+            ${group.rows.map(renderClientSpillCard).join("") || `<div class="empty-state">${group.empty}</div>`}
+          </div>
+        </article>`,
+        )
+        .join("")}
     </section>
   `;
 
@@ -16813,7 +16903,20 @@ function renderClientSpillDetail() {
   const sampleSessions = groupSamplesIntoSessions(samples);
   const spatial = spatialDataForJob(job.id);
   const chronology = getClientChronology(job);
-  const schedule = getScheduleEvents().filter((work) => work.projectId === job.id).sort((a, b) => new Date(a.date) - new Date(b.date));
+  const dispatchJob = clientPrimaryJob(job.id);
+  const phase = clientProjectPhase(job);
+  const stageKey = clientStageKey(job);
+  const stageLabel = clientStageLabel(job);
+  const visits = getClientVisits(job.id);
+  const upcomingVisits = visits.filter(clientVisitIsUpcoming);
+  const pastVisits = visits.filter((visit) => !clientVisitIsUpcoming(visit)).reverse();
+  const leadName = clientLeadName(dispatchJob);
+  const documents = clientProjectDocuments(job);
+  const photos = documents.filter(isImageDocument);
+  const files = documents.filter((document) => !isImageDocument(document));
+  const nextLine = clientStatusLine(stageKey);
+  const siteAddress = location.address || dispatchJob?.addressText || "";
+  const completedAt = phase === "previous" ? clientCompletedAt(job) : "";
 
   app.innerHTML = `
     <section class="view client-view">
@@ -16824,34 +16927,44 @@ function renderClientSpillDetail() {
           <h2>${escapeHtml(job.name)}</h2>
           <p>${escapeHtml(job.jobClass)} for ${escapeHtml(account?.name ?? "Unknown account")}${location.name ? ` at ${escapeHtml(location.name)}` : ""}.</p>
           <div class="inline-actions">
-            <span class="risk-badge ${progress.tone}">${progress.percent}% complete</span>
-            <span class="stage-badge">${escapeHtml(job.status)}</span>
-            ${projectNextStep(job) ? `<span class="risk-badge medium">${escapeHtml(projectNextStep(job))}</span>` : ""}
-            <span class="tag">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
+            <span class="risk-badge ${phase === "previous" ? "low" : dispatchJob ? "medium" : progress.tone}">${escapeHtml(dispatchJob ? stageLabel : `${progress.percent}% complete`)}</span>
+            ${dispatchJob ? "" : `<span class="stage-badge">${escapeHtml(job.status)}</span>`}
+            ${leadName ? `<span class="tag">Crew lead ${escapeHtml(leadName)}</span>` : ""}
+            ${job.projectManager ? `<span class="tag">PM ${escapeHtml(job.projectManager)}</span>` : ""}
             ${job.notToExceed ? `<span class="tag">Authorized NTE ${money(job.notToExceed)}</span>` : ""}
           </div>
         </div>
         <div class="client-next-card">
-          <p class="eyebrow">Current phase</p>
-          <strong>${escapeHtml(job.activePhase)}</strong>
-          <span>Target ${formatDate(job.targetDate)}</span>
+          <p class="eyebrow">${completedAt ? "Completed" : "Current status"}</p>
+          <strong>${escapeHtml(completedAt ? formatDate(completedAt) : dispatchJob ? stageLabel : job.activePhase)}</strong>
+          <span>${escapeHtml(upcomingVisits[0] ? `Next visit ${formatClientWindow(upcomingVisits[0].start, upcomingVisits[0].end)}` : siteAddress)}</span>
         </div>
       </div>
 
+      <section class="panel client-whats-next" aria-label="What's next">
+        <div class="panel-body">
+          <p class="eyebrow">What's next</p>
+          <p class="client-whats-next-line">${escapeHtml(nextLine || "We will post updates here as the work moves forward.")}</p>
+          ${upcomingVisits[0] && phase !== "previous" ? `<p class="help-text">Next ${upcomingVisits[0].kind === "walk" ? "site walk" : "visit"}: <strong>${escapeHtml(formatClientWindow(upcomingVisits[0].start, upcomingVisits[0].end))}</strong>${upcomingVisits[0].leadName ? ` with crew lead ${escapeHtml(upcomingVisits[0].leadName)}` : ""}.</p>` : ""}
+          ${phase === "previous" && photos.length ? `<div class="inline-actions"><button class="mini-button" type="button" data-action="scroll-client-photos">View ${photos.length} report photo${photos.length === 1 ? "" : "s"}</button></div>` : ""}
+        </div>
+      </section>
+
       <section class="project-progress-panel">
+        ${dispatchJob ? renderClientLadder(dispatchJob) : `
         <div class="race-progress ${progress.tone}" aria-label="Spill response progress">
           <span style="width: ${progress.percent}%"></span>
         </div>
         <div class="stage-ladder">
           ${PROJECT_STAGES.map((stage, index) => `<span class="${progress.stageIndex >= index ? "done" : ""}">${stage}</span>`).join("")}
-        </div>
+        </div>`}
       </section>
 
       <section class="metric-strip" aria-label="Client spill metrics">
         <div class="metric">
-          <p class="eyebrow">Site events</p>
-          <strong>${chronology.length}</strong>
-          <span>Published history records</span>
+          <p class="eyebrow">Photos</p>
+          <strong>${photos.length}</strong>
+          <span>Shared by our crew</span>
         </div>
         <div class="metric">
           <p class="eyebrow">Samples</p>
@@ -16865,13 +16978,42 @@ function renderClientSpillDetail() {
         </div>
         <div class="metric">
           <p class="eyebrow">Documents</p>
-          <strong>${spatial.length}</strong>
-          <span>Spatial or site files</span>
+          <strong>${files.length}</strong>
+          <span>Reports and paperwork shared with you</span>
         </div>
       </section>
 
       <section class="project-detail-layout">
         <div class="detail-stack">
+          <article class="panel client-schedule-panel">
+            <div class="panel-header"><h3>Schedule</h3></div>
+            <div class="panel-body">
+              <dl class="detail-list">
+                <div><dt>Crew lead</dt><dd>${escapeHtml(leadName || "Assigned when the crew is dispatched")}</dd></div>
+                <div><dt>Site</dt><dd>${escapeHtml(siteAddress || location.name || "Not set")}</dd></div>
+                <div><dt>Next visit</dt><dd>${upcomingVisits[0] ? escapeHtml(formatClientWindow(upcomingVisits[0].start, upcomingVisits[0].end)) : "None scheduled"}</dd></div>
+                <div><dt>Last visit</dt><dd>${pastVisits[0] ? escapeHtml(formatClientWindow(pastVisits[0].start, pastVisits[0].end)) : "No visit yet"}</dd></div>
+              </dl>
+              <div class="record-list">
+                ${[...upcomingVisits, ...pastVisits].map(renderClientVisitCard).join("") || `<div class="empty-state compact">No visits are scheduled yet.</div>`}
+              </div>
+            </div>
+          </article>
+
+          <article class="panel" id="clientPhotos">
+            <div class="panel-header"><div><h3>Site photos</h3><span>Photos our crew chose to share with you</span></div></div>
+            <div class="panel-body">
+              ${photos.length ? `<div class="photo-grid client-photo-grid">${photos.map(renderPhotoTile).join("")}</div>` : `<div class="empty-state compact">No photos have been shared yet. They appear here as the crew posts them.</div>`}
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header"><div><h3>Documents</h3><span>Reports, authorizations and other paperwork</span></div></div>
+            <div class="panel-body record-list document-list">
+              ${files.map((document) => renderDocumentRow(document)).join("") || `<div class="empty-state compact">No documents have been shared on this job yet.</div>`}
+            </div>
+          </article>
+
           <article class="panel">
             <div class="panel-header"><h3>Responsible party and claim info</h3></div>
             <div class="panel-body">
@@ -16907,16 +17049,9 @@ function renderClientSpillDetail() {
           </article>
 
           <article class="panel">
-            <div class="panel-header"><h3>Scheduled site work</h3></div>
-            <div class="panel-body record-list">
-              ${schedule.map(renderClientScheduleCard).join("") || `<div class="empty-state">No upcoming site work is currently published.</div>`}
-            </div>
-          </article>
-
-          <article class="panel">
-            <div class="panel-header"><h3>LiDAR and site documents</h3></div>
+            <div class="panel-header"><h3>LiDAR and site scans</h3></div>
             <div class="panel-body lidar-stack">
-              ${spatial.map(renderProjectSpatialRecord).join("") || renderEmptyLidarPlaceholder(job)}
+              ${spatial.map(renderProjectSpatialRecord).join("") || `<div class="empty-state compact">No scans have been published for this job.</div>`}
             </div>
           </article>
         </div>
@@ -16927,13 +17062,56 @@ function renderClientSpillDetail() {
   requestAnimationFrame(() => {
     initializeProjectSampleMap(job.id);
     initializeProjectModelViewers();
+    if (state.clientScrollTarget) {
+      document.getElementById(state.clientScrollTarget)?.scrollIntoView({ block: "start" });
+      state.clientScrollTarget = "";
+    }
   });
 }
 
+// The customer's status ladder, drawn from the job's real dispatch status and its status events.
+function renderClientLadder(dispatchJob) {
+  const index = clientLadderIndex(dispatchJob);
+  const events = (state.backend.jobStatusEvents || []).filter((event) => event.jobId === dispatchJob.id && event.occurredAt);
+  const stamp = (step) => events.filter((event) => step.statuses.includes(event.toStatus)).map((event) => event.occurredAt).sort()[0] || "";
+  const paused = dispatchJob.status === "on_hold";
+  return `
+    <ol class="client-ladder" aria-label="Job status">
+      ${CLIENT_LADDER.map((step, position) => {
+        const done = position <= index;
+        const current = position === index && dispatchJob.status !== "closed";
+        const when = done ? stamp(step) : "";
+        return `<li class="${done ? "done" : ""}${current ? " current" : ""}"${current ? ' aria-current="step"' : ""}>
+          <span class="client-ladder-dot" aria-hidden="true"></span>
+          <strong>${escapeHtml(current && paused ? "Work paused" : step.label)}</strong>
+          <small>${when ? escapeHtml(formatDate(when)) : "&nbsp;"}</small>
+        </li>`;
+      }).join("")}
+    </ol>
+  `;
+}
+
+function renderClientVisitCard(visit) {
+  const project = findProject(visit.projectId);
+  const upcoming = clientVisitIsUpcoming(visit);
+  return `
+    <article class="detail-card client-visit-card">
+      <strong>${escapeHtml(visit.title)}</strong>
+      <div class="row-meta">
+        <span>${escapeHtml(formatClientWindow(visit.start, visit.end))}</span>
+        <span class="${upcoming ? "tag" : "risk-badge low"}">${upcoming ? "Upcoming" : "Done"}</span>
+        ${project ? `<button class="link-button" type="button" data-action="view-client-spill" data-id="${escapeAttribute(project.id)}">${escapeHtml(project.name)}</button>` : ""}
+      </div>
+      <p class="help-text">${visit.leadName ? `Crew lead ${escapeHtml(visit.leadName)}` : visit.kind === "walk" ? "A BioRemedy team member will meet you at the site." : "Crew assignment pending"}</p>
+    </article>
+  `;
+}
+
 function renderClientMetrics(jobs, alerts, samples) {
-  const active = jobs.filter((job) => isActiveProject(job)).length;
-  const emergency = jobs.filter((job) => job.jobClass === "Emergency Response" && isActiveProject(job)).length;
-  const documents = getClientVisibleSpatialData().length;
+  const active = jobs.filter((job) => clientProjectPhase(job) !== "previous").length;
+  const emergency = jobs.filter((job) => job.jobClass === "Emergency Response" && clientProjectPhase(job) !== "previous").length;
+  // "Docs" counts what BioRemedy shared with this customer (photos and files), not LiDAR scans.
+  const documents = jobs.reduce((sum, job) => sum + clientProjectDocuments(job).length, 0);
 
   return `
     <section class="metric-strip client-metrics" aria-label="Client portal metrics">
@@ -16955,7 +17133,7 @@ function renderClientMetrics(jobs, alerts, samples) {
       <div class="metric">
         <p class="eyebrow">Samples / Docs</p>
         <strong>${samples.length} / ${documents}</strong>
-        <span>Published records</span>
+        <span>Published records and shared files</span>
       </div>
     </section>
   `;
@@ -17003,6 +17181,14 @@ function renderClientSpillCard(job) {
   const alerts = alertsForJob(job.id).filter((alert) => alert.status !== "Resolved");
   const samples = samplesForJob(job.id);
   const latestEvent = getClientChronology(job).at(-1);
+  const dispatchJob = clientPrimaryJob(job.id);
+  const phase = clientProjectPhase(job);
+  const percent = clientProgressPercent(job);
+  const stageLabel = clientStageLabel(job);
+  const nextVisit = phase === "previous" ? null : getClientVisits(job.id).find(clientVisitIsUpcoming);
+  const completedAt = phase === "previous" ? clientCompletedAt(job) : "";
+  const photoCount = phase === "previous" ? clientProjectDocuments(job).filter(isImageDocument).length : 0;
+  const tone = phase === "previous" ? "low" : dispatchJob ? "medium" : progress.tone;
 
   return `
     <article class="project-overview-card client-spill-card">
@@ -17013,23 +17199,24 @@ function renderClientSpillCard(job) {
           </button>
           <div class="row-meta">
             <span>${escapeHtml(job.jobClass)}</span>
-            <span>${escapeHtml(job.status)}</span>
-            <span>Target ${formatDate(job.targetDate)}</span>
+            <span>${escapeHtml(dispatchJob ? stageLabel : job.status)}</span>
+            ${completedAt ? `<span>Completed ${formatDate(completedAt)}</span>` : nextVisit ? `<span>Next visit ${escapeHtml(formatClientWindow(nextVisit.start, nextVisit.end))}</span>` : job.targetDate ? `<span>Target ${formatDate(job.targetDate)}</span>` : ""}
           </div>
         </div>
-        <span class="risk-badge ${progress.tone}">${progress.percent}%</span>
+        <span class="risk-badge ${tone}">${percent}%</span>
       </div>
-      <div class="race-progress ${progress.tone}" aria-label="${progress.percent}% spill response progress">
-        <span style="width: ${progress.percent}%"></span>
+      <div class="race-progress ${tone}" aria-label="${percent}% spill response progress">
+        <span style="width: ${percent}%"></span>
       </div>
-      <p class="help-text">${escapeHtml(job.activePhase)}${latestEvent ? `. Latest: ${latestEvent.title}` : ""}</p>
+      <p class="help-text">${escapeHtml([dispatchJob ? clientStatusLine(clientStageKey(job)) : job.activePhase, latestEvent ? `Latest: ${latestEvent.title}` : ""].filter(Boolean).join(" "))}</p>
       <div class="inline-actions">
         <span class="${alerts.length ? "risk-badge high" : "tag"}">${alerts.length} open updates</span>
         <span class="tag">${samples.length} samples</span>
-        <span class="tag">PM ${escapeHtml(job.projectManager || "not assigned")}</span>
+        ${job.projectManager ? `<span class="tag">PM ${escapeHtml(job.projectManager)}</span>` : ""}
       </div>
       <div class="inline-actions">
         <button class="mini-button" type="button" data-action="view-client-spill" data-id="${escapeAttribute(job.id)}">Open spill</button>
+        ${photoCount ? `<button class="mini-button" type="button" data-action="view-client-spill-photos" data-id="${escapeAttribute(job.id)}">View report photos</button>` : ""}
       </div>
     </article>
   `;
@@ -36027,17 +36214,200 @@ function getClientVisibleSchedule() {
     .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
 }
 
+// --- Client portal: dispatch status, visits, photos and expectations (Pass 2 items A + E, 2026-10-01) ---
+//
+// What the customer sees is built only from what portalView (server.mjs) sends: dispatch jobs cut to
+// status + window + lead NAME, jobStatusEvents, jobScheduleSegments, customer-visible documents and a
+// sanitised projectAlerts list. Nothing here reads an employee row, a narrative or a post-job review.
+const CLIENT_LADDER = [
+  { key: "scheduled", label: "Scheduled", statuses: ["draft", "ready", "scheduled"] },
+  { key: "dispatched", label: "Crew dispatched", statuses: ["dispatched", "acknowledged", "en_route"] },
+  { key: "on_site", label: "On site", statuses: ["on_site"] },
+  { key: "in_progress", label: "Work in progress", statuses: ["in_progress", "on_hold"] },
+  { key: "field_complete", label: "Field complete", statuses: ["field_complete"] },
+  { key: "office_review", label: "Office review", statuses: ["office_review"] },
+  { key: "closed", label: "Closed", statuses: ["closed"] },
+];
+// The customer's wording for each dispatch status change in the site history.
+const CLIENT_STATUS_EVENT_WORDS = {
+  scheduled: "Visit scheduled",
+  dispatched: "Crew dispatched",
+  en_route: "Crew on the way",
+  on_site: "Crew on site",
+  in_progress: "Work started",
+  on_hold: "Work paused",
+  field_complete: "Field work complete",
+  office_review: "Office review started",
+  closed: "Job closed",
+};
+const CLIENT_STAGE_LABELS = { received: "Request received", on_hold: "Work paused", awaiting_lab: "Samples at the lab" };
+const CLIENT_SAMPLE_PENDING = /pending|transit|logged|expedited/i;
+
+function clientJobsForProject(projectId, { includeCancelled = false } = {}) {
+  return liveRows(state.backend.dispatchJobs).filter((job) => job.projectId === projectId && (includeCancelled || !/cancel/i.test(job.status || "")));
+}
+
+function clientLadderIndex(job) {
+  return job ? CLIENT_LADDER.findIndex((step) => step.statuses.includes(job.status)) : -1;
+}
+
+// The job that speaks for the project: the furthest-along open job, else the most recent closed one.
+function clientPrimaryJob(projectId) {
+  const jobs = clientJobsForProject(projectId);
+  const open = jobs.filter((job) => job.status !== "closed").sort((a, b) => clientLadderIndex(b) - clientLadderIndex(a) || String(a.scheduledStart || "").localeCompare(String(b.scheduledStart || "")));
+  if (open.length) return open[0];
+  return jobs.sort((a, b) => String(b.scheduledStart || "").localeCompare(String(a.scheduledStart || "")))[0] || null;
+}
+
+function clientLeadName(job) {
+  return job?.leadName || findEmployee(job?.fieldLeadEmployeeId)?.displayName || "";
+}
+
+// previous = closed (or every dispatch job closed); upcoming = only a scheduled visit so far; else in progress.
+function clientProjectPhase(project) {
+  const jobs = clientJobsForProject(project.id);
+  if (project.closedAt || (jobs.length && jobs.every((job) => job.status === "closed"))) return "previous";
+  const job = clientPrimaryJob(project.id);
+  if (job && clientLadderIndex(job) === 0) return "upcoming";
+  return "progress";
+}
+
+function clientStageKey(project) {
+  const job = clientPrimaryJob(project.id);
+  if (!job) return project.closedAt ? "closed" : "received";
+  if (job.status === "on_hold") return "on_hold";
+  const index = clientLadderIndex(job);
+  if (index < 0) return "received";
+  if (index >= 4 && samplesForJob(project.id).some((sample) => CLIENT_SAMPLE_PENDING.test(sample.labStatus || ""))) return "awaiting_lab";
+  return CLIENT_LADDER[index].key;
+}
+
+function clientStageLabel(project) {
+  const key = clientStageKey(project);
+  return CLIENT_STAGE_LABELS[key] || CLIENT_LADDER.find((step) => step.key === key)?.label || "In progress";
+}
+
+// 0-100 along the customer's ladder (a project with no dispatch job falls back to its own stage ladder).
+function clientProgressPercent(project) {
+  const job = clientPrimaryJob(project.id);
+  if (!job || clientLadderIndex(job) < 0) return getJobProgress(project).percent;
+  return Math.round(((clientLadderIndex(job) + 1) / CLIENT_LADDER.length) * 100);
+}
+
+function clientStatusLine(stageKey) {
+  return liveRows(state.backend.customerStatusLines).find((row) => row.stageKey === stageKey)?.line || "";
+}
+
+function clientCompletedAt(project) {
+  const jobIds = new Set(clientJobsForProject(project.id).map((job) => job.id));
+  const closedEvents = (state.backend.jobStatusEvents || []).filter((event) => jobIds.has(event.jobId) && event.toStatus === "closed" && event.occurredAt).map((event) => event.occurredAt).sort();
+  if (closedEvents.length) return closedEvents.at(-1);
+  if (project.closedAt) return project.closedAt;
+  return clientJobsForProject(project.id).map((job) => job.updatedAt || job.scheduledEnd || "").sort().at(-1) || project.updatedAt || "";
+}
+
+function clientVisitTime(value, endOfDay = false) {
+  if (!value) return NaN;
+  const text = String(value);
+  if (text.length <= 10) return Date.parse(`${text}T${endOfDay ? "23:59:59" : "00:00:00"}`);
+  return Date.parse(text);
+}
+
+function getClientVisits(projectId) {
+  const visits = [];
+  for (const job of clientJobsForProject(projectId)) {
+    const segments = liveRows(state.backend.jobScheduleSegments)
+      .filter((segment) => segment.jobId === job.id && !/cancel/i.test(segment.status || ""))
+      .sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0));
+    const base = { projectId, jobId: job.id, kind: "visit", leadName: clientLeadName(job), finished: clientLadderIndex(job) >= 4 };
+    if (segments.length) segments.forEach((segment) => visits.push({ ...base, id: segment.id, title: segment.name || job.jobName || "Site visit", start: segment.plannedStart, end: segment.plannedEnd }));
+    else if (job.scheduledStart) visits.push({ ...base, id: job.id, title: job.jobName || "Site visit", start: job.scheduledStart, end: job.scheduledEnd });
+  }
+  for (const event of getScheduleEvents().filter((item) => item.projectId === projectId)) {
+    const walk = event.kind === "site_walk";
+    visits.push({ id: event.id, projectId, jobId: "", kind: walk ? "walk" : "work", title: walk ? "Site walk" : event.title || "Site work", start: event.date, end: "", leadName: "", finished: /complete|cancel/i.test(event.status || "") });
+  }
+  return visits.filter((visit) => visit.start).sort((a, b) => clientVisitTime(a.start) - clientVisitTime(b.start));
+}
+
+function clientVisitIsUpcoming(visit) {
+  if (visit.finished) return false;
+  const edge = clientVisitTime(visit.end || visit.start, true);
+  return Number.isFinite(edge) && edge >= Date.now();
+}
+
+function getClientUpcomingVisits() {
+  return getClientVisibleJobs()
+    .filter((project) => clientProjectPhase(project) !== "previous")
+    .flatMap((project) => getClientVisits(project.id).filter(clientVisitIsUpcoming))
+    .sort((a, b) => clientVisitTime(a.start) - clientVisitTime(b.start));
+}
+
+function formatClientWindow(start, end) {
+  if (!start) return "";
+  if (String(start).length <= 10) return formatDate(start);
+  const first = new Date(start);
+  if (Number.isNaN(first.getTime())) return "";
+  const day = (date) => new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(date);
+  const time = (date) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date);
+  const last = end ? new Date(end) : null;
+  if (!last || Number.isNaN(last.getTime())) return `${day(first)}, ${time(first)}`;
+  if (day(first) === day(last)) return `${day(first)}, ${time(first)} - ${time(last)}`;
+  return `${day(first)} ${time(first)} - ${day(last)} ${time(last)}`;
+}
+
+// Photos and files BioRemedy chose to share, newest version of each, across the project, its dispatch
+// jobs and the sales opportunity it came from.
+function clientProjectDocuments(project) {
+  const sources = [["project", project.id], ...clientJobsForProject(project.id, { includeCancelled: true }).map((job) => ["dispatchJob", job.id])];
+  if (project.opportunityId) sources.push(["opportunity", project.opportunityId]);
+  const seen = new Set();
+  const found = [];
+  for (const [entityType, entityId] of sources) {
+    for (const document of latestDocumentsForEntity(entityType, entityId)) {
+      if (document.visibility !== "customer" || seen.has(document.id)) continue;
+      seen.add(document.id);
+      found.push(document);
+    }
+  }
+  return found.sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+}
+
+function clientStatusEvents(project) {
+  const jobIds = new Set(clientJobsForProject(project.id).map((job) => job.id));
+  return (state.backend.jobStatusEvents || [])
+    .filter((event) => jobIds.has(event.jobId) && event.occurredAt && CLIENT_STATUS_EVENT_WORDS[event.toStatus])
+    .map((event) => ({ kind: "Job status", title: CLIENT_STATUS_EVENT_WORDS[event.toStatus], timestamp: event.occurredAt, detail: "", meta: [] }));
+}
+
 function getClientChronology(job) {
-  return getProjectChronology(job)
-    .filter((event) => !["Material", "Equipment"].includes(event.kind))
-    .map((event) => {
-      if (event.kind !== "Alert") return event;
-      return {
-        ...event,
-        kind: "Project update",
-        meta: (event.meta || []).slice(0, 2),
-      };
-    });
+  // A whitelist, not a filter over the internal chronology: schedule, customer-safe updates, samples
+  // (without who collected them), the dispatch status steps in the customer's words, completed walks.
+  const events = [];
+  getScheduleEvents()
+    .filter((work) => work.projectId === job.id && work.kind !== "site_walk")
+    .forEach((work) => events.push({ kind: "Scheduled work", title: work.title || "Scheduled work", timestamp: work.date, detail: work.status || "Scheduled", meta: [] }));
+  // Mirrors the server's portalSafeAlert, so the admin "preview as" shows what a customer would.
+  const customerSafeAlerts = ["Customer Approval Needed", "Weather Delay", "Access Issue"];
+  alertsForJob(job.id).forEach((alert) => {
+    const safe = customerSafeAlerts.includes(alert.alertType);
+    events.push({ kind: "Project update", title: safe ? alert.alertType : "Work update", timestamp: alert.reportedAt, detail: safe ? alert.description || "" : "", meta: [], defaultOpen: alert.status !== "Resolved" });
+  });
+  samplesForJob(job.id).forEach((sample) =>
+    events.push({
+      kind: "Sample",
+      title: sample.sampleId || sample.sampleLocation,
+      timestamp: sample.collectionTime,
+      detail: `${sample.sampleType || "Sample"} collected. ${sample.labStatus || "No lab status"}`,
+      meta: [sample.labName, sample.labResults || sample.results].filter(Boolean),
+      defaultOpen: true,
+    }),
+  );
+  events.push(...clientStatusEvents(job));
+  (state.backend.siteWalkReports || [])
+    .filter((report) => report.opportunityId && report.opportunityId === job.opportunityId && report.completedAt)
+    .forEach((report) => events.push({ kind: "Site walk", title: "Site walk completed", timestamp: report.completedAt, detail: report.summary || "", meta: [] }));
+  return events.filter((event) => event.timestamp).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 }
 
 function getClientRecentEvents(limit = 6) {

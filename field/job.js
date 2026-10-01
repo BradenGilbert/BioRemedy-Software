@@ -8,7 +8,7 @@ import * as crm from "../app.js";
 import { registerFieldRoute, registerFieldAction, registerFieldForm, currentFieldEmployee } from "./index.js";
 import * as fieldPackage from "./package.js";
 import { renderSafetyTab, afterSafetyRender } from "./safety.js";
-import { renderWorkTab, afterCaptureRender } from "./capture.js";
+import { renderWorkTab, afterCaptureRender, photoShareToggle } from "./capture.js";
 import { withTimesheetForm } from "./forms.js";
 
 function currentJob() {
@@ -421,7 +421,7 @@ function renderBriefTab(job, project, account) {
       <div class="field-card-row"><strong>Documents</strong></div>
       ${[...projectDocuments, ...documents]
         .slice(0, 10)
-        .map((doc) => `<a class="field-icon-button" href="${crm.mediaViewUrl ? crm.mediaViewUrl(doc.id) : "#"}" target="_blank" rel="noopener">${crm.escapeHtml(doc.fileName || doc.documentTypeId || "Document")}</a>`)
+        .map((doc) => `<a class="field-icon-button" href="${crm.mediaViewUrl ? crm.mediaViewUrl(doc.id) : "#"}" target="_blank" rel="noopener">${crm.escapeHtml(doc.fileName || doc.documentTypeId || "Document")}</a>${photoShareToggle(doc)}`)
         .join("") || `<div class="empty-state compact">No documents on file.</div>`}
     </section>
 

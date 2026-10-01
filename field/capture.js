@@ -825,3 +825,25 @@ registerFieldForm("field-used-save", async (form) => {
     crm.showToast(error.message || "Could not log that.");
   }
 });
+
+// Pass 2 item A (2026-10-01): a photo is private until someone chooses to share it. Field uploads are
+// stored `internal`; this is the per-photo "Share with customer" switch. It flips documents.visibility
+// between internal and customer and nothing else -- the client portal reads only the customer ones.
+export function photoShareToggle(doc) {
+  if (!doc || !String(doc.mimeType || "").startsWith("image/")) return "";
+  const shared = doc.visibility === "customer";
+  return `<button class="mini-button field-photo-share${shared ? " is-shared" : ""}" type="button" data-field-action="photo-visibility" data-id="${crm.escapeAttribute(doc.id)}" aria-pressed="${shared ? "true" : "false"}">${shared ? "Shared with customer" : "Share with customer"}</button>`;
+}
+
+registerFieldAction("photo-visibility", async (button) => {
+  const doc = (crm.state.backend.documents || []).find((row) => row.id === button?.dataset?.id);
+  if (!doc) return;
+  const next = doc.visibility === "customer" ? "internal" : "customer";
+  try {
+    await fieldPackage.saveFieldRecord("documents", { ...doc, visibility: next }, { kind: "document-flag", label: next === "customer" ? "Share photo with customer" : "Stop sharing photo" });
+    crm.render();
+    crm.showToast(next === "customer" ? "Photo shared with the customer." : "Photo is internal again.");
+  } catch (error) {
+    crm.showToast(error.message || "Could not change who sees this photo.");
+  }
+});
